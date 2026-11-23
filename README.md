@@ -7,7 +7,7 @@ Eine Dungeon-Crawler-Engine für den C128 (VDC, 64 KB VRAM), die auf [VDC-BASIC]
 
 ## Stand
 
-Schritt 1b: Gerüst (Stub in Bank 0, Lib in Bank 1, Interruptweiche), `INIT`, `MAPINIT`, `SETPOS`, `SETCELL`, `WALLSET`, `SPRITESET`, `ITEMSET`, `VIEW` mit Wänden, Objekten (transparent per `VMS`) und Gegenständen. Braucht VDC-BASIC v2g mit VCL-Typ 12 und VMS-Listen mit 2 Byte Befehlszahl (Branch `fix/vcl-memconf`). Getestet mit Crawl 128 aus [dungeoncrawlerjam2025](https://github.com/The8BitTheory/dungeoncrawlerjam2025).
+Schritt 1b: Gerüst (Stub in Bank 0, Lib in Bank 1, Interruptweiche), `INIT`, `MAPINIT`, `SETPOS`, `SETCELL`, `WALLSET`, `SPRITESET`, `ITEMSET`, `VIEW` mit Wänden, Objekten (transparent per `VMS`) und Gegenständen. Braucht VDC-BASIC v2g mit VCL-Typ 12 und VMS-Listen mit 2 Byte Befehlszahl (Branch `v2g`, ab `ec049bd`). Getestet mit Crawl 128 aus [dungeoncrawlerjam2025](https://github.com/The8BitTheory/dungeoncrawlerjam2025).
 
 ## Bauen
 
