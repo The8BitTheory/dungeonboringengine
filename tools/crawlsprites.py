@@ -103,31 +103,21 @@ def vms_rows(w, h, px):
 
 
 def vms_pack(w, h, px):
-    """Bild in Zeilenblöcke teilen, deren VMS-Liste (Alpha 0) höchstens 256 Byte lang ist.
-    Ergebnis: [(erste Zeile, Zeilenzahl, Liste, gepackte Bytes), ...]"""
-    blocks, r0, cmds, packed, length = [], 0, [], bytearray(), 2
+    """VMS-Liste (Alpha 0, Anzahl als Wort) und gepackte Bytes für ein ganzes Bild."""
+    cmds, packed = [], bytearray()
     for r, (rc, rp) in enumerate(vms_rows(w, h, px)):
-        rl = sum(4 if k == 1 else 3 for k, _c, _n in rc)
-        if length + rl > 256 or len(cmds) + len(rc) > 255:
-            blocks.append((r0, r - r0, cmds, bytes(packed)))
-            r0, cmds, packed, length = r, [], bytearray(), 2
-        cmds += [(k, r - r0, c, n) for k, c, n in rc]
+        cmds += [(k, r, c, n) for k, c, n in rc]
         packed += rp
-        length += rl
-    blocks.append((r0, h - r0, cmds, bytes(packed)))
-    out = []
-    for r0, n, cmds, data in blocks:
-        lst = bytearray((0, len(cmds)))
-        for k, r, c, ln in cmds:
-            lst += struct.pack('<BH', k, r * ROW + c) + (bytes((ln,)) if k == 1 else b'')
-        out.append((r0, n, bytes(lst), data))
-    return out
+    lst = bytearray((0,)) + struct.pack('<H', len(cmds))
+    for k, r, c, ln in cmds:
+        lst += struct.pack('<BH', k, r * ROW + c) + (bytes((ln,)) if k == 1 else b'')
+    return bytes(lst), bytes(packed)
 
 
 def write_spr(path, load, parts, lists):
     """parts: (d, s, angle, flags, w, h, src, dest, col, list_index or None)"""
     head = b'SP' + bytes((1, len(parts), 0, 0))
-    ofs = len(head) + 14 * len(parts)
+    ofs = len(head) + 15 * len(parts)
     lofs = []
     for l in lists:
         lofs.append(ofs)
@@ -135,7 +125,7 @@ def write_spr(path, load, parts, lists):
     out = bytearray(head)
     for d, s, ang, flags, w, h, src, dest, col, li in parts:
         ll, lo = (len(lists[li]), lofs[li]) if li is not None else (0, 0)
-        out += struct.pack('<BbBBBBHHBBH', d, s, ang, flags, w, h, src, dest, col, ll, lo)
+        out += struct.pack('<BbBBBBHHBHH', d, s, ang, flags, w, h, src, dest, col, ll, lo)
     out += b''.join(lists)
     with open(path, 'wb') as f:
         f.write(struct.pack('<H', load) + out)
@@ -148,12 +138,12 @@ def main():
     parts, lists, packed = [], [], bytearray()
     for d, (fi, row, cols) in GHOST_POS.items():
         for ang, (w, h, px) in enumerate(files[fi]):
-            for r0, n, lst, data in vms_pack(w, h, px):
-                src = len(packed)
-                packed += data
-                lists.append(lst)
-                for s, col in cols.items():
-                    parts.append((d, s, ang, 1, w, n, src, (row + r0) * ROW + col, col - VIEW_COL0, len(lists) - 1))
+            lst, data = vms_pack(w, h, px)
+            src = len(packed)
+            packed += data
+            lists.append(lst)
+            for s, col in cols.items():
+                parts.append((d, s, ang, 1, w, h, src, row * ROW + col, col - VIEW_COL0, len(lists) - 1))
     with open(os.path.join(outdir, 'ghosts.vdc'), 'wb') as f:
         f.write(struct.pack('<H', 0x2000) + packed)
     n = write_spr(os.path.join(outdir, 'ghost.spr'), 0xE200, parts, lists)

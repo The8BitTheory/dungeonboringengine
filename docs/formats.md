@@ -99,7 +99,7 @@ Die Einträge stehen von vorne nach hinten: Tiefe aufsteigend, je Tiefe erst Fro
 | 3 | Anzahl Teile |
 | 4–5 | reserviert (0) |
 
-### Teil (14 Byte)
+### Teil (15 Byte)
 
 | Offset | Inhalt |
 |---|---|
@@ -112,10 +112,10 @@ Die Einträge stehen von vorne nach hinten: Tiefe aufsteigend, je Tiefe erst Fro
 | 6–7 | Quelle (relativ zur VRAM-Adresse aus `SPRITESET`) |
 | 8–9 | Ziel (relativ zu `AP`) |
 | 10 | erste Spalte im Sichtfenster (für die Abdeckung) |
-| 11 | Länge der VMS-Liste (0 bei `VMC`) |
-| 12–13 | Offset der VMS-Liste (relativ zum Anfang der Metadaten) |
+| 11–12 | Länge der VMS-Liste in Byte (0 bei `VMC`) |
+| 13–14 | Offset der VMS-Liste (relativ zum Anfang der Metadaten) |
 
-Danach folgen die VMS-Listen im Format von VDC-BASIC: Alpha-Wert, Anzahl Befehle, dann Befehle (`1` Offset-Wort Länge = Lauf kopieren, `8` Offset-Wort = ein Byte mit einem transparenten Pixel überblenden). Bei `VMS` liegt die Quelle gepackt vor, also nur die Bytes, die die Liste schreibt. Eine Liste ist höchstens 256 Byte lang; größere Bilder bestehen aus mehreren Teilen (Zeilenblöcken).
+Danach folgen die VMS-Listen im Format von VDC-BASIC: Alpha-Wert (Byte), Anzahl Befehle (Wort), dann Befehle (`1` Offset-Wort Länge = Lauf kopieren, `8` Offset-Wort = ein Byte mit einem transparenten Pixel überblenden). Bei `VMS` liegt die Quelle gepackt vor, also nur die Bytes, die die Liste schreibt. Listen dürfen länger als 256 Byte sein; `VIEW` kopiert sie je Bild in den 512-Byte-Puffer bei `$0E00`.
 
 Ein Objekt in Zelle (d, s) mit Blickwinkel a zeichnet alle Teile seines Satzes mit gleichem d und s und Blickwinkel a oder `$FF`. Der Blickwinkel ist `(2 + Spieler-Richtung − Objekt-Richtung) AND 3` (entspricht `GV%()` in Crawl). Gegenstände in der Karte nutzen Blickwinkel `$FF`.
 

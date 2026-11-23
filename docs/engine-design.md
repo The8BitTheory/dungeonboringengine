@@ -93,9 +93,9 @@ Der Rest eines Schritts (1,3 Mio. Zyklen) ist BASIC: Gegner-KI, HUD, Münzen und
 
 | Größe | Wert |
 |---|---|
-| Lib-Code (zusätzlich `SPRITESET`, `ITEMSET`, `SETCELL`, Objekte, VMS-Listen) | 1805 Byte |
-| Lib-Variablen | 341 Byte |
-| Sprite-Metadaten Crawl | Geister 1910 Byte (30 Teile, 10 VMS-Listen), Edelstein 174 Byte |
+| Lib-Code (zusätzlich `SPRITESET`, `ITEMSET`, `SETCELL`, Objekte, VMS-Listen) | 1834 Byte |
+| Lib-Variablen | 342 Byte |
+| Sprite-Metadaten Crawl | Geister 1854 Byte (24 Teile, 8 VMS-Listen mit 111–265 Byte), Edelstein 186 Byte |
 | Geisterbilder im VRAM | 1882 Byte gepackt statt 2338 Byte `RED.VDC` + `RED1.VDC` |
 | `VIEW` ohne Objekte im Bild | 10813–14191 Zyklen (Objektplätze kosten etwa 3500 Zyklen) |
 | 10 Szenen mit Geist im Bild, ganzer Schritt | Original 2,14 Mio. Zyklen, DBE 1,07 Mio. (−50 %) |
@@ -195,7 +195,7 @@ Mit 11 Byte je VMC-Eintrag passen 23 Einträge in 256 Byte. Für D = 3 genügt d
 
 | Nr | Änderung | Grund |
 |---|---|---|
-| V1 ✓ | VCL-Typ 12 für `VMS` (transparente Sprites) | Gegner und Gegenstände in derselben Liste wie Wände (Branch `fix/vcl-memconf`) |
+| V1 ✓ | VCL-Typ 12 für `VMS` (transparente Sprites); VMS-Listen mit 2 Byte Befehlszahl und mehr als 256 Byte Länge | Gegner und Gegenstände in derselben Liste wie Wände (Branch `fix/vcl-memconf`) |
 | V2 | VCL mit 16-Bit-Offset oder Verkettung (Typ „weiter bei Adresse“) | mehr als 23 Einträge bei größerer Sichttiefe |
 | V3 | Tokendatei, Doku zu `VCL`/`VMS`/`VMB` | Typen 8–12 im Kommentar sind nicht implementiert; Doku sollte den echten Stand zeigen |
 

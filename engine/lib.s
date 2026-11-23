@@ -28,7 +28,7 @@ NITEMS   = 64
 WS_HEAD  = 10
 WS_ENT   = 10
 SP_HEAD  = 6
-SP_ENT   = 14
+SP_ENT   = 15
 COLS     = 128          ; Spalten-Abdeckung (Zeilenbreite <= 128 Byte)
 F_COVER  = $01          ; Wandeintrag deckt seine Spalten ab
 F_SLOT   = $80          ; Wandeintrag ist ein Objektplatz
@@ -816,14 +816,18 @@ emit_sprite:
         bne     @vms
         jmp     emit_vmc
 
-@vms:   ldy     #11             ; Listenlänge
+@vms:   ldy     #11             ; Listenlänge (Wort)
         lda     (ZP0),y
         sta     llen
+        iny
+        lda     (ZP0),y
+        sta     llen+1
         clc                     ; passt die Liste noch in SPRBUF?
+        lda     llen
         adc     sbuf
         sta     t_end
-        lda     sbuf+1
-        adc     #0
+        lda     llen+1
+        adc     sbuf+1
         sta     t_end+1
         cmp     #>SPRBUF_LEN
         bcc     @fits
@@ -835,7 +839,7 @@ emit_sprite:
 @nofit: lda     #E_TOOMANY
         sta     verr
         rts
-@fits:  ldy     #12             ; Listenquelle = Satzadresse + Listenoffset
+@fits:  ldy     #13             ; Listenquelle = Satzadresse + Listenoffset
         ldx     sx
         clc
         lda     (ZP0),y
@@ -845,21 +849,34 @@ emit_sprite:
         lda     (ZP0),y
         adc     setaddr+1,x
         sta     ZP1+1
-        clc                     ; Ziel der Kopie = SPRBUF + sbuf
+        clc                     ; Ziel der Kopie = SPRBUF + sbuf (ZP0 wird ab hier nicht mehr gebraucht)
         lda     #<SPRBUF
         adc     sbuf
         sta     t_lst
-        sta     @dst+1
+        sta     ZP0
         lda     #>SPRBUF
         adc     sbuf+1
         sta     t_lst+1
-        sta     @dst+2
-        ldy     #0
-@cp:    lda     (ZP1),y
-@dst:   sta     $FFFF,y         ; selbstmodifizierend
+        sta     ZP0+1
+        ldy     #0              ; llen Byte kopieren (16 Bit)
+        ldx     llen+1
+        beq     @rest
+@page:  lda     (ZP1),y
+        sta     (ZP0),y
         iny
-        cpy     llen
+        bne     @page
+        inc     ZP1+1
+        inc     ZP0+1
+        dex
+        bne     @page
+@rest:  ldx     llen
+        beq     @cpd
+@cp:    lda     (ZP1),y
+        sta     (ZP0),y
+        iny
+        dex
         bne     @cp
+@cpd:
         lda     t_end
         sta     sbuf
         lda     t_end+1
@@ -931,7 +948,7 @@ oang:      .res 1
 nobj:      .res 1
 pcnt:      .res 1
 sx:        .res 1
-llen:      .res 1
+llen:      .res 2
 sbuf:      .res 2
 t_src:     .res 2
 t_dst:     .res 2
