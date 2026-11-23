@@ -40,11 +40,12 @@ Die DCL zeichnet nicht selbst, sondern erzeugt eine VCL-Liste. BASIC führt sie 
 |---|---|---|
 | `$0B00–$0BFF` | 0 | VCL-Puffer (256 Byte = heutige Grenze von `VCL`) |
 | `$0C00–$0C3F` | 0 | DCL-Parameterblock (Abschnitt 4) |
-| `$0C40–$0DFF` | 0 | Reserve (RS-232-Puffer, ungenutzt) |
+| `$0C40–$0CFF` | 0 | Reserve |
+| `$0D00–$0D83` | 0 | Stub (`SYS 3328` Init, `SYS 3331,F,X,Y` Aufruf), Rest bis `$0DFF` Reserve |
 | `$1300–$1BFF` | 0 | VDC-BASIC v2g |
 | `$FF05–$FFFF` | 1 | Kopie der Kernal-Interruptweiche (nur falls die Lib in Bank 1 liegt) |
 
-Zeropage: nur `$FA–$FF`. VDC-BASIC nutzt `$83–$8E`, Blitz! braucht `$3D/$3E`, `$05–$08` ist die SYS-Registerübergabe.
+Zeropage: nur `$FA–$FF` (belegt sind bisher `$FA–$FD`). VDC-BASIC nutzt `$83–$8E`, Blitz! braucht `$3D/$3E`, `$05–$08` ist die SYS-Registerübergabe.
 
 ### 3.2 Ort der Lib – Kandidaten
 
@@ -65,7 +66,38 @@ Entschieden wird nach Schritt 1 anhand dieser Messwerte:
 
 ### 3.3 Bankwechsel (falls Bank 1)
 
-Wie c128-vdc-gui: Für jeden Aufruf schaltet die DCL 8 KB gemeinsames RAM ein (`$D506` unten, `$0000–$1FFF`) und `$FF00=$7E` (RAM 1, I/O). VCL-Puffer und Parameterblock liegen dann physisch in Bank 0, wo `VCL` sie erwartet, und sind aus Bank 1 sichtbar. Beim Rücksprung stellt die DCL `$D506` und `$FF00` wieder her. Interrupts laufen über die Weiche bei `$FF05` in Bank 1 weiter.
+Wie c128-vdc-gui: Für jeden Aufruf schaltet der Stub gemeinsames RAM ein (`$D506` unten; umgesetzt sind 4 KB, `$0000–$0FFF`) und `$FF00=$7E` (RAM 1, I/O). VCL-Puffer und Parameterblock liegen dann physisch in Bank 0, wo `VCL` sie erwartet, und sind aus Bank 1 sichtbar. Beim Rücksprung stellt die DCL `$D506` und `$FF00` wieder her. Interrupts laufen über die Weiche bei `$FF05` in Bank 1 weiter.
+
+### 3.4 Messwerte aus Schritt 1
+
+Gemessen mit `crawl.bas` (Karte 20 × 11, Wandsatz mit Sichttiefe 3, 19 Bilder). Die Bildschirmausgabe ist in allen 19 Testbildern pixelgleich mit dem Original.
+
+| Größe | Wert | Quelle |
+|---|---|---|
+| Lib-Code (`INFO`, `MAPINIT`, `SETPOS`, `WALLSET`, `VIEW`) | 944 Byte | `build/lib.map` |
+| Lib-Variablen | 220 Byte (Spaltenabdeckung 128, Sichtliste 44, Rest 48) | `build/lib.map` |
+| Stub (Bank 0) | 132 Byte | `build/stub.map` |
+| Wandsatz-Metadaten | 10 + 10 je Eintrag; Crawl: 200 Byte | `tools/wallconv.py` |
+| Karte | Breite × Höhe; Crawl: 220 Byte | – |
+| VCL-Liste je Bild | 19–96 Byte, Mittel 57 (1–8 Wandeinträge) | sim65, alle 400 Ansichten |
+| `VIEW` | 7613–10864 Zyklen, Mittel 9557 | sim65, alle 400 Ansichten |
+| Renderphase (Zeilen 4600 ff.), 18 Tasten, 13 neu gezeichnete Bilder plus Startbild | Original 981 Jiffies, DBE 149 Jiffies (etwa 6,6-mal schneller) | VICE, `TI` |
+| Ganzer Schritt mit Bewegung oder Drehung | Original 2,18 Mio. Zyklen, DBE 1,32 Mio. (−39 %) | VICE, Stoppuhr |
+
+Der Rest eines Schritts (1,3 Mio. Zyklen) ist BASIC: Gegner-KI, HUD, Münzen und Geister. Davon wandern Münzen und Geister in Schritt 5 und die KI in Schritt 6 in die Lib.
+
+**Hochrechnung für den Ausbau** (Schätzung, nicht gemessen):
+
+| Teil | Code | Daten |
+|---|---|---|
+| heute (Schritt 1) | 0,9 KB | 0,2 KB |
+| `MOVE`, `CELL`, `SETCELL`, Automap | +0,5 KB | – |
+| Sprite-Sätze, Objekte in `VIEW` | +0,6 KB | Sprite-Metadaten je Satz etwa 10 Byte × Winkel × Tiefen |
+| `ENEMYSTEP` | +0,3 KB | Gegnerliste |
+| Kartenformat mit Kacheltabelle | +0,3 KB | 256 Byte Kacheltabelle |
+| **Summe** | **etwa 2,6 KB** | **etwa 0,7 KB plus Assets** |
+
+**Vorschlag:** `$C000–$CFFF` (4 KB) für Code und Variablen der Lib reservieren. Assets und Karten liegen in Bank 1 außerhalb dieses Bereichs: `$8000–$BFFF` für Karten, `$E000–$FEFF` (mit `$FF00=$7E` als RAM sichtbar) für Wandsatz- und Sprite-Metadaten.
 
 ## 4. Aufrufschnittstelle
 
@@ -160,7 +192,7 @@ Alles andere aus `crawl.bas` (HUD-Texte, Rahmen, Titelbild, Automap-Ausschnitt, 
 
 | Schritt | Inhalt | Prüfung |
 |---|---|---|
-| 1 | Gerüst und Messung: Sprungtabelle, Bankwechsel und Interruptweiche, `INFO`, Parameterblock; Wandsatz-Konverter (Python, aus `WALLS.VDC`), `WALLSET`; `VIEW` nur Wände auf dem heutigen Kartenformat; Build mit ca65 | VICE: `SYS` aus BASIC interpretiert, Interrupts laufen während der Lib; VCL-Liste gegen die heutige `RQ%`-Reihenfolge; Messwerte aus 3.2 |
+| 1 ✓ | Gerüst und Messung: Sprungtabelle, Bankwechsel und Interruptweiche, `INFO`, Parameterblock; Wandsatz-Konverter (Python, aus `WALLS.VDC`), `WALLSET`; `VIEW` nur Wände auf dem heutigen Kartenformat; Build mit ca65 | erledigt: `crawl.bas` interpretiert in VICE mit `VIEW` statt der BASIC-Sichtberechnung, 19 Testbilder pixelgleich mit dem Original (Bildvergleich statt Listenvergleich); Interrupts während der Lib nur indirekt geprüft (keine Abstürze bei rund 10 000 Zyklen je Aufruf und 60-Hz-IRQ); Messwerte in 3.4 |
 | 2 | Entscheidung Ort der Lib anhand der Messwerte, Lib dorthin legen | Messwerte und Entscheidung in diesem Dokument |
 | 3 | Kartenformat festlegen (eigener Entwurf) | Abstimmung |
 | 4 | `MAPINIT`, `SETPOS`, `CELL`, `MOVE`; `crawl.bas` auf `VIEW` und `MOVE` umstellen | Spieltest wie bisher (W/E/M), Bildvergleich per Screenshot, Zeit pro Schritt (`TI`) |

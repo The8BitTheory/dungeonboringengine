@@ -1,0 +1,75 @@
+; dungeonboringengine – Stub in Bank 0 ($0D00, gemeinsames RAM)
+;
+; SYS 3328          : init – Kernal-Interruptweiche nach Bank 1 kopieren, Lib initialisieren (= Funktion 0)
+; SYS 3331,F,X,Y    : Lib-Funktion F aufrufen, Ergebnis per RREG A,X,Y
+;
+; Der Stub schaltet für die Dauer des Aufrufs das untere 4-KB-RAM gemeinsam ($D506)
+; und $FF00 auf Bank 1 mit I/O ($7E). VCL-Puffer ($0B00), Parameterblock ($0C00)
+; und Stub bleiben dabei sichtbar. Interrupts laufen über die Kopie der Kernal-Weiche
+; in Bank 1 ($FF05-$FFFF) weiter.
+
+        .include "dbe.inc"
+
+        .segment "LOADADDR"
+        .word   STUB
+
+        .segment "CODE"
+        jmp     init
+        jmp     call
+
+init:   lda     #CR_BANK0       ; ROM sichtbar, I/O an
+        sta     MMUCR
+        lda     #<$FF00         ; Kernal $FF05-$FFFF -> Bank 1 (wie c128-vdc-gui)
+        sta     ZP0
+        lda     #>$FF00
+        sta     ZP0+1
+        lda     #ZP0
+        sta     STAVEC
+        ldy     #5
+@rom:   lda     $FF00,y
+        ldx     #1
+        jsr     STASH
+        iny
+        bne     @rom
+        lda     #0              ; Funktion 0 (INFO) liefert Version und Größen
+        tax
+        tay
+        ; weiter in call
+
+call:   sta     sv_a
+        stx     sv_x
+        sty     sv_y
+        lda     MMUCR
+        sta     sv_cr
+        lda     #CR_BANK0       ; I/O an (BANK 0 von BASIC hat kein I/O)
+        sta     MMUCR
+        lda     MMU_RCR
+        sta     sv_rcr
+        and     #$F0
+        ora     #RCR_LIB
+        sta     MMU_RCR         ; erst gemeinsames RAM, dann Bank wechseln
+        lda     #CR_LIB
+        sta     MMUCR
+        lda     sv_a
+        ldx     sv_x
+        ldy     sv_y
+        jsr     LIB
+        sta     sv_a
+        stx     sv_x
+        sty     sv_y
+        lda     #CR_BANK0       ; erst zurück nach Bank 0, dann gemeinsames RAM verkleinern
+        sta     MMUCR
+        lda     sv_rcr
+        sta     MMU_RCR
+        lda     sv_cr
+        sta     MMUCR
+        lda     sv_a
+        ldx     sv_x
+        ldy     sv_y
+        rts
+
+sv_a:   .byte   0
+sv_x:   .byte   0
+sv_y:   .byte   0
+sv_cr:  .byte   0
+sv_rcr: .byte   0
