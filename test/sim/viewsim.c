@@ -18,6 +18,7 @@ int main(int argc, char **argv)
     unsigned char mode = atoi(argv[3]);
     unsigned char r;
     (void)argc;
+    dbe_call(0, 0);
     P(0) = (unsigned)mapdata; P(1) = map_w; P(2) = map_h;
     dbe_call(1, 0);
     P(0) = (unsigned)wsmdata; P(1) = 0;

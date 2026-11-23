@@ -1,6 +1,6 @@
 ; dungeonboringengine – gemeinsame Konstanten für Stub (Bank 0) und Lib (Bank 1)
 
-DBE_VERSION = 1
+DBE_VERSION = 2
 
 ; Bank 0, im gemeinsamen RAM (unten 4 KB während eines Aufrufs)
 VCLBUF   = $0B00        ; VCL-Liste, die VIEW schreibt (max. 256 Byte)
@@ -9,6 +9,10 @@ P0       = PARM+0       ; Wort
 P1       = PARM+2       ; Wort
 P2       = PARM+4       ; Wort
 P3       = PARM+6       ; Wort
+OBJN     = PARM+$10     ; Objektliste: Anzahl
+OBJL     = PARM+$11     ; je 4 Byte: Position (W), Satz, Blickrichtung (max. 8)
+SPRBUF   = $0E00        ; VMS-Listen, die VIEW schreibt
+SPRBUF_LEN = $0200
 STUB     = $0D00        ; Stub: $0D00 JMP init, $0D03 JMP call
 
 ; Bank 1

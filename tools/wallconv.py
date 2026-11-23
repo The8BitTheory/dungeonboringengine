@@ -9,13 +9,14 @@ Sichtgitter (Tiefe d, Seite s, Fläche) steht in SLOTS unten.
 Ausgabe (docs/formats.md, Wandsatz-Metadaten v1), als PRG mit Ladeadresse:
   Kopf 10 Byte: "W","S",1, Anzahl, Clear-Offset (W), Clear-Länge (W), Clear-Wert, Zeilenbreite
   Eintrag 10 Byte: d, s, Flags, Breite, Höhe, Quelle (W), Ziel (W), Spalte
-Reihenfolge: von vorne nach hinten (d aufsteigend, je Tiefe erst Fronten, dann Seiten).
+Reihenfolge: von vorne nach hinten (d aufsteigend, je Tiefe erst Fronten, dann Objektplätze, dann Seiten).
+Objektplätze haben Flag $80 und sonst keine Daten.
 """
 import argparse
 import struct
 import sys
 
-FRONT, SIDE = 0, 1
+FRONT, SLOT, SIDE = 0, 1, 2     # Reihenfolge je Tiefe: Fronten, Objektplätze, Seiten
 
 # Slot (1..19) -> (d, s, Fläche); abgeleitet aus V%() in crawl.bas, Zeilen 90-95
 SLOTS = {
@@ -50,6 +51,9 @@ def convert(data):
         d, s, face = SLOTS[slot]
         flags = 1 if h == full else 0       # nur volle Höhe deckt Spalten ab
         ents.append(((d, face, slot), d, s, flags, w, h, src, DEST_BASE + col, col))
+    # Objektplätze: jede Zelle mit d >= 1 aus dem Sichtgitter; VIEW setzt dort Objekte und Gegenstände ein
+    for d, s in sorted({(d, s) for d, s, _f in SLOTS.values() if d >= 1}):
+        ents.append(((d, SLOT, 0), d, s, 0x80, 0, 0, 0, 0, 0))
     ents.sort(key=lambda e: e[0])
     if len(ents) > MAXENT:
         sys.exit(f"zu viele Einträge: {len(ents)} > {MAXENT}")
@@ -64,7 +68,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("walls_vdc")
     ap.add_argument("out_wsm")
-    ap.add_argument("--load", type=lambda x: int(x, 0), default=0xB000, help="Ladeadresse (Bank 1)")
+    ap.add_argument("--load", type=lambda x: int(x, 0), default=0xE000, help="Ladeadresse (Bank 1)")
     ap.add_argument("-v", action="store_true", help="Einträge ausgeben")
     a = ap.parse_args()
     data = open(a.walls_vdc, "rb").read()

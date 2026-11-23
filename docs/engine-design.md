@@ -40,8 +40,11 @@ Die DCL zeichnet nicht selbst, sondern erzeugt eine VCL-Liste. BASIC führt sie 
 |---|---|---|
 | `$0B00–$0BFF` | 0 | VCL-Puffer (256 Byte = heutige Grenze von `VCL`) |
 | `$0C00–$0C3F` | 0 | DCL-Parameterblock (Abschnitt 4) |
-| `$0C40–$0CFF` | 0 | Reserve |
+| `$0C10–$0C30` | 0 | Objektliste (Anzahl, je 4 Byte Position, Satz, Richtung) |
+| `$0C40–$0C4F` | 0 | nur Tests: Zeitmessung (`$0C40`), Szenen-Testhilfe (`$0C44`) |
+| `$0C50–$0CFF` | 0 | Reserve |
 | `$0D00–$0D83` | 0 | Stub (`SYS 3328` Init, `SYS 3331,F,X,Y` Aufruf), Rest bis `$0DFF` Reserve |
+| `$0E00–$0FFF` | 0 | VMS-Listen, die `VIEW` je Bild schreibt (512 Byte) |
 | `$1300–$1BFF` | 0 | VDC-BASIC v2g |
 | `$FF05–$FFFF` | 1 | Kopie der Kernal-Interruptweiche (nur falls die Lib in Bank 1 liegt) |
 
@@ -84,18 +87,28 @@ Gemessen mit `crawl.bas` (Karte 20 × 11, Wandsatz mit Sichttiefe 3, 19 Bilder).
 | Renderphase (Zeilen 4600 ff.), 18 Tasten, 13 neu gezeichnete Bilder plus Startbild | Original 981 Jiffies, DBE 149 Jiffies (etwa 6,6-mal schneller) | VICE, `TI` |
 | Ganzer Schritt mit Bewegung oder Drehung | Original 2,18 Mio. Zyklen, DBE 1,32 Mio. (−39 %) | VICE, Stoppuhr |
 
-Der Rest eines Schritts (1,3 Mio. Zyklen) ist BASIC: Gegner-KI, HUD, Münzen und Geister. Davon wandern Münzen und Geister in Schritt 5 und die KI in Schritt 6 in die Lib.
+Der Rest eines Schritts (1,3 Mio. Zyklen) ist BASIC: Gegner-KI, HUD, Münzen und Geister. Münzen und Geister zeichnet seit Schritt 1b die Lib; die KI folgt in Schritt 6.
+
+**Nach Schritt 1b (Objekte in `VIEW`):**
+
+| Größe | Wert |
+|---|---|
+| Lib-Code (zusätzlich `SPRITESET`, `ITEMSET`, `SETCELL`, Objekte, VMS-Listen) | 1805 Byte |
+| Lib-Variablen | 341 Byte |
+| Sprite-Metadaten Crawl | Geister 1910 Byte (30 Teile, 10 VMS-Listen), Edelstein 174 Byte |
+| Geisterbilder im VRAM | 1882 Byte gepackt statt 2338 Byte `RED.VDC` + `RED1.VDC` |
+| `VIEW` ohne Objekte im Bild | 10813–14191 Zyklen (Objektplätze kosten etwa 3500 Zyklen) |
+| 10 Szenen mit Geist im Bild, ganzer Schritt | Original 2,14 Mio. Zyklen, DBE 1,07 Mio. (−50 %) |
 
 **Hochrechnung für den Ausbau** (Schätzung, nicht gemessen):
 
 | Teil | Code | Daten |
 |---|---|---|
-| heute (Schritt 1) | 0,9 KB | 0,2 KB |
-| `MOVE`, `CELL`, `SETCELL`, Automap | +0,5 KB | – |
-| Sprite-Sätze, Objekte in `VIEW` | +0,6 KB | Sprite-Metadaten je Satz etwa 10 Byte × Winkel × Tiefen |
+| heute (Schritt 1b) | 1,8 KB | 0,3 KB |
+| `MOVE`, `CELL`, Automap | +0,4 KB | – |
 | `ENEMYSTEP` | +0,3 KB | Gegnerliste |
 | Kartenformat mit Kacheltabelle | +0,3 KB | 256 Byte Kacheltabelle |
-| **Summe** | **etwa 2,6 KB** | **etwa 0,7 KB plus Assets** |
+| **Summe** | **etwa 2,8 KB** | **etwa 0,6 KB plus Assets** |
 
 **Vorschlag:** `$C000–$CFFF` (4 KB) für Code und Variablen der Lib reservieren. Assets und Karten liegen in Bank 1 außerhalb dieses Bereichs: `$8000–$BFFF` für Karten, `$E000–$FEFF` (mit `$FF00=$7E` als RAM sichtbar) für Wandsatz- und Sprite-Metadaten.
 
@@ -182,7 +195,7 @@ Mit 11 Byte je VMC-Eintrag passen 23 Einträge in 256 Byte. Für D = 3 genügt d
 
 | Nr | Änderung | Grund |
 |---|---|---|
-| V1 | VCL-Typ für `VMS` (transparente Sprites) | Gegner und Gegenstände in derselben Liste wie Wände |
+| V1 ✓ | VCL-Typ 12 für `VMS` (transparente Sprites) | Gegner und Gegenstände in derselben Liste wie Wände (Branch `fix/vcl-memconf`) |
 | V2 | VCL mit 16-Bit-Offset oder Verkettung (Typ „weiter bei Adresse“) | mehr als 23 Einträge bei größerer Sichttiefe |
 | V3 | Tokendatei, Doku zu `VCL`/`VMS`/`VMB` | Typen 8–12 im Kommentar sind nicht implementiert; Doku sollte den echten Stand zeigen |
 
@@ -193,10 +206,10 @@ Alles andere aus `crawl.bas` (HUD-Texte, Rahmen, Titelbild, Automap-Ausschnitt, 
 | Schritt | Inhalt | Prüfung |
 |---|---|---|
 | 1 ✓ | Gerüst und Messung: Sprungtabelle, Bankwechsel und Interruptweiche, `INFO`, Parameterblock; Wandsatz-Konverter (Python, aus `WALLS.VDC`), `WALLSET`; `VIEW` nur Wände auf dem heutigen Kartenformat; Build mit ca65 | erledigt: `crawl.bas` interpretiert in VICE mit `VIEW` statt der BASIC-Sichtberechnung, 19 Testbilder pixelgleich mit dem Original (Bildvergleich statt Listenvergleich); Interrupts während der Lib nur indirekt geprüft (keine Abstürze bei rund 10 000 Zyklen je Aufruf und 60-Hz-IRQ); Messwerte in 3.4 |
+| 1b ✓ | Objekte in `VIEW`: Geister (transparent per `VMS`) und Edelsteine an der richtigen Tiefe; VCL-Typ 12 (`VMS`) in VDC-BASIC; `SPRITESET`, `ITEMSET`, `SETCELL`, Arbeitskopie der Karte in `MAPINIT` | erledigt: Crawl-Testlauf pixelgleich bis auf die transparenten Geisterecken; 10 gestellte Szenen (Geist seitlich, mittig, teilweise verdeckt) |
 | 2 | Entscheidung Ort der Lib anhand der Messwerte, Lib dorthin legen | Messwerte und Entscheidung in diesem Dokument |
 | 3 | Kartenformat festlegen (eigener Entwurf) | Abstimmung |
 | 4 | `MAPINIT`, `SETPOS`, `CELL`, `MOVE`; `crawl.bas` auf `VIEW` und `MOVE` umstellen | Spieltest wie bisher (W/E/M), Bildvergleich per Screenshot, Zeit pro Schritt (`TI`) |
-| 5 | V1 in VDC-BASIC, `SPRITESET`, Objekte in `VIEW` | Geister und Münzen wie im Original |
 | 6 | `ENEMYSTEP`, Automap über `SETCELL` | Spielverhalten gleich, Geschwindigkeit messen |
 | 7 | Verallgemeinern: D = 4, zweiter Wandsatz, zweite Karte, V2 | Demo-Karte mit größerer Sicht |
 | 8 | Blitz!-Kompilat | in VICE und auf echter Hardware |
