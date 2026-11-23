@@ -1,6 +1,17 @@
 # Dungeon-Crawler-Engine für den C128 – Entwurf
 
-Stand: 2026-11-20, Entwurf zur Abstimmung. Ausgangspunkt ist `game/crawl.bas` (Crawl 128) mit VDC-BASIC v2g.
+Stand: 2026-11-23, Entwurf zur Abstimmung. Ausgangspunkt ist `game/crawl.bas` aus [dungeoncrawlerjam2025](https://github.com/The8BitTheory/dungeoncrawlerjam2025) (Crawl 128) mit VDC-BASIC v2g. Die Engine entsteht in diesem Repo.
+
+### Entscheidungen (2026-11-23)
+
+| Thema | Entscheidung |
+|---|---|
+| Repo | `dungeonboringengine` ist das eigene Repo der Engine. Änderungen laufen über Branch und Pull Request. |
+| Zeichnen | Die Engine baut auf VDC-BASIC auf und zeichnet über `VCL`. Fehlt etwas, wird `VCL` erweitert; eine eigene VDC-Routine in der Lib gibt es nicht. |
+| Ort der Lib | Wird anhand gemessener Größen entschieden (Schritt 1, Abschnitt 3.2). |
+| Interrupts in Bank 1 | Die Lib kopiert die Kernal-Interruptweiche nach Bank 1 `$FF05–$FFFF` (wie c128-vdc-gui). Interrupts bleiben an, kein `SEI`. |
+| Kartenformat | Eigener Schritt, Abschnitt 5.1 ist nur Platzhalter. |
+| c128-vdc-gui | Wird im Spiel nicht verwendet, dient nur als Informationsquelle. |
 
 ## 1. Ziele und Randbedingungen
 
@@ -14,38 +25,56 @@ Stand: 2026-11-20, Entwurf zur Abstimmung. Ausgangspunkt ist `game/crawl.bas` (C
 | Schicht | Inhalt | Wo |
 |---|---|---|
 | Spiel (BASIC) | Regeln, Menüs, HUD (`VMP`), Sound, `BLOAD` der Assets, Kampf, Highscores | `crawl.bas` |
-| **DCL** – Dungeon-Crawler-Lib (neu, Assembler) | Karte, Sichtberechnung, Renderliste, Objekte/Gegner im Sichtfeld, Bewegung/Kollision, Gegner-KI, Automap | Bank 1, eigenes Repo-Verzeichnis `engine/` |
+| **DCL** – Dungeon-Crawler-Lib (neu, Assembler) | Karte, Sichtberechnung, Renderliste, Objekte/Gegner im Sichtfeld, Bewegung/Kollision, Gegner-KI, Automap | dieses Repo, `engine/`; Speicherort nach Messung (3.2) |
 | VDC-BASIC v2g | allgemeine VDC-Operationen: `VMC`, `VMF`, `VMS`, `VMP`, `RTV`, `VCL` (Befehlslisten) | `$1300–$1BFF`, Bank 0 |
 
 Regel für die Grenze: **Was nichts über Dungeons weiß, gehört in VDC-BASIC** (Kopieren, Füllen, transparente Sprites, Befehlslisten). **Was Karte, Blickrichtung oder Wandsätze kennt, gehört in die DCL.**
 
-Die DCL zeichnet im ersten Ausbau nicht selbst, sondern erzeugt eine VCL-Liste. BASIC führt sie mit `::VCL` aus. So bleibt aller VDC-Code an einer Stelle, und die DCL lässt sich ohne VDC testen (Liste vergleichen). Ein direkter Zeichenpfad in der DCL kann später folgen, falls VCL zu langsam ist (Abschnitt 9).
+Die DCL zeichnet nicht selbst, sondern erzeugt eine VCL-Liste. BASIC führt sie mit `::VCL` aus. So bleibt aller VDC-Code in VDC-BASIC, und die DCL lässt sich ohne VDC testen (Liste vergleichen). Reicht `VCL` nicht aus (Länge, Typen, Tempo), wird VDC-BASIC erweitert (Abschnitt 7).
 
 ## 3. Speicheraufteilung
 
+### 3.1 Feste Bereiche
+
 | Bereich | Bank | Inhalt |
 |---|---|---|
-| `$0B00–$0BFF` | 0 | VCL-Puffer (256 Byte = Grenze von `VCL`) |
+| `$0B00–$0BFF` | 0 | VCL-Puffer (256 Byte = heutige Grenze von `VCL`) |
 | `$0C00–$0C3F` | 0 | DCL-Parameterblock (Abschnitt 4) |
 | `$0C40–$0DFF` | 0 | Reserve (RS-232-Puffer, ungenutzt) |
 | `$1300–$1BFF` | 0 | VDC-BASIC v2g |
-| `$8000–$BFFF` | 1 | Karte(n), Kachel- und Objekttabellen (wie bisher `VE`, reserviert durch `POKE 58,128`) |
-| `$C000–$EFFF` | 1 | DCL-Code und Tabellen (12 KB, Sprungtabelle bei `$C000`) |
+| `$FF05–$FFFF` | 1 | Kopie der Kernal-Interruptweiche (nur falls die Lib in Bank 1 liegt) |
 
-Bank 1 bietet den meisten Platz und ist schon durch `POKE 58,128` vor BASIC-Variablen geschützt. `$1C00–$3FFF` scheidet aus, weil dort interpretiert das BASIC-Programm liegt.
+Zeropage: nur `$FA–$FF`. VDC-BASIC nutzt `$83–$8E`, Blitz! braucht `$3D/$3E`, `$05–$08` ist die SYS-Registerübergabe.
 
-**Zugriff auf Bank 0 aus Bank 1:** Die DCL schaltet für ihre Laufzeit den gemeinsamen RAM-Bereich auf die unteren 4 KB (`$D506`). Damit sind `$0B00` (VCL-Puffer) und `$0C00` (Parameterblock) aus Bank 1 heraus sichtbar und liegen physisch in Bank 0, wo `VCL` sie erwartet. Beim Rücksprung stellt die DCL `$D506` und `$FF00` wieder her.
+### 3.2 Ort der Lib – Kandidaten
 
-**Offener Punkt (in VICE prüfen):** Läuft die DCL mit `$FF00 = $7E` (RAM 1 + I/O, kein ROM), holt ein IRQ seinen Vektor aus RAM 1 bei `$FFFE`. Entweder liegt dort schon die Kernal-Weiche, oder die DCL arbeitet mit `SEI`. Die Sichtberechnung dauert nur wenige Millisekunden, `SEI` wäre also vertretbar.
+| Kandidat | Größe | interpretiert | kompiliert | Aufwand |
+|---|---|---|---|---|
+| A: Bank 1 ab `$8000` (durch `POKE 58,128` geschützt), geteilt mit Karten und Tabellen | bis 32 KB | ja | ja | Bankwechsel je Aufruf (`$D506` gemeinsames RAM, `$FF00=$7E`), Interruptweiche in Bank 1 |
+| B: Bank 0 `$0D40–$0FFF` | < 1 KB | ja | ja | keiner, aber nur für einen Stub oder sehr kleine Lib |
+| C: Bank 0 `$1C00–$3FFF` | 9 KB | nein (BASIC-Text) | ja (Blitz! Image 2) | scheidet aus, solange interpretiert entwickelt wird |
+| D: Bank 0 oben, Textende von BASIC abgesenkt (z. B. `$E000–$FEFF`) | bis 8 KB | ja | prüfen | kein Bankwechsel für den VCL-Puffer; läuft nur mit ausgeblendetem ROM; Verträglichkeit mit Blitz! offen |
+
+Entschieden wird nach Schritt 1 anhand dieser Messwerte:
+
+- Codegröße je Funktion (aus der ld65-Map)
+- Tabellen: Sichtversätze (4 Richtungen × Gitterzellen × 2 Byte), Wandsatz (Einträge × 8 Byte), Sprite-Sätze, Kacheltabelle
+- Kartengröße der vorgesehenen Karten
+- Länge der VCL-Liste je Sichttiefe (D = 3, 4, 5)
+- Laufzeit eines `VIEW`-Aufrufs und der anschließenden `VCL`-Ausführung (Rasterzeilen bzw. `TI`)
+
+### 3.3 Bankwechsel (falls Bank 1)
+
+Wie c128-vdc-gui: Für jeden Aufruf schaltet die DCL 8 KB gemeinsames RAM ein (`$D506` unten, `$0000–$1FFF`) und `$FF00=$7E` (RAM 1, I/O). VCL-Puffer und Parameterblock liegen dann physisch in Bank 0, wo `VCL` sie erwartet, und sind aus Bank 1 sichtbar. Beim Rücksprung stellt die DCL `$D506` und `$FF00` wieder her. Interrupts laufen über die Weiche bei `$FF05` in Bank 1 weiter.
 
 ## 4. Aufrufschnittstelle
 
 ```
-BANK 1:SYS 49152,F,X,Y     : REM F = Funktionsnummer, X/Y = kleine Parameter
+BANK 1:SYS 49152,F,X,Y     : REM F = Funktionsnummer, X/Y = kleine Parameter (Adresse/Bank je nach Ort, 3.2)
 RREG A,X,Y,S               : REM Ergebnis (Status, Werte)
 ```
 
-- Bei `$C000` liegt ein `JMP` auf den Dispatcher, der über den A-Wert verzweigt. So bleiben Einsprungadressen bei neuen Versionen gleich.
+- Am Anfang der Lib liegt ein `JMP` auf den Dispatcher, der über den A-Wert verzweigt. So bleiben Einsprungadressen bei neuen Versionen gleich.
 - Größere Parameter (Wörter, Adressen) stehen im Parameterblock `$0C00` in Bank 0 und werden mit `BANK 0:POKE` geschrieben. Ergebnisse, die nicht in A/X/Y passen, liegen ebenfalls dort.
 - Rückgabe in A: 0 = ok, sonst Fehlernummer.
 
@@ -80,11 +109,7 @@ Das ersetzt die Zeilen 4600–5900 (Sichtprüfung, `FN M`, `RL%`, `RQ%`, Münzen
 
 ### 5.1 Karte
 
-- Ein Byte pro Zelle, zeilenweise, Breite × Höhe ≤ 16 KB (Bank 1 `$8000–$BFFF`).
-- Der Zellwert ist ein **Kachelindex (0–63)** in eine Kacheltabelle, die oberen zwei Bits bleiben für Laufzeitmarken frei (z. B. „besucht“ für die Automap).
-- Kacheltabelle (4 Byte je Kachel): Flags (bit 0 versperrt Weg, bit 1 versperrt Sicht, bit 2 Ereignis), Wandstil (Index in den Wandsatz), Automap-Farbe, Ereignisnummer (für BASIC: Münze, Teleporter, Ausgang …).
-- Heutige Werte (1 Wand, 2 Münze, 6 Start, 8 Teleporter, 42 Ausgang) werden zu Einträgen dieser Tabelle. Startpunkte, Teleporter und Gegner stehen wie bisher in der Objektliste der Datei `CRAWL128.CD1`.
-- Mehrere Karten: Eine Kartendatei enthält Header (Breite, Höhe, Kacheltabelle, Objektliste, Name). `MAPINIT` lädt immer genau eine aktive Karte.
+Wird in einem eigenen Schritt festgelegt. Bis dahin nutzt die DCL das heutige Format aus `CRAWL128.CD1`: ein Byte pro Zelle, zeilenweise, Bit 0 = Wand. Anforderungen für den späteren Schritt: mehrere Karten, mehrere Wandstile je Karte, Zellen, die nur den Weg oder nur die Sicht versperren, Ereignisse für BASIC (Münze, Teleporter, Ausgang), Automap-Marken.
 
 ### 5.2 Wandsatz
 
@@ -135,19 +160,18 @@ Alles andere aus `crawl.bas` (HUD-Texte, Rahmen, Titelbild, Automap-Ausschnitt, 
 
 | Schritt | Inhalt | Prüfung |
 |---|---|---|
-| 1 | DCL-Gerüst: Sprungtabelle, Bank-/`$D506`-Umschaltung, `INFO`, Parameterblock; Build mit ca65 | VICE: `SYS` aus BASIC interpretiert, IRQ-Frage aus Abschnitt 3 klären |
-| 2 | `MAPINIT`, `SETPOS`, `CELL`, `MOVE` | Bewegung in `crawl.bas` umgestellt, Spieltest wie bisher (W/E/M) |
-| 3 | Wandsatz-Konverter (Python) und `WALLSET`; `VIEW` nur Wände | VCL-Liste gegen die heutige `RQ%`-Reihenfolge vergleichen; Bildvergleich per Screenshot; Zeit pro Schritt messen (`TI`) |
-| 4 | V1 in VDC-BASIC, `SPRITESET`, Objekte in `VIEW` | Geister und Münzen wie im Original |
-| 5 | `ENEMYSTEP`, Automap über `SETCELL` | Spielverhalten gleich, Geschwindigkeit messen |
-| 6 | Verallgemeinern: D = 4, zweiter Wandsatz, zweite Karte, V2 | Demo-Karte mit größerer Sicht |
-| 7 | Blitz!-Kompilat | auf echter Hardware oder in VICE testen |
+| 1 | Gerüst und Messung: Sprungtabelle, Bankwechsel und Interruptweiche, `INFO`, Parameterblock; Wandsatz-Konverter (Python, aus `WALLS.VDC`), `WALLSET`; `VIEW` nur Wände auf dem heutigen Kartenformat; Build mit ca65 | VICE: `SYS` aus BASIC interpretiert, Interrupts laufen während der Lib; VCL-Liste gegen die heutige `RQ%`-Reihenfolge; Messwerte aus 3.2 |
+| 2 | Entscheidung Ort der Lib anhand der Messwerte, Lib dorthin legen | Messwerte und Entscheidung in diesem Dokument |
+| 3 | Kartenformat festlegen (eigener Entwurf) | Abstimmung |
+| 4 | `MAPINIT`, `SETPOS`, `CELL`, `MOVE`; `crawl.bas` auf `VIEW` und `MOVE` umstellen | Spieltest wie bisher (W/E/M), Bildvergleich per Screenshot, Zeit pro Schritt (`TI`) |
+| 5 | V1 in VDC-BASIC, `SPRITESET`, Objekte in `VIEW` | Geister und Münzen wie im Original |
+| 6 | `ENEMYSTEP`, Automap über `SETCELL` | Spielverhalten gleich, Geschwindigkeit messen |
+| 7 | Verallgemeinern: D = 4, zweiter Wandsatz, zweite Karte, V2 | Demo-Karte mit größerer Sicht |
+| 8 | Blitz!-Kompilat | in VICE und auf echter Hardware |
 
-Ab Schritt 2 gibt es nach jedem Schritt eine lauffähige Fassung des Spiels.
+Ab Schritt 4 gibt es nach jedem Schritt eine lauffähige Fassung des Spiels.
 
 ## 9. Offene Entscheidungen
 
-1. **Zeichnen:** VCL-Liste (Vorschlag für den Anfang) oder eigene VDC-Kopierroutine in der DCL. Diese spart den Umweg über BASIC und die 256-Byte-Grenze, verdoppelt aber VDC-Code.
-2. **Ort der DCL:** Bank 1 `$C000` (Vorschlag) oder Bank 0. Bank 0 hätte nur gut 1 KB frei (`$0B00–$0FFF`).
-3. **Kartenformat:** Kachelindex mit Tabelle (Vorschlag) oder feste Bitfelder im Zellbyte.
-4. **Repo:** DCL in `dungeoncrawlerjam2025/engine/` oder eigenes Repo (empfohlen, sobald ein zweites Spiel sie nutzt).
+1. **Ort der Lib:** nach den Messwerten aus Schritt 1 (Kandidaten in 3.2).
+2. **Kartenformat:** eigener Schritt (Abschnitt 5.1).
