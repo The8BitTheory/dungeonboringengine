@@ -21,6 +21,9 @@ subprocess.run(['cl65', '-t', 'sim6502', '-C', os.path.join(here, 'sim.cfg'), '-
                 '--asm-include-dir', out, '--asm-include-dir', os.path.join(root, 'engine'),
                 '-o', prg, os.path.join(here, 'viewsim.c'), os.path.join(here, 'glue.s'),
                 os.path.join(root, 'engine', 'lib.s')], check=True, cwd=out)
+for o in (os.path.join(here, 'viewsim.o'), os.path.join(here, 'glue.o'), os.path.join(root, 'engine', 'lib.o')):
+    if os.path.exists(o):
+        os.remove(o)   # cl65 legt die Objekte neben die Quellen
 
 
 def run(pos, d, mode):
