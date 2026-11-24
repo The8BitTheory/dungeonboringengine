@@ -9,6 +9,10 @@ Eine Dungeon-Crawler-Engine für den C128 (VDC, 64 KB VRAM), die auf [VDC-BASIC]
 
 Schritt 1b: Gerüst (Stub in Bank 0, Lib in Bank 1, Interruptweiche), `INIT`, `MAPINIT`, `SETPOS`, `SETCELL`, `WALLSET`, `SPRITESET`, `ITEMSET`, `VIEW` mit Wänden, Objekten (transparent per `VMS`) und Gegenständen. Braucht VDC-BASIC v2g mit VCL-Typ 12 und VMS-Listen mit 2 Byte Befehlszahl (Branch `v2g`, ab `ec049bd`). Getestet mit Crawl 128 aus [dungeoncrawlerjam2025](https://github.com/The8BitTheory/dungeoncrawlerjam2025).
 
+## Test-Diskette
+
+`crawl128-dbe.d81`: Crawl 128 (Stand v2g, dungeoncrawlerjam2025 `af97452`) auf die Lib umgestellt, mit `vdcbasic2g.1300` aus vdc-basic `18dcab4` (VCL-Typ 12, VMS-Listen mit 2 Byte Befehlszahl). Start mit `RUN"CRAWL128"` bzw. Autostart in VICE (`x128 -80col -VDC64KB -drive8type 1581`).
+
 ## Bauen
 
 Voraussetzungen: cc65 (`ca65`, `ld65`, `cl65`, `sim65`), Python 3. Zum Testen außerdem VICE (`x128`, `c1541`, `petcat`) und Pillow.
