@@ -27,7 +27,7 @@ NEW = {
     4610:  'POKE3072,AP AND 255:POKE3073,AP/256:SYS3331,4:BANK15',
     4620:  '::VCL 2816',
     # Laden: Stub, Lib, Metadaten (Bank 1, eigene Ladeadressen $E000/$E200/$EA00)
-    10052: 'BLOAD"DBE.STUB",B0,U(DD):BLOAD"DBE.LIB",B1,U(DD):SYS3328',
+    10052: 'BLOAD"DBE0.1.STUB",B0,U(DD):BLOAD"DBE0.1.LIB",B1,U(DD):SYS3328',
     10053: 'BLOAD"WALLS.WSM",B1,U(DD):BLOAD"GHOST.SPR",B1,U(DD):BLOAD"GEM.SPR",B1,U(DD)',
     10225: 'POKE3072,0:POKE3073,224:POKE3074,DA-INT(DA/256)*256:POKE3075,DA/256:SYS3331,8',   # Crawl steht hier auf BANK 0
     # Gepackte Geister statt RED/RED1 ins VRAM (GA(0)), Sprite-Sätze anmelden, Zellwert 2 = Edelstein.

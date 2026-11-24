@@ -4,8 +4,8 @@
 
 | Datei | Bank / Adresse | Inhalt |
 |---|---|---|
-| `DBE.STUB` | Bank 0, `$0D00–$0D83` | Stub: Bankwechsel, Interruptweiche, Aufruf der Lib |
-| `DBE.LIB` | Bank 1, ab `$C000` | Lib (Sprungtabelle bei `$C000`) |
+| `DBE0.1.STUB` | Bank 0, `$0D00–$0D83` | Stub: Bankwechsel, Interruptweiche, Aufruf der Lib |
+| `DBE0.1.LIB` | Bank 1, ab `$C000` | Lib (Sprungtabelle bei `$C000`) |
 | `*.WSM` | Bank 1, beliebig (Crawl-Test: `$E000`) | Wandsatz-Metadaten |
 | `*.SPR` | Bank 1, beliebig (Crawl-Test: `$E200` Geister, `$EA00` Edelstein) | Sprite-Metadaten mit VMS-Listen |
 | gepackte Bilder (Crawl: `GHOSTS.VDC`) | VRAM, per `RTV` | nur die sichtbaren Bytes, in VMS-Reihenfolge |
@@ -13,7 +13,7 @@
 Laden in BASIC:
 
 ```
-BLOAD"DBE.STUB",B0,U(DD):BLOAD"DBE.LIB",B1,U(DD):SYS 3328
+BLOAD"DBE0.1.STUB",B0,U(DD):BLOAD"DBE0.1.LIB",B1,U(DD):SYS 3328
 ```
 
 ## Aufruf

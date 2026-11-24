@@ -195,7 +195,7 @@ Mit 11 Byte je VMC-Eintrag passen 23 Einträge in 256 Byte. Für D = 3 genügt d
 
 | Nr | Änderung | Grund |
 |---|---|---|
-| V1 ✓ | VCL-Typ 12 für `VMS` (transparente Sprites); VMS-Listen mit 2 Byte Befehlszahl und mehr als 256 Byte Länge | Gegner und Gegenstände in derselben Liste wie Wände (Branch `v2g`, ab `ec049bd`) |
+| V1 ✓ | VCL-Typ 12 für `VMS` (transparente Sprites); VMS-Listen mit 2 Byte Befehlszahl und mehr als 256 Byte Länge | Gegner und Gegenstände in derselben Liste wie Wände (Branch `v2g`, ab `ec049bd`; aktuell v2h, Branch `v2h`) |
 | V2 | VCL mit 16-Bit-Offset oder Verkettung (Typ „weiter bei Adresse“) | mehr als 23 Einträge bei größerer Sichttiefe |
 | V3 | Tokendatei, Doku zu `VCL`/`VMS`/`VMB` | Typen 8–12 im Kommentar sind nicht implementiert; Doku sollte den echten Stand zeigen |
 
