@@ -57,7 +57,7 @@ key        = "FF00FF"                      # optional (P5 2.3)
 alpha_threshold = 0
 any_geometry = false                       # true: Geometrie-ID 0 schreiben (nur Stride und D binden, 4.1)
 mirror     = { 3 = 1 }                     # optional: Bildwinkel 3 = gespiegelter Bildwinkel 1 (Werkzeug, kein Laufzeit-Spiegeln)
-derive     = "none"                        # "none" | "nearest": fehlende Tiefen aus der nächstgrößeren verkleinern (5.4)
+derive     = "none"                        # "none" | "nearest": fehlende Tiefen aus dem nächstgrößeren gemalten Bild verkleinern (5.4)
 
 [source]
 aseprite = "ork.json"                      # Aseprite-Export (3.2)
@@ -129,7 +129,7 @@ PRG-Datei: 2 Byte Ladeadresse (`load`, Standard `$7000`, Bank 1), dann der Inhal
 |---|---|
 | 0–1 | `"S" "2"` (`$53 $32`) |
 | 2 | Version = 1 |
-| 3 | Flags: Bit 0 = Gegenstand (nur Hinweis für Werkzeuge); Rest 0 |
+| 3 | Flags: Bit 0 = Gegenstand (nur Hinweis für Werkzeuge; `dbespr` setzt es bei NA = 1); Rest 0 |
 | 4–5 | Geometrie-ID der DVG; **0 = jede Geometrie** mit gleichem Stride und D (`any_geometry`) |
 | 6 | D (Kontrolle; Tiefen 1 … D in der Indextabelle) |
 | 7 | NA (1 … 4) |
@@ -149,6 +149,8 @@ PRG-Datei: 2 Byte Ladeadresse (`load`, Standard `$7000`, Bank 1), dann der Inhal
 | 32–33 | CRC der VRAM-Daten (`binascii.crc_hqx(daten, 0xFFFF)`) |
 | 34–35 | stride (Kontrolle) |
 | 36–39 | reserviert 0 |
+
+Hinweis: Die Offsets der vier Tabellen stehen in 16–23 hintereinander; NT folgt als Byte in 24 (25 = 0), der Offset des Datenbereichs steht erst in 26–27.
 
 ### 4.2 Indextabelle (NP · NA · D Byte)
 
@@ -200,7 +202,7 @@ VMS-Listen im VDC-BASIC-Format (P5 4.6), nur Typ 1 und 8. Zusätzliche **Formatr
 
 ### 4.7 Grenzen
 
-NI ≤ 254, NP ≤ 32, NA ≤ 4, NT ≤ 32, nk ≤ 16, NK ≤ 65535, Inhalt ≤ 8192 (ein Satz passt in den Sprite-Bereich der Bank-1-Speicherkarte, P6 2.4; Warnung ab 4096), U ≤ 65535. Überschreitung: Fehler mit Ursache.
+NI ≤ 254, NP ≤ 32, NA ≤ 4, NT ≤ 32, nk ≤ 16, NK ≤ 65535, Inhalt ≤ 8192 (ein Satz passt in den Sprite-Bereich der Bank-1-Speicherkarte, P6 2.4; Warnung ab 4096, weil ein solcher Satz mehr als die Hälfte des Bereichs belegt), U ≤ 65535. Überschreitung: Fehler mit Ursache.
 
 ## 5. Umwandlung
 
@@ -220,15 +222,15 @@ Bilder in der Reihenfolge (f, ai, d) aufsteigend; ein Bild, das einem früheren 
 
 ### 5.4 Abgeleitete Tiefen (`derive = "nearest"`)
 
-Fehlt einem (f, ai) die Tiefe d, gibt es aber d − 1 (bzw. die nächstkleinere vorhandene Tiefe), wird das Bild mit Nearest-Neighbour verkleinert: Faktor k = W(½, d) / W(½, d_quelle) mit W(t) nach P3 4.3 (Zellbreite auf halber Zelltiefe, aus `planes` der geom.json); neue Pixelgröße rund(w_px · k) × rund(h · k), mindestens 1; Fußpunkt skaliert. Warnung „Tiefe d aus Tiefe d' abgeleitet“. Nur als Hilfe für Prototypen; die Engine verzerrt weiterhin nichts.
+Fehlt einem (f, ai) die Tiefe d (und greift kein `$FF`-Rückgriff auf ein Bild in Phase 0), gibt es aber ein **gemaltes** Bild in einer Tiefe d' < d, wird das Bild aus der größten solchen Tiefe d' (nächstgrößeres Bild; abgeleitete Bilder sind keine Quelle) mit Nearest-Neighbour verkleinert: Faktor k = W(½, d) / W(½, d') mit W(t) nach P3 4.3 (Zellbreite auf halber Zelltiefe, aus `planes` der geom.json); neue Pixelgröße rund(w_px · k) × rund(h · k), mindestens 1; Fußpunkt skaliert. Warnung „Tiefe d aus Tiefe d' abgeleitet“. Nur als Hilfe für Prototypen; die Engine verzerrt weiterhin nichts.
 
 ## 6. Beschneiden: `clip_image` (Referenz für P6)
 
 ```python
-def clip_image(img, x0, y0, cx0, cx1, cy0, cy1) -> Clipped
+def clip_image(img, x0, y0, cx0, cx1, cy0, cy1, stride) -> Clipped
 ```
 
-`img` = Bildeintrag (w, h, Kerne, Rand-VRAM-Offset, VMS-Liste), (x0, y0) = linke obere Bildecke im Sichtfenster (Byte-Spalte, Zeile; vorzeichenbehaftet), [cx0, cx1) × [cy0, cy1) = sichtbarer Ausschnitt im Sichtfenster (P6 bestimmt ihn aus Fenster und Abdeckung; immer ⊆ Bildrechteck und nicht leer). Im Bild: L = cx0 − x0, R = cx1 − x0, T = cy0 − y0, B = cy1 − y0. **Unbeschnitten** heißt L = 0, R = w, T = 0, B = h.
+`img` = Bildeintrag (w, h, Kerne, Rand-VRAM-Offset, VMS-Liste), (x0, y0) = linke obere Bildecke im Sichtfenster (Byte-Spalte, Zeile; vorzeichenbehaftet), [cx0, cx1) × [cy0, cy1) = sichtbarer Ausschnitt im Sichtfenster (P6 bestimmt ihn aus Fenster und Abdeckung; immer ⊆ Bildrechteck und nicht leer), stride = Stride der Geometrie (S2-Kopf 34). Im Bild: L = cx0 − x0, R = cx1 − x0, T = cy0 − y0, B = cy1 − y0. **Unbeschnitten** heißt L = 0, R = w, T = 0, B = h.
 
 Ergebnis: Liste der Kern-Kopien, optional eine neue VMS-Liste, Bezugspunkt.
 
@@ -257,6 +259,7 @@ Beschnitten: **Bezugspunkt (cx0, cy0)**; die Liste wird neu geschrieben. Durchla
 - Ein ausstehendes k am Ende wird nicht ausgegeben.
 - Kopf der neuen Liste: Alpha unverändert, Anzahl = ausgegebene Befehle (inklusive Typ 3). Typ 3 hat das Format `03 n_lo n_hi` (VDC-BASIC `vms-format.md`); k ≤ 65535 (Randbytes ≤ U).
 - Bleibt kein Typ-1- oder Typ-8-Befehl übrig, entfällt die Liste ganz (Ergebnis ohne VMS).
+- Länge: Die neue Liste ist höchstens 3 · (B − T) Byte länger als die gespeicherte (je sichtbarer Zeile höchstens ein Typ 3; ein Typ-1-Lauf wird nie geteilt). Puffer-Reserve in P6 danach bemessen.
 - ofs' ist immer < 65536, weil der Ausschnitt im Sichtfenster liegt (P6 rechnet das Ziel als `AP + Zeilenadresse(cy0) + cx0`).
 
 ### 6.3 Weitere Funktionen

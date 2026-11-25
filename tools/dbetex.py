@@ -886,7 +886,7 @@ def sim_vmf(vram, dst, byte, count):
 
 
 def sim_vms(vram, src, dst, vms_list, fb=None):
-    """VMS-Liste nach vms-format.md (Typ 1 und 8)."""
+    """VMS-Liste nach vms-format.md (Typ 1, 8 und 3 = source skip)."""
     fb = vram if fb is None else fb
     if len(vms_list) < 3:
         raise TexError("VMS-Liste kuerzer als der Kopf")
@@ -902,6 +902,9 @@ def sim_vms(vram, src, dst, vms_list, fb=None):
             for i in range(ln):
                 fb[(dst + ofs + i) & 0xFFFF] = vram[(rd + i) & 0xFFFF]
             rd += ln
+        elif t == 3:
+            p += 3
+            rd = (rd + ofs) & 0xFFFF
         elif t == 8:
             p += 3
             b = vram[rd & 0xFFFF]
@@ -1205,7 +1208,9 @@ def file_kind(data, path=""):
         return "dts"
     if data[2:4] == b"DB":
         return "dbg"
-    raise TexError(f"{path}: weder DTS noch DBG")
+    if data[2:4] == b"S2":
+        return "s2"
+    raise TexError(f"{path}: weder DTS, DBG noch S2")
 
 
 def budget(paths, pool, vms_buffer=VMS_BUFFER, pool_start=None):
@@ -1219,6 +1224,9 @@ def budget(paths, pool, vms_buffer=VMS_BUFFER, pool_start=None):
             b0, b1 = vms_bound(ts)
             files.append({"file": p, "kind": KIND_NAMES[ts.kind], "u": u, "vms_bound": b0, "vms_bound_bands": b1})
             vms_sum += b0
+        elif k == "s2":
+            u = struct.unpack_from("<H", data, 2 + 30)[0]
+            files.append({"file": p, "kind": "sprite", "u": u})
         else:
             bg = from_dbg(data)
             u = bg["u"]
@@ -1295,6 +1303,8 @@ def cmd_dump(a):
         _, _, u, stream = vrl.unpack_file(read_file(a.vrl))
         vramdata = bytes(vrl.decode(stream))
         vinfo = {"u": u, "crc": binascii.crc_hqx(vramdata, 0xFFFF)}
+    if k == "s2":
+        raise TexError(f"{a.file}: Sprite-Satz - dbespr.py dump verwenden")
     if k == "dbg":
         bg = from_dbg(data)
         if vinfo:

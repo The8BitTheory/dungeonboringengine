@@ -1,0 +1,17 @@
+format  = "dbespr"
+version = 1
+
+[sprite]
+name      = "blob_m"
+geom      = "../tex/west140.geom.json"
+out       = "build"
+load      = 0x7000
+vrl_load  = 0x4000
+angles    = 4
+phases    = 2
+max_kerns = 4
+kern_min  = 16
+mirror    = { 3 = 1 }
+
+[source]
+aseprite = "blob_m.json"
