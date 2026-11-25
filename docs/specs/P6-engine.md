@@ -64,14 +64,24 @@ Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für We
 | `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (P6d-opt; RAM unter I/O, `$FF00 = $7F`) | – |
 | `$DC00–$DFFF` | 1 KB | Lib-Tabellen (LIBTAB: Zellentabelle von GEOMSET, Kachelzusammenfassung), nicht in der Datei | – |
 | `$E000–$E7FF` | 2 KB | Lib-Variablen (BSS) | – |
-| `$E800–$EFFF` | 2 KB | DVG | `dbegeom` `$E800` (bisher `$E400`) |
-| `$F000–$F7FF` | 2 KB | DTS Boden | `dbetex` floor `$F000` |
-| `$F800–$FDFF` | 1,5 KB | DTS Decke | `dbetex` ceiling `$F800` |
-| `$FE00–$FEFF` | 256 B | DBG (24 + VH ≤ 124 Byte) | `dbetex bg` `$FE00` (bisher `$A900`) |
+| `$E800–$EDFF` | 1,5 KB | DVG | `dbegeom` `$E800` (bisher `$E400`) |
+| `$EE00–$F5FF` | 2 KB | DTS Boden | `dbetex` floor **`$EE00`** (P6g; vorher `$F000`) |
+| `$F600–$FAFF` | 1,25 KB | DTS Decke | `dbetex` ceiling **`$F600`** (P6g; vorher `$F800`) |
+| `$FB00–$FBFF` | 256 B | DBG (24 + VH ≤ 124 Byte) | `dbetex bg` **`$FB00`** (P6g; vorher `$FE00`) |
+| `$FC00–$FEFF` | 768 B | **gesperrt:** Blitz!-Runtime (Image 2) – auch im interpretierten Spiel frei lassen | – |
 | `$FF00–$FF04` | – | MMU | – |
 | `$FF05–$FFFF` | – | Kopie der Kernal-Interruptweiche | – |
 
 Begründung: Das Demo-Wand-DTS mit 4 Stilen hat 8,7 KB (P5-Beispiel; mit `max_kerns` 16 weniger, review-notes G.1/G.2) und passt nicht in die bisherige Vorgabe `$A000–$A8FF`; die Lib wird größer als 4 KB (2.6).
+
+**Korrektur P6g (Blitz!-Runtime, Image 2):** Der verbesserte Runtime kopiert gemeinsamen Code nach `$FC00`, schaltet `$D506` auf `$0C` (unten **und oben** 1 KB gemeinsam) und senkt die String-Obergrenze auf `$FC00` (`blitz128/runtime2026/README.md`). Solange das Kompilat läuft, landet jeder Zugriff auf Bank 1 `$FC00–$FEFF` im gemeinsamen RAM, also im Runtime: ein `BLOAD …,B1` dorthin zerstört ihn (Kompilat hängt; interpretiert fällt es nicht auf, weil dort `$D506` = `$04` gilt). Darum gilt für **alle** Engine-Daten in Bank 1 die Obergrenze **`$FBFF`** (interpretiert und kompiliert gleich, damit ein Spiel in beiden Formen dieselben Dateien lädt):
+
+- Die hohen Bereiche DVG, DTS Boden, DTS Decke und DBG teilen sich `$E800–$FBFF` (**5 KB statt 6 KB**). Die Tabelle oben ist die Vorgabe der Werkzeuge; ein Spiel darf die vier Dateien in diesem Fenster auch dicht packen (die Adressen sind Parameter von `GEOMSET`/`TEXSET`/`BGSET`; Beispiel `test/vice_view.py`: DVG `$E800`, Decke `$ED30`, Boden `$F240`, DBG `$F9C0`).
+- VCL-Typ 9: Listen in Bank 1 nur in `$4000–$CFFF` oder `$E000–$FBFF` (VDC-BASIC erlaubt bis `$FEFF`; der Rest gehört dem Runtime).
+- `MEMSIZ` (`$39/$3A`): Das Spiel setzt ihn mit der ersten Anweisung auf `$5000` (P6a); der Runtime senkt ihn beim Start ohnehin nur auf `$FC00`. Die Reihenfolge ist damit unkritisch. Wer mehr Platz für Assets braucht, kann `MEMSIZ` tiefer setzen (z. B. `POKE 58,64` → `$4000`: 4 KB `$4000–$4FFF` für DVG oder ein DTS, auch für Typ 9 zulässig; dafür nur 15 KB für Variablen und Strings) – Entscheidung des Spiels, nicht Vorgabe.
+- Der Stub schaltet während des Lib-Aufrufs `$D506` = (alt AND `$F0`) OR `$06` (oben nicht gemeinsam) und stellt den alten Wert wieder her; VCL-Typ 9 ebenso mit `$07`. Das verträgt sich mit dem Runtime (P6g: alle 42 Szenen als Kompilat gleich); Interrupts in diesen Fenstern laufen über die Kernal-Weiche in Bank 1 und berühren `$FC00–$FEFF` nicht.
+- **Folgen für Werkzeuge:** `dbetex` Vorgaben floor `$EE00`, ceiling `$F600`, bg `$FB00`; alle Werkzeuge (`dbetex`, `dbegeom`, `dbespr`, `dbemap`) sollen bei Ladeadresse + Länge > Bereichsende (Tabelle oben, höchstens `$FC00`) **abbrechen** statt still zu schreiben. Anzupassen: `tools/dbeview.py` (`DEFAULT_DTS_ADDR`, `build_demo_assets`: `load` der Boden-/Decken-TOMLs), `test/vice_view.py` (TOML-`load`-Werte sind dort ohne Wirkung, es packt selbst), `test/sim/run_sim.py` (`ADDR`/`P6D_ADDR` mit DBG `$FE00`: nur Simulator, kein Fehler, aber zur Vorgabe angleichen), P5-Beispiele mit Boden/Decke-Ladeadressen. Die Lib prüft die Obergrenze nicht (Länge der Daten unbekannt); eine Prüfung „Daten in `$2000 … $FBFF`, nicht in Lib/BSS“ wäre P6d-Review K5 mit neuer Grenze.
+- Die Demo-Assets (Wand 8,7 KB, Boden 9,1 KB mit 3 Stilen, Decke 3,2 KB) passten schon vorher nicht; das bleibt ein Asset-Befund (`docs/specs/P6g-vcl-analysis.md`, Abschnitt 6).
 
 ### 2.5 Objektliste (`$0C51`, je 6 Byte)
 
@@ -334,7 +344,7 @@ Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH
 | 5–6 | list: Adresse der VMS-Liste in **CPU-RAM Bank 1** |
 
 - Listenformat unverändert wie Typ 12 (`vms-format.md`: Alpha, Anzahl, Befehle; die Engine erzeugt 1, 3, 8).
-- Die Liste liegt ganz in Bank 1 `$4000–$CFFF` oder `$E000–$FEFF` (nie in `$D000–$DFFF`, nie unter `$4000`: VDC-BASIC schaltet für Typ 9 das gemeinsame RAM kurz auf 16 KB unten, P2d). Die Engine prüft das in `TEXSET` und `SPRITESET` (Adresse < `$4000` → A = 6; nicht im Build `VMS_COPY`); Typ 9 belegt keine Pufferbytes. VDC-BASIC liest sie mit `$FF00 = $7E` (Bank 1 mit I/O, VDC-Register erreichbar; Schleife im gemeinsamen RAM `$1C00–$1FFF`) und stellt danach seine Konfiguration wieder her. Interrupts dürfen laufen (Kernal-Weiche in Bank 1 `$FF05–$FFFF`, wie beim Stub).
+- Die Liste liegt ganz in Bank 1 `$4000–$CFFF` oder `$E000–$FEFF` (Engine-Vorgabe seit P6g: `$E000–$FBFF`, Blitz!-Runtime, 2.4; nie in `$D000–$DFFF`, nie unter `$4000`: VDC-BASIC schaltet für Typ 9 das gemeinsame RAM kurz auf 16 KB unten, P2d). Die Engine prüft das in `TEXSET` und `SPRITESET` (Adresse < `$4000` → A = 6; nicht im Build `VMS_COPY`); Typ 9 belegt keine Pufferbytes. VDC-BASIC liest sie mit `$FF00 = $7E` (Bank 1 mit I/O, VDC-Register erreichbar; Schleife im gemeinsamen RAM `$1C00–$1FFF`) und stellt danach seine Konfiguration wieder her. Interrupts dürfen laufen (Kernal-Weiche in Bank 1 `$FF05–$FFFF`, wie beim Stub).
 - Die Engine schreibt Typ 9 nur für **unbeschnittene** Listen (Wand-/Kachelbilder, Bänder in voller Breite, unbeschnittene Sprites): list = Inhaltsanfang des DTS bzw. S2 + vofs. Beschnittene Listen bleiben Typ 12 im Puffer. Typ 9 belegt keine Pufferbytes (m = 0 in 5.10; „ohne Rand“ und „verwerfen“ gelten nur für Listen im Puffer).
 - Engine: **Standard** seit dem P6e-Review (VDC-BASIC P2d abgenommen); der alte Weg (Kopie, Typ 12) bleibt als Build-Schalter `VMS_COPY` (`ca65 -DVMS_COPY`, kostet im Standardbuild nichts, sim testet beide). Referenz: `Scene.vms_bank1` (Vorgabe noch `False` = `VMS_COPY`, weil die Demo-Assets nicht in die Bereiche von 2.4 passen und sich Bank-1-Adressen sonst überlappen), `Scene.dts_addr`, `Scene.s2_addr` (`None`: dicht ab `$7000`); `run_vcl(..., bank1=...)` führt Typ 9 aus.
 
@@ -745,3 +755,58 @@ Lib-Code **11 016 Byte** (`$B000–$DB07`, P6e-opt 10 473: +543), **Reserve 248 
 1. Ereignissuche linear: im Review auf Abbruch beim ersten größeren Eintrag umgestellt (+4 Byte; Zellen ohne Ereignis kosten nur noch die Einträge davor, ≈ 56 Zyklen je Eintrag). Binäre Suche (≈ +50 Byte) erst bei Karten mit mehreren hundert Ereignissen nötig; Entscheidung Nutzer.
 2. Zyklenziel Gang (Mittel ≤ 30 000) bleibt offen (33 962; P6d-opt/P6e-opt unverändert). Automap kostet +6 %; Marken nur bei Bedarf einschalten (`MAPINIT` X Bit 0).
 3. Reserve nach P6f nur 248 Byte (Testbuild 56): P6g/P7 sollten keine größeren Funktionen mehr in die Lib legen, oder `VMS_COPY`-freie Einsparungen (`vauto` 81 Byte durch Marken in `vcells` ersetzen, ≈ −35 Byte, geänderte Semantik: `bcov` noch unvollständig) prüfen.
+
+
+## Ergebnis P6g (2026-11-25)
+
+Umgesetzt: `test/vice_view.py` (Harness, Szenen, Assets, Vergleich) und `test/vice/view.bas` (BASIC-Vorlage; der Harness setzt Dateinamen, Adressen und Setz-Aufrufe ein und erzeugt `build/vice/view.bas`). Aufruf `test/vice_view.py [--only i|c] [--check] [--png DIR] [--control] [--no-sim]`; Port `--port`/`DBE_VICE_PORT` (Läufe mit 6632, Review-Nachlauf 6634), bind-Test, nur der eigene Prozess, keine festen Wartezeiten. Weder `lib.s`/`view.s` noch VDC-BASIC wurden geändert.
+
+### Ablauf
+
+`BOOT` (VDC-BASIC v3) → `POKE 57,0:POKE 58,80:CLR` → Stub, Lib (Standardbuild `dbe0.2.lib`), `INIT` → Chunky-Modus wie Crawl (`crawl.bas` 10059–10135: R0 127, R4 159, R6 120, R7 133, R9 1, R25 Bit 7, R28 24, R36 0, R26 `$FF`, `DISP 46335`, `ATTR 0`, Bildschirm-RAM und Attribut-RAM gefüllt; vorher das ganze 64-KB-VRAM gelöscht, damit das Modell exakt gilt) → DVG, DMP, DTS ×3, DBG, S2 ×4 per `BLOAD` nach Bank 1; VRL der Texturen, Tapete und Sprites (`vrl.encode` der `vram`-Bytes) per `BLOAD` nach Bank 0 `$9000` und `RXV` in den Pool → `POOLSET` (9600 … 46335), `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`, `MAPINIT`, `BUFSET`. Die Szenentabelle (Bank 0 `$8000`: SETPOS oder MOVE, Objektliste, ITEMPH) liest das BASIC mit `PEEK`; je Schritt: Setz-Aufruf, Marke `SYS 3148` (`$0C4C`, RTS), `VIEW`, `::VCL`, Marke `SYS 3149`. Am Fehlervektor `($0300)` und an den Marken hält der Harness (Haltepunkte); an `$0C4D` liest er das ganze VRAM (`bank vdc`, `bsave`), den Puffer `$1300–$1BFF`, Parameterblock und Testbytes (`$0C40–$0C46`: A/X von `VIEW`, A/X/Y/P0 von `MOVE`).
+
+Vergleich je Szene: (1) das **ganze VRAM** (64 KB) bytegleich mit einem Modell (`run_vcl` über die Referenz-Liste, Zustand wandert von Szene zu Szene mit); damit ist auch „kein Byte außerhalb des Fensters“ geprüft; (2) das Fenster gegen `paint_reference` (nur bei A = 0); (3) A, X, VCLADR, VCLLEN, VMSLEN, OBJVIS und die Pufferbytes (VCL-Liste und VMS-Listen) gegen `dbeview.view` (= sim65); (4) `MOVE`-Ergebnis A/X/Y/P0 gegen `dbemove.move`. Gegenprobe `--control` (ein Byte im Modell verfälscht): genau diese Szene wird gemeldet. Zyklen: Stoppuhr des Monitors; VIEW von `$0D03` (Stub-Eintritt) bis zum RTS des Stubs, VCL vom Eintritt `vcl` bis `.vcl_done` (`vcl` aus `vdcbasic3.sym`, die lokale Marke aus dem ACME-Report, `vdc_labels`; Review: vorher `complex_instruction_shared_exit`, siehe Nachtrag); in beiden Fenstern ist das I-Flag gesetzt (kein Kernal-IRQ, vergleichbar mit sim65), danach wie vorher. „mit BASIC“ = alles zwischen den Marken (Zuweisungen, `POKE`, `SYS`-Auswertung, `::VCL`-Parsing, IRQ an). Spalte sim65 = dieselbe Ansicht im sim65-Harness (Differenz zweier Läufe, ohne Stub).
+
+### Szenen (42; je interpretiert und als Blitz!-Kompilat, Image 2)
+
+Demo-Karte 15 × 11: Gänge, Raum mit Himmel (Tapete), Gitter, Fenster-Wand, Abgrund, INHALT-Tür, Gegenstand. 18 Ansichten Wände/Boden/Decke/Tapete/Gitter/Fenster/Abgrund/Gegenstand, 8 mit Objekten (mittig d = 1/2/3, alle Unterpositionen, Wache + Gem + ITEMPH, `breit` am linken/rechten Rand und bei d = 2, 5 Objekte im offenen Raum; `VMS` Typ 12 beschnitten in 4 Szenen), 4 INHALT-Szenen (leer, Blob d = 3/2, zwei Blobs d = 1), 12 MOVE-Schritte (Start, vor, drehen, seitwärts, gegen Wand X = 1, gegen Objekt X = 2, umdrehen, zurück).
+
+### Ergebnis
+
+**Alle 42 Szenen in beiden Läufen pixelgleich** (ganzes VRAM = Modell, Fenster = `paint_reference`, Puffer = Referenz, MOVE-Ergebnisse gleich, A = 0 überall, keine BASIC-Fehler). Die Prüfung gilt nur für die gestellten Szenen, nicht für alle Ansichten (das leistet sim65 bytegleich).
+
+Zyklen (VICE, 1 MHz, Mittel / min / max über 42 Szenen; Kompilat in Klammern, wo abweichend):
+
+| Teil | Mittel | min | max |
+|---|---|---|---|
+| VIEW (mit Stub) | 43 150 | 12 170 | 76 460 |
+| VCL | 201 700 (201 800) | 68 000 (67 850) | 391 400 (391 200) |
+| VIEW + VCL | 244 900 | 80 200 | 445 700 (446 000) |
+| mit BASIC, interpretiert / kompiliert | 317 300 / 253 700 | 153 100 / 89 200 | 517 400 / 456 200 |
+| sim65 (VIEW ohne Stub) | 40 141 | 11 114 | 71 513 |
+
+Beispiele (VIEW / VCL, interpretiert): Gang Süd 44 700 / 235 800; Raum mit Himmel Süd 33 900 / 72 300; Fenster Süd d = 1 23 100 / 184 500; Fenster Ost 41 700 / 301 400; Blob mittig d = 1 48 100 / 271 500; `breit` Rand links 61 800 / 156 700; 5 Objekte offen 76 500 / 220 100; INHALT Blobs d = 1 49 500 / 391 400; Drehen 12 200 / 68 000. Zwischen Läufen schwanken die VCL-Werte um bis zu 3 000 (VIC-II-Badlines, Phasenlage).
+
+### Befunde
+
+1. **Speicherkarte 2.4 kollidiert mit dem verbesserten Blitz!-Runtime.** Der Runtime (Image 2) macht das obere 1 KB gemeinsam (`RCR` = `$0C`) und belegt `$FC00–$FEFF`; ein `BLOAD` der Decken-DTS (`$F800 …`) oder des DBG (`$FE00`) nach Bank 1 landet im gemeinsamen RAM und zerstört den Runtime (Kompilat hängt, interpretiert unbemerkt). Im Test liegen DVG, Decke, Boden und DBG dicht gepackt in `$E800–$FBFF` (5 KB; DVG `$E800`, Decke `$ED30`, Boden `$F240`, DBG `$F9C0`), Wand-DTS `$9000`, DMP `$5000`, S2 `$7000` wie in 2.4. **Spec 2.4 angepasst (Review P6g):** Obergrenze `$FBFF` für alle Bank-1-Daten, neue Werkzeug-Vorgaben Boden `$EE00`, Decke `$F600`, DBG `$FB00`. Der Bereich steht auch in `blitz128/blitzc/README.md` (Blitz!-Compiler).
+2. **Demo-Assets passen nicht in 2.4** (Wand 8,7 KB, Boden 9,1 KB mit 3 Stilen, Decke 3,2 KB; VRAM 54 KB gegen Pool 36,7 KB). Kleine Sätze im Test: Wand 3 Stile (ziegel, gitter, fenster; 7 520 Byte DTS), Boden 1 Stil (1 918), Decke 1 Stil (1 295), Tapete mit Panorama 2 · VW (122 Byte DBG), 4 Sprite-Sätze (S2 zusammen 3 900 Byte in `$7000–$8F1D`); VRAM 9 600 … 44 751 im Pool 9 600 … 46 334 (hinter dem Attribut-RAM, vor dem Bildschirm-RAM wie in Crawl). Die Boden- und Decken-Stile mit Lücken und der Wandstil „bogen“ fehlen deshalb in den VICE-Szenen (in sim65 und `test_dbeview` getestet).
+3. VICE-VIEW ist im Mittel 7 % (≈ 3 000) über sim65: Stub (≈ 450) und die VIC-II-Badlines, die die Stoppuhr mitzählt (x128, 1 MHz); die Werte schwanken zwischen Läufen um etwa 300. Ziele aus Abschnitt 8 bleiben als sim65-Zahlen gültig.
+4. **VCL ist 82 % der Zeit** (Mittel 201 700 gegen 43 150): ein Bild kostet interpretiert wie kompiliert etwa 0,25 s bei 1 MHz (Blobs d = 1/INHALT 0,45 s). Zerlegung und Maßnahmen: `docs/specs/P6g-vcl-analysis.md`. Die VDC-Zeit modelliert VICE nur grob; maßgeblich wäre Z64K oder Hardware. Der BASIC-Aufwand zwischen den Marken beträgt interpretiert etwa 71 000, kompiliert etwa 8 000 Zyklen je Szene.
+5. `BLOAD … :IF DS<>0` und `GOSUB`/`POKE`-Schleifen laufen im Blitz!-Kompilat unverändert; `FOR` mit 0 Durchläufen im Interpreter läuft einmal (Vorlage prüft `n = 0`).
+
+### Offene Punkte
+
+- Z64K-Lauf (Pixel per CRC wie `vdc-basic/test/zvt.py`) nicht umgesetzt: bräuchte die Szenentabelle als Datei, ein 6502-Hilfsprogramm für die CRC und mehrere Starts (je 8 s + 1,7 MHz); VICE-Szenen decken Funktion und Zeit ab.
+- Szenen mit A ≠ 0 (Puffer zu klein), Automap, Arbeitskopie (`SETCELL`) und `OBJN` > 16 sind nicht in VICE gestellt (sim65 prüft sie bytegleich).
+- NMI weiterhin ungeprüft (P6d-opt).
+- Zeitmessung mit I-Flag gesetzt: der Zustand wird an Ein- und Ausgang vom Harness gesetzt und zurückgeschrieben; ein CLI in Stub/Lib würde nicht auffallen (es gibt keins).
+
+### Nachtrag Review P6g (2026-11-25)
+
+- Testregeln eingehalten: eigener Port (`vicemon.choose_port`, bind-Test, Bereich 6631–6649), ereignisgesteuert (Haltepunkte an Marken und Fehlervektor, Debug-Cartridge; `-limitcycles` und Timeout nur Wächter), nur der eigene Prozess (`terminate`/`kill` per Popen). Der Vergleich ist stark: ganzes 64-KB-VRAM gegen das fortgeschriebene Modell, zusätzlich Fenster gegen den unabhängigen `paint_reference`, Puffer gegen `dbeview.view`. `--control` verfälscht das Byte `$00FA` (Zeile 3, Spalte 10, im Fenster) von Szene 5; Nachlauf: genau diese Szene gemeldet, Exitcode 0.
+- **Korrigiert: Ende der VCL-Messung.** `complex_instruction_shared_exit` ist das gemeinsame Ende **jedes** VMC/VMF und jedes VMS-Kopierbefehls, nicht von VCL. Der Haltepunkt traf hunderte Male je Szene; gezählt wurde der letzte Treffer, und schon beim ersten Treffer wurde das I-Flag zurückgesetzt, so dass ab dem zweiten Eintrag Kernal-IRQs mitgezählt wurden (≈ 5 %). Jetzt endet die Messung an `.vcl_done` (Adresse aus dem ACME-Report einer Kopie, gegen `vdcbasic3.bin` geprüft). Neue Werte oben (VCL im Mittel ≈ 5 % niedriger als vorher gemeldet: 211 200 → 200 500 bei gleichen Szenen), beide Läufe weiterhin pixelgleich.
+- **Korrigiert: zwei Szenen mit der Kamera in einer deckenden Zelle** („Fenster Ost“ in der Fenster-Wand (8, 9), „Abgrund Nord“ in einer Wand (4, 5)). Dort blieben Fensterbytes ungeschrieben (Fenster Ost: 1 050 Byte, Boden- und Deckenband d = 0 der blockierten Zelle). Jetzt (7, 9) Ost bzw. (3, 4) Nord; `build_steps` weist Kamerazellen mit DECKEND ab. Die Tabelle oben stammt aus dem Lauf danach (42 Szenen, beide Läufe pixelgleich).
+- Neues Werkzeug `test/vice_vclprof.py` (VCL-Zeit je Eintrag und je VMS-Befehl, Herkunft der Einträge, Overdraw; `--static` ohne VICE) für die Analyse `P6g-vcl-analysis.md`.
+- Aussagekraft der Zyklen: VICE modelliert die VDC-Wartezeiten nur grob (Bytes sind fast kostenlos); Hochrechnung auf Z64K in der Analyse (Abschnitt 4).
+
