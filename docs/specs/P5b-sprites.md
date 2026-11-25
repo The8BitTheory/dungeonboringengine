@@ -198,7 +198,7 @@ Wie DTS (P5 4.5): VRAM-Offset (Wort), dx, dy (relativ zum Bildrechteck), w, h, s
 
 ### 4.6 Datenbereich
 
-VMS-Listen im VDC-BASIC-Format (P5 4.6), nur Typ 1 und 8. Zusätzliche **Formatregeln** (für das Beschneiden, P6 5.9, review-notes G.7): Befehle in Zeilenreihenfolge mit streng steigendem ofs; ofs = Zeile · stride + Byte-Spalte relativ zur linken oberen Bildecke; ein Typ-1-Lauf bleibt in seiner Zeile (Spalte + len ≤ w). `pack_image` (P5 5.2) erfüllt das.
+VMS-Listen im VDC-BASIC-Format (P5 4.6), nur Typ 1 und 8. Zusätzliche **Formatregeln** (für das Beschneiden, P6 5.9, review-notes G.7): Befehle in Zeilenreihenfolge mit streng steigendem ofs, ohne Überlappung (ofs ≥ ofs + len des vorigen Befehls, Typ 8: len = 1); ofs = Zeile · stride + Byte-Spalte relativ zur linken oberen Bildecke, Zeile < h; ein Typ-1-Lauf bleibt in seiner Zeile (Spalte + len ≤ w ≤ stride). `pack_image` (P5 5.2) erfüllt das; `from_s2` bzw. `from_dts` prüfen es (`dbetex.check_vms`, P6e-opt-Review), `VIEW` setzt es beim Beschneiden voraus.
 
 ### 4.7 Grenzen
 

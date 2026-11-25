@@ -342,11 +342,27 @@ class TestBuild(unittest.TestCase):
                 prev = -1
                 for t, ofs, ln in cmds:
                     self.assertIn(t, (1, 8))
-                    self.assertGreater(ofs, prev)
-                    prev = ofs
+                    self.assertGreaterEqual(ofs, prev)          # steigend, ohne Überlappung
+                    prev = ofs + (ln or 1)
                     col = ofs % ss.stride
                     self.assertLess(ofs // ss.stride, im.h)
                     self.assertLessEqual(col + (ln or 1), im.w)
+
+    def test_check_vms(self):
+        """Formatregeln 4.6 beim Lesen (from_s2 / dbetex.check_vms): Verstöße werden abgewiesen."""
+        ok = bytes((0, 2, 0, 1, 2, 0, 3, 8, 5, 0))          # Typ 1 (2, 3), Typ 8 (5): w = 6, stride 10
+        dbetex.check_vms(ok, 6, 1, 10)
+        bad = [bytes((0, 2, 0, 1, 2, 0, 3, 8, 4, 0)),        # Typ 8 im Lauf (Überlappung)
+               bytes((0, 1, 0, 1, 4, 0, 3)),                 # Spalte + len > w
+               bytes((0, 1, 0, 8, 10, 0)),                   # Zeile >= h
+               bytes((0, 1, 0, 3, 2, 0)),                    # Typ 3
+               bytes((0, 2, 0, 8, 5, 0, 8, 2, 0)),           # fallend
+               bytes((0, 2, 0, 8, 5, 0))]                    # Anzahl passt nicht
+        for b in bad:
+            with self.assertRaises(dbetex.TexError):
+                dbetex.check_vms(b, 6, 1, 10)
+        with self.assertRaises(dbetex.TexError):
+            dbetex.check_vms(ok, 11, 1, 10)                  # w > stride
 
     def test_lookup(self):
         ss = self.ss

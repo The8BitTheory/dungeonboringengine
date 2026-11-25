@@ -25,7 +25,7 @@ Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen i
 
 | Bereich | Inhalt |
 |---|---|
-| `$0B00–$0BFF` | frei (0.1: VCL-Puffer); Kassetten-/Bootsektorpuffer des Systems |
+| `$0B00–$0BFF` | Reserve der Engine (P6e-opt: `VIEW` schreibt hier während der Zählprobe beschnittener VMS-Listen Abfall); Kassetten-/Bootsektorpuffer des Systems |
 | `$0C00–$0CFF` | Parameterblock (2.3), Objektliste; RS-232-Eingabepuffer des Systems (seit 0.1 so genutzt) |
 | `$0D00–$0DFF` | Stub (`$0D00` init, `$0D03` call), Rest Reserve |
 | `$0E00–$0FFF` | frei (0.1: VMS-Puffer); VIC-Sprite-Daten des Systems |
@@ -649,3 +649,59 @@ Lib-Code 10 747 Byte (`$B000–$D9FA`, P6d-opt 8 935), LIBTAB 945 Byte, BSS 1 92
 - Bytegleich: Standard 1 668 / `VMS_COPY` 1 638 (P6e), voll 5 308 / 5 278; P6d voll 4 962 / 4 942; test_dbeview grün (`test_vms_bank1` mit Objekten).
 - Zyklen (Standard): Gang ohne Objekte 33 416 (max 39 111), demo 1/5 Objekte 26 311 / 29 988, zufall 0–16 Objekte 64 296; je Objekt unbeschnitten 4 318–5 001 (Ziel erreicht), beschnitten unverändert 15 800–27 200.
 - Größe (Standard): Code 10 596 Byte (`$B000–$D963`), Reserve 668 (Testbuild 412); `VMS_COPY` 10 747.
+
+## Ergebnis P6e-opt (2026-11-25)
+
+Umgesetzt in `engine/view.s` nach dem Plan aus dem Review-Nachtrag P6e, in drei Schritten, nach jedem Schritt bytegleich mit `dbeview.view` (keine Änderung an `tools/dbeview.py` und an den Tests).
+
+### Umsetzung
+
+1. **Code-Einsparung (−205 Byte, ohne Zyklenverlust):** `grand`/`grl` (g_rsrc = VB + rand_ofs, ZP1 = Inhalt + Liste, g_vlen aus einem Verzeichniseintrag; DTS und S2 liegen um 2 versetzt) für `gspr`, `gband` und `vmsverb` (nur `VMS_COPY`; der Hauptpfad Wand bleibt ohne Unterprogramm). `emit_vms` nimmt die Quelle aus `g_rsrc` (Kopien nach `e_src` entfallen, `clen` und `e_t` entfallen). Gemeinsames VCL-Endstück `vt5` (count, 0, reps, 0, step) für `emit_vmc` und `emit_vmf` (dadurch auch schneller). Wandschleife von `vcells` und `vpass` zusammengelegt (ein Durchlauf, INHALT mit pass 1/2). `gspr` benutzt `gsetx` (Einstieg in `gsetup` mit X = Satz). Zählprobe `gcnt` gemeinsam für `itemadd` (MAXITEM) und `iovf`. Außenkachel-Zweig aus der Zellschleife verlegt.
+2. **`clipvms_e` neu:** Zeilen-Zustandsautomat im ofs-Raum. Zeile r ist sichtbar in [tL, tR) = [r·stride + L, r·stride + R); sichtbare Befehle bekommen ofs′ = ofs − cfix mit cfix = T·stride + L (die Multiplikationen T·stride bzw. (B − T)·stride stehen jetzt in `clipvms_e`, `cl_rt`/`cl_rb` entfallen in `vspr`/`gband`). Je Zeile: Befehle mit ofs < tL überspringen (16-Bit-Vergleich, k += Länge), Rückblick auf den zuletzt übersprungenen Typ 1 (links beschnittener Lauf, nur bei L > 0; auch am Listenende), dann die sichtbaren Befehle als Block direkt kopieren: `op` ist so versetzt, dass `(op),y` die Ausgabestelle zum Eingabeindex y ist (ein Y für Ein- und Ausgabe, ofs′ per Addition von −cfix); davor bleiben 3 Byte für den Typ 3 frei, der erst beim Abschluss des Blocks (nicht leer) geschrieben wird. Ein Befehl mit ofs′ ≥ lim′ (= tR − cfix) beendet den Block; ein rechts beschnittener Lauf (nur bei R < w, `cl_w`) wird mit gekürzter Länge in den Block übernommen. Nur Zeilen beschnitten (`ofull` = 2): ein Block über alle Zeilen, lim′ = (B − T)·stride. Y läuft über die Liste (ab Y ≥ `$FC` wird ZP1 nachgezogen, Y = 4, damit der Rückblick erreichbar bleibt), X/`ccnth` zählen die Befehle, `cn` je Block aus der X-Differenz. Spalte 8-bittig: nur noch R − L und die Differenz lim′ − ofs′ beim rechten Rand.
+3. **Grundlast Objekte:** Zellmarke im Zellendurchlauf statt `jsr vobjc` je Zelle: Low-Byte des Zellindex (idxd + r_lo[s]) gegen das Bitfeld `obm`, nur bei Treffer `vobjc` (prüft wie bisher vollständig, auch Zellen außerhalb der Karte). `objon`/`objd` Bit 7 = Gegenstände möglich (`itemn` > 0): dann weiter jede Zelle über `vobjc` (Inhaltsebene). Phase f · NA · D per Addition statt `mul8`. `mul8` mit Registern statt BSS-Zähler (etwa 30 Zyklen je Aufruf schneller).
+
+### Festlegungen
+
+- **Formatvoraussetzung** für das Beschneiden (P5b 4.6, vom Konverter erfüllt): ofs = Zeile · stride + Spalte mit Spalte + len ≤ w ≤ stride; ein Lauf bleibt in seiner Zeile; Befehle steigend ohne Überlappung (Review: ergänzt, `dbetex.check_vms` in `from_s2`/`from_dts`). Damit ist die Zeile eines Befehls ofs div stride, und ein Lauf der Zeile r − 1 reicht nie über tL der Zeile r. Für Listen, die das verletzen, ist die Ausgabe nicht mehr zwingend gleich der Referenz.
+- **Zählmodus** (`iovf`, MAXITEM-Probe): der Block schreibt nach Bank 0 `$0B00–$0BFF` (Reserve der Engine, 2.2 angepasst), die Einzelbefehle schreiben nichts; die Größe ergibt sich aus der Ausgabestelle. Platzprüfung beim direkten Schreiben: 2 · vlen + 4 (der zur Probe kopierte Befehl hinter dem Block).
+- **Zeropage:** `clipvms_e` benutzt `kwi`/`kwn` (zt+4/5) als `cyl`/`cq` und `dp` als k; `dp` wird gerettet und vor `emit_vms` zurückgeschrieben (`iovf` erzeugt den Eintrag neu und liest `dp`).
+
+### Test
+
+`run_sim.py` unverändert: P6e Standard 1 668 / `VMS_COPY` 1 638 Ansichten bytegleich, `DBEVIEW_FULL=1` 5 308 / 5 278; P6d 1 322 / 1 302, voll 4 962 / 4 942; P6a, P6c, GEOMSET-Grenzfälle grün. Beschnittene Listen über 252 Byte (Nachziehen von ZP1 im Überspringen und im Block), links beschnittene Läufe am Listenende, rechts beschnittene Läufe und Zählmodus (überlauf, MAXITEM = 8) sind in den Sätzen enthalten.
+
+### Zyklen (sim65, Demo-Assets, ohne Stub; Standardbuild Typ 9)
+
+| Fall | P6e | Schritt 1 | Schritt 2 | Schritt 3 (P6e-opt) | Ziel |
+|---|---|---|---|---|---|
+| Gang ohne Objekte, Mittel / max | 33 416 / 39 111 | 33 365 / 39 049 | 33 373 / 39 064 | **33 364 / 39 048** | 30 000 / 45 000 |
+| Gang ohne Objekte, `VMS_COPY` | 40 439 / 50 280 | 40 390 / 50 210 | 40 409 / 50 237 | 40 422 / 50 254 | – |
+| zufall ohne Objekte, Mittel / max | 41 314 / 55 653 | 41 154 / 55 462 | 41 178 / 55 489 | 41 159 / 55 457 | – / 80 000 |
+| je Objekt unbeschnitten d = 1 / 2 / 3 | 4 999 / 5 001 / 4 318 | 5 091 / 5 093 / 4 425 | 5 073 / 5 075 / 4 406 | **3 884 / 3 886 / 3 217** | 5 200 / 4 240 / 3 540 |
+| je Objekt beschnitten links (d = 1, 242 Listenbyte) | 25 424 | 25 496 | 17 245 | **16 045** | 6 900 |
+| je Objekt beschnitten rechts (d = 1) | 27 213 | 27 267 | 17 307 | **16 112** | 6 900 |
+| je Objekt oben hinaus d = 1 / 2 / 3 | 25 375 / 15 820 / 18 353 | 25 302 / 15 851 / 18 380 | 14 703 / 10 381 / 11 570 | **13 432 / 9 105 / 10 290** | 7 500 / 6 100 / 7 000 |
+| je Objekt unsichtbar (ausgeschnitten) | 2 709 | 2 725 | 2 725 | 1 535 | – |
+| demo 1 / 5 Objekte (mit Gegenständen), Mittel | 26 311 / 29 988 | 26 306 / 30 003 | 26 308 / 29 056 | 26 315 / 29 048 | – |
+| zufall 0–16 Objekte, Mittel / max | 64 296 / 116 471 | 64 524 / 117 387 | 62 344 / 106 763 | **62 192 / 106 554** | – |
+
+**Befund:** Unbeschnittene Objekte liegen unter dem Ziel, die Grundlast ist um etwa 1 200 je `VIEW` gesunken (ohne Gegenstände). Beschnittene Objekte sind 1,6–1,9× schneller, das Ziel ≈ 6 900 ist aber **verfehlt** (16 000 bzw. 13 400). Aufteilung Rand d = 1 (68 Befehle, 22 bzw. 34 sichtbar, 15 Zeilen): Liste ≈ 11 200 (Überspringen ≈ 3 100 bei 57 Durchläufen à ≈ 55, Block ≈ 3 800 bei 45 Durchläufen à ≈ 80, je Zeile Fund, Blockanfang, Typ 3, Abschluss und Zeilenwechsel ≈ 200), 4 Kerne ≈ 2 000, Rest ≈ 2 800. Oben d = 1: Liste ≈ 7 200 (89 Befehle), 4 oben beschnittene Kerne ≈ 3 300 (je ein `mul8`). Die Liste muss Befehl für Befehl gelesen werden (Länge und Quellbytes je Befehl); mit etwa 50 Zyklen je übersprungenem und 70 je kopiertem Befehl liegt die Untergrenze für den Randfall bei etwa 9 000–10 000 je Objekt.
+
+### Größen
+
+Lib-Code 10 457 Byte (`$B000–$D8D8`, P6e 10 596; Schritt 1 10 391, Schritt 2 10 445, Schritt 3 10 457), Reserve bis `$DBFF` **807 Byte** (`VMS_COPY` 10 550 Byte, Reserve 714; Testbuild 10 585 Byte, Reserve bis `$DB80` 551). BSS 1 920 Byte (P6e 1 926), LIBTAB 945 Byte (unverändert).
+
+### Offene Punkte
+
+1. Ziel für beschnittene Objekte: nur mit Formatergänzung erreichbar, z. B. ein Zeilenindex je Bild im S2 (je Bildzeile Index des ersten Befehls und Quellposition: Zeilen vor T und Befehle links von L ohne Lesen überspringen, k aus der Differenz der Quellpositionen). Entscheidung Nutzer (P5b/P6f). Ohne Formatänderung bleiben etwa −500 (Blockabschluss inline, Typ 3 beim Blockanfang) und bei Kernen etwa −100 je Kern.
+2. Mit Gegenständen (`itemn` > 0) prüft der Zellendurchlauf weiter jede Zelle über `vobjc` (demo-Werte unverändert).
+3. Gang Mittel 33 364 (Ziel 30 000) unverändert offen (P6d-opt).
+
+### Nachtrag Review P6e-opt (2026-11-25)
+
+- **Fehler `clipvms_e`:** nach einem rechts beschnittenen Lauf ab Y ≥ `$F8` ging es mit Y = `$FC…$FF` ohne Nachziehen von ZP1 in die nächste Zeile; der nächste Befehl lief über Y = `$FF` hinaus (Y = 0, falsche Liste), sofern die Zeile nicht die letzte war. Behoben (`@pn`: Prüfung Y ≥ `$FC`, +5 Byte, nur auf diesem Weg). Neuer Testsatz „gitter“ (`tall_sets`, Satz 7; Satz 1 im Rand-Test frei wegen des S2-Platzes im sim): breite Bilder ohne Kerne, je Zeile Läufe, halbe Bytes und Lücken, lange Listen; trifft den Fall (vorher 1 Abweichung).
+- **Zählprobe/`iovf`:** im Modus „Größe bekannt“ (ohne Platzprüfung) schrieb der Block auch bei leerer Ergebnisliste bis zu 9 Byte Abfall hinter mp; bei genau passendem Platz stehen dort schon die VCL-Einträge der Kerne. Jetzt: `im` = 0 → sofort zurück. Mit Liste bleibt der Abfall höchstens 6 Byte hinter ihrem Ende, wo der 7-Byte-Eintrag Typ 12 noch frei ist. Zählmodus: Abfall nur `$0B00–$0BFF` (Block < 256 Byte, Typ 3 bei `$0B00–$0B02`); keine Kollision (BUFSET-Fenster `$1300–$1BFF`, `$0B00` seit P6d-opt Reserve).
+- **Formatregel:** `dbespr`/`dbetex` erfüllen sie beim Erzeugen (`pack_image`), geprüft wurde beim Lesen nichts, und „ohne Überlappung“ stand nicht in P5b 4.6 (VIEW setzt es voraus: Rückblick nur auf den unmittelbar vorigen Befehl, Zeile fertig nach dem rechts beschnittenen Lauf). Ergänzt: `dbetex.check_vms` (Typ 1/8, Anzahl/Länge, Zeile < h, Spalte + len ≤ w ≤ stride, steigend ohne Überlappung) in `from_s2` und `from_dts`; Test `test_check_vms`, `test_vms_format_rules` prüft Überlappung.
+- Bytegleich: P6e Standard 1 743 / `VMS_COPY` 1 713 Ansichten (Rand 525), voll 5 383 / 5 353; P6d, P6a, P6c, GEOMSET grün. Zyklen unverändert (±40). Code 10 473 Byte (`$B000–$D8E8`), Reserve 791 (Testbuild bis `$DB80`: 535).
+- **Zeilenindex je Bild (offener Punkt 1):** 4 Byte je Bildzeile kosten in den Demo-Sätzen +20 … 60 % S2 (Satz „hoch“ +123 %), dazu Format-/Werkzeugänderung und ≈ 80–120 Byte Code. Nutzen: Zeilen vor T entfallen (oben hinaus ≈ −3 000), bei Rand links/rechts nur die Befehle rechts von R (≈ −1 500 … −2 500 je Objekt); links von L muss weiter gelesen werden. Das Ziel ≈ 6 900 bliebe verfehlt (Kerne und Grundlast ≈ 5 000). Empfehlung: nicht umsetzen; falls oben hinaus wichtig wird, grober Index (alle 8 Zeilen, ≈ 3–8 % S2).
+

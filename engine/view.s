@@ -8,7 +8,8 @@
 ;   zurückgenommen (iovf), im Zählmodus gemessen und nach 5.10 entschieden.
 ;   Spaltenmasken cover/bcov als Intervalllisten. Unbeschnittene VMS-Listen als VCL-Typ 9 (Bank 1); Build-Schalter VMS_COPY: Kopie in den Puffer (Typ 12).
 ; Zeropage: ZP0 = erstes Element der Zelle, ZP1 = Hilfszeiger (Slotkarte, Kerne, Listen); Block ZPB (lib.s):
-; vp, mp, tp, dp, op und kk, kj, eo, wmode, kwi, kwn.
+; vp, mp, tp, dp, op und kk, kj, eo, wmode, kwi, kwn (clipvms_e: kwi/kwn als cyl/cq, dp gerettet als k).
+; Bank 0 $0B00-$0BFF (Reserve der Engine): Abfall der Zählprobe von clipvms_e.
 
 .ifdef MAXITEM_T
 MAXITEM  = MAXITEM_T    ; nur Test (run_sim.py: Grenze klein, um den Abbruch zu prüfen)
@@ -208,9 +209,13 @@ f_view:
         dec     tmp
         bne     @ol
 @oe:    sty     nol
-        tya
-        ora     itemn
-        sta     objon
+        tya                     ; objon: 0 keine Objekte und Gegenstände, Bit 7 Gegenstände möglich, sonst 1
+        beq     @o1
+        lda     #1
+@o1:    ldx     itemn
+        beq     @o2
+        ora     #$80
+@o2:    sta     objon
         lda     vdir            ; SUBPOS[v] (P4 2.6): Tabellenanfang 5 v
         asl
         asl
@@ -538,6 +543,9 @@ vcells: ldx     cd
         sta     kk
         lda     #0
         sta     kj
+        beq     @cell
+@out:   ldy     map_out         ; Zelle außerhalb der Karte: Außenkachel
+        jmp     @t
 @cell:  ldx     kk
         lda     k_elo,x         ; ZP0 = erstes Element der Zelle
         sta     ZP0
@@ -561,8 +569,6 @@ vcells: ldx     cd
         ldy     #0
         lda     (ZP1),y
         tay
-        jmp     @t
-@out:   ldy     map_out
 @t:     lda     tpl,y           ; tp, tsum (Bit 7 Flächen, Bit 6 blocked, Kachel-Flags)
         sta     tp
         lda     tph,y
@@ -601,17 +607,17 @@ vcells: ldx     cd
         sta     gr_cc,y
 @cls:   bit     tsum            ; Flächen: Wände; keine Flächen: Objekte (5.2)
         bpl     @obj
-        lda     tsum
-        and     #TF_INH
-        bne     @inh
-        ldx     kk              ; Durchlauf 0: alle Wände in DVG-Reihenfolge
+        lda     tsum            ; Durchlauf 0: alle Wände in DVG-Reihenfolge; INHALT (5.2a): Durchlauf 1 Fronten,
+        and     #TF_INH         ; Objekte, Durchlauf 2 Seiten
+        beq     @p0
+        lda     #1
+@p0:    sta     pass
+        ldx     kk
         lda     k_wn,x
-        beq     @nx
+        beq     @pe
         sta     kwn
         lda     k_wo,x
         sta     kwi
-        lda     #0
-        sta     pass
 @wl:    ldx     kwi
         lda     wl,x
         sta     eo
@@ -619,40 +625,39 @@ vcells: ldx     cd
         inc     kwi
         dec     kwn
         bne     @wl
+@pe:    lda     pass            ; nach Durchlauf 1: Objekte, Durchlauf 2
+        lsr
+        bcs     @i1
 @nx:    inc     kk
         inc     kj
         dec     kn
         jne     @cell
         rts
-@inh:   lda     #1              ; INHALT (5.2a): Fronten, Objekte, Seiten
-        jsr     vpass
-        lda     objd
+@i1:    lda     objd
         beq     @i2
         jsr     vobjc
 @i2:    lda     #2
-        jsr     vpass
-        jmp     @nx
+        bne     @p0
 @obj:   lda     objd            ; Objekte oder Gegenstände möglich (und d >= 1)
         beq     @nx
-        jsr     vobjc
+        bmi     @oc             ; Gegenstände möglich: jede Zelle prüfen
+        ldy     ksi             ; sonst Zellmarke: Low-Byte des Zellindex in obm (Zellen außerhalb der Karte
+        clc                     ; verwirft vobjc)
+        lda     idxd
+        adc     r_lo,y
+        tax
+        and     #7
+        tay
+        txa
+        lsr
+        lsr
+        lsr
+        tax
+        lda     obm,x
+        and     bittab,y
+        beq     @nx
+@oc:    jsr     vobjc
         jmp     @nx
-
-; Wände der Zelle kk im Durchlauf A (0 alle, 1 Fronten, 2 Seiten)
-vpass:  sta     pass
-        ldx     kk
-        lda     k_wn,x
-        beq     @r
-        sta     kwn
-        lda     k_wo,x
-        sta     kwi
-@l:     ldx     kwi
-        lda     wl,x
-        sta     eo
-        jsr     vwall
-        inc     kwi
-        dec     kwn
-        bne     @l
-@r:     rts
 
 ; Wand eo der Zelle (ZP0, tp, ksi) im Sichtdurchlauf: allcov vor resolve
 vwall:  ldy     eo
@@ -955,22 +960,16 @@ vspr:   lda     cset,x
         sta     ZP1
         lda     recs+11,x
         sta     ZP1+1
-        lda     oph
+        ldy     oph             ; + f * NA * D (f < NP <= 32, meist klein: Addition statt mul8)
         beq     @f0
-        sta     tmp             ; + f * NA * D
-        lda     recs+14,x
-        sta     mw
-        lda     #0
-        sta     mw+1
-        lda     tmp
-        jsr     mul8
-        clc
+@ph:    clc
         lda     ZP1
-        adc     mr
+        adc     recs+14,x
         sta     ZP1
-        lda     ZP1+1
-        adc     mr+1
-        sta     ZP1+1
+        bcc     @p2
+        inc     ZP1+1
+@p2:    dey
+        bne     @ph
         ldy     obase
         lda     (ZP1),y
         cmp     #$FF
@@ -1112,35 +1111,9 @@ vspr:   lda     cset,x
         bne     @cut
         dex
 @cut:   stx     ofull
-        lda     #0              ; cl_rt = T * stride
-        sta     cl_rt
-        sta     cl_rt+1
-        lda     cl_t
-        beq     @t0
-        lda     dvg_stride
-        sta     mw
-        lda     dvg_stride+1
-        sta     mw+1
-        lda     cl_t
-        jsr     mul8
-        lda     mr
-        sta     cl_rt
-        lda     mr+1
-        sta     cl_rt+1
-@t0:    lda     ofull           ; nur Zeilen: cl_rb = B * stride
-        cmp     #2
-        bne     @t1
-        lda     dvg_stride
-        sta     mw
-        lda     dvg_stride+1
-        sta     mw+1
-        lda     cl_b
-        jsr     mul8
-        lda     mr
-        sta     cl_rb
-        lda     mr+1
-        sta     cl_rb+1
-@t1:    ldx     ocj
+        lda     ow
+        sta     cl_w
+        ldx     ocj
         lda     coi,x
         sta     g_oi
         lda     #IT_SPR
@@ -1676,28 +1649,32 @@ addiv:  clc
         inc     iv+1
 @r:     rts
 
-; mr = A * mw (8 x 16 Bit)
-mul8:   sta     mt
+; mr = A * mw (8 x 16 Bit); zerstört X, Y
+mul8:   tax                     ; X = Rest des Multiplikators, Y = Ergebnis lo
         lda     #0
-        sta     mr
         sta     mr+1
+        tay
         lda     mw
         sta     ms
         lda     mw+1
         sta     ms+1
-@l:     lsr     mt
+        txa
+        beq     @e
+@l:     lsr
+        tax
         bcc     @n
+        tya
         clc
-        lda     mr
         adc     ms
-        sta     mr
+        tay
         lda     mr+1
         adc     ms+1
         sta     mr+1
 @n:     asl     ms
         rol     ms+1
-        lda     mt
+        txa
         bne     @l
+@e:     sty     mr
         rts
 
 ; e_dst = AP + row[A] + X
@@ -1731,15 +1708,7 @@ itemadd:
         lda     g_type          ; leerer Sprite-Eintrag ist kein Eintrag (Referenz: add nur bei v > 0)
         cmp     #IT_SPR
         bne     @full
-        lda     #0
-        sta     wmode
-        sta     iv
-        sta     iv+1
-        sta     im
-        sta     im+1
-        jsr     gen
-        lda     iv
-        ora     iv+1
+        jsr     gcnt
         bne     @full
         rts
 @full:  lda     #E_TOOMANY
@@ -1787,18 +1756,7 @@ iovf:   ldx     isp
         sta     mp+1
         lda     snent
         sta     nent
-        lda     #0
-        sta     wmode
-        sta     iv
-        sta     iv+1
-        sta     im
-        sta     im+1
-        jsr     gen
-        lda     iv              ; leerer Sprite-Eintrag (nur Sprites können leer sein: alle Typen > 0)
-        ora     iv+1
-        bne     @ne
-        lda     g_type
-        cmp     #IT_SPR
+        jsr     gcnt
         bne     @ne
         rts
 @ne:    sec                     ; frei = vp - mp = BL - nv - nm
@@ -1857,6 +1815,21 @@ iovf:   ldx     isp
 @stop:  lda     #E_TOOMANY
         sta     verr
         jmp     vstop
+
+; Zählprobe: iv/im = Größe des Eintrags (VCL/VMS); Z = 1: leerer Sprite-Eintrag (nur Sprites können leer sein)
+gcnt:   lda     #0
+        sta     wmode
+        sta     iv
+        sta     iv+1
+        sta     im
+        sta     im+1
+        jsr     gen
+        lda     iv
+        ora     iv+1
+        bne     @r
+        lda     g_type
+        cmp     #IT_SPR
+@r:     rts
 
 ; angenommener Sprite-Eintrag eines Listenobjekts: OBJVIS-Bit i (auch ohne Rand)
 objmark:
@@ -1928,54 +1901,19 @@ gen:    lda     g_type
 ; SPRITE (5.8, 5.9): Satz orx, Bildeintrag dp (S2), Lage cl_x0/cl_y0, Ausschnitt cl_l ... cl_b, ofull = unbeschnitten.
 ; Kerne mit clipkerns; Rand unbeschnitten als Bank-1-Verweis (Typ 9; Build VMS_COPY: Kopie in den Puffer, Typ 12),
 ; sonst mit clipvms_e
-gspr:   ldx     orx
-        lda     recs+1,x
-        sta     gvb
-        lda     recs+2,x
-        sta     gvb+1
-        lda     recs+8,x
-        sta     gcont
-        lda     recs+9,x
-        sta     gcont+1
+gspr:   ldx     orx             ; VRAM-Basis, Inhaltsanfang (fsrc, fn, kc aus gsetx sind hier bedeutungslos)
+        jsr     gsetx
         ldy     #5              ; nk, Kerntabelle
         lda     (dp),y
         sta     kc
         iny
-        clc
-        lda     (dp),y
-        adc     gcont
-        sta     ZP1
-        iny
-        lda     (dp),y
-        adc     gcont+1
-        sta     ZP1+1
+        jsr     grl
         jsr     clipkerns
-        ldy     #14             ; vlen
-        lda     (dp),y
-        sta     g_vlen
-        iny
-        lda     (dp),y
-        sta     g_vlen+1
-        ora     g_vlen
+        ldy     #8              ; Quelle = VB + rand_ofs, ZP1 = Liste, g_vlen
+        jsr     grand
+        lda     g_vlen
+        ora     g_vlen+1
         beq     @r
-        ldy     #8              ; Quelle = VB + rand_ofs
-        clc
-        lda     (dp),y
-        adc     gvb
-        sta     g_rsrc
-        iny
-        lda     (dp),y
-        adc     gvb+1
-        sta     g_rsrc+1
-        ldy     #12             ; ZP1 = Liste
-        clc
-        lda     (dp),y
-        adc     gcont
-        sta     ZP1
-        iny
-        lda     (dp),y
-        adc     gcont+1
-        sta     ZP1+1
         bit     wmode
         bmi     @w
         lda     ofull           ; 1 = unbeschnitten
@@ -1995,16 +1933,6 @@ gspr:   ldx     orx
         lda     ofull
         lsr
         bcc     @cc
-        lda     g_rsrc
-        sta     e_src
-        lda     g_rsrc+1
-        sta     e_src+1
-.ifdef VMS_COPY
-        lda     g_vlen
-        sta     clen
-        lda     g_vlen+1
-        sta     clen+1
-.endif
         lda     cl_y0
         ldx     cl_x0
         jsr     dstxy
@@ -2022,7 +1950,8 @@ gsetup: lda     g_kind
         asl
         asl
         tax
-        lda     recs+1,x
+gsetx:  lda     recs+1,x        ; X = Satz in recs (gspr: S2-Satz)
+
         sta     gvb
         lda     recs+2,x
         sta     gvb+1
@@ -2047,6 +1976,35 @@ gsetup: lda     g_kind
         iny
         lda     (dp),y
         sta     fn
+        rts
+
+; Y = Feld rand_ofs des Verzeichniseintrags (DTS 6, S2 8): g_rsrc = VB + rand_ofs, ZP1 = Inhalt + Liste (Y + 4),
+; g_vlen = Länge (Y + 6). Einstieg grl: ZP1 = Inhalt + Wort (dp),y; g_vlen = Wort (dp),y+2
+grand:  clc
+        lda     (dp),y
+        adc     gvb
+        sta     g_rsrc
+        iny
+        lda     (dp),y
+        adc     gvb+1
+        sta     g_rsrc+1
+        iny
+        iny
+        iny
+grl:    clc
+        lda     (dp),y
+        adc     gcont
+        sta     ZP1
+        iny
+        lda     (dp),y
+        adc     gcont+1
+        sta     ZP1+1
+        iny
+        lda     (dp),y
+        sta     g_vlen
+        iny
+        lda     (dp),y
+        sta     g_vlen+1
         rts
 
 ; WALL(e, ent) (5.3): ex, ey, ew = Element
@@ -2198,14 +2156,15 @@ gwall:  jsr     gsetup
 ; eingetragen (Typ 9, 6a) bzw. im Build VMS_COPY in den Puffer kopiert (Typ 12)
 vmsverb:
         ldy     #6
-        clc
+.ifndef VMS_COPY
+        clc                     ; (Hauptpfad: ohne grand)
         lda     (dp),y
         adc     gvb
-        sta     e_src
+        sta     g_rsrc
         iny
         lda     (dp),y
         adc     gvb+1
-        sta     e_src+1
+        sta     g_rsrc+1
         ldy     #10
         clc
         lda     (dp),y
@@ -2215,8 +2174,7 @@ vmsverb:
         lda     (dp),y
         adc     gcont+1
         sta     ZP1+1
-.ifndef VMS_COPY
-; ZP1 = Liste (Bank 1), e_src/e_dst gesetzt: Typ 9
+; ZP1 = Liste (Bank 1), g_rsrc/e_dst gesetzt: Typ 9
 vms9:   lda     ZP1
         sta     e_lst
         lda     ZP1+1
@@ -2224,26 +2182,21 @@ vms9:   lda     ZP1
         lda     #9
         jmp     emit_vms
 .else
-        ldy     #12
-        lda     (dp),y
-        sta     clen
-        iny
-        lda     (dp),y
-        sta     clen+1
-; unbeschnittene Liste kopieren: ZP1 = Liste, clen = Länge, e_src/e_dst gesetzt; Typ 12
+        jsr     grand
+; unbeschnittene Liste kopieren: ZP1 = Liste, g_vlen = Länge, g_rsrc/e_dst gesetzt; Typ 12
 vmscopy:
-        lda     clen
+        lda     g_vlen
         sta     s3
-        lda     clen+1
+        lda     g_vlen+1
         sta     s3+1
         jsr     vmsneed
         lda     mp
         sta     e_lst
         lda     mp+1
         sta     e_lst+1
-        ; vcopy: clen Byte von (ZP1) nach (mp), mp += clen
+        ; vcopy: g_vlen Byte von (ZP1) nach (mp), mp += g_vlen
         ldy     #0              ; vierfach entrollt (14 Zyklen je Byte)
-        ldx     clen+1
+        ldx     g_vlen+1
         beq     @r0
 @pg:    lda     (ZP1),y
         sta     (mp),y
@@ -2262,7 +2215,7 @@ vmscopy:
         inc     mp+1
         dex
         bne     @pg
-@r0:    lda     clen
+@r0:    lda     g_vlen
         and     #3
         beq     @q
         tax
@@ -2271,7 +2224,7 @@ vmscopy:
         iny
         dex
         bne     @b1
-@q:     lda     clen
+@q:     lda     g_vlen
         lsr
         lsr
         beq     @e2
@@ -2482,34 +2435,11 @@ gband:  jsr     gsetup
         lda     g_type
         bmi     @r
 @cc:    ldy     #6              ; Quelle = VB + rand_ofs, ZP1 = Liste, g_vlen
-        clc
-        lda     (dp),y
-        adc     gvb
-        sta     g_rsrc
-        iny
-        lda     (dp),y
-        adc     gvb+1
-        sta     g_rsrc+1
-        iny
-        iny
-        clc                     ; Y = 10
-        lda     (dp),y
-        adc     gcont
-        sta     ZP1
-        iny
-        lda     (dp),y
-        adc     gcont+1
-        sta     ZP1+1
-        iny
-        lda     (dp),y
-        sta     g_vlen
-        iny
-        lda     (dp),y
-        sta     g_vlen+1
+        jsr     grand
         lda     #0
-        sta     cl_rt
-        sta     cl_rt+1
         sta     ofull           ; allgemeiner Ausschnitt
+        lda     #$FF            ; Bildbreite unbekannt: Lauf rechts beschneiden möglich
+        sta     cl_w
         jmp     clipvms_e
 
 ; BG(r0, r1, c0, c1) (5.7)
@@ -2841,331 +2771,332 @@ ckwrite:
         sta     e_reps
         rts
 
-; VMS-Liste beschneiden (P5b 6.2): ZP1 = Liste, Ausschnitt cl_l/cl_r/cl_t/cl_b, cl_rt = T * stride.
-; Bezugspunkt der Ausgabe: (x0 + L, y0 + T) im Fenster. Zählen: iv += 7 und im = 3 + Bytes, falls ein Befehl
-; sichtbar ist; schreiben: Liste nach vmsp und VMS-Eintrag (src = VB + rand_ofs, dst = AP + row[y0+T] + x0+L).
+; VMS-Liste beschneiden (P5b 6.2): ZP1 = Liste, Ausschnitt cl_l/cl_r/cl_t/cl_b (im Bild), cl_w = Bildbreite (R < w: ein
+; Lauf kann rechts beschnitten sein; $FF = unbekannt), ofull = 2: nur Zeilen beschnitten (L = 0, R = w).
+; Bezugspunkt der Ausgabe (x0 + L, y0 + T). Zählen: iv += 7 und im = 3 + Bytes, falls ein Befehl sichtbar ist;
+; schreiben: Liste ab mp und VMS-Eintrag Typ 12 (src = g_rsrc, dst = AP + row[y0 + T] + x0 + L).
+; Voraussetzung (Formatregel P5b 4.6): ofs = Zeile * stride + Spalte, Spalte + len <= w <= stride; damit ist Zeile r in
+; ofs ausgedrückt sichtbar in [tL, tR) = [r * stride + L, r * stride + R), und ein sichtbarer Befehl mit Spalte >= L
+; bekommt ofs' = ofs - cfix, cfix = T * stride + L. Ablauf je Zeile: Befehle mit ofs < tL überspringen (k += Länge),
+; Rückblick auf den zuletzt übersprungenen Typ 1 (links beschnittener Lauf), dann die sichtbaren Befehle als Block
+; kopieren: op ist so versetzt, dass (op),y die Ausgabestelle zum Eingabeindex y ist; davor bleiben 3 Byte für den
+; Typ 3 frei (k > 0), der erst geschrieben wird, wenn der Block nicht leer ist. Ein Befehl mit ofs' >= lim' (= tR - cfix)
+; beendet den Block, ein rechts beschnittener Lauf ebenso. Nur Zeilen: ein Block über alle Zeilen (lim' = (B - T) *
+; stride, kein Rückblick). Y = laufender Eingabeindex (ab $FC wird ZP1 nachgezogen), X/ccnth = restliche Befehle.
+; Zählmodus: der Block schreibt nach CSCR (Bank 0 $0B00-$0BFF, Reserve der Engine, 2.2), die Einzelbefehle nichts.
+CSCR     = $0B00
+cyl      = zt+4         ; clipvms_e: Index des Längenbytes des zuletzt übersprungenen Typ 1
+cq       = zt+5         ; clipvms_e: ofs' lo
+ck       = dp           ; clipvms_e: ausstehender Sprung k (dp wird gerettet: iovf erzeugt den Eintrag neu)
 clipvms_e:
         bit     wmode
-        bpl     @go
-        bvs     @x              ; Größe bekannt (iovf)
-        lda     g_vlen          ; Platz für höchstens 2 * vlen Byte (je Befehl höchstens ein Typ 3 dazu)
-        asl
+        bpl     @cnt
+        bvs     @k              ; Größe bekannt (iovf)
+        lda     g_vlen          ; Platz für höchstens 2 * vlen + 4 Byte (je Befehl höchstens ein Typ 3 dazu, dazu
+        asl                     ; der zuletzt zur Probe kopierte Befehl)
         sta     s3
         lda     g_vlen+1
         rol
         sta     s3+1
+        bcs     @ov
+        lda     s3
+        adc     #4
+        sta     s3
         bcc     @s
-        jmp     iovf
+        inc     s3+1
+        bne     @s
+@ov:    jmp     iovf
+@k:     lda     im              ; iovf ohne Platzprüfung: Liste leer (Zählprobe) -> nichts; sonst schriebe der Block
+        ora     im+1            ; bis zu 9 Byte Abfall hinter mp, wo bei genau passendem Platz schon die VCL-Einträge
+        bne     @x              ; der Kerne stehen (mit Liste: höchstens 6 Byte hinter ihrem Ende, dort ist der
+        rts                     ; 7-Byte-Eintrag Typ 12 noch frei)
 @s:     jsr     vmsneed
-@x:     clc                     ; op = Ausgabe der Befehle (hinter dem Kopf)
+@x:     clc                     ; Ausgabe hinter dem Kopf
         lda     mp
         adc     #3
-        sta     op
+        sta     copos
         lda     mp+1
         adc     #0
-        sta     op+1
-@go:    ldy     #0
-        lda     (ZP1),y
-        sta     calpha
-        iny
-        lda     (ZP1),y
-        sta     ccnt
-        iny
-        lda     (ZP1),y
-        sta     ccnt+1
+        bcc     @p              ; (C = 0: mp + 3 < $10000)
+@cnt:   lda     #3              ; zählen: copos = 3 + Bytes
+        sta     copos
         lda     #0
-        sta     cr
-        sta     crs
-        sta     crs+1
+@p:     sta     copos+1
+        lda     dp
+        sta     csdp
+        lda     dp+1
+        sta     csdp+1
+        lda     #0
         sta     ck
         sta     ck+1
         sta     cn
         sta     cn+1
-        sta     cb
-        sta     cb+1
-        lda     ofull           ; nur Zeilen beschnitten (Sprite mit L = 0, R = w): ohne Spaltenrechnung
+        lda     #$FF
+        sta     cyl
+        lda     cl_t            ; cfix = T * stride + L, -cfix
+        jsr     mulst
+        clc
+        lda     mr
+        adc     cl_l
+        sta     ccf
+        sta     ctl
+        lda     mr+1
+        adc     #0
+        sta     ccf+1
+        sta     ctl+1
+        sec
+        lda     #0
+        sbc     ccf
+        sta     cncf
+        lda     #0
+        sbc     ccf+1
+        sta     cncf+1
+        lda     ofull
         cmp     #2
         bne     @gen
-        jmp     @rows
-@gen:   lda     dvg_stride
-        sta     crn
-        lda     dvg_stride+1
-        sta     crn+1
-        sec                     ; crt = rs - T * stride
+        sec                     ; nur Zeilen: ein Block, lim' = (B - T) * stride
+        lda     cl_b
+        sbc     cl_t
+        jsr     mulst
+        lda     mr
+        sta     clim
+        lda     mr+1
+        sta     clim+1
+        lda     #1
+        sta     cnr
         lda     #0
-        sbc     cl_rt
-        sta     crt
+        beq     @fl
+@gen:   sec                     ; Zeile T: lim' = R - L
+        lda     cl_r
+        sbc     cl_l
+        sta     clim
+        sta     cwid
         lda     #0
-        sbc     cl_rt+1
-        sta     crt+1
-        ldy     #3
-@cmd:   lda     ccnt
-        bne     @c1
-        lda     ccnt+1
-        bne     @c0
-        jmp     @done
-@c0:    dec     ccnt+1
-@c1:    dec     ccnt
-        tya                     ; ZP1 += Y
-        clc
-        adc     ZP1
-        sta     ZP1
-        bcc     @c2
-        inc     ZP1+1
-@c2:    ldy     #1
-        lda     (ZP1),y
-        sta     cofs
-        iny
-        lda     (ZP1),y
-        sta     cofs+1
-@rw:    lda     cofs            ; while ofs >= rs + stride: nächste Zeile
-        cmp     crn
-        lda     cofs+1
-        sbc     crn+1
-        bcc     @rd
-        lda     crn
-        sta     crs
-        lda     crn+1
-        sta     crs+1
-        clc
-        lda     crt
-        adc     dvg_stride
-        sta     crt
-        lda     crt+1
-        adc     dvg_stride+1
-        sta     crt+1
-        clc
-        lda     crn
-        adc     dvg_stride
-        sta     crn
-        lda     crn+1
-        adc     dvg_stride+1
-        sta     crn+1
-        inc     cr              ; r >= B: Ende (8-Bit-Zähler läuft nicht über, K6)
-        lda     cr
-        cmp     cl_b
-        bcc     @rw
-        jmp     @done
-@rd:    lda     cr              ; r >= B: Ende
-        cmp     cl_b
-        bcc     @r1
-        jmp     @done
-@r1:    sec                     ; col = ofs - rs
-        lda     cofs
-        sbc     crs
-        sta     ccol
-        lda     cofs+1
-        sbc     crs+1
-        sta     ccolh
+        sta     clim+1
+        sec
+        lda     cl_b
+        sbc     cl_t
+        sta     cnr
+        lda     cl_l            ; Bit 7: L > 0 (Rückblick), Bit 6: R < w (Lauf rechts beschneiden)
+        cmp     #1
+        lda     #0
+        ror
+        ldx     cl_r
+        cpx     cl_w
+        beq     @fl
+        ora     #$40
+@fl:    sta     cflg
         ldy     #0
         lda     (ZP1),y
-        cmp     #1
-        beq     @t1
-        ; Typ 8
-        lda     cr
-        cmp     cl_t
-        bcc     @i8
-        lda     ccolh
-        bne     @i8
-        lda     ccol
-        cmp     cl_l
-        bcc     @i8
-        cmp     cl_r
-        bcs     @i8
-        jsr     cflush
-        sec                     ; o = rs - rT + col - L
-        lda     ccol
-        sbc     cl_l
-        jsr     cofs_o
-        lda     #8
-        jsr     cput3
-        ldy     #3
-        jmp     @cmd
-@i8:    inc     ck
-        bne     @i8a
-        inc     ck+1
-@i8a:   ldy     #3
-        jmp     @cmd
-@t1:    ldy     #3              ; Typ 1
+        sta     calpha
+        iny
         lda     (ZP1),y
-        sta     cln
-        lda     cr
-        cmp     cl_t
-        jcc     @i1
-        lda     ccolh
-        jne     @i1
-        lda     ccol
-        cmp     cl_r
-        jcs     @i1
-        clc                     ; col + ln (9 Bit)
-        adc     cln
-        sta     cend
-        lda     #0
-        rol
-        sta     cendh
-        bne     @v1             ; >= 256 > L
-        lda     cend
-        cmp     cl_l
-        jeq     @i1
-        jcc     @i1
-@v1:    lda     ccol            ; a = max(col, L)
-        cmp     cl_l
-        bcs     @a1
-        lda     cl_l
-@a1:    sta     ca
-        lda     cendh           ; b = min(col + ln, R)
-        bne     @b0
-        lda     cend
-        cmp     cl_r
-        bcc     @b1
-@b0:    lda     cl_r
-@b1:    sta     cbb
-        lda     ca              ; k += a - col
-        sec
-        sbc     ccol
-        beq     @k1
-        jsr     ckadd
-@k1:    jsr     cflush
-        sec
-        lda     ca
-        sbc     cl_l
-        jsr     cofs_o
-        lda     #1
-        jsr     cput3
-        sec                     ; Länge b - a
-        lda     cbb
-        sbc     ca
-        bit     wmode
-        bpl     @l0
-        ldy     #0              ; schreiben: Byte nach op (cb nur im Zählmodus)
-        sta     (op),y
-        inc     op
-        bne     @l1
-        inc     op+1
-        bne     @l1
-@l0:    inc     cb
-        bne     @l1
-        inc     cb+1
-@l1:    lda     cendh           ; k += col + ln - b
-        bne     @kr
-        lda     cend
-        sec
-        sbc     cbb
-        beq     @kz
-        jsr     ckadd
-@kz:    ldy     #4
-        jmp     @cmd
-@kr:    sec
-        lda     cend
-        sbc     cbb
-        tax
-        lda     cendh
-        sbc     #0
-        tay
-        txa
-        clc
+        tax                     ; X = Anzahl lo
+        iny
+        lda     (ZP1),y
+        cpx     #1              ; ccnth = hi + (lo <> 0): Schleife dex/beq, dec ccnth/bne
+        adc     #0
+        sta     ccnth
+        bne     @y3
+        jmp     @end            ; keine Befehle
+@y3:    iny
+; ---- überspringen: Befehle mit ofs < tL (k += Länge); Y = Befehl
+@sk:    lda     (ZP1),y
+        lsr                     ; C = 1: Typ 1
+        iny
+        lda     (ZP1),y
+        bcc     @s8
+        cmp     ctl
+        iny
+        lda     (ZP1),y
+        sbc     ctl+1
+        bcs     @fd             ; ofs >= tL (Y = Befehl + 2)
+        iny
+        sty     cyl
+        lda     (ZP1),y         ; C = 0
         adc     ck
         sta     ck
-        tya
-        adc     ck+1
-        sta     ck+1
-        ldy     #4
-        jmp     @cmd
-@i1:    lda     cln
-        jsr     ckadd
-        ldy     #4
-        jmp     @cmd
-; nur Zeilen [T, B): sichtbar genau die Befehle mit T * stride <= ofs < B * stride (Spalten bleiben, P5b 4.6),
-; ofs' = ofs - T * stride; davor übersprungene Bytes als ein Typ 3; ab ofs >= B * stride Ende
-@rows:  ldy     #3
-@rc:    lda     ccnt
-        bne     @rc1
-        lda     ccnt+1
-        jeq     @done
-        dec     ccnt+1
-@rc1:   dec     ccnt
-        tya                     ; ZP1 += Y
-        clc
-        adc     ZP1
-        sta     ZP1
-        bcc     @rc2
-        inc     ZP1+1
-@rc2:   ldy     #1              ; ofs >= B * stride: Ende
-        lda     (ZP1),y
-        cmp     cl_rb
-        iny
-        lda     (ZP1),y
-        sbc     cl_rb+1
-        jcs     @done
-        dey                     ; ofs < T * stride: überspringen
-        lda     (ZP1),y
-        cmp     cl_rt
-        iny
-        lda     (ZP1),y
-        sbc     cl_rt+1
-        bcs     @rv
-        ldy     #0
-        lda     (ZP1),y
-        cmp     #1
-        bne     @ri8
-        ldy     #3
-        lda     (ZP1),y
-        jsr     ckadd
-        ldy     #4
-        bne     @rc
-@ri8:   inc     ck
-        bne     @ri9
+        bcc     @s1
         inc     ck+1
-@ri9:   ldy     #3
-        bne     @rc
-@rv:    jsr     cflush          ; sichtbar: cot = ofs - rT
-        ldy     #1
-        sec
-        lda     (ZP1),y
-        sbc     cl_rt
-        sta     cot
+@s1:    iny
+        dex
+        beq     @sx
+@sc:    cpy     #$FC
+        bcc     @sk
+        jsr     cnorm
+        jmp     @sk
+@s8:    cmp     ctl             ; Typ 8
         iny
         lda     (ZP1),y
-        sbc     cl_rt+1
-        sta     cot+1
-        ldy     #0
-        lda     (ZP1),y
-        cmp     #1
-        beq     @rv1
-        lda     #8
-        jsr     cput3
-        ldy     #3
-        jmp     @rc
-@rv1:   jsr     cput3
-        ldy     #3
-        lda     (ZP1),y
-        bit     wmode
-        bpl     @rl
-        ldy     #0
-        sta     (op),y
-        inc     op
-        bne     @rn
-        inc     op+1
-        bne     @rn
-@rl:    inc     cb
-        bne     @rn
-        inc     cb+1
-@rn:    ldy     #4
-        jmp     @rc
-@done:  lda     cn
-        ora     cn+1
+        sbc     ctl+1
+        bcs     @fd
+        iny
+        inc     ck
+        bne     @s2
+        inc     ck+1
+@s2:    dex
+        bne     @sc
+@sx:    dec     ccnth
+        bne     @sc
+        bit     cflg            ; Liste zu Ende: Rückblick auf den letzten Befehl
+        bpl     @se
+        jsr     cleft
+@se:    jmp     @end
+; ---- Befehl bei Y - 2 hat ofs >= tL
+@fd:    dey
+        dey
+        bit     cflg
+        bpl     @vis
+        tya                     ; Rückblick (L > 0): unmittelbar davor ein übersprungener Typ 1? (C = 1)
+        sbc     #1
+        cmp     cyl
         bne     @vis
+        jsr     cleft2
+; ---- sichtbare Befehle ab Y als Block
+@vis:   sty     cys             ; Block ab Y: Lücke für den Typ 3 bei k > 0, op = Ausgabe + Lücke - Y
+        stx     cxs             ; (zählen: CSCR + Lücke - Y)
+        ldx     #0
+        lda     ck
+        ora     ck+1
+        beq     @g
+        ldx     #3
+@g:     stx     cgap
+        txa
+        bit     wmode
+        bpl     @vc
+        clc
+        adc     copos
+        tax
+        lda     copos+1
+        adc     #0
+        bcc     @vb             ; (C = 0)
+@vc:    clc
+        adc     #<CSCR
+        tax
+        lda     #>CSCR
+@vb:    sta     op+1
+        txa
+        sec
+        sbc     cys
+        sta     op
+        bcs     @vd
+        dec     op+1
+@vd:    ldx     cxs
+@cp:    lda     (ZP1),y         ; Typ
+        sta     (op),y
+        lsr
+        iny
+        lda     (ZP1),y         ; ofs lo
+        bcs     @c1
+        adc     cncf            ; Typ 8: ofs' = ofs - cfix (C = 0)
+        sta     (op),y
+        sta     cq
+        iny
+        lda     (ZP1),y
+        adc     cncf+1
+        sta     (op),y
+        cmp     clim+1          ; ofs' < lim'?
+        bcc     @v8
+        bne     @ce
+        lda     cq
+        cmp     clim
+        bcs     @ce
+@v8:    iny
+@cn:    dex
+        beq     @cx
+@cy:    cpy     #$FC
+        bcc     @cp
+        jsr     ccommit         ; Y >= $FC: Block abschließen, ZP1 nachziehen, neuer Block
+        jsr     cnorm
+        jmp     @vis
+@cx:    dec     ccnth
+        bne     @cy
+        jsr     ccommit         ; Liste zu Ende
+        jmp     @end
+@c1:    sbc     ccf             ; Typ 1 (C = 1)
+        sta     (op),y
+        sta     cq
+        iny
+        lda     (ZP1),y
+        sbc     ccf+1
+        sta     (op),y
+        cmp     clim+1
+        bcc     @v1
+        bne     @ce
+        lda     cq
+        cmp     clim
+        bcs     @ce
+@v1:    iny
+        lda     (ZP1),y         ; Länge
+        sta     (op),y
+        bit     cflg
+        bvc     @v2
+        lda     clim            ; R < w: d = lim' - ofs' (1 ... R - L, ofs' >= Zeilenanfang)
+        sec
+        sbc     cq
+        cmp     (ZP1),y
+        bcc     @pr             ; d < len: rechts beschnitten
+@v2:    iny
+        jmp     @cn
+@ce:    dey                     ; Befehl bei Y - 2 nicht sichtbar: Block abschließen, nächste Zeile
+        dey
+        jsr     ccommit
+        jmp     @nr
+@pr:    sta     (op),y          ; Länge d; k = len - d nach dem Block; Zeile fertig
+        sta     cln
+        lda     (ZP1),y
+        sec
+        sbc     cln
+        sta     ckr
+        iny
+        dex
+        bne     @p1
+        dec     ccnth
+@p1:    jsr     ccommit
+        lda     ckr
+        sta     ck
+        lda     #0
+        sta     ck+1
+        txa
+        bne     @pn
+        lda     ccnth
+        beq     @end
+@pn:    cpy     #$FC            ; Y bis $FF möglich (Lauf ab Y >= $F8): vor @sk nachziehen
+        bcc     @nr
+        jsr     cnorm
+; ---- nächste Zeile: tL += stride, lim' += stride; r >= B: Ende (Rest entfällt)
+@nr:    dec     cnr
+        beq     @end
+        clc
+        lda     ctl
+        adc     dvg_stride
+        sta     ctl
+        lda     ctl+1
+        adc     dvg_stride+1
+        sta     ctl+1
+        clc
+        lda     clim
+        adc     dvg_stride
+        sta     clim
+        lda     clim+1
+        adc     dvg_stride+1
+        sta     clim+1
+        jmp     @sk
+@end:   lda     csdp
+        sta     dp
+        lda     csdp+1
+        sta     dp+1
+        lda     cn
+        ora     cn+1
+        bne     @vs
         rts                     ; nichts sichtbar: keine Liste
-@vis:   bit     wmode
+@vs:    bit     wmode
         bmi     @wr
         lda     #7
         jsr     addiv
-        clc
-        lda     cb
-        adc     #3
+        lda     copos
         sta     im
-        lda     cb+1
-        adc     #0
+        lda     copos+1
         sta     im+1
         rts
 @wr:    ldy     #0              ; Kopf: Alpha, Anzahl
@@ -3181,15 +3112,11 @@ clipvms_e:
         sta     e_lst
         lda     mp+1
         sta     e_lst+1
-        lda     op              ; mp = Ende der Liste
+        lda     copos           ; mp = Ende der Liste
         sta     mp
-        lda     op+1
+        lda     copos+1
         sta     mp+1
-        lda     g_rsrc          ; src = VB + rand_ofs, dst = AP + row[y0 + T] + x0 + L
-        sta     e_src
-        lda     g_rsrc+1
-        sta     e_src+1
-        clc
+        clc                     ; dst = AP + row[y0 + T] + x0 + L (src = g_rsrc)
         lda     cl_x0
         adc     cl_l
         tax
@@ -3200,18 +3127,136 @@ clipvms_e:
         lda     #12
         jmp     emit_vms
 
-; ck += A
-ckadd:  clc
-        adc     ck
+; Rückblick (L > 0) vor dem Befehl bei Y bzw. am Listenende: war der unmittelbar vorige Befehl ein übersprungener
+; Typ 1 (cyl = Index seiner Länge) mit e = ofs + len - tL > 0 (links beschnitten; der Lauf bleibt in seiner Zeile),
+; dann k -= e, Typ 3 (k), Typ 1 (ofs' = tL - cfix, n = min(e, R - L)), k = e - n. X, Y bleiben.
+cleft:  sec
+        tya                     ; Rückblick: unmittelbar davor ein übersprungener Typ 1 (cyl = Index seiner Länge)?
+        sbc     #1              ; (C = 1; cyl = $FF: keiner, Y >= 3)
+        cmp     cyl
+        beq     cleft2
+        rts
+cleft2: sty     cq
+        ldy     cyl             ; e = ofs + len - tL > 0: links beschnitten (der Lauf bleibt in seiner Zeile)
+        lda     (ZP1),y
+        sta     cln
+        dey
+        dey
+        clc
+        adc     (ZP1),y
+        sta     cle
+        iny
+        lda     (ZP1),y
+        adc     #0
+        tay
+        sec
+        lda     cle
+        sbc     ctl
+        sta     cle
+        tya
+        sbc     ctl+1
+        ldy     cq
+        bcc     @r            ; e < 0 (e < 256: ofs < tL)
+        lda     cle
+        beq     @r
+        sec                     ; k -= e (k hatte schon len); Typ 3 (k)
+        lda     ck
+        sbc     cle
         sta     ck
-        bcc     @r
-        inc     ck+1
+        bcs     @l1
+        dec     ck+1
+@l1:    jsr     cflush
+        lda     cwid            ; n = min(e, R - L), k = e - n; Typ 1 (ofs' = tL - cfix, n)
+        cmp     cle
+        bcc     @l2
+        lda     cle
+@l2:    sta     cln
+        eor     #$FF
+        sec
+        adc     cle
+        sta     ck
+        sec
+        lda     ctl
+        sbc     ccf
+        sta     cot
+        lda     ctl+1
+        sbc     ccf+1
+        sta     cot+1
+        lda     #1
+        jsr     cputw
+        lda     cln
+        jmp     cputb
 @r:     rts
 
-; k > 0: Befehl 3 (source skip) ausgeben
+; Block bis vor Y abschließen: n = Y - cys Byte; n > 0: copos += Lücke + n, cn += Befehle (cxs - X, < 256), Typ 3 (k)
+; in die Lücke vor dem Block (zählen: nach CSCR). X, Y bleiben.
+ccommit:
+        tya
+        sec
+        sbc     cys
+        beq     @r              ; leer: Lücke verfällt
+        clc
+        adc     cgap
+        adc     copos           ; (C = 0: n + Lücke < 256)
+        sta     copos
+        bcc     @a
+        inc     copos+1
+@a:     txa
+        eor     #$FF
+        sec
+        adc     cxs
+        clc
+        adc     cn
+        sta     cn
+        bcc     @b
+        inc     cn+1
+@b:     lda     cgap
+        beq     @r
+        sty     cq
+        ldy     cys
+        dey
+        dey
+        dey
+        lda     #3
+        sta     (op),y
+        iny
+        lda     ck
+        sta     (op),y
+        iny
+        lda     ck+1
+        sta     (op),y
+        inc     cn
+        bne     @c
+        inc     cn+1
+@c:     lda     #0
+        sta     ck
+        sta     ck+1
+        ldy     cq
+@r:     rts
+
+; Y >= $FC: ZP1 += Y - 4, Y = 4 (der vorige Befehl bleibt für den Rückblick erreichbar); cyl nachziehen bzw. $FF
+cnorm:  tya
+        sec
+        sbc     #4
+        sta     cq
+        clc
+        adc     ZP1
+        sta     ZP1
+        bcc     @a
+        inc     ZP1+1
+@a:     sec
+        lda     cyl
+        sbc     cq
+        bcs     @b
+        lda     #$FF
+@b:     sta     cyl
+        ldy     #4
+        rts
+
+; k > 0: Typ 3 (k) ausgeben, k = 0. X, Y bleiben.
 cflush: lda     ck
         ora     ck+1
-        beq     @r
+        beq     cpr
         lda     ck
         sta     cot
         lda     ck+1
@@ -3220,25 +3265,17 @@ cflush: lda     ck
         sta     ck
         sta     ck+1
         lda     #3
-        jmp     cput3
-@r:     rts
-
-; cot = rs - rT + A (crt = rs - rT)
-cofs_o: clc
-        adc     crt
-        sta     cot
-        lda     crt+1
-        adc     #0
-        sta     cot+1
-        rts
-
-; Befehl A mit Wort cot ausgeben (zählen: cb += 3, cn += 1)
-cput3:  inc     cn
-        bne     @n
-        inc     cn+1
-@n:     bit     wmode
+; Befehl A mit Wort cot bei copos ausgeben (zählen: nur copos), cn += 1. X, Y bleiben.
+cputw:  sty     cq
+        bit     wmode
         bpl     @c
-        ldy     #0              ; schreiben (cb nur im Zählmodus)
+        pha
+        lda     copos
+        sta     op
+        lda     copos+1
+        sta     op+1
+        pla
+        ldy     #0
         sta     (op),y
         iny
         lda     cot
@@ -3246,20 +3283,40 @@ cput3:  inc     cn
         iny
         lda     cot+1
         sta     (op),y
-        clc
-        lda     op
-        adc     #3
+@c:     inc     cn
+        bne     @n
+        inc     cn+1
+@n:     lda     #3
+cadv:   clc                     ; copos += A; Y = cq
+        adc     copos
+        sta     copos
+        bcc     @r
+        inc     copos+1
+@r:     ldy     cq
+cpr:    rts
+; Byte A bei copos ausgeben (Länge eines Typ 1). X, Y bleiben.
+cputb:  sty     cq
+        bit     wmode
+        bpl     @c
+        pha
+        lda     copos
         sta     op
-        bcc     @r
-        inc     op+1
-        rts
-@c:     clc
-        lda     cb
-        adc     #3
-        sta     cb
-        bcc     @r
-        inc     cb+1
-@r:     rts
+        lda     copos+1
+        sta     op+1
+        pla
+        ldy     #0
+        sta     (op),y
+@c:     lda     #1
+        bne     cadv
+
+; mr = A * stride
+mulst:  pha
+        lda     dvg_stride
+        sta     mw
+        lda     dvg_stride+1
+        sta     mw+1
+        pla
+        jmp     mul8
 
 ; ---------------------------------------------------------------- VCL-Einträge (6)
 ; zählen: iv += Länge; schreiben: vp -= Länge (vneed), Eintrag bei vp, nent += 1 (höchstens 255)
@@ -3273,18 +3330,23 @@ emit_vmc:
         bcc     @a
         lda     #13
 @a:     jmp     addiv
-@w:     cmp     #1              ; C = 1: Typ 3
-        lda     #2
-        adc     #0
-        sta     e_t
+@w:     ldx     #2              ; Typ 2 (11 Byte) bzw. 3 (13 Byte, srcstep e_ss)
+        cmp     #1
         lda     #11
-        ldx     e_t
-        cpx     #3
-        bne     @l
+        bcc     @l
+        inx
         lda     #13
-@l:     jsr     vneed
-        ldy     #0
-        lda     e_t
+@l:     jsr     vneed           ; (X bleibt)
+        cpx     #3
+        bne     @h
+        ldy     #11
+        lda     e_ss
+        sta     (vp),y
+        iny
+        lda     e_ss+1
+        sta     (vp),y
+@h:     ldy     #0
+        txa
         sta     (vp),y
         iny
         lda     e_src
@@ -3298,12 +3360,15 @@ emit_vmc:
         iny
         lda     e_dst+1
         sta     (vp),y
-        iny
+; Endstück ab Feld 5 (Y = 4, X = Typ): count, 0; außer bei Typ 4: reps, 0, step = stride
+vt5:    iny
         lda     e_cnt
         sta     (vp),y
         iny
         lda     #0
         sta     (vp),y
+        cpx     #4
+        beq     ent_end
         iny
         lda     e_reps
         sta     (vp),y
@@ -3315,15 +3380,6 @@ emit_vmc:
         sta     (vp),y
         iny
         lda     dvg_stride+1
-        sta     (vp),y
-        lda     e_t
-        cmp     #3
-        bne     ent_end
-        iny
-        lda     e_ss
-        sta     (vp),y
-        iny
-        lda     e_ss+1
         sta     (vp),y
 ent_end:
         inc     nent
@@ -3340,17 +3396,16 @@ emit_vmf:
         bcc     @a
         lda     #11
 @a:     jmp     addiv
-@w:     lda     e_reps
+@w:     ldx     #4              ; Typ 4 (7 Byte) bzw. 5 (11 Byte, reps > 1)
+        lda     e_reps
         cmp     #2
         lda     #7
         bcc     @l
+        inx
         lda     #11
 @l:     jsr     vneed
         ldy     #0
-        lda     e_reps
-        cmp     #2
-        lda     #4
-        adc     #0              ; 5 bei reps > 1
+        txa
         sta     (vp),y
         iny
         lda     e_dst
@@ -3364,45 +3419,25 @@ emit_vmf:
         iny
         lda     #0
         sta     (vp),y
-        iny
-        lda     e_cnt
-        sta     (vp),y
-        iny
-        lda     #0
-        sta     (vp),y
-        lda     e_reps
-        cmp     #2
-        bcc     ent_end
-        iny
-        sta     (vp),y
-        iny
-        lda     #0
-        sta     (vp),y
-        iny
-        lda     dvg_stride
-        sta     (vp),y
-        iny
-        lda     dvg_stride+1
-        sta     (vp),y
-        jmp     ent_end
+        jmp     vt5
 
-; A = Typ (12: Liste im Puffer, 9: Liste in Bank 1)
+; A = Typ (12: Liste im Puffer, 9: Liste in Bank 1); src = g_rsrc, dst = e_dst, Liste = e_lst
 emit_vms:
         bit     wmode
         bmi     @w
         lda     #7
         jmp     addiv
-@w:     sta     e_t
+@w:     tax
         lda     #7
-        jsr     vneed
+        jsr     vneed           ; (X bleibt)
         ldy     #0
-        lda     e_t
+        txa
         sta     (vp),y
         iny
-        lda     e_src
+        lda     g_rsrc
         sta     (vp),y
         iny
-        lda     e_src+1
+        lda     g_rsrc+1
         sta     (vp),y
         iny
         lda     e_dst
@@ -3561,8 +3596,6 @@ e_reps: .res 1
 e_ss:   .res 2
 e_b:    .res 1
 e_lst:  .res 2
-e_t:    .res 1
-clen:   .res 2
 bgn:    .res 1
 bga:    .res 1
 bgb:    .res 1
@@ -3576,7 +3609,6 @@ cl_l:   .res 1
 cl_r:   .res 1
 cl_t:   .res 1
 cl_b:   .res 1
-cl_rt:  .res 2
 kdx:    .res 1
 kdy:    .res 1
 kw:     .res 1
@@ -3588,31 +3620,31 @@ kb:     .res 1
 kc_:    .res 1
 ke:     .res 1
 kxe:    .res 1
-calpha: .res 1
-ccnt:   .res 2
-cr:     .res 1
-crs:    .res 2
-crn:    .res 2
-ck:     .res 2
-cn:     .res 2
-cb:     .res 2
-cofs:   .res 2
-ccol:   .res 1
-ccolh:  .res 1
-cln:    .res 1
-cend:   .res 1
-cendh:  .res 1
-ca:     .res 1
-cbb:    .res 1
+calpha: .res 1                  ; clipvms_e
+ccnth:  .res 1
+csdp:   .res 2                  ; dp während clipvms_e
+cxs:    .res 1                  ; X am Blockanfang
+ckr:    .res 1                  ; Rest eines rechts beschnittenen Laufs
+cn:     .res 2                  ; ausgegebene Befehle
+copos:  .res 2                  ; Ausgabestelle (zählen: 3 + Bytes)
 cot:    .res 2
-crt:    .res 2                  ; rs - T * stride
-cl_rb:  .res 2                  ; B * stride (nur Zeilen beschnitten)
+cln:    .res 1
+cle:    .res 1
+ccf:    .res 2                  ; cfix = T * stride + L
+cncf:   .res 2                  ; -cfix
+ctl:    .res 2                  ; tL der Zeile
+clim:   .res 2                  ; lim' der Zeile
+cwid:   .res 1                  ; R - L
+cnr:    .res 1                  ; restliche Zeilen
+cflg:   .res 1
+cys:    .res 1                  ; Blockanfang (Y)
+cgap:   .res 1
 g_vlen: .res 2                  ; Länge der VMS-Liste (clipvms_e)
 g_rsrc: .res 2                  ; VB + rand_ofs
 ; Objekte (5.8)
 obm:    .res 32                 ; Bitfeld: Low-Byte eines Objekt-Zellindex (bleibt bis zum nächsten VIEW)
 objd:   .res 1
-objon:  .res 1                  ; nol OR itemn (0: keine Objekte und Gegenstände möglich)
+objon:  .res 1                  ; 0: keine Objekte und Gegenstände möglich; Bit 7: Gegenstände (itemn > 0), sonst 1
 nol:    .res 1                  ; sichtbare Objekte der Liste: Zellindex, Index i, Offset 6 i
 ol_lo:  .res MAXOBJ
 ol_hi:  .res MAXOBJ
@@ -3633,7 +3665,8 @@ ocx0:   .res 1
 ocx1:   .res 1
 ocy0:   .res 1
 ocy1:   .res 1
-ofull:  .res 1                  ; 1 = unbeschnitten
+ofull:  .res 1                  ; 1 = unbeschnitten, 2 = nur Zeilen beschnitten
+cl_w:   .res 1                  ; Bildbreite (clipvms_e)
 g_oi:   .res 1
         .segment "LIBTAB"       ; Arbeitstabellen von VIEW (INIT löscht sie nicht)
 cp:     .res MAXOBJ+1           ; Kandidaten: p, Satz, Richtung, Phase, Objektindex ($FF Gegenstand)

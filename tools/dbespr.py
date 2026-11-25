@@ -719,6 +719,7 @@ def from_s2(data, vram=None):
             if vofs < o_data or vofs + vlen > total:
                 raise SprError(f"S2: Bild {i}: VMS-Liste ausserhalb des Datenbereichs")
             im.vms = bytes(c[vofs:vofs + vlen])
+            dbetex.check_vms(im.vms, w, h, stride, f"S2: Bild {i}")
         if vram is not None and rlen:
             im.rand = bytes(vram[rofs:rofs + rlen])
         images.append(im)

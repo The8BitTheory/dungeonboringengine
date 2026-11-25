@@ -321,6 +321,29 @@ def in_kern(kerns, bx, r):
     return any(kx <= bx < kx + kw and ky <= r < ky + kh for kx, ky, kw, kh in kerns)
 
 
+def check_vms(vms, w, h, stride, what="VMS-Liste"):
+    """Formatregeln der gespeicherten Listen (P5b 4.6; VIEW setzt sie beim Beschneiden voraus, P6e-opt): nur Typ 1/8,
+    Laenge passt zur Anzahl, ofs = Zeile * stride + Spalte mit Zeile < h, Spalte + len <= w <= stride, Befehle in
+    ofs-Reihenfolge ohne Ueberlappung (ofs >= Ende des vorigen). TexError bei Verstoss."""
+    if w > stride:
+        raise TexError(f"{what}: Breite {w} > stride {stride}")
+    if len(vms) < 3:
+        raise TexError(f"{what}: kuerzer als der Kopf")
+    n, p, end = vms[1] | vms[2] << 8, 3, 0
+    for _ in range(n):
+        if p + 3 > len(vms) or vms[p] not in (1, 8) or (vms[p] == 1 and p + 4 > len(vms)):
+            raise TexError(f"{what}: Befehl bei {p} ungueltig (nur Typ 1/8) oder Liste zu kurz")
+        ofs = vms[p + 1] | vms[p + 2] << 8
+        ln = vms[p + 3] if vms[p] == 1 else 1
+        r, col = divmod(ofs, stride)
+        if ofs < end or r >= h or ln == 0 or col + ln > w:
+            raise TexError(f"{what}: Befehl bei {p} verletzt die Formatregeln (Reihenfolge, Zeile, Spalte + Laenge)")
+        end = ofs + ln
+        p += 4 if vms[p] == 1 else 3
+    if p != len(vms):
+        raise TexError(f"{what}: Laenge passt nicht zur Befehlsanzahl")
+
+
 def pack_image(pix, states, kerns, stride):
     """(alpha, rand, vms): gepackte Randbytes und VMS-Liste (5.2); alpha nach 2.4."""
     h = len(states)
@@ -860,6 +883,7 @@ def from_dts(data, vram=None):
                 e.kerns.append(Kern(a, dx, dy, w, hh, ss))
         if vlen:
             e.vms = bytes(c[vofs:vofs + vlen])
+            check_vms(e.vms, stride, h, stride, f"DTS: Bild {i}")
         if vram is not None and rlen:
             e.rand = bytes(vram[rofs:rofs + rlen])
         entries.append(e)

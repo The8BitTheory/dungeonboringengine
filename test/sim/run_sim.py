@@ -1156,6 +1156,22 @@ def tall_sets(dbeview, dvg):
             images[(0, 0, d)] = (pix, min(w - 1, int(w * fxf)), hh - 1)
         prg, vram = dbeview.make_s2(images, D, 1, 1, stride)
         out.append(dbeview.read_s2(prg, vram))
+    # 'gitter': breit, je Zeile versetzt Lauf (3 Byte), halbes Byte (Typ 8) und Lücke, keine Kerne: lange Listen
+    # (über 300 Byte) mit links/rechts beschnittenen Läufen an allen Stellen relativ zum Nachziehen von ZP1 (Y >= $FC)
+    images = {}
+    for d in range(1, D + 1):
+        w, hh = max(5, 26 >> (d - 1)), max(3, 12 >> (d - 1))
+        pix = [[None] * (2 * w) for _ in range(hh)]
+        for r in range(hh):
+            for x in range(w):
+                m_ = (x + r) % 6
+                if m_ not in (0, 4):
+                    pix[r][2 * x] = 9 + (r & 3)
+                    if m_ > 1:
+                        pix[r][2 * x + 1] = 5
+        images[(0, 0, d)] = (pix, w // 2, hh - 1)
+    prg, vram = dbeview.make_s2(images, D, 1, 1, stride)
+    out.append(dbeview.read_s2(prg, vram))
     return out
 
 
@@ -1210,7 +1226,7 @@ def test_p6e(vcopy=False):
         ok = ok and not fails
 
     def with_extra(sc):
-        sc.s2 = list(sc.s2[:4]) + extra + [None]
+        sc.s2 = [sc.s2[0], None] + list(sc.s2[2:4]) + extra     # Satz 1 frei (Platz); 4-7: hoch, links, rechts, gitter
         return dbeview.layout_vram(sc)
 
     items = [0, 2, 3, 2] + [0] * 60
@@ -1228,7 +1244,7 @@ def test_p6e(vcopy=False):
     m = open_room()
     cx, cy = m.start % m.width, m.start // m.width
     scs = []
-    for setn in (0, 2, 3, 4, 5, 6):
+    for setn in (0, 2, 3, 4, 5, 6, 7):
         for d in (1, 2, 3):
             for s_ in (-2, -1, 0, 1, 2):
                 for q in range(5):
