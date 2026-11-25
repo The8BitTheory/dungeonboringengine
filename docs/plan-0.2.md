@@ -144,3 +144,14 @@ Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweil
 - **Reihenfolge:** P0, P1, P3 und P4 parallel; P2a, dann P2b/P2c; P5 nach P3; P6 nach P1–P5.
 - **Ablauf je Schritt:** Opus schreibt die Detailspezifikation und prüft das Ergebnis (Review).
 - **Tests:** ereignisgesteuert (Haltepunkte, keine festen Wartezeiten).
+
+## 9. Entscheidungen während der Umsetzung (2026-11-25)
+
+| Thema | Entscheidung |
+|---|---|
+| Sprite-Clipping am Viewport-Rand | Neuer VMS-Listenbefehl „Quelle n Byte weiter“ (source skip) in VDC-BASIC v3; die Engine kürzt die Listen beim Kopieren in den Puffer (P2c/P5b/P6) |
+| VIC-Grafik | Mit v3 sind `GRAPHIC 1–4` tabu (VDC-BASIC liegt bei `$1C00–$3FFF`) |
+| Guide von VDC-BASIC | wird erst in P8 auf v3 umgestellt |
+| `vrl.py` | kanonische Fassung in vdc-basic `tools/vrl.py`; die Engine verweist darauf bzw. hält eine Kopie |
+| `origin` | gehört nicht zur Geometrie-ID (Viewport verschieben ohne Neuimport der Texturen) |
+| Schwelle T | patchbares Byte in VDC-BASIC (`$1C04`); VICE-Wert (2) nur vorläufig, Messung auf echter Hardware mit `test/bench` in vdc-basic |
