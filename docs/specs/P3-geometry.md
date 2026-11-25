@@ -37,13 +37,13 @@ zoom       = 4              # Vergrößerung der PNG-Vorlagen (nur _view.png und
 
 [planes]                    # nur bei preset = "custom"
 ref_size = [176, 120]
-center_x = 88
+center_x = 88                       # optional; muss ref_size[0]/2 sein (C = width_px/2, 4.2)
 width    = [208, 128, 80, 48, 32]   # D + 2 Werte, streng fallend
 top      = [-16, 8, 16, 24, 28]     # steigend
 bottom   = [144, 104, 80, 64, 56]   # fallend
 ```
 
-Validierung (Fehler mit Schlüsselname, Exitcode 1): unbekannte Schlüssel, `width_px % 4 ≠ 0` (siehe 4.2), Bereiche oben, `stride < width_px/2`, `origin + (height−1)·stride + width_px/2 > 65535`, Ebenen nicht monoton, `top[k] ≥ bottom[k]`, Preset unbekannt, `depth` ≠ Anzahl Ebenen − 2.
+Validierung (Fehler mit Schlüsselname, Exitcode 1): unbekannte Schlüssel, `width_px % 4 ≠ 0` (siehe 4.2), Bereiche oben, `stride < width_px/2`, `origin + (height−1)·stride + width_px/2 > 65535`, Ebenen nicht monoton, `top[k] ≥ bottom[k]`, `center_x` ≠ `ref_size[0]`/2, Preset unbekannt, `depth` ≠ Anzahl Ebenen − 2.
 
 ## 3. Westwood-Preset
 
@@ -117,7 +117,7 @@ sx = width_px / 176, sy = height / 120 (exakt als Bruch rechnen: `fractions.Frac
 
 ### 4.3 Anker
 
-W(t) = 1 / ((1 − t)/W'_d + t/W'_{d+1}) (perspektivisch richtig zwischen den Ebenen), x = C + (s + a) · W(t), y = B_d + (B_{d+1} − B_d) · (W'_d − W(t)) / (W'_d − W'_{d+1}). Gespeichert: x_px = rund(x) und y = rund(y) in JSON; in DVG Byte-Spalte ⌊x_px / 2⌋ (vorzeichenbehaftet) und Zeile. Anker außerhalb des Fensters bleiben erhalten (große Sprites ragen hinein); eine Byte-Spalte außerhalb −128 … 127 oder y > 255 ist ein Fehler.
+W(t) = 1 / ((1 − t)/W'_d + t/W'_{d+1}) (perspektivisch richtig zwischen den Ebenen), x = C + (s + a) · W(t), y = B_d + (B_{d+1} − B_d) · (W'_d − W(t)) / (W'_d − W'_{d+1}). Gespeichert: x_px = rund(x) und y = rund(y) in JSON; in DVG Byte-Spalte ⌊x_px / 2⌋ (vorzeichenbehaftet) und Zeile. Anker außerhalb des Fensters bleiben erhalten (große Sprites ragen hinein). In der DVG (und JSON `byte`) wird die Byte-Spalte auf −128 … 127 und die Zeile auf ≤ 255 **gesättigt**: Solche Anker liegen so weit außerhalb (VW ≤ 80, VH ≤ 100), dass kein Sprite das Fenster erreicht. Betrifft im Westwood-Preset ab width_px = 144 die Zellen d = 0, s = ±1 (Review). y < 0 ist ein Fehler.
 
 ### 4.4 Masken, Rechteck, Kern, Spaltenbereich
 
@@ -216,7 +216,7 @@ Objektplatz:
 | 1 | d |
 | 2 | s |
 | 3 | 0 |
-| 4–13 | 5 Anker p = 0 … 4, je 2 Byte: Byte-Spalte (vorzeichenbehaftet), Zeile des Fußpunkts |
+| 4–13 | 5 Anker p = 0 … 4, je 2 Byte: Byte-Spalte (vorzeichenbehaftet), Zeile des Fußpunkts (beide gesättigt, 4.3) |
 | 14–15 | 0 |
 
 Ziel im Puffer: `AP + origin + y · stride + x` (die Engine rechnet das über eine Zeilentabelle).
@@ -237,15 +237,16 @@ NE ≤ 255 (Westwood: 79), VW ≤ 80, VH ≤ 100, alle Byte-Felder 0 … 255 au�
   "viewport": {"preset": "westwood", "width_px": 140, "height": 96, "origin": 0, "stride": 80, "depth": 3},
   "planes": [{"k": 0, "W": 164, "x_left": -12, "x_right": 152, "T": -13, "B": 115}],
   "bands": [{"d": 0, "ceil": [0, 6], "floor": [83, 96]}],
-  "horizon": [22, 45],
+  "band_images": [{"name": "ceilband_d0", "art": "ceilband", "d": 0, "rect": [0, 0, 70, 6], "atlas": [4, 378]}],
+  "horizon": [22, 45], "atlas_size": [580, 494],
   "elements": [{
     "index": 0, "name": "floor_d0_s+0", "art": "floor", "d": 0, "s": 0,
     "rect": [3, 83, 64, 13], "kernel": [7, 0, 50, 13], "cover": [0, 0], "flags": ["clipped"],
-    "src_dx": 0, "polygon": [[-12, 115], [152, 115], [120, 83], [20, 83]],
+    "src_dx": 0, "polygon": [[20, 83], [120, 83], [152, 115], [-12, 115]],
     "mask": ["..L#####…", "…"],
     "atlas": [0, 0]
   }],
-  "slots": [{"d": 1, "s": 0, "anchors_px": [[52, 67], [88, 67], [70, 71], [48, 77], [92, 77]]}],
+  "slots": [{"d": 1, "s": 0, "anchors_px": [[52, 67], [88, 67], [70, 71], [48, 76], [92, 76]]}],
   "budget": {}
 }
 ```
@@ -253,6 +254,10 @@ NE ≤ 255 (Westwood: 79), VW ≤ 80, VH ≤ 100, alle Byte-Felder 0 … 255 au�
 - `mask`: je Zeile des Rechtecks ein String mit w Zeichen: `#` voll, `L` nur linkes Pixel, `R` nur rechtes, `.` leer.
 - `name`: `<art>_d<d>_s<±s>` mit art ∈ `front`, `side`, `floor`, `ceil`; Bänder `floorband_d<d>`, `ceilband_d<d>`; Objektplätze `obj_d<d>_s<±s>`, Anker `obj_d<d>_s<±s>_p<p>`. Diese Namen sind die Slice-Namen in der Aseprite-Vorlage und der Schlüssel für den Importer (P5).
 - Werte in `kernel` relativ zum Rechteck, alles andere absolut.
+- Polygon-Punktreihenfolge wie in 3.1.
+- `elements` enthält auch die Objektplätze (`art` = `obj`, `anchors`: je Anker `name`, `px`, `byte` = DVG-Wert nach 4.3); `slots` wiederholt sie kurz.
+- `band_images`: Bänder als Atlasbilder (Rechteck, Atlaslage); `atlas_size`: Breite, Höhe des Atlas in Pixeln.
+- `atlas` ist `null` für Elemente ohne eigenes Bild (Teilfronten).
 
 ## 7. Vorlagen
 
@@ -284,7 +289,7 @@ Alle malbaren Bilder einzeln nebeneinander, 1:1 in chunky-Pixeln:
 
 | Zeile (Gruppe) | Inhalt |
 |---|---|
-| 1 | `front_d1` … `front_dD`: je Tiefe nur die Vollfront (Rechteck W'_d × (B_d − T_d)) |
+| 1 | `front_d1_s+0` … `front_dD_s+0`: je Tiefe nur die Vollfront (Rechteck W'_d × (B_d − T_d)); Teilfronten haben kein Atlasbild |
 | 2 … | `side_d<d>_s<±s>` je Tiefe eine Zeile, Reihenfolge wie die Elementtabelle |
 | dann | `floorband_d0` … `floorband_dD`, dann `ceilband_d0` … |
 | dann | `floor_…` je Tiefe eine Zeile, dann `ceil_…` |
@@ -331,7 +336,7 @@ Je Stil (ein Bildsatz für alle Elemente einer Art):
 | Kernbytes | kw · kh |
 | Randbytes | Bytes im Rechteck außerhalb des Kerns mit mindestens einem Maskenpixel (gepackt im VRAM, Quelle für `VMS`) |
 | VRAM je Element | Kern + Rand; Teilfronten 0 (aus der Vollfront) |
-| VMS-Liste je Element | 3 + Σ je Zeile des Randes: zusammenhängende volle Bytes = 1 Befehl Typ 1 (4 Byte), jedes halbe Byte = Typ 8 (3 Byte) |
+| VMS-Liste je Element | 0 ohne Rand, sonst 3 + Σ je Zeile des Randes: zusammenhängende volle Bytes = 1 Befehl Typ 1 (4 Byte), jedes halbe Byte = Typ 8 (3 Byte) |
 
 Bericht (`.budget.md` und `budget` in JSON):
 

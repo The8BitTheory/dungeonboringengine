@@ -41,6 +41,7 @@ Umgesetzt in `vdc-basic/docs/v3/P0-bench.md` Abschnitt 8.
 6. **Bänder mit Lücken:** Zellen mit deckendem Block (vier Wandstile, DECKEND) sind keine Lücke im Boden-/Deckenband, auch wenn ihr Boden 0 ist (P4, 2.4); sonst würde unnötig Tapete gezeichnet.
 7. **`RXV`-Schnittstelle (P2b):** Vorschlag: `RXV src,dst` mit src = Stromanfang (Dateikopf von BASIC übersprungen, `BE+5`), damit eingebettete Ströme (DTS) ohne Kopf gehen. Alternativ zwei Formen; in P2b festlegen.
 8. **Schwelle T patchbar:** T aus VICE ist nicht übertragbar (P0, Abschnitt 2). `RXV` sollte T aus einem dokumentierten Byte lesen (z. B. per `POKE` oder Fake-Register über `RGW`), Standard aus der Messung auf echter Hardware.
+9. **Crawl-Port (P7): Edelsteine stehen doppelt in der Karte.** `crawlmap` legt einen Edelstein als Kachel 2 **und** als Gegenstand 2 ab. `crawl.bas` 5500 setzt beim Einsammeln den Zellwert auf 0, 5360 prüft `V%=2`. Der Port muss beim Einsammeln den Gegenstand löschen und die Kachel auf 0 setzen (Lib-Funktion zum Kachelwechsel) oder die Abfrage auf den Gegenstand umstellen, sonst wird derselbe Edelstein mehrfach gezählt. Ebenso braucht der Ausgang (5550: 40 → 42) den Kachelwechsel; Kachel 42 legt `crawlmap` deshalb immer an.
 
 ## E. Messung (P0)
 

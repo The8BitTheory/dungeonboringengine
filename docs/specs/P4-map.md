@@ -186,6 +186,8 @@ Regeln:
 - Kachelschlüssel: `walls` (Zahl oder Liste mit 4 Zahlen, 0 … 255, Standard 0), `floor`, `ceiling` (0 … 255, Standard 0), `flags` (Liste aus `weg`, `sicht`, `deckend`, `tuer`, `automap`), `automap_char` (0 … 255), `index` (optional: feste Nummer; dann müssen alle Kacheln `index` haben, Lücken werden mit Nullkacheln gefüllt, NT = höchster Index + 1).
 - Legende: Schlüssel genau ein Zeichen (kein Leerzeichen); Wert ist ein Kachelname oder eine Tabelle mit `tile` (Pflicht), `item` (0 … 63), `events` (Liste aus Tabellen mit `type`, `param`).
 - `layers.tiles`: Zeilen gleicher Länge = W, Anzahl = H. Eine leere erste/letzte Zeile (durch `"""`) wird ignoriert; Leerzeichen am Zeilenende sind ein Fehler (unsichtbar, meist Versehen).
+- `[[marks]]`: `at` (Pflicht), `mark` (Standard `true`: Bit 7), `seen` (Standard `false`: Bit 6).
+- Unbekannte Schlüssel (oberste Ebene, `[map]`, `[layers]`, Kacheln, Legende, Ereignisse, Marken) sind Fehler.
 - `start` muss auf einer Kachel ohne WEG liegen.
 - Fehlermeldungen nennen Datei, Zeile/Spalte in der Karte bzw. den Schlüssel (z. B. `demo.toml: Karte Zeile 3, Spalte 5: Zeichen 'q' nicht in der Legende`). Exitcode 1.
 
@@ -248,7 +250,7 @@ Zellwerte (`crawl.bas`, Kommentar ab Zeile 11019, und tatsächliche Werte): unge
 
 ### 5.2 Abbildung (verlustfrei)
 
-- **Kachelindex = Crawl-Zellwert** (die Spiellogik von Crawl vergleicht Zellwerte; `CELL` liefert so dieselben Zahlen). NT = größter vorkommender Wert + 1; nicht vorkommende Indizes = Nullkachel.
+- **Kachelindex = Crawl-Zellwert** (die Spiellogik von Crawl vergleicht Zellwerte; `CELL` liefert so dieselben Zahlen). NT = max(größter vorkommender Wert, 42) + 1, weil `crawl.bas` 5550 den Ausgang zur Laufzeit auf 42 setzt (offen); nicht vorkommende Indizes = Nullkachel, ungerade wie unten Wand, gerade leer.
 - Kachel für vorkommende Werte v:
 
   | v | walls | floor | ceiling | flags | automap_char |
@@ -261,6 +263,7 @@ Zellwerte (`crawl.bas`, Kommentar ab Zeile 11019, und tatsächliche Werte): unge
 - Start: Zelle aus Datensatz `6`, Richtung 0 (N; `crawl.bas` 3870 `PF%(0)=0`). Fehlt `6` → Fehler (wie `crawl.bas` 82).
 - Ereignisse aus den Datensätzen: `8` → `teleport` Gruppe 1 (alle Teleporter von Crawl bilden eine Gruppe), `B` → `gegner` 1, `D` → `gegner` 2, `F` → `gegner` 3, `H` → `gegner` 4, `X` → `ausgang` 0, `Z` → `ausgang` 1. Unbekanntes Zeichen c → Typ 255, Parameter = ASCII-Code, Warnung.
 - Außerhalb: Kachel 1 (Wand; Crawl: Zellen außerhalb zählen als Wand).
+- Doppelte Datensätze: `6` mehrfach → Fehler (Start mehrdeutig); mehr als zwei `8` → Fehler (`crawl.bas`: `DIM TL%(1)`); andere Zeichen mehrfach → Warnung (Crawl nimmt den letzten, die DMP enthält alle Ereignisse).
 - Prüfungen mit Warnung (kein Abbruch): Anzahl Zellen mit Wert 2 ≠ Kopf-Edelsteinzahl; Datensatz-Zelle ≥ W·H (dann Fehler); Kartenname ≠ ASCII.
 - `--toml`: zusätzlich Textform; Legende: Zeichen = `chr(48 + v)` (die Zeichen aus `mapgen.bas`, z. B. `B`, `X`), für Zellen mit Gegenstand dasselbe Zeichen (Gegenstand = Wert). Für v > 78 Fehler.
 
@@ -289,9 +292,9 @@ Testdaten: `test/tools/data/crawl128.cd1` (Kopie aus `game/crawl.d81`, 244 Byte 
 
 ### 6.2 crawlmap
 
-- `crawl128.cd1` → DMP: W = 20, H = 11, NT = 41, Start = 198, Richtung 0; Kacheln 0, 2, 4, 6, 18, 40 ohne Flags, Kachel 1 mit `$17`; Kachelebene = Crawl-Werte zellweise; Gegenstände: 92 Zellen mit 2, 2 mit 4; Ereignisse genau `(29, ausgang, 0)`, `(68, gegner, 1)`; außerhalb = 1.
+- `crawl128.cd1` → DMP: W = 20, H = 11, NT = 43 (Kachel 42 = Ausgang offen, leer), Start = 198, Richtung 0; Kacheln 0, 2, 4, 6, 18, 40 ohne Flags, Kachel 1 mit `$17`; Kachelebene = Crawl-Werte zellweise; Gegenstände: 92 Zellen mit 2, 2 mit 4; Ereignisse genau `(29, ausgang, 0)`, `(68, gegner, 1)`; außerhalb = 1.
 - `--toml` → `dbemap build` → bytegleich mit der direkten DMP.
-- Synthetische CD1 im Test erzeugt (3 × 2, Datensätze `6`, `8`, `8`, `Z`, unbekanntes `Q`): Teleport-Gruppe 1 zweimal, `ausgang` 1, Typ 255 mit Parameter 81 und Warnung; fehlendes `6` → Fehler.
+- Synthetische CD1 im Test erzeugt (3 × 2, Datensätze `6`, `8`, `8`, `Z`, unbekanntes `Q`): Teleport-Gruppe 1 zweimal, `ausgang` 1, Typ 255 mit Parameter 81 und Warnung; fehlendes `6` → Fehler; `6` doppelt bzw. drei `8` → Fehler, `X` doppelt → Warnung.
 - `test_d81`: `--d81 /home/martin/git/dungeoncrawlerjam2025/game/crawl.d81` ergibt dieselbe DMP wie die Testdatei.
 
 ## 7. Abnahme

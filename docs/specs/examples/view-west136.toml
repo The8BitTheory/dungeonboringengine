@@ -1,0 +1,8 @@
+# 136 x 92 (2 Textzeilen frei): wie view-west140.toml, nur Groesse und Name anders
+[viewport]
+preset = "westwood"
+width_px = 136
+height = 92
+stride = 80
+[output]
+name = "west136"

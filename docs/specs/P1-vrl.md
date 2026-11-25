@@ -110,7 +110,8 @@ def decode(stream, base=None) -> bytearray
 def decode_tokens(stream) -> list[Token]
 def unpacked_length(stream) -> int              # U
 def pack_file(stream, load=0x2000) -> bytes      # PRG mit Kopf (U aus dem Strom)
-def unpack_file(data) -> tuple[int, int, int, bytes]   # (load, version, U, stream); prüft "VR", Version, U
+def unpack_file(data) -> tuple[int, int, int, bytes]   # (load, version, U, stream); prüft "VR", Version, U;
+                                                       # stream endet mit dem ersten Ende-Token, Bytes danach werden ignoriert
 def threshold(params) -> int                     # T aus dem Kostenmodell (8.2)
 def load_bench(path) -> dict                     # Schlüssel "engine" aus der P0-JSON
 def stats(stream, T=None, params=None) -> dict
@@ -172,9 +173,9 @@ cycles = Σ Token außer Ende: tok
        + Skip:                 new_addr
 ```
 
-`threshold(params)` = kleinstes L ≥ 2 mit `fill(L') < cpu(L')` für alle L' ∈ [L, 65536]; da beide linear sind, genügt: kleinstes L ≥ 2 mit `fill(L) < cpu(L)` und `fill_byte < cpu_byte`, sonst 65537. Mit den Platzhaltern: T = 15.
+`threshold(params)` = kleinstes L ≥ 2 mit `fill(L') < cpu(L')` für alle L' ∈ [L, 65536]; da beide linear sind, genügt: kleinstes L ≥ 2 mit `fill(L) < cpu(L)` und `fill_byte < cpu_byte`, sonst 65537. Mit den Platzhaltern: T = 14 (L = 14: fill 214 < CPU 220; L = 13: fill 213 > CPU 205).
 
-`stats(stream, T=None, params=None)`: fehlende Parameter aus den Platzhaltern; T = `threshold(params)`, wenn nicht angegeben. `load_bench(path)` liest `engine` aus der P0-JSON (`docs/v3/P0-bench.md`, Abschnitt 10.4); dort fehlende Schlüssel bleiben Platzhalter; `T` aus der Datei wird übernommen, wenn vorhanden.
+`stats(stream, T=None, params=None)`: fehlende Parameter aus den Platzhaltern; T = `threshold(params)`, wenn nicht angegeben. `load_bench(path)` liest `engine` aus der P0-JSON (`docs/v3/P0-bench.md`, Abschnitt 10.4); dort fehlende Schlüssel bleiben Platzhalter; `T` aus der Datei wird übernommen, wenn vorhanden (Rückgabe: Parameter-Dict inkl. optional `T`; unbekannte Schlüssel werden ignoriert). `stats` nimmt `T` aus `params`, wenn das Argument `T` fehlt.
 
 ## 9. Tests (`test/tools/test_vrl.py`, unittest)
 
@@ -228,8 +229,8 @@ Alle Vektoren sind mit einem Prototyp nach 4.2 nachgerechnet.
 - **Decoder-Fehler:** `b""`, `b"\x03\x01"` (Literal abgeschnitten), `b"\x81"`, `b"\xFE\x01"`, `b"\xFF\x00\x00"`, `b"\x01\x05"` (kein Ende) → `ValueError`.
 - **Decoder nimmt Fremdes an:** `FF 01 00 07 00` → `[7]`; `80 07 80 07 00` → `[7]*4`; `FE 05 00 00` → U = 5, nichts geschrieben.
 - **Datei:** `unpack_file(pack_file(s, 0x3000))` == `(0x3000, 1, U, s)`; falsches Magic, Version 2, U ungleich Strom → `ValueError`.
-- **stats:** für `[7]*300 + [1,2,3] + [None]*10 + [4]` (Strom `FF 2C 01 07 03 01 02 03 FE 0A 00 01 04 00`): `tokens` = `{"lrun":1, "lit":2, "skip":1, "run":0}`, `written` = 304, `skipped` = 10, `unpacked` = 314; mit T = 15 und Platzhaltern `cycles` = 4·30 + (200 + 300 + 30) + 3·22 + 80 + 1·22 = 818.
-- **threshold:** Platzhalter → 15; `fill_byte ≥ cpu_byte` → 65537; `load_bench` mit einer im Test erzeugten JSON überschreibt nur vorhandene Schlüssel.
+- **stats:** für `[7]*300 + [1,2,3] + [None]*10 + [4]` (Strom `FF 2C 01 07 03 01 02 03 FE 0A 00 01 04 00`): `tokens` = `{"lrun":1, "lit":2, "skip":1, "run":0}`, `written` = 304, `skipped` = 10, `unpacked` = 314; mit T = 15 (oder 14) und Platzhaltern `cycles` = 4·30 + (200 + 300 + 30) + 3·22 + 80 + 1·22 = 818.
+- **threshold:** Platzhalter → 14; `fill_byte ≥ cpu_byte` → 65537; `load_bench` mit einer im Test erzeugten JSON überschreibt nur vorhandene Schlüssel.
 - **CLI:** `encode`/`decode` über `subprocess` mit temporären Dateien (`tempfile.TemporaryDirectory`), Rundlauf bytegleich; `stats --json` ist gültiges JSON; Formatfehler → Exitcode 1 ohne Traceback.
 
 ## 10. Grenzfälle (Zusammenfassung)

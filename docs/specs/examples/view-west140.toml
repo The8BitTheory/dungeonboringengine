@@ -1,0 +1,15 @@
+# Standard: 140 x 96 (1 Textzeile frei), Westwood-Preset
+[viewport]
+preset   = "westwood"
+width_px = 140
+height   = 96
+origin   = 0
+stride   = 80
+depth    = 3
+
+[output]
+name       = "west140"
+dir        = "build/geom"
+load       = 0xE400
+pool_bytes = 26624
+zoom       = 4
