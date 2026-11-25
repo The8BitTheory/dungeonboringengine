@@ -43,6 +43,8 @@ T_WEG, T_DECKEND, T_INHALT = dbemap.FLAGS["weg"], dbemap.FLAGS["deckend"], dbema
 MAXITEM = 96
 MAX_SPANS = 4
 DEFAULT_BUF = (0x1300, 0x1C00)
+MAXCELL, MAXWALL, MAXPEND, MAXCELLELEM = 48, 96, 16, 16     # GEOMSET-Grenzen der Elementtabelle (P6 7)
+DEFAULT_DTS_ADDR = (0x9000, 0xF000, 0xF800)                  # Bank-1-Adressen der DTS (P6 2.4), fuer vms_bank1
 E_OK, E_TOOMANY, E_PARTIAL = 0, 2, 3
 FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # F je Richtung v (N, O, S, W)
 RIGHT = [(1, 0), (0, 1), (-1, 0), (0, -1)]      # R je Richtung v
@@ -133,7 +135,49 @@ def parse_dvg(data, prg=True):
             e.x, e.y, e.w, e.h, e.kx, e.ky, e.kw, e.kh, e.c0, e.c1, e.src_dx = r[4], r[5], r[6], r[7], r[8], r[9], \
                 r[10], r[11], r[12], r[13], r[14]
         elems.append(e)
+    check_elems(vw, vh, D, S, depth, elems)
     return Dvg(vw, vh, D, S, stride, origin, gid, hy0, hy1, depth, elems)
+
+
+def check_elems(vw, vh, D, S, depth, elems):
+    """Pruefungen der Elementtabelle wie GEOMSET (P6 7); ViewError bei Verstoss."""
+    ncell = nwall = 0
+    for d, dt in enumerate(depth):
+        if dt.first + dt.n > len(elems):
+            raise ViewError(f"DVG: Tiefe {d}: first + n > NE")
+        seen, cur, pend = set(), None, 0
+        for e in elems[dt.first:dt.first + dt.n]:
+            if e.art > ART_OBJ or abs(e.s) > S:
+                raise ViewError(f"DVG: Element {e.index}: Art oder s ausserhalb")
+            if e.s != cur:
+                if e.s in seen:
+                    raise ViewError(f"DVG: Elemente der Zelle ({d}, {e.s}) nicht zusammenhaengend (P3 5.3)")
+                seen.add(e.s)
+                cur, nel, nfl, nce = e.s, 0, 0, 0
+                ncell += 1
+            nel += 1
+            if nel > MAXCELLELEM:
+                raise ViewError(f"DVG: Zelle ({d}, {e.s}) mit mehr als {MAXCELLELEM} Elementen")
+            if e.art == ART_OBJ:
+                continue
+            if e.x + e.w > vw or e.y + e.h > vh:
+                raise ViewError(f"DVG: Element {e.index} ausserhalb des Fensters")
+            if e.art in (ART_FRONT, ART_SIDE):
+                if not e.c0 <= e.c1 <= vw:
+                    raise ViewError(f"DVG: Element {e.index}: Spalten c0/c1")
+                nwall += 1
+                if e.flags & DVG_COVER and (e.art == ART_SIDE or not e.flags & DVG_BANDCOVER):
+                    pend += 1
+            elif e.art == ART_FLOOR:
+                nfl += 1
+            else:
+                nce += 1
+            if nfl > 1 or nce > 1:
+                raise ViewError(f"DVG: Zelle ({d}, {e.s}) mit mehr als einem Boden- bzw. Deckenelement")
+        if pend > MAXPEND:
+            raise ViewError(f"DVG: Tiefe {d}: mehr als {MAXPEND} deckende Seiten/Fronten ohne Bit 3")
+    if ncell > MAXCELL or nwall > MAXWALL:
+        raise ViewError(f"DVG: mehr als {MAXCELL} Zellen bzw. {MAXWALL} Waende")
 
 
 # ---------------------------------------------------------------- Szene
@@ -169,6 +213,8 @@ class Scene:
     dir: int = 0
     ap: int = 0
     buf: tuple = DEFAULT_BUF
+    vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9), Build VMS_BANK1
+    dts_addr: tuple = DEFAULT_DTS_ADDR            # Bank-1-Adressen der DTS (Inhaltsanfang), nur fuer vms_bank1
 
     def window(self):
         """Adressen aller Fensterbytes (Menge)."""
@@ -247,7 +293,8 @@ class Result:
     a: int = 0
     x: int = 0
     y: int = 0
-    p0: int = 0                 # VCLADR
+    p0: int = 0                 # VCLADR (VCL-Liste [p0, B1), VMS-Listen [b0, b0 + vmslen))
+    b0: int = 0                 # Pufferanfang
     vcl: bytes = b""
     vms: bytes = b""
     vcllen: int = 0
@@ -255,14 +302,23 @@ class Result:
     objvis: int = 0
     partial: bool = False
     items: int = 0
+    lists1: dict = field(default_factory=dict)    # VCL-Typ 9: Bank-1-Adresse -> VMS-Liste
 
     @property
     def buffer(self):
+        """VCL-Liste, dann VMS-Listen (so liefert sie der sim65-Harness)."""
         return self.vcl + self.vms
 
     def bank0(self):
         b = bytearray(65536)
-        b[self.p0:self.p0 + len(self.buffer)] = self.buffer
+        b[self.b0:self.b0 + len(self.vms)] = self.vms
+        b[self.p0:self.p0 + len(self.vcl)] = self.vcl
+        return b
+
+    def bank1(self):
+        b = bytearray(65536)
+        for a, lst in self.lists1.items():
+            b[a:a + len(lst)] = lst
         return b
 
 
@@ -539,7 +595,8 @@ class _Stop(Exception):
 class _Item:
     """Sichtlisteneintrag: Liste von VCL-Eintraegen.
 
-    ('vmc', src, dst, count, reps, step, srcstep) | ('vmf', vaddr, byte, count, reps, step) | ('vms', src, dst, bytes)"""
+    ('vmc', src, dst, count, reps, step, srcstep) | ('vmf', vaddr, byte, count, reps, step) | ('vms', src, dst, bytes)
+    | ('vms1', src, dst, bank1-adresse, bytes): unbeschnittene Liste aus Bank 1 (VCL-Typ 9, keine Pufferbytes)"""
 
     def __init__(self, ents, obj=None):
         self.ents = ents
@@ -562,7 +619,7 @@ class _Item:
         return sum(len(e[3]) for e in self.ents if e[0] == "vms")
 
     def strip_rand(self):
-        self.ents = [e for e in self.ents if e[0] != "vms"]
+        self.ents = [e for e in self.ents if e[0] not in ("vms", "vms1")]
 
 
 def _fill_groups(fills):
@@ -653,8 +710,15 @@ class _View(_Ctx):
         ents = [("vmc", (vb + k.src) & 0xFFFF, (t0 + k.dy * self.stride + k.dx) & 0xFFFF, k.w, k.h, self.stride,
                  k.srcstep) for k in ent.kerns]
         if ent.flags & F_RAND:
-            ents.append(("vms", (vb + ent.rand_ofs) & 0xFFFF, t0, bytes(ent.vms)))
+            ents.append(self._vms_ent(kind, ent, (vb + ent.rand_ofs) & 0xFFFF, t0))
         return _Item(ents)
+
+    def _vms_ent(self, kind, ent, src, dst):
+        """Unbeschnittene VMS-Liste: in den Puffer bzw. mit vms_bank1 als Verweis nach Bank 1 (Typ 9)."""
+        if not self.sc.vms_bank1:
+            return ("vms", src, dst, bytes(ent.vms))
+        return ("vms1", src, dst, (self.sc.dts_addr[kind] + _vms_offsets(self.sc.dts[kind])[id(ent)]) & 0xFFFF,
+                bytes(ent.vms))
 
     def band_item(self, kind, ent, y0, rows, c0, c1):
         """BAND(ent, y0, c0, c1): Bandbild (Breite VW, Hoehe rows) im Ausschnitt [c0, c1) (P6 5.6)."""
@@ -665,6 +729,11 @@ class _View(_Ctx):
                           for r, n, b in _fill_groups(ent.fill)])
         img = _Pseudo(self.VW, rows, ent.kerns, bytes(ent.vms) if ent.flags & F_RAND else b"")
         kerns, vms, ref = clip_image(img, self.stride, 0, y0, c0, c1, y0, y0 + rows)
+        if vms and self.sc.vms_bank1 and (c0, c1) == (0, self.VW):          # volle Breite: unbeschnitten
+            item = self._clipped_item(vb, kerns, None, ref, ent.rand_ofs)
+            item.ents.append(self._vms_ent(kind, ent, (vb + ent.rand_ofs) & 0xFFFF,
+                                           (sc.ap + self.row(ref[1]) + ref[0]) & 0xFFFF))
+            return item
         return self._clipped_item(vb, kerns, vms, ref, ent.rand_ofs)
 
     def _clipped_item(self, vb, kerns, vms, ref, rand_ofs, obj=None):
@@ -814,37 +883,53 @@ class _View(_Ctx):
             for c0, c1 in reversed(sp):
                 self.add(self.bg_item(r0, r1, c0, c1))
 
-    # ---- Ausgabe
+    # ---- Ausgabe (Einpass, P6d-opt)
     def output(self):
-        b0 = self.sc.buf[0]
-        vcl, vms = bytearray(), bytearray()
-        vms_base = b0 + self.nv
-        nent = 0
-        for item in reversed(self.items):
+        """Eintraege in Erzeugungsreihenfolge (vorne -> hinten); jeder wird sofort geschrieben: VMS-Listen aufwaerts
+        ab B0, VCL-Eintraege abwaerts ab B1 (Ende-Byte bei B1 - 1). Die VCL-Liste ab VCLADR ist damit die umgekehrte
+        Erzeugungsreihenfolge (hinten -> vorne, innerhalb eines Sichtlisteneintrags ebenfalls umgekehrt)."""
+        b0, b1 = self.sc.buf
+        parts, vms, lists1 = [], bytearray(), {}
+        for item in self.items:
             for e in item.ents:
-                nent += 1
                 if e[0] == "vmc":
                     _, src, dst, cnt, reps, step, ss = e
                     if ss == 0:
-                        vcl += bytes((2,)) + struct.pack("<HHHHH", src, dst, cnt, reps, step)
+                        parts.append(bytes((2,)) + struct.pack("<HHHHH", src, dst, cnt, reps, step))
                     else:
-                        vcl += bytes((3,)) + struct.pack("<HHHHHH", src, dst, cnt, reps, step, ss)
+                        parts.append(bytes((3,)) + struct.pack("<HHHHHH", src, dst, cnt, reps, step, ss))
                 elif e[0] == "vmf":
                     _, va, byte, cnt, reps, step = e
                     if reps == 1:
-                        vcl += bytes((4,)) + struct.pack("<HHH", va, byte, cnt)
+                        parts.append(bytes((4,)) + struct.pack("<HHH", va, byte, cnt))
                     else:
-                        vcl += bytes((5,)) + struct.pack("<HHHHH", va, byte, cnt, reps, step)
-                else:
+                        parts.append(bytes((5,)) + struct.pack("<HHHHH", va, byte, cnt, reps, step))
+                elif e[0] == "vms":
                     _, src, dst, lst = e
-                    vcl += bytes((12,)) + struct.pack("<HHH", src, dst, (vms_base + len(vms)) & 0xFFFF)
+                    parts.append(bytes((12,)) + struct.pack("<HHH", src, dst, (b0 + len(vms)) & 0xFFFF))
                     vms += lst
-        vcl += b"\0"
+                else:
+                    _, src, dst, addr, lst = e
+                    parts.append(bytes((9,)) + struct.pack("<HHH", src, dst, addr))
+                    lists1[addr] = lst
+        vcl = b"".join(reversed(parts)) + b"\0"
         if len(vcl) != self.nv or len(vms) != self.nm:
             raise ViewError("interner Fehler: Groessenrechnung %d/%d != %d/%d" % (self.nv, self.nm, len(vcl), len(vms)))
         a = E_TOOMANY if self.err else (E_PARTIAL if self.partial else E_OK)
-        return Result(a=a, x=min(nent, 255), y=0, p0=b0, vcl=bytes(vcl), vms=bytes(vms), vcllen=len(vcl),
-                      vmslen=len(vms), objvis=self.objvis, partial=self.partial, items=len(self.items))
+        return Result(a=a, x=min(len(parts), 255), y=0, p0=b1 - len(vcl), b0=b0, vcl=vcl, vms=bytes(vms),
+                      vcllen=len(vcl), vmslen=len(vms), objvis=self.objvis, partial=self.partial,
+                      items=len(self.items), lists1=lists1)
+
+
+def _vms_offsets(ts):
+    """id(Verzeichniseintrag) -> vofs (inhaltsrelativer Offset der VMS-Liste in der DTS-Datei, P5)."""
+    cache = getattr(ts, "_vofs", None)
+    if cache is None:
+        c = (getattr(ts, "dts_prg", None) or dbetex.to_dts(ts))[2:]
+        o_dir = c[16] | c[17] << 8
+        cache = {id(e): c[o_dir + 16 * b + 10] | c[o_dir + 16 * b + 11] << 8 for b, e in enumerate(ts.entries)}
+        ts._vofs = cache
+    return cache
 
 
 @dataclass
@@ -857,7 +942,7 @@ class _Pseudo:
 
 
 def view(scene):
-    """VIEW nach P6 Abschnitt 5: Ergebnis mit VCL-Liste ab scene.buf[0] und den VMS-Listen dahinter."""
+    """VIEW nach P6 Abschnitt 5: VMS-Listen ab scene.buf[0], VCL-Liste ab Result.p0 bis scene.buf[1] (Einpass)."""
     if scene.dvg is None or scene.dmp is None:
         raise ViewError("E_STATE: DVG/Karte fehlt")
     return _View(scene).run()
@@ -943,9 +1028,10 @@ def rxv(bank0, vram, src, dst):
         pos += t.length
 
 
-def run_vcl(bank0, vram, addr, rowstep=80):
+def run_vcl(bank0, vram, addr, rowstep=80, bank1=None):
     """Fuehrt die VCL-Liste bei addr in bank0 aus (vcl-format.md); veraendert vram. Rueckgabe: Anzahl Eintraege.
-    Typ 13 (SYN) tut nichts. Typ 2 in VMS nutzt rowstep statt VDC-Register 1."""
+    Typ 13 (SYN) tut nichts. Typ 2 in VMS nutzt rowstep statt VDC-Register 1. Typ 9 (Vorschlag P6d-opt, VDC-BASIC):
+    wie 12, die Liste liegt in bank1."""
     p = addr
     count = 0
 
@@ -985,6 +1071,9 @@ def run_vcl(bank0, vram, addr, rowstep=80):
         elif t == 12:
             vms(bank0, vram, w(1), w(3), w(5), rowstep)
             p += 7
+        elif t == 9 and bank1 is not None:
+            vms(bank1, vram, w(1), w(3), w(5), rowstep)
+            p += 7
         elif t == 13:
             p += 3 + 4 * (w(1) & 255)
         else:
@@ -994,7 +1083,7 @@ def run_vcl(bank0, vram, addr, rowstep=80):
 def decode_vcl(buf, off=0):
     """VCL-Liste ab buf[off] als Liste von Tupeln (Typ, Parameter...) bis zum Ende-Byte (ohne dieses)."""
     out, p = [], off
-    lens = {1: 3, 2: 5, 3: 6, 4: 3, 5: 5, 6: 2, 7: 4, 8: 2, 12: 3}
+    lens = {1: 3, 2: 5, 3: 6, 4: 3, 5: 5, 6: 2, 7: 4, 8: 2, 9: 3, 12: 3}
     while buf[p]:
         t = buf[p]
         if t == 13:
@@ -1013,7 +1102,7 @@ def render_view(scene, vram=None, res=None, seed=0):
     res = res or view(scene)
     if vram is None:
         vram = scene.make_vram(seed)
-    run_vcl(res.bank0(), vram, res.p0)
+    run_vcl(res.bank0(), vram, res.p0, bank1=res.bank1())
     return vram, res
 
 

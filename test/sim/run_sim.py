@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """sim65-Gerüst für die Lib (docs/specs/P6-engine.md 9.2).
 
-Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c, P6d)
+Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c, P6d; P6d zweimal:
+                               Standardbuild und Build-Schalter VMS_BANK1)
          Umgebung: DBEVIEW_FULL=1 voller Zufallssatz (200 x 20), DBE_NOCYCLES=1 ohne Zyklenmessung
          run_sim.py --build    nur bauen
 
@@ -20,6 +21,8 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'build', 'sim')
 PRG = os.path.join(OUT, 'viewsim.prg')
 LBL = os.path.join(OUT, 'viewsim.lbl')
+PRG1 = os.path.join(OUT, 'viewsim1.prg')         # Build-Schalter VMS_BANK1 (unbeschnittene VMS-Listen aus Bank 1)
+PRGM = os.path.join(OUT, 'viewsimm.prg')         # nur Test: MAXITEM = 8 (Abbruch über die Eintragszahl)
 
 Call = namedtuple('Call', 'f a x y p pb buf')      # p: 4 Wörter, pb: 10 Byte $0C08-$0C11
 # items in Reihenfolge der Szene: Call oder (addr, bytes) für Auslesen
@@ -50,9 +53,11 @@ class Scene:
 def build():
     os.makedirs(OUT, exist_ok=True)
     src = [os.path.join(HERE, 'viewsim.c'), os.path.join(HERE, 'glue.s'), os.path.join(ROOT, 'engine', 'lib.s')]
-    subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, 'sim.cfg'), '-O', '--asm-define', 'SIM',
-                    '--asm-include-dir', os.path.join(ROOT, 'engine'), '-Ln', LBL,
-                    '-m', os.path.join(OUT, 'viewsim.map'), '-o', PRG] + src, check=True, cwd=OUT)
+    for prg, lbl, defs in ((PRG, LBL, []), (PRG1, os.path.join(OUT, 'viewsim1.lbl'), ['--asm-define', 'VMS_BANK1']),
+                           (PRGM, os.path.join(OUT, 'viewsimm.lbl'), ['--asm-define', 'MAXITEM_T=8'])):
+        subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, 'sim.cfg'), '-O', '--asm-define', 'SIM']
+                       + defs + ['--asm-include-dir', os.path.join(ROOT, 'engine'), '-Ln', lbl,
+                                 '-m', os.path.splitext(prg)[0] + '.map', '-o', prg] + src, check=True, cwd=OUT)
     for s in src:                       # ältere cl65-Versionen lassen Objekte neben den Quellen liegen
         o = os.path.splitext(s)[0] + '.o'
         if os.path.exists(o):
@@ -69,11 +74,11 @@ def labels():
     return d
 
 
-def run(scene):
+def run(scene, prg=PRG):
     with tempfile.TemporaryDirectory() as td:
         sc, rs = os.path.join(td, 'scene'), os.path.join(td, 'result')
         open(sc, 'wb').write(scene.encode())
-        r = subprocess.run(['sim65', '-c', PRG, sc, rs], capture_output=True, text=True)
+        r = subprocess.run(['sim65', '-c', prg, sc, rs], capture_output=True, text=True)
         if r.returncode:
             raise RuntimeError(f'sim65 Exitcode {r.returncode}: {r.stdout}{r.stderr}')
         cyc = int(re.search(r'(\d+) cycles', r.stdout + r.stderr).group(1))
@@ -148,13 +153,14 @@ def test_p6a():
     s.dump(bss, n).dump(0x0C08, 10).dump(0x0C50, 1)
     s.call(17).call(18).call(255).call(7).call(8).call(4).call(3)           # nicht umgesetzt
     s.call(15, p=(0x1300, 0x1C00, 0, 0)).dump(bss, n)                       # BUFSET ok, Standard
-    s.call(15, p=(0x0200, 0x0240, 0, 0)).dump(bss, n)                       # genau 64 Byte ok
-    s.call(15, p=(0x1000, 0x103F, 0, 0)).dump(bss, n)                       # 63 Byte: 6, unverändert
-    s.call(15, p=(0x01FF, 0x1000, 0, 0)).dump(bss, n)                       # Anfang < $0200
-    s.call(15, p=(0x1000, 0x1C01, 0, 0)).dump(bss, n)                       # Ende > $1C00
-    s.call(15, p=(0x1400, 0x1000, 0, 0)).dump(bss, n)                       # Ende < Anfang
-    s.call(15, p=(0x1000, 0x1000, 0, 0)).dump(bss, n)                       # Länge 0
-    s.call(15, p=(0x1200, 0x1C00, 0, 0)).dump(bss, n)                       # ok, 3584 Byte
+    s.call(15, p=(0x1300, 0x1340, 0, 0)).dump(bss, n)                       # genau 64 Byte ok
+    s.call(15, p=(0x1400, 0x143F, 0, 0)).dump(bss, n)                       # 63 Byte: 6, unverändert
+    s.call(15, p=(0x12FF, 0x1800, 0, 0)).dump(bss, n)                       # Anfang < $1300 (Fenster)
+    s.call(15, p=(0x1400, 0x1C01, 0, 0)).dump(bss, n)                       # Ende > $1C00
+    s.call(15, p=(0x1600, 0x1400, 0, 0)).dump(bss, n)                       # Ende < Anfang
+    s.call(15, p=(0x1400, 0x1400, 0, 0)).dump(bss, n)                       # Länge 0
+    s.call(15, p=(0x0200, 0x0240, 0, 0)).dump(bss, n)                       # $0200: 6 (Kernal-Vektoren)
+    s.call(15, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                       # ok, 256 Byte am Ende
     s.call(11, p=(0, 0, 0, 0)).dump(bss, n)                                 # POOLSET aus
     s.call(11, p=(0x7000, 0x9000, 0, 0)).dump(bss, n)
     s.call(11, p=(0x9000, 0x7000, 0, 0)).dump(bss, n)                       # 6, unverändert
@@ -190,9 +196,10 @@ def test_p6a():
         return want_buf if want_a == 0 else None
 
     cur = (0x1300, 0x1C00)
-    for name, a, newbuf in (('Standard', 0, (0x1300, 0x1C00)), ('64 Byte', 0, (0x0200, 0x0240)),
-                            ('63 Byte', 6, None), ('Anfang < $0200', 6, None), ('Ende > $1C00', 6, None),
-                            ('Ende < Anfang', 6, None), ('Länge 0', 6, None), ('3584 Byte', 0, (0x1200, 0x1C00))):
+    for name, a, newbuf in (('Standard', 0, (0x1300, 0x1C00)), ('64 Byte', 0, (0x1300, 0x1340)),
+                            ('63 Byte', 6, None), ('Anfang < $1300', 6, None), ('Ende > $1C00', 6, None),
+                            ('Ende < Anfang', 6, None), ('Länge 0', 6, None), ('$0200', 6, None),
+                            ('256 Byte am Ende', 0, (0x1B00, 0x1C00))):
         want = newbuf or cur
         bufcase(name, a, want)
         cur = want
@@ -324,6 +331,74 @@ def patched(data, *edits, n=40):
         ln = e[2] if len(e) > 2 else (2 if val > 255 else 1)
         h[off:off + ln] = val.to_bytes(ln, 'little')
     return bytes(h)
+
+
+def test_geomcheck():
+    """GEOMSET prüft die Elementtabelle (P6d-opt, Abschnitt 7): Fehlerfälle A = 1 und keine gültige Geometrie
+    (geom_ok = 0), Grenzfälle A = 0; dbeview.parse_dvg wirft in denselben Fällen ViewError."""
+    sys.path.insert(0, TOOLS)
+    import dbeview
+    L = labels()
+    tmp = tempfile.TemporaryDirectory()
+    A = dbeview.build_demo_assets(tmp.name)
+    base = bytes(dbeview.dvg_bytes(A.dvg)[2:])
+    A2 = dbeview.double_fronts(A)
+    base2 = bytes(dbeview.dvg_bytes(A2.dvg)[2:])        # Tiefe 3: genau 16 deckende Seiten/Fronten ohne Bit 3
+
+    def el(data, i, off, val):
+        d = bytearray(data)
+        o = 24 + 8 * (d[5] + 1) + 16 * i + off
+        d[o] = val & 255
+        return bytes(d)
+
+    def depth3_ceil(data):                              # ein Deckenelement der Tiefe 3 als deckende Seite
+        d = bytearray(data)
+        o_e, ne = 24 + 8 * (d[5] + 1), d[7]
+        f3, n3 = d[24 + 8 * 3 + 4], d[24 + 8 * 3 + 5]
+        for i in range(f3, f3 + n3):
+            if d[o_e + 16 * i] == 3:
+                d[o_e + 16 * i] = 1
+                d[o_e + 16 * i + 3] = 1
+                d[o_e + 16 * i + 12] = d[o_e + 16 * i + 13] = 0
+                return bytes(d)
+        raise AssertionError
+    nd = base[5]
+    cases = [
+        ('demo', base, 0), ('zwei Fronten (16 wartend)', base2, 0),
+        ('17 wartende in Tiefe 3', depth3_ceil(base2), 1),
+        ('Zelle nicht zusammenhängend', el(base, 12, 2, 1), 1),
+        ('zwei Bodenelemente', el(base, 13, 0, 2), 1),
+        ('x + w > VW', el(base, 11, 4, 30), 1),
+        ('c1 > VW', el(base, 11, 13, 71), 1),
+        ('c0 > c1', el(base, 11, 12, 61), 1),
+        ('y + h > VH', el(base, 11, 5, 30), 1),
+        ('|s| > S', el(base, 3, 2, -4), 1),
+        ('Art 5', el(base, 2, 0, 5), 1),
+        ('first + n > NE', bytes(base[:24 + 8 * nd + 5]) + bytes([base[24 + 8 * nd + 5] + 1])
+         + base[24 + 8 * nd + 6:], 1),
+    ]
+    S = Seq(L)
+    S.call('INIT', 0, a=0)
+    S.call('GEOMSET demo', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    fails = []
+    for name, data, a in cases:
+        S.call(f'GEOMSET {name}', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, data)], a=a,
+               check=lambda b, a=a: [] if b.b('geom_ok') == (a == 0) else ['geom_ok'])
+        try:
+            dbeview.parse_dvg(data, prg=False)
+            py = 0
+        except dbeview.ViewError:
+            py = 1
+        if py != a:
+            fails.append(f'parse_dvg {name}: ViewError {bool(py)}, erwartet {bool(a)}')
+        if not a:
+            S.call(f'GEOMSET {name} zurück', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    S.run()
+    fails += S.fails
+    for f in fails:
+        print('FAIL', f)
+    print(f'GEOMSET-Prüfungen: {len(cases)} Fälle, {len(fails)} Fehler')
+    return not fails
 
 
 def test_p6c():
@@ -513,7 +588,7 @@ def test_p6c():
     S.call('GEOMSET gleiche ID, origin 7', 12, p=(GD, 7, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 7, GD))
     S.call('Satz 0 nach gleicher ID noch gültig', 15, p=(0x1300, 0x1C00, 0, 0), a=0,
            check=lambda b: [] if b.b('recs', 0) == 1 and b.b('dbg_ok') == 1 and b.b('recs', 48) == 1 else ['gelöscht'])
-    dvg2 = patched(dvg, (12, gid ^ 0x55), n=24)
+    dvg2 = patched(dvg, (12, gid ^ 0x55), n=len(dvg))
     S.call('GEOMSET andere ID', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg2)], a=0,
            rx=0x85, ry=0x0F, check=geom_check(dvg2, 0xFFFF, HDR + 0x400))        # S2 mit ID: Sätze 0, 2, 7
     S.call('Sätze mit ID 0 bleiben', 15, p=(0x1300, 0x1C00, 0, 0), a=0,
@@ -521,13 +596,13 @@ def test_p6c():
            b.b('recs', 0) == 0 and b.b('dbg_ok') == 0 else ['Sätze 1, 3, 4'])
     S.call('TEXSET mit alter ID', 13, 0, p=(TD[0], 0, 0, 0), a=4, same=True)
     S.call('BGSET mit alter ID', 14, 0, p=(DB, 0, 0, 0), a=4)
-    dvg3 = patched(dvg, (12, gid ^ 0x66), (5, 2), n=24)
-    S.call('GEOMSET andere ID und D', 12, p=(HDR + 0x800, 0xFFFF, 0, 0), pre=[(HDR + 0x800, dvg3)], a=0,
-           rx=0x1A, ry=0, check=geom_check(dvg3, 0xFFFF, HDR + 0x800))
+    dvg3 = patched(dvg, (12, gid ^ 0x66), (5, 2), n=len(dvg))
+    S.call('GEOMSET andere ID und D', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg3)], a=0,
+           rx=0x1A, ry=0, check=geom_check(dvg3, 0xFFFF, HDR + 0x400))
     S.call('GEOMSET zurück', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 0xFFFF, GD))
     S.call('SPRITESET ID 0 erneut', 9, 4, p=(HDR, 0x5000, 0, 0), pre=[(HDR, patched(s2[3], (4, 0, 2)))], a=0)
-    dvg4 = patched(dvg, (12, gid ^ 0x77), (8, u16(dvg, 8) + 2), n=24)
-    S.call('GEOMSET andere ID und Stride', 12, p=(HDR + 0x800, 0xFFFF, 0, 0), pre=[(HDR + 0x800, dvg4)], a=0,
+    dvg4 = patched(dvg, (12, gid ^ 0x77), (8, u16(dvg, 8) + 2), n=len(dvg))
+    S.call('GEOMSET andere ID und Stride', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg4)], a=0,
            rx=0x10, ry=0)
     S.call('GEOMSET zurück 2', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0)
     S.call('SPRITESET ID 0 und gleiche ID', 9, 4, p=(HDR, 0x5000, 0, 0), pre=[(HDR, patched(s2[3], (4, 0, 2)))], a=0)
@@ -671,15 +746,17 @@ def test_p6c():
 
 # ------------------------------------------------------------------ P6d: VIEW ohne Objekte
 P6D_ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'dts': (0x9000, 0xB400, 0xF000), 'dbg': 0xFE00}
-BIGBUF = (0x0D00, 0x1C00)       # größter Puffer, der im sim65-Harness den Parameterblock nicht überschreibt
+BIGBUF = (0x1300, 0x1C00)       # größter erlaubter Puffer (BUFSET-Fenster, P6d-opt)
 
 
 class ViewRunner:
     """Baut aus dbeview-Szenen eine Szenendatei (nur nötige Setz-Aufrufe zwischen den Ansichten) und vergleicht
     jede VIEW-Antwort bytegenau mit dbeview.view."""
 
-    def __init__(self, dbeview, dbetex):
+    def __init__(self, dbeview, dbetex, bank1=False):
         self.dv, self.dt = dbeview, dbetex
+        self.bank1 = bank1
+        self.prg = PRG1 if bank1 else PRG
         self.reset()
 
     def reset(self):
@@ -740,11 +817,12 @@ class ViewRunner:
     def add(self, name, sc):
         sc.objects = []
         sc.itemtab = [0] * 64
+        sc.vms_bank1, sc.dts_addr = self.bank1, P6D_ADDR['dts']
         self.setup(sc)
         self._call(4, p=(sc.ap, 0, 0, 0), want=(name, self.dv.view(sc)))
 
     def run(self):
-        r = run(self.scene)
+        r = run(self.scene, self.prg)
         calls = [c for c in r.items if isinstance(c, Call)]
         assert len(calls) == len(self.expect) + 1
         fails, nview, codes = [], 0, {}
@@ -791,10 +869,10 @@ def time_view(runner, sc):
     base = bytes(runner.scene.b)
     a = Scene(); a.b = bytearray(base); a.call(4, p=(sc.ap, 0, 0, 0), quiet=True)
     b = Scene(); b.b = bytearray(base); b.call(7, p=(sc.ap, 0, 0, 0), quiet=True)
-    return run(a).cycles - run(b).cycles
+    return run(a, runner.prg).cycles - run(b, runner.prg).cycles
 
 
-def test_p6d():
+def test_p6d(bank1=False):
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import copy, random
@@ -814,9 +892,11 @@ def test_p6d():
     def free(m):
         return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
 
+    tag = ' (VMS_BANK1)' if bank1 else ''
+
     def go(label, scenes):
         nonlocal ok, total
-        R = ViewRunner(dbeview, dbetex)
+        R = ViewRunner(dbeview, dbetex, bank1)
         R.dbg_bytes = dbg_prg[2:]
         for name, sc in scenes:
             R.add(name, sc)
@@ -824,7 +904,7 @@ def test_p6d():
         total += n
         for k, v in codes.items():
             allcodes[k] = allcodes.get(k, 0) + v
-        print(f'P6d sim {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        print(f'P6d sim{tag} {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails
@@ -890,18 +970,37 @@ def test_p6d():
             s2.buf = (0x1300, 0x1300 + size)
             scs.append((f'überlauf {n_} {size}', s2))
     go('überlauf', scs)
+    # Abbruch über die Eintragszahl (K4): Build mit MAXITEM = 8 gegen die Referenz mit MAXITEM = 8
+    if not bank1:
+        orig = dbeview.MAXITEM
+        try:
+            dbeview.MAXITEM = 8
+            R = ViewRunner(dbeview, dbetex)
+            R.prg = PRGM
+            R.dbg_bytes = dbg_prg[2:]
+            for i in free(demo)[::3]:
+                for v in range(4):
+                    R.add(f'MAXITEM 8 demo {i}/{v}', dbeview.make_scene(A, demo, i, v))
+            n, fails, codes, _ = R.run()
+        finally:
+            dbeview.MAXITEM = orig
+        total += n
+        print(f'P6d sim MAXITEM = 8: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        for f in fails[:10]:
+            print('FAIL', f)
+        ok = ok and not fails and codes.get(2, 0) > 0
     # zwei Fronten je Zelle (synthetische DVG)
     scs = [(f'2F demo {i}/{v} bc{int(bc)}', dbeview.make_scene(A2, demo, i, v, band_cover=bc))
            for bc in (False, True) for i in free(demo) for v in range(4)]
     scs += [(f'2F zufall {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(80)]
     go('zwei Fronten', scs)
-    print(f'P6d sim: {total} Ansichten bytegleich verglichen, A-Codes gesamt {dict(sorted(allcodes.items()))}'
+    print(f'P6d sim{tag}: {total} Ansichten bytegleich verglichen, A-Codes gesamt {dict(sorted(allcodes.items()))}'
           f' -> {"ok" if ok else "FEHLER"}')
 
     # Zyklen je VIEW (Differenz zweier Läufe)
     if os.environ.get('DBE_NOCYCLES'):
         return ok
-    R = ViewRunner(dbeview, dbetex)
+    R = ViewRunner(dbeview, dbetex, bank1)
     R.dbg_bytes = dbg_prg[2:]
     rnd = random.Random(4)
     samples = {
@@ -912,7 +1011,7 @@ def test_p6d():
     }
     for label, scs in samples.items():
         cy = [time_view(R, sc) for sc in scs]
-        print(f'P6d Zyklen {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+        print(f'P6d Zyklen{tag} {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
     return ok
 
 
@@ -922,7 +1021,9 @@ def main():
         return 0
     ok = test_p6a()
     ok = test_p6c() and ok
+    ok = test_geomcheck() and ok
     ok = test_p6d() and ok
+    ok = test_p6d(bank1=True) and ok
     return 0 if ok else 1
 
 

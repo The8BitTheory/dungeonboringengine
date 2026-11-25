@@ -17,7 +17,7 @@ Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen i
 
 ### 2.1 Gemeinsames RAM und Stub
 
-- Der Stub schaltet während des Aufrufs `$D506` = (alt AND `$F0`) OR **`$06`** (8 KB unten gemeinsam; 0.1: `$05` = 4 KB) und `$FF00 = $7E`. Sonst unverändert (Interruptweiche `$FF05–$FFFF` in Bank 1, Zeropage nur `$FA–$FF`).
+- Der Stub schaltet während des Aufrufs `$D506` = (alt AND `$F0`) OR **`$06`** (8 KB unten gemeinsam; 0.1: `$05` = 4 KB) und `$FF00 = $7F` (Bank 1 ohne I/O, P6d-opt; vorher `$7E`). Interruptweiche `$FF05–$FFFF` in Bank 1. Zeropage: `$FA–$FD` und der Block **`$63–$72`** (FAC/ARG), den der Stub vor jedem Aufruf rettet und danach zurückschreibt (Nachweis `test/vice_zp.py`, Ergebnis P6d-opt).
 - Während des Aufrufs sieht die Lib unter `$2000` Bank 0. Folge: **keine Daten der Engine in Bank 1 unter `$2000`**. BASIC-Variablen in Bank 1 ab `$0400` sind davon nicht betroffen (sie werden nur außerhalb des Aufrufs benutzt; Korrektur zu P2a 4, review-notes G.16).
 - Bank 0 `$1C00–$1FFF` ist VDC-BASIC v3; die Lib schreibt dort nie (BUFSET prüft, 3.3).
 
@@ -40,7 +40,7 @@ Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen i
 | `$0C00–$0C07` | P0–P3 | Wörter, Ein- und Ausgabe der Funktionen |
 | `$0C08` | ITEMPH | Phase für Gegenstände aus der Inhaltsebene (Glitzern; Spiel setzt) |
 | `$0C09` | – | reserviert 0 |
-| `$0C0A–$0C0B` | VCLADR | `VIEW`: Adresse der VCL-Liste (= Pufferanfang) |
+| `$0C0A–$0C0B` | VCLADR | `VIEW`: Adresse der VCL-Liste (= B1 − VCLLEN; P6d-opt, vorher Pufferanfang) |
 | `$0C0C–$0C0D` | VCLLEN | `VIEW`: Länge der VCL-Liste inklusive Ende-Byte |
 | `$0C0E–$0C0F` | VMSLEN | `VIEW`: Bytes der VMS-Listen |
 | `$0C10–$0C11` | OBJVIS | `VIEW`: Bit i = Objekt i wurde (ganz oder teilweise) ausgegeben |
@@ -61,8 +61,8 @@ Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für We
 | `$5000–$6FFF` | 8 KB | DMP (W·H ≤ etwa 4000), optional Arbeitskopie bei kleinen Karten | `dbemap` `$5000` (bisher `$8000`) |
 | `$7000–$8FFF` | 8 KB | Sprite-Sätze S2 (mehrere hintereinander) | `dbespr` `$7000` |
 | `$9000–$AFFF` | 8 KB | DTS Wand | `dbetex` `$9000` (bisher `$A000`) |
-| `$B000–$CFFF` | 8 KB | **Lib**: Code und Tabellen, Sprungtabelle bei `$B000` | – |
-| `$D000–$DFFF` | – | I/O (mit `$FF00 = $7E`); RAM darunter für die Lib nicht nutzbar | – |
+| `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (P6d-opt; RAM unter I/O, `$FF00 = $7F`) | – |
+| `$DC00–$DFFF` | 1 KB | Lib-Tabellen (LIBTAB: Zellentabelle von GEOMSET, Kachelzusammenfassung), nicht in der Datei | – |
 | `$E000–$E7FF` | 2 KB | Lib-Variablen (BSS) | – |
 | `$E800–$EFFF` | 2 KB | DVG | `dbegeom` `$E800` (bisher `$E400`) |
 | `$F000–$F7FF` | 2 KB | DTS Boden | `dbetex` floor `$F000` |
@@ -112,7 +112,7 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | 1 | `MAPINIT` | P0 = DMP, P1 = Arbeitskopie (0 = keine; sonst 2·W·H Byte für Kachel- und Inhaltsebene), X Bit 0 = Automap-Bit „gesehen“ in `VIEW` setzen (nur mit P6f, sonst ignoriert) | prüft Magic, Version, Offsets, Länge; Startzelle und -richtung übernommen (wie `SETPOS`); OBJN = 0; X = W, Y = H; P0 = Startzelle, P1 = Startrichtung. A = 1 Format; A = 6, wenn die Arbeitskopie [P1, P1 + 2·W·H) nicht ganz in `$2000` … `$AFFF` liegt (unter der Lib; Lib, BSS, DVG, I/O und MMU bleiben unberührt; darunter gemeinsames RAM) |
 | 2 | `SETPOS` | P0 = Zelle, X = Richtung | A = 0; 6, wenn Zelle ≥ W·H (Position unverändert) |
 | 3 | `MOVE` | X = Aktion (3.4) | P6f |
-| 4 | `VIEW` | P0 = Bildpuffer im VRAM (AP) | VCL-Liste im Puffer; A = 0, 2 (gekürzt) oder 3 (Ränder weggelassen); X = Einträge (höchstens 255), Y = 0; P0 = VCLADR; VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 ohne GEOMSET/MAPINIT |
+| 4 | `VIEW` | P0 = Bildpuffer im VRAM (AP) | VCL-Liste [VCLADR, B1), VMS-Listen [B0, B0 + VMSLEN); A = 0, 2 (gekürzt) oder 3 (Ränder weggelassen); X = Einträge (höchstens 255), Y = 0; **P0 = VCLADR** (Spiel: `::VCL` mit diesem Wert); VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 ohne GEOMSET/MAPINIT |
 | 5 | `CELL` | P0 = Zelle | X = Kachelindex, Y = Inhaltsbyte, P1 = Kachel-Flags; außerhalb: A = 6, X = Außenkachel, Y = 0 |
 | 6 | `SETCELL` | P0 = Zelle, X = Kachelindex | A = 0; 6 bei Zelle außerhalb oder X ≥ NT |
 | 7 | – | – | A = 255 (`ENEMYSTEP` reserviert) |
@@ -120,10 +120,10 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | 9 | `SPRITESET` | X = Satz 0 … 7, P0 = S2 (0 = Satz löschen), P1 = VRAM-Basis | prüft `"S2"`, Version, ID (0 oder = DVG-ID), D, Stride; A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Satznummer/Pool |
 | 10 | `ITEMSET` | X = Gegenstand 0 … 63, Y = Satz + 1 (0 = keiner) | A = 0; 6 bei X ≥ 64 oder Y > 8 |
 | 11 | `POOLSET` | P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = keine Prüfung | A = 0; TEXSET/BGSET/SPRITESET prüfen danach Basis … Basis + U ⊆ Pool |
-| 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = aus der DVG) | prüft Magic, Version, Elementlänge 16, Tiefeneintrag 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1; Zeilentabelle; TEXSET/BGSET/SPRITESET mit anderer ID werden gelöscht (Bit je Satz in Y: Bit 0–2 DTS, Bit 3 DBG; X = Bits der S2-Sätze); A = 1 Format |
+| 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = aus der DVG) | prüft Magic, Version, Elementlänge 16, Tiefeneintrag 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1, dazu die Elementtabelle (7, P6d-opt; Fehler dort: A = 1 und keine gültige Geometrie); Zeilentabelle, Zellentabelle; TEXSET/BGSET/SPRITESET mit anderer ID werden gelöscht (Bit je Satz in Y: Bit 0–2 DTS, Bit 3 DBG; X = Bits der S2-Sätze); A = 1 Format |
 | 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | prüft `"DT"`, Version 1, Art = X, ID, NE, D, Stride; A = 1, 4, 5, 6 |
 | 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | prüft `"DB"`, Version, VW, VH, ID; A = 1, 4, 5, 6 |
-| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv) | A = 0; 6, wenn Anfang < `$0200`, Ende > `$1C00` oder Länge < 64 (alter Puffer bleibt) |
+| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv) | A = 0; 6, wenn Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer bleibt; Fenster `$1300–$1BFF`, P6d-opt) |
 | 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
 | ≥ 17 | – | – | A = 255 |
 
@@ -148,7 +148,7 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 
 ### 3.3 Puffer
 
-Der Puffer [B0, B1) liegt im gemeinsamen RAM (Bank 0, unter `$1C00`). `VIEW` schreibt die VCL-Liste ab B0 und die VMS-Listen unmittelbar dahinter (Grenze = Länge der VCL-Liste, aus der Größenrechnung bekannt, 5.10). Größe Standard 2304 Byte.
+Der Puffer [B0, B1) liegt im gemeinsamen RAM (Bank 0, Fenster `$1300–$1BFF`). `VIEW` schreibt jeden angenommenen Eintrag sofort (Einpass, P6d-opt): VMS-Listen aufwärts ab B0, VCL-Einträge abwärts von B1 (Ende-Byte bei B1 − 1). VCLADR = Anfang der VCL-Liste. Größe Standard 2304 Byte.
 
 ### 3.4 MOVE (P6f)
 
@@ -300,9 +300,11 @@ add(item):
 
 ### 5.11 Ausgabe (hinten → vorne)
 
-VCL ab B0, VMS-Zeiger ab B0 + nv. Die Sichtliste wird vom letzten zum ersten Eintrag ausgegeben; jeder Eintrag schreibt seine VCL-Einträge (5.5) und kopiert seine VMS-Liste (verbatim bzw. beschnitten, P5b 6.2) an den VMS-Zeiger. Am Ende ein Byte 0. VCLADR = B0, VCLLEN = nv, VMSLEN = nm, X = min(Anzahl VCL-Einträge, 255).
+**Einpass (P6d-opt):** Es gibt keine Sichtliste mehr. Jeder angenommene Eintrag wird beim Sichtdurchlauf sofort geschrieben: seine VMS-Liste aufwärts ab dem VMS-Zeiger (Start B0), seine VCL-Einträge in Erzeugungsreihenfolge **abwärts** vom VCL-Zeiger (Start B1 − 1 mit dem Ende-Byte 0). Die Liste ab VCLADR ist damit die umgekehrte Erzeugungsreihenfolge: hinten → vorne, und innerhalb eines Eintrags ebenfalls umgekehrt (erst die VMS-Liste, dann die Kerne rückwärts; pixelgleich, weil Kerne und Rand bzw. ZEILEN-Gruppen und Tapetenteile disjunkt sind, P5 4.4). VCLADR = B1 − nv, VCLLEN = nv, VMSLEN = nm, X = min(Anzahl VCL-Einträge, 255).
 
-Die VCL-Liste liegt damit fest bei B0: `SYS3331,4:::VCL 4864` (= `$1300`) im Spiel; mit `BUFSET` an einer anderen Stelle entsprechend.
+Überlauf: Reicht beim Schreiben der freie Raum (VCL-Zeiger − VMS-Zeiger) nicht, wird der Eintrag zurückgenommen, im Zählmodus genau gemessen und nach 5.10 entschieden (annehmen, ohne Rand, verwerfen, STOP); die Regel und damit die Ergebnisse sind unverändert.
+
+Im Spiel: `SYS3331,4,...:RREG A:::VCL PEEK(3072)+256*PEEK(3073)` (P0 = VCLADR).
 
 ## 6. Ausgabe-VCL-Typen
 
@@ -315,9 +317,26 @@ Alle Parameter als Wort (Low/High), auch Bytewerte (VDC-BASIC `vcl-format.md`).
 | 4 | 7 | vaddr, byte, count | Zeilenfüllung, eine Zeile |
 | 5 | 11 | vaddr, byte, count, reps, step = stride | Zeilenfüllung, mehrere gleiche Zeilen |
 | 12 | 7 | src, dst, list | Rand (VMS); Liste im Puffer, Befehle Typ 1, 3, 8 |
+| 9 | 7 | src, dst, list (Bank 1) | nur Build `VMS_BANK1`: unbeschnittene Liste direkt aus Bank 1 (6a) |
 | 0 | 1 | – | Ende |
 
 Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH), count ≤ 80, VMS-Typ-1-Länge ≤ 255.
+
+## 6a. Vorschlag VDC-BASIC: VCL-Typ 9 „VMS aus Bank 1“ (P6d-opt, Entscheidung 2)
+
+**Vorläufig:** Die Lesemethode ist offen (VDC-BASIC P2d). Liest VDC-BASIC nicht direkt mit `$FF00 = $7E` (sein Code ab `$2000` liegt nicht im gemeinsamen RAM), sondern z. B. per FETCH oder über einen Zwischenpuffer im gemeinsamen RAM, bleibt die Engine-Seite gleich (Eintrag mit Bank-1-Adresse, Build-Schalter `VMS_BANK1`); Typnummer und Bereichsregel werden dann an P2d angepasst. Die Zyklen mit `VMS_BANK1` messen nur die Engine; die Kosten verschieben sich in die VCL-Ausführung und sind erst mit P6g (VIEW + VCL) vergleichbar.
+
+| Byte | Inhalt |
+|---|---|
+| 0 | 9 |
+| 1–2 | source: VRAM-Adresse der Randbytes (= VB + rand_ofs) |
+| 3–4 | target: VRAM-Bezugsadresse (wie Typ 12) |
+| 5–6 | list: Adresse der VMS-Liste in **CPU-RAM Bank 1** |
+
+- Listenformat unverändert wie Typ 12 (`vms-format.md`: Alpha, Anzahl, Befehle; die Engine erzeugt 1, 3, 8).
+- Die Liste liegt ganz in Bank 1 `$2000–$CFFF` oder `$E000–$FEFF` (nie in `$D000–$DFFF`, nie unter `$2000`). VDC-BASIC liest sie mit `$FF00 = $7E` (Bank 1 mit I/O, VDC-Register erreichbar; Schleife im gemeinsamen RAM `$1C00–$1FFF`) und stellt danach seine Konfiguration wieder her. Interrupts dürfen laufen (Kernal-Weiche in Bank 1 `$FF05–$FFFF`, wie beim Stub).
+- Die Engine schreibt Typ 9 nur für **unbeschnittene** Listen (Wand-/Kachelbilder, Bänder in voller Breite; P6e: unbeschnittene Sprites): list = Inhaltsanfang des DTS + vofs. Beschnittene Listen bleiben Typ 12 im Puffer. Typ 9 belegt keine Pufferbytes (m = 0 in 5.10; „ohne Rand“ und „verwerfen“ gelten nur für Listen im Puffer).
+- Engine: Build-Schalter `VMS_BANK1` (`ca65 -DVMS_BANK1`); Referenz: `Scene.vms_bank1`, `Scene.dts_addr`; `run_vcl(..., bank1=...)` führt Typ 9 aus. Bis VDC-BASIC Typ 9 kann, bleibt der Standardbuild (Kopie, Typ 12).
 
 ## 7. Grenzen
 
@@ -326,8 +345,9 @@ Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH
 | DVG | NE ≤ 255 (keine Kopie, die Lib liest die Tabelle direkt; 0.1-`MAXWS` entfällt, review-notes C.3), VW ≤ 80, VH ≤ 100, D ≤ 7, S ≤ 15 (P6d: höchstens 31 Zellen je Tiefe) | GEOMSET A = 1 |
 | DTS | NST ≤ 32 (Stilzeilentabelle, P6d) | TEXSET A = 1 |
 | DBG | P ≥ 1 | BGSET A = 1 |
-| Wartebereich je Tiefe | 16 deckende Seiten bzw. Fronten ohne DVG-Bit 3 (P6d) | A = 2 (Tabellen voll) |
-| Sichtliste | MAXITEM = 96 | A = 2 |
+| Wartebereich je Tiefe | 16 deckende Seiten bzw. Fronten ohne DVG-Bit 3 | GEOMSET A = 1 (P6d-opt; vorher VIEW A = 2) |
+| Elementtabelle (GEOMSET, P6d-opt) | first + n ≤ NE, Art ≤ 4, \|s\| ≤ S, Zellen zusammenhängend (P3 5.3), ≤ 16 Elemente und ≤ 1 Boden- bzw. Deckenelement je Zelle, Art 0–3: x + w ≤ VW, y + h ≤ VH, Wände: c0 ≤ c1 ≤ VW; ≤ 48 Zellen und ≤ 96 Wände gesamt | GEOMSET A = 1, keine gültige Geometrie; `dbeview.parse_dvg` ViewError |
+| Einträge je VIEW | MAXITEM = 96 | A = 2 |
 | Puffer | BL (Standard 2304) für VCL + VMS zusammen | A = 2 bzw. 3 (5.10) |
 | Objektliste | 16 | mehr wird ignoriert |
 | Sprite-Sätze | 8 | A = 6 |
@@ -524,3 +544,44 @@ Hauptagent (technisch):
 4. VCL-Liste nicht mehr fest bei B0, sondern an einer Adresse, die `VIEW` in P0 zurückgibt (`::VCL` mit diesem Wert).
 5. `$0B00`/`$0E00` als Reserve der Engine.
 6. `BUFSET` auf erlaubte Fenster beschränken (nicht unter `$1300`, nicht über `$1BFF`), `GEOMSET` prüft die Elementtabelle (Zellen zusammenhängend, Grenzen für Wartebereich und Masken) → `E_FORMAT`.
+
+## Ergebnis P6d-opt (2026-11-25)
+
+Umgesetzt nach `P6d-review.md` und den Entscheidungen oben. Bytegleich mit `dbeview.view` in allen Sätzen (`run_sim.py`: 1322 Ansichten Standard, 1302 mit `VMS_BANK1`; `DBEVIEW_FULL=1`: 4962 bzw. 4942), `test_dbeview.py` grün (auch voll), VICE-Rauchtest und `test/vice_zp.py` grün (interpretiert und Blitz! Image 2).
+
+### Maßnahmen und Zyklen (sim65, Mittel/max je Ansicht; ohne Stub, der Stub kostet zusätzlich etwa 450 Zyklen)
+
+| Schritt | Gang Mittel | Gang max | zufall max | mit `VMS_BANK1` (vorläufig, 6a): Gang Mittel / max / zufall max |
+|---|---|---|---|---|
+| P6d (Ausgang) | 90 696 | 106 247 | 143 610 | – |
+| 1 Stub `$FF00 = $7F`, Code bis `$DBFF`, LIBTAB | 90 696 | 106 247 | 143 610 | – |
+| 2 Zellentabelle (GEOMSET), nur Wände, allcov vor resolve, `rtab` | 76 163 | 89 833 | 128 326 | – |
+| 3 Einpass (VCL abwärts, VMS aufwärts, Rücknahme bei Überlauf) | 58 654 | 69 791 | 101 343 | 50 242 / 56 403 / 76 100 |
+| 4 Band-Entscheidung im Zellendurchlauf | 52 857 | 64 415 | 95 989 | 44 452 / 51 039 / 68 795 |
+| 5 Zeropage-Block, Intervall-Masken, Kacheltabellen (MAPINIT), direkte Kern-/Zeilenausgabe, `bgoffs` bei BGSET | **41 446** | **52 087** | **83 671** | **33 017 / 38 679 / 54 874** |
+| Ziel (Abschnitt 8) | 30 000 | 45 000 | 80 000 | |
+
+Bewertung (Werte mit `VMS_BANK1` vorläufig, nur Engine-Zyklen, 6a): Mit `VMS_BANK1` (VDC-BASIC-Typ 9) sind Gang max und zufall max erfüllt, Gang Mittel liegt 10 % darüber. Ohne Bank-1-Listen kostet allein die Kopie im Gang etwa 8 400 Zyklen (432 VMS-Bytes je Ansicht im Mittel). Der VICE-Nachweis für den Zeropage-Block wurde vor Schritt 2 geführt; die Schritte 2–4 benutzen deshalb schon die Zeiger im Block, Schritt 5 die Einzelwerte.
+
+### Festlegungen
+
+- **Stub/Speicher:** `$FF00 = $7F`; Lib-Code `$B000–$DBFF` (11 KB), LIBTAB `$DC00–$DFFF` (Zellentabelle, Kachelzusammenfassung; INIT löscht sie nicht), BSS `$E000–$E7FF`. Testbuild `lib-test.cfg` (bis `$DBFF` aufgefüllt, Funktion 252 bei `$DB80` prüft Code unter I/O). Funktion 250 schaltet für `$D506` kurz `$7E`.
+- **Zeropage-Block `$63–$72`:** Der Stub rettet ihn bei jedem Aufruf (alle Funktionen) und schreibt ihn zurück. Nachweis `test/vice_zp.py`: 20 lange Aufrufe (Funktion 253 füllt den Block, wartet etwa 330 000 Zyklen, prüft ihn) unter Jiffy/Tastatur, SOUND mit Sweep und MOVSPR; Watchpoint (Lesen/Schreiben) auf `$63–$72` nur zwischen `JSR LIB` und Rückkehr: 640 Treffer, alle aus der Lib (`$FF00 = $7F`), **0 fremde**; danach SIN, STR$, VAL, Division richtig; Gegenprobe `--control` (Watchpoint auf `$A0–$A2`) findet die Kernal-IRQ-Zugriffe. NMI wurde nicht geprüft.
+- **GEOMSET** prüft die Elementtabelle (7) in einem Durchlauf und legt dabei die Zellentabelle an (je Zelle s, erstes Element, Slot, Wandliste, Boden-/Deckenplatz). Fehler in der Elementtabelle: A = 1 und **keine gültige Geometrie** (`geom_ok = 0`; Kopf-Fehler lassen den Zustand wie bisher unverändert). Objektplätze stehen nicht in der Tabelle (P6e ergänzt sie). `dbeview.parse_dvg` prüft dasselbe (`check_elems`).
+- **BUFSET:** Fenster `$1300–$1BFF`; `BIGBUF` der Tests ist damit der Standardpuffer.
+- **Einpass/VCLADR:** P0 = VCLADR = B1 − VCLLEN; VMS ab B0. Harness `viewsim.c` liefert VCL ab VCLADR, dann VMS ab B0 (`dbe_b0`). Referenz: `Result.b0`, `bank0()`, `bank1()`, `lists1`.
+- **MAXITEM** bleibt als Zähler; Test mit `-D MAXITEM_T=8` (eigener sim-Build) gegen die Referenz mit `MAXITEM = 8`.
+- **Masken** als sortierte Intervalllisten (höchstens 41 je Maske), kein Löschen je VIEW. `spans` aus den Lücken der bcov-Liste.
+- **Kacheln:** MAPINIT legt `tpl/tph` (Adresse) und `tsm` (Flächen, blocked, Flags) je Kachel an (768 Byte; MAPINIT demo 2 100 Zyklen, bei NT = 256 etwa 20 000).
+- **sim65-Harness:** Stack `$200` (Programm sonst zu groß); Reserve nur noch 81 Byte (MAIN endet bei `$4DAE`, Grenze `$4E00`) → vor P6e Lib-Code im Harness an `$B000` legen.
+
+### Größen
+
+Lib-Code 8 935 Byte (`$B000–$D2E6`, P6d: 7 960), LIBTAB 764 Byte, BSS 1 799 Byte (P6d: 1 993; Sichtliste −672, Kachelzeiger +512), Stub 168 Byte. Reserve: Code 2,3 KB, BSS 249 Byte, LIBTAB 260 Byte.
+
+### Offene Punkte
+
+1. Gang Mittel mit `VMS_BANK1` 33 000 statt 30 000. Kandidaten: ZEILEN-Gruppen bei TEXSET vorberechnen (~1 000), `resolve` für Wände cachen (~800), `gsetup`/`itemadd` schlanker (~800).
+2. GEOMSET 24 400 Zyklen (demo, Ziel 20 000; einmalig).
+3. VDC-BASIC Typ 9 (6a) umsetzen, danach `VMS_BANK1` zum Standard machen und in VICE (P6g) messen.
+4. P6e: Objektplätze in die Zellentabelle, Objekte im Zellendurchlauf (Intervallmaske für „erste/letzte freie Spalte“).

@@ -18,7 +18,7 @@ Stand: 2026-11-23, Entwurf zur Abstimmung. Ausgangspunkt ist `game/crawl.bas` au
 - **Allgemein:** beliebige Wandsätze, einstellbare Sichttiefe und -breite, mehrere Karten, mehrere Sprite-Sätze (Gegner, Gegenstände).
 - **Blitz!-kompatibel:** Das Spiel bleibt ein BASIC-7-Programm, das interpretiert läuft und mit Blitz! 128 kompiliert werden kann. Alle Aufrufe über `SYS`/`RREG`, `POKE`/`PEEK` und VDC-BASIC-Befehle (hinter `::`).
 - **Aufteilung:** BASIC behält Spielregeln, Ablauf, HUD-Texte, Sound und Laden der Dateien. Alles, was pro Schritt viele Feldzugriffe oder viele VDC-Befehle braucht, wandert in Assembler.
-- **Zeropage:** Die Lib nutzt nur `$FA–$FF`. `$3D/$3E` (Blitz!) und `$05–$08` (SYS-Register) bleiben unberührt.
+- **Zeropage:** Die Lib nutzt `$FA–$FD` und während eines Aufrufs den Block `$63–$72`, den der Stub rettet und zurückschreibt (P6d-opt, `P6-engine.md` 2.1). `$3D/$3E` (Blitz!) und `$05–$08` (SYS-Register) bleiben unberührt.
 
 ## 2. Schichten
 
@@ -48,7 +48,7 @@ Die DCL zeichnet nicht selbst, sondern erzeugt eine VCL-Liste. BASIC führt sie 
 | `$1300–$1BFF` | 0 | VDC-BASIC v2g |
 | `$FF05–$FFFF` | 1 | Kopie der Kernal-Interruptweiche (nur falls die Lib in Bank 1 liegt) |
 
-Zeropage: nur `$FA–$FF` (belegt sind bisher `$FA–$FD`). VDC-BASIC nutzt `$83–$8E`, Blitz! braucht `$3D/$3E`, `$05–$08` ist die SYS-Registerübergabe.
+Zeropage: `$FA–$FD`, dazu `$63–$72` während eines Aufrufs (vom Stub gerettet, P6d-opt). VDC-BASIC nutzt `$83–$8E`, Blitz! braucht `$3D/$3E`, `$05–$08` ist die SYS-Registerübergabe.
 
 ### 3.2 Ort der Lib – Kandidaten
 

@@ -345,9 +345,10 @@ class TestClip(unittest.TestCase):
 
 class TestResult(unittest.TestCase):
     def test_demo_structure(self):
+        """Einpass (P6d-opt): VMS-Listen aufwaerts ab B0, VCL-Liste abwaerts bis B1 (Ende-Byte bei B1 - 1)."""
         sc = dbeview.make_scene(env().assets, env().demo)
         res = dbeview.view(sc)
-        self.assertEqual((res.a, res.y, res.p0), (0, 0, 0x1300))
+        self.assertEqual((res.a, res.y, res.p0, res.b0), (0, 0, 0x1C00 - res.vcllen, 0x1300))
         self.assertEqual(res.vcllen, len(res.vcl))
         self.assertEqual(res.vmslen, len(res.vms))
         self.assertEqual(res.vcl[-1], 0)
@@ -355,32 +356,55 @@ class TestResult(unittest.TestCase):
         self.assertEqual(res.x, len(ents))
         sizes = {2: 11, 3: 13, 4: 7, 5: 11, 12: 7}
         self.assertEqual(sum(sizes[e[0]] for e in ents) + 1, res.vcllen)
-        # VMS-Zeiger: aufeinanderfolgend ab B0 + VCLLEN
-        ptr = res.p0 + res.vcllen
-        for e in ents:
+        # VMS-Zeiger: in Erzeugungsreihenfolge (= rueckwaerts durch die VCL-Liste) aufeinanderfolgend ab B0
+        b0 = res.bank0()
+        ptr = res.b0
+        for e in reversed(ents):
             if e[0] == 12:
                 self.assertEqual(e[3], ptr)
-                lst = res.buffer[ptr - res.p0:]
+                lst = b0[ptr:]
                 n = lst[1] | lst[2] << 8
                 p = 3
                 for _ in range(n):
                     p += {1: 4, 8: 3, 3: 3}[lst[p]]
                 ptr += p
-        self.assertEqual(ptr, res.p0 + res.vcllen + res.vmslen)
-        self.assertEqual(res.bank0()[res.p0 + res.vcllen - 1], 0)
+        self.assertEqual(ptr, res.b0 + res.vmslen)
+        self.assertEqual(b0[0x1C00 - 1], 0)
+        self.assertLessEqual(res.b0 + res.vmslen, res.p0)
 
     def test_deterministic_and_custom_buffer(self):
         sc = dbeview.make_scene(env().assets, env().demo)
         a, b = dbeview.view(sc), dbeview.view(sc)
         self.assertEqual((a.vcl, a.vms, a.objvis), (b.vcl, b.vms, b.objvis))
-        sc.buf = (0x0800, 0x1C00)
+        sc.buf = (0x0800, 0x1A00)
         c = dbeview.view(sc)
-        self.assertEqual(c.p0, 0x0800)
+        self.assertEqual((c.p0, c.b0), (0x1A00 - len(c.vcl), 0x0800))
         self.assertEqual(len(c.vcl), len(a.vcl))
         # VMS-Adressen verschoben, sonst gleich
         da, dc = dbeview.decode_vcl(a.buffer), dbeview.decode_vcl(c.buffer)
         self.assertEqual([e[:3] for e in da], [e[:3] for e in dc])
         self.assertEqual(a.vms, c.vms)
+
+    def test_vms_bank1(self):
+        """Build-Schalter VMS_BANK1: unbeschnittene Listen als VCL-Typ 9 mit Bank-1-Adresse, keine Pufferbytes;
+        beschnittene Listen weiter im Puffer (Typ 12); Bild gleich."""
+        e = env()
+        n9 = 0
+        for k, (i, v) in enumerate([(9, 0), (9, 1), (16, 2), (22, 3)]):
+            sc = dbeview.make_scene(e.assets, e.demo, i, v)
+            ref = dbeview.view(sc)
+            sc1 = copy.copy(sc)
+            sc1.vms_bank1 = True
+            res = dbeview.view(sc1)
+            ents = dbeview.decode_vcl(res.buffer)
+            n9 += sum(1 for x in ents if x[0] == 9)
+            self.assertEqual(len(ents), len(dbeview.decode_vcl(ref.buffer)))
+            self.assertLessEqual(res.vmslen, ref.vmslen)
+            for x in ents:
+                if x[0] == 9:
+                    self.assertIn(x[3], res.lists1)
+            check_pixels(self, sc1, k, f"vms_bank1 {i}/{v}")
+        self.assertGreater(n9, 0)
 
     def test_back_to_front_order(self):
         """Der letzte Eintrag (vorne) ist spaeter in der Liste als der erste (hinten): erste Eintraege = Tapete."""
@@ -497,9 +521,10 @@ class TestRandom(unittest.TestCase):
         for k in range(60):
             res = dbeview.view(dbeview.random_scene(k, e.assets, buf=BIG))
             vis += res.objvis != 0
+            b0 = res.bank0()
             for ent in dbeview.decode_vcl(res.buffer):
                 if ent[0] == 12:
-                    lst = res.buffer[ent[3] - res.p0:]
+                    lst = b0[ent[3]:]
                     p = 3
                     for _ in range(lst[1] | lst[2] << 8):
                         if lst[p] == 3:
@@ -1178,7 +1203,7 @@ vrl = "demo_sky.vrl"
             self.assertIn(f"VCL {res.vcllen}", r.stdout)
             r = run(DBEVIEW, "dump", "scene.toml")
             self.assertEqual(r.returncode, 0)
-            self.assertIn("VCLADR 0x1300", r.stdout)
+            self.assertIn(f"VCLADR {0x1C00 - res.vcllen:#06x}", r.stdout)       # VCL-Liste endet bei B1
             r = run(DBEVIEW, "budget", "scene.toml")
             self.assertEqual(r.returncode, 0)
             self.assertIn("1 Szenen", r.stdout)

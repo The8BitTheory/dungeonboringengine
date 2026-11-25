@@ -4,9 +4,10 @@
 ; SYS 3331,F,X,Y    : Lib-Funktion F aufrufen, Ergebnis per RREG A,X,Y
 ;
 ; Der Stub schaltet für die Dauer des Aufrufs das untere 8-KB-RAM gemeinsam ($D506)
-; und $FF00 auf Bank 1 mit I/O ($7E). Parameterblock ($0C00), Puffer der Engine ($1300-$1BFF)
+; und $FF00 auf Bank 1 ohne I/O ($7F; Lib-Code bis $DBFF, Tabellen bis $DFFF). Parameterblock ($0C00), Puffer der Engine ($1300-$1BFF)
 ; und Stub bleiben dabei sichtbar. Interrupts laufen über die Kopie der Kernal-Weiche
-; in Bank 1 ($FF05-$FFFF) weiter.
+; in Bank 1 ($FF05-$FFFF) weiter. Die Zeropage $63-$72 (ZPB, FAC/ARG) rettet der Stub vor dem Aufruf und schreibt
+; sie danach zurück; die Lib benutzt sie frei (Nachweis, dass keine Interruptroutine sie anfasst: test/vice_zp.py).
 
         .include "dbe.inc"
 
@@ -39,6 +40,11 @@ init:   lda     #CR_BANK0       ; ROM sichtbar, I/O an
 call:   sta     sv_a
         stx     sv_x
         sty     sv_y
+        ldx     #ZPBLEN-1
+@sv:    lda     ZPB,x
+        sta     sv_zp,x
+        dex
+        bpl     @sv
         lda     MMUCR
         sta     sv_cr
         lda     #CR_BANK0       ; I/O an (BANK 0 von BASIC hat kein I/O)
@@ -53,7 +59,9 @@ call:   sta     sv_a
         lda     sv_a
         ldx     sv_x
         ldy     sv_y
+call_lib:
         jsr     LIB
+call_ret:
         sta     sv_a
         stx     sv_x
         sty     sv_y
@@ -63,6 +71,11 @@ call:   sta     sv_a
         sta     MMU_RCR
         lda     sv_cr
         sta     MMUCR
+        ldx     #ZPBLEN-1
+@rs:    lda     sv_zp,x
+        sta     ZPB,x
+        dex
+        bpl     @rs
         lda     sv_a
         ldx     sv_x
         ldy     sv_y
@@ -73,3 +86,5 @@ sv_x:   .byte   0
 sv_y:   .byte   0
 sv_cr:  .byte   0
 sv_rcr: .byte   0
+sv_zp:  .res    ZPBLEN
+        .export call_lib, call_ret      ; Haltepunkte für test/vice_zp.py

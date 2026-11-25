@@ -1,6 +1,7 @@
 ; sim65-Harness: Aufruf der Lib wie der Stub (A = F, X, Y), Ergebnis A, X, Y in globalen Variablen
         .export _dbe_run, _dbe_f, _dbe_a, _dbe_x, _dbe_y
-        .import dbe_entry
+        .import dbe_entry, buf_b0
+        .export _dbe_b0 := buf_b0
         .bss
 _dbe_f: .res 1
 _dbe_a: .res 1
