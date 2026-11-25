@@ -12,6 +12,7 @@
                                       OBJN ($0C50) = nobj, Objektliste ($0C51) = die nbytes Bytes (höchstens 96);
                                       dann Lib-Funktion f mit X = x, Y = y
        3 addr(2) len(2)               Speicher auslesen (z. B. Lib-Variablen)
+       4 wie 2, aber ohne Ergebnissatz (Zyklenmessung: Lauf mit F gegen Lauf mit F = 7)
    Ergebnisdatei:
      "DBR1"
      je Aufruf:  'C' f a x y p0..p3(8) pb(10: $0C08-$0C11) buflen(2) puffer
@@ -58,6 +59,7 @@ int main(int argc, char **argv)
             if (fread((void *)a, 1, n, in) != n) return 2;
             break;
         case 2:
+        case 4:
             dbe_f = fgetc(in); dbe_x = fgetc(in); dbe_y = fgetc(in);
             if (fread(PARM, 1, 8, in) != 8) return 2;
             PARM[8] = fgetc(in);
@@ -66,6 +68,7 @@ int main(int argc, char **argv)
             if (n > 96 || fread(OBJL, 1, n, in) != n) return 2;
             f = dbe_f;
             dbe_run();
+            if (t == 4) break;
             fputc('C', out);
             fputc(f, out); fputc(dbe_a, out); fputc(dbe_x, out); fputc(dbe_y, out);
             fwrite(PARM, 1, 8, out);

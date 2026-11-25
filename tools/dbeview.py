@@ -1413,6 +1413,110 @@ def with_band_cover(dvg):
     return d2
 
 
+def dvg_bytes(dvg, load=0xE800):
+    """Dvg -> DVG-PRG (P3 5; fuer Tests mit veraenderten Geometrien, z. B. with_band_cover, double_fronts).
+    Die Geometrie-ID wird uebernommen (nicht neu berechnet), damit die DTS/S2 der Vorlage gueltig bleiben."""
+    D, ne = dvg.D, len(dvg.elems)
+    o_d, o_e = 24, 24 + 8 * (D + 1)
+    total = o_e + 16 * ne
+    out = bytearray(b"DV\x01") + bytes((dvg.vw, dvg.vh, D, dvg.S, ne))
+    out += struct.pack("<HHH", dvg.stride, dvg.origin, dvg.gid) + bytes((dvg.hy0, dvg.hy1, 16, 8))
+    out += struct.pack("<HHH", o_d, o_e, total)
+    for dt in dvg.depth:
+        out += bytes((dt.cy0, dt.cy1, dt.fy0, dt.fy1, dt.first, dt.n, dt.fw, dt.fx))
+    for e in dvg.elems:
+        if e.art == ART_OBJ:
+            r = bytes((e.art, e.d, e.s & 255, 0)) + b"".join(bytes((ax & 255, ay)) for ax, ay in e.anchors) + b"\0\0"
+        else:
+            r = bytes((e.art, e.d, e.s & 255, e.flags, e.x, e.y, e.w, e.h, e.kx, e.ky, e.kw, e.kh, e.c0, e.c1,
+                       e.src_dx, 0))
+        out += r
+    assert len(out) == total
+    return struct.pack("<H", load) + bytes(out)
+
+
+def double_fronts(assets):
+    """Synthetische Geometrie mit zwei Frontflaechen je Zelle (P6 9.3 zufall / 9.5 Crawl): jede Front der Tiefen
+    d >= 1 bekommt eine Kopie (gleiches Bild ueber denselben Slot, Rechteck und Spaltenbereich um -1, +1 oder 0
+    Spalten verschoben). Die Kopie steht abwechselnd direkt hinter der Front oder hinter der Seite der Zelle
+    (DVG-Reihenfolge F, S, F': die INHALT-Reihenfolge 5.2a weicht davon ab). Rueckgabe: Assets mit neuer Dvg und
+    angepassten Slotkarten der drei DTS (dvg_prg neu erzeugt)."""
+    g = assets.dvg
+    elems, src, depth = [], [], []
+    k = 0
+    for d, dt in enumerate(g.depth):
+        first = len(elems)
+        cells = []
+        for e in g.elems[dt.first:dt.first + dt.n]:
+            if not cells or cells[-1][0] != e.s:
+                cells.append((e.s, []))
+            cells[-1][1].append(e)
+        for s, ce in cells:
+            out = []
+            for e in ce:
+                out.append(e)
+                if e.art == ART_FRONT and d >= 1:
+                    sh = (-1, 1, 0)[k % 3]
+                    if e.x + sh < 0 or e.x + e.w + sh > g.vw:
+                        sh = 0
+                    dup = copy.deepcopy(e)
+                    dup.x += sh
+                    if dup.flags & DVG_COVER:
+                        dup.c0, dup.c1 = e.c0 + sh, e.c1 + sh
+                    if k & 1:                       # hinter die Seite der Zelle
+                        sides = [i for i, x in enumerate(ce) if x.art == ART_SIDE]
+                        dup._after = ce[sides[0]] if sides else e
+                    else:
+                        dup._after = e
+                    k += 1
+                    out.append(dup)
+            # Kopien hinter ihr Bezugselement umsortieren
+            ordered = [x for x in out if not hasattr(x, "_after")]
+            for x in [x for x in out if hasattr(x, "_after")]:
+                i = next(j for j, y in enumerate(ordered) if y is x._after)
+                while i + 1 < len(ordered) and hasattr(ordered[i + 1], "_after"):
+                    i += 1
+                ordered.insert(i + 1, x)
+            for x in ordered:
+                src.append(x.index)
+                y = copy.deepcopy(x)
+                if hasattr(y, "_after"):
+                    del y._after
+                y.index = len(elems)
+                elems.append(y)
+        depth.append(DepthRow(dt.cy0, dt.cy1, dt.fy0, dt.fy1, first, len(elems) - first, dt.fw, dt.fx))
+    if len(elems) > 255:
+        raise ViewError("double_fronts: mehr als 255 Elemente")
+    g2 = Dvg(g.vw, g.vh, g.D, g.S, g.stride, g.origin, g.gid, g.hy0, g.hy1, depth, elems)
+
+    def ts2(ts):
+        t = copy.copy(ts)
+        t.slot_map = [ts.slot_map[i] for i in src] + list(ts.slot_map[len(g.elems):])
+        t.ne = len(elems)
+        # DTS-Bytes: dbetex.to_dts zaehlt NS aus der Slotkarte (doppelte Slots wuerden mitgezaehlt), daher die
+        # Datei der Vorlage mit laengerer Slotkarte und verschobenen Offsets
+        c = bytearray(dbetex.to_dts(ts)[2:])
+        delta = len(t.slot_map) - len(ts.slot_map)
+        o_slot, o_style, o_dir, o_kern, o_data, total = struct.unpack_from("<HHHHHH", c, 12)
+        ni = c[10]
+        for i in range(ni):
+            for off in (4, 10):
+                v = struct.unpack_from("<H", c, o_dir + 16 * i + off)[0]
+                if v:
+                    struct.pack_into("<H", c, o_dir + 16 * i + off, v + delta)
+        c[6] = t.ne
+        struct.pack_into("<HHHHHH", c, 12, o_slot, o_style + delta, o_dir + delta, o_kern + delta, o_data + delta,
+                         total + delta)
+        t.dts_prg = struct.pack("<H", 0x9000) + bytes(c[:o_slot]) + bytes(t.slot_map) + bytes(c[o_style:])
+        t2 = dbetex.from_dts(t.dts_prg, ts.vram)
+        assert t2.slot_map == t.slot_map and [e.kerns for e in t2.entries] == [e.kerns for e in ts.entries]
+        return t
+    a2 = copy.copy(assets)
+    a2.dvg, a2.walls, a2.floor, a2.ceil = g2, ts2(assets.walls), ts2(assets.floor), ts2(assets.ceil)
+    a2.dvg_prg = dvg_bytes(g2)
+    return a2
+
+
 def make_scene(assets, dmp, pos=None, direction=None, objects=(), itemtab=None, itemph=0, ap=0, dbg=True,
                bgfill=0x33, band_cover=False, buf=DEFAULT_BUF, sprites=True, start=None):
     sc = Scene(with_band_cover(assets.dvg) if band_cover else assets.dvg, dmp)

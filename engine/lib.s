@@ -14,6 +14,7 @@
 ; SPRITESET, ITEMSET (Prüfungen 3.2; Fehlerreihenfolge: E_STATE, E_RANGE (Nummer), E_FORMAT, E_GEOM, E_RANGE (Pool)).
 ; Festlegungen zu P6c: siehe docs/specs/P6-engine.md "Ergebnis P6c".
 ; Alle anderen Funktionen (und F >= 17): A = E_NOTIMPL, bis ihr Teilschritt (P6d-P6f) sie umsetzt.
+; Stand P6d: VIEW ohne Objekte (engine/view.s, docs/specs/P6-engine.md "Ergebnis P6d").
 ;
 ; Übersetzen mit -DDBE_TEST (nur Tests, nie im Spiel): Funktionen 250 (MMU-/Common-RAM-Probe)
 ; und 251 (Warteschleife von P0 x etwa 1300 Zyklen) für den VICE-Rauchtest.
@@ -29,10 +30,12 @@
 
         .export dbe_entry := entry
         .export bss_start, bss_end, code_end            ; für Tests (Labeldatei)
-        .export buf_b0, buf_b1, pool_a, pool_b, pool_on
+        .export argx, buf_b0, buf_b1, pool_a, pool_b, pool_on
         .export t0, val, ptrs, recs, rows, itemtab, geom_ok, map_ok, map_w, map_h, map_wh, map_nt, map_ne, map_auto
         .export pos, vdir, px, py, map_out, dvg_vw, dvg_origin, dvg_id, dbg_ok, dbg_vram, dbg_base, dbg_p, bgfill
 
+        .segment "LIBBSS"
+bss_start:                      ; erster Teil von LIBBSS (view.s legt weitere Variablen an)
         .segment "CODE"
 entry:  jmp     dispatch
         .byte   "DBE", DBE_VERSION
@@ -69,7 +72,7 @@ notimpl:
 ; Tabelle aus 3: F = 0 ... 16; nicht umgesetzte Einträge = notimpl
 functab:
         .word   f_init-1,     f_mapinit-1,  f_setpos-1,   notimpl-1     ; 0 INIT, 1 MAPINIT, 2 SETPOS, 3 MOVE
-        .word   notimpl-1,    f_cell-1,     f_setcell-1,  notimpl-1     ; 4 VIEW, 5 CELL, 6 SETCELL, 7 (ENEMYSTEP)
+        .word   f_view-1,     f_cell-1,     f_setcell-1,  notimpl-1     ; 4 VIEW, 5 CELL, 6 SETCELL, 7 (ENEMYSTEP)
         .word   notimpl-1,    f_spriteset-1,f_itemset-1,  f_poolset-1   ; 8 (WALLSET), 9 SPRITESET, 10 ITEMSET, 11 POOLSET
         .word   f_geomset-1,  f_texset-1,   f_bgset-1,    f_bufset-1    ; 12 GEOMSET, 13 TEXSET, 14 BGSET, 15 BUFSET
         .word   f_setitem-1                                             ; 16 SETITEM
@@ -506,13 +509,26 @@ f_mapinit:
         jsr     addtab
         lda     P1
         ora     P1+1
-        beq     @nocopy
+        jeq     @nocopy
         lda     map_wh          ; Arbeitskopie: 2 * W * H Byte
         asl
         sta     acc
         lda     map_wh+1
         rol
         sta     acc+1
+        lda     P1+1            ; Ziel >= $2000 (darunter gemeinsames RAM) ...
+        cmp     #$20
+        jcc     range
+        clc                     ; ... und Ziel + 2 W H <= LIB (Lib, BSS, DVG, I/O, MMU unberührt)
+        lda     P1
+        adc     acc
+        tax
+        lda     P1+1
+        adc     acc+1
+        jcs     range
+        cpx     #<(LIB+1)
+        sbc     #>(LIB+1)
+        jcs     range
         lda     map_cells       ; ZP0 = Quelle, ZP1 = Ziel
         sta     ZP0
         lda     map_cells+1
@@ -677,7 +693,11 @@ f_geomset:
         lda     (ZP0),y
         cmp     #8
         jcs     e_format
-        ldy     #7              ; NE >= 1
+        iny                     ; S <= 15 (VIEW: höchstens 31 Zellen je Tiefe)
+        lda     (ZP0),y
+        cmp     #16
+        jcs     e_format
+        iny                     ; NE >= 1
         lda     (ZP0),y
         jeq     e_format
         ldx     #0              ; t0 = 1: andere ID als bisher
@@ -830,9 +850,11 @@ f_texset:
         lda     (ZP0),y
         cmp     argx
         jne     e_format
-        ldy     #9              ; NST >= 1
+        ldy     #9              ; 1 <= NST <= 32
         lda     (ZP0),y
         jeq     e_format
+        cmp     #33
+        jcs     e_format
         ldx     #gt_dts-geotab
         jsr     chkgeo
         jcs     e_geom
@@ -849,6 +871,29 @@ f_texset:
         iny
         lda     (ZP0),y
         sta     recs+4,x
+        sta     t1
+        lda     recs+12,x       ; Stilzeilen: sty[Art * 32 + st] = Stiltabelle + st * NS
+        sta     acc
+        lda     recs+13,x
+        sta     acc+1
+        lda     recs+3,x
+        sta     t2
+        txa
+        asl
+        tay
+@st:    lda     acc
+        sta     sty_lo,y
+        lda     acc+1
+        sta     sty_hi,y
+        clc
+        lda     acc
+        adc     t2
+        sta     acc
+        bcc     @s1
+        inc     acc+1
+@s1:    iny
+        dec     t1
+        bne     @st
         jmp     ok
 
 ; ---------------------------------------------------------------- 14 BGSET
@@ -866,6 +911,11 @@ f_bgset:
         ldx     #mg_dbg-eqtab
         jsr     chkeq
         jcs     e_format
+        ldy     #7              ; P >= 1
+        lda     (ZP0),y
+        iny
+        ora     (ZP0),y
+        jeq     e_format
         ldx     #gt_dbg-geotab
         jsr     chkgeo
         jcs     e_geom
@@ -957,6 +1007,14 @@ f_spriteset:
         sta     recs+5,x
         lda     t2
         sta     recs+6,x
+        lda     #0              ; recs+14 = NA * D (Indextabelle: (f * NA + ai) * D + d - 1), recs+15 = 0
+        sta     recs+15,x
+        ldy     recs+3,x
+@nd:    clc
+        adc     dvg_d
+        dey
+        bne     @nd
+        sta     recs+14,x
         jmp     ok
 
 ; ---------------------------------------------------------------- Tabellen der Kopfprüfungen
@@ -1008,12 +1066,13 @@ t_wait:
         rts
 .endif
 
+        .include "view.s"
+
         .segment "CODE"
 code_end:                       ; Codeende (nur ein Segment CODE, kein RODATA)
 
 ; ---------------------------------------------------------------- Variablen (Bank 1 $E000-$E7FF)
         .segment "LIBBSS"
-bss_start:
 argx:   .res 1
 argy:   .res 1
 buf_b0: .res 2                  ; Puffer (BUFSET): Anfang, Ende exklusiv
@@ -1079,4 +1138,6 @@ dbg_h:  .res 1
 dbg_flags: .res 1
 bgfill: .res 1
 itemtab:.res 64                 ; Gegenstand -> Satz + 1
+sty_lo: .res 96                 ; TEXSET: Adresse der Stilzeile [Art * 32 + st]
+sty_hi: .res 96
 bss_end:

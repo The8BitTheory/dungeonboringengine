@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """sim65-Gerüst für die Lib (docs/specs/P6-engine.md 9.2).
 
-Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c)
+Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c, P6d)
+         Umgebung: DBEVIEW_FULL=1 voller Zufallssatz (200 x 20), DBE_NOCYCLES=1 ohne Zyklenmessung
          run_sim.py --build    nur bauen
 
 Bausteine für die späteren Teilschritte:
@@ -34,8 +35,8 @@ class Scene:
         self.b += struct.pack('<BHH', 1, addr, len(data)) + data
         return self
 
-    def call(self, f, x=0, y=0, p=(0, 0, 0, 0), itemph=0, objn=0, objl=b''):
-        self.b += struct.pack('<BBBB4HBBB', 2, f, x, y, *p, itemph, objn, len(objl)) + bytes(objl)
+    def call(self, f, x=0, y=0, p=(0, 0, 0, 0), itemph=0, objn=0, objl=b'', quiet=False):
+        self.b += struct.pack('<BBBB4HBBB', 4 if quiet else 2, f, x, y, *p, itemph, objn, len(objl)) + bytes(objl)
         return self
 
     def dump(self, addr, n):
@@ -49,7 +50,7 @@ class Scene:
 def build():
     os.makedirs(OUT, exist_ok=True)
     src = [os.path.join(HERE, 'viewsim.c'), os.path.join(HERE, 'glue.s'), os.path.join(ROOT, 'engine', 'lib.s')]
-    subprocess.run(['cl65', '-t', 'sim6502', '-C', os.path.join(HERE, 'sim.cfg'), '-O', '--asm-define', 'SIM',
+    subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, 'sim.cfg'), '-O', '--asm-define', 'SIM',
                     '--asm-include-dir', os.path.join(ROOT, 'engine'), '-Ln', LBL,
                     '-m', os.path.join(OUT, 'viewsim.map'), '-o', PRG] + src, check=True, cwd=OUT)
     for s in src:                       # ältere cl65-Versionen lassen Objekte neben den Quellen liegen
@@ -178,7 +179,8 @@ def test_p6a():
     check('INIT OBJN = 0', objn == b'\0')
     for f in (17, 18, 255, 7, 8, 4, 3):
         c = nxt()
-        check(f'F={f} E_NOTIMPL', (c.a, c.x, c.y) == (255, 0, 0), str((c.a, c.x, c.y)))
+        want = (5, 0, 0) if f == 4 else (255, 0, 0)          # VIEW ohne GEOMSET/MAPINIT: E_STATE
+        check(f'F={f} {"E_STATE" if f == 4 else "E_NOTIMPL"}', (c.a, c.x, c.y) == want, str((c.a, c.x, c.y)))
 
     def bufcase(name, want_a, want_buf):
         c = nxt(); d = nxt()[1]
@@ -267,7 +269,8 @@ class Seq:
         """BSS ohne argx/argy und Zwischenwerte (t0 ... val)"""
         d = bytearray(d)
         o = self.L['bss_start']
-        d[0:2] = b'\0\0'
+        x = self.L['argx'] - o
+        d[x:x + 2] = b'\0\0'
         a, b = self.L['t0'] - o, self.L['val'] + 2 - o
         d[a:b] = bytes(b - a)
         return d
@@ -381,7 +384,7 @@ def test_p6c():
     # GEOMSET: Formatfehler
     gerr = [('Magic', (0, ord('X'))), ('Version', (2, 2)), ('Elementlänge', (16, 15)), ('Tiefeneintrag', (17, 7)),
             ('VW 81', (3, 81)), ('VW 0', (3, 0)), ('VH 101', (4, 101)), ('VH 0', (4, 0)), ('D 8', (5, 8)),
-            ('NE 0', (7, 0))]
+            ('NE 0', (7, 0)), ('S 16', (6, 16))]
     for nm, e in gerr:
         S.call(f'GEOMSET {nm}', 12, p=(HDR, 0xFFFF, 0, 0), pre=[(HDR, patched(dvg, e))], a=1, same=True)
     S.call('TEXSET nach GEOMSET-Fehler', 13, 0, p=(TD[0], 0, 0, 0), a=5, same=True)
@@ -421,14 +424,14 @@ def test_p6c():
                     '<HHHH', base_addr, base_addr + u16(src, 12), base_addr + u16(src, 14), base_addr + u16(src, 16))
             else:
                 want = bytes([1]) + st.pack('<H', vram) + bytes([src[7], src[8]]) + src[4:6] + b'\0' + st.pack(
-                    '<HHHH', base_addr, base_addr + u16(src, 16), base_addr + u16(src, 18), base_addr + u16(src, 20))
+                    '<HHH', base_addr, base_addr + u16(src, 16), base_addr + u16(src, 18)) + bytes([src[7] * dvg[5], 0])
             return [] if r == want else [f'Satz {k}: {r.hex()} <> {want.hex()}']
         return chk
     for k in range(3):
         S.call(f'TEXSET Art {k}', 13, k, p=(TD[k], VR[k], 0, 0), a=0, rx=0, ry=0,
                check=rec_check(k, dts[k], TD[k], VR[k], 'dts'))
     S.call('TEXSET Art falsch', 13, 1, p=(TD[0], 0, 0, 0), a=1, same=True)
-    terr = [('Magic', 1, (1, ord('X'))), ('Version', 1, (2, 2)), ('NST 0', 1, (9, 0)),
+    terr = [('Magic', 1, (1, ord('X'))), ('Version', 1, (2, 2)), ('NST 0', 1, (9, 0)), ('NST 33', 1, (9, 33)),
             ('Art', 1, (3, 2))]
     for nm, ferr, e in terr:
         S.call(f'TEXSET {nm}', 13, 0, p=(HDR, 0, 0, 0), pre=[(HDR, patched(dts[0], e))], a=1, same=True)
@@ -464,7 +467,7 @@ def test_p6c():
             return [] if got == want else [f'DBG {got} <> {want}']
         return chk
     S.call('BGSET', 14, 0x77, p=(DB, 0x6000, 0, 0), a=0, rx=0, ry=0, check=bg_check(0x6000, 0x77))
-    for nm, e, a in (('Magic', (1, ord('X')), 1), ('Version', (2, 9), 1), ('VW', (3, dbg[3] + 1), 4),
+    for nm, e, a in (('Magic', (1, ord('X')), 1), ('Version', (2, 9), 1), ('P 0', (7, 0, 2), 1), ('VW', (3, dbg[3] + 1), 4),
                      ('VH', (4, dbg[4] - 1), 4), ('ID', (5, u16(dbg, 5) ^ 1), 4)):
         S.call(f'BGSET {nm}', 14, 0x11, p=(HDR, 0x7000, 0, 0), pre=[(HDR, patched(dbg, e, n=32))], a=a,
                check=lambda b: [] if b.b('bgfill') == 0x11 and b.w('dbg_vram') == 0x6000 else ['Zustand'])
@@ -612,6 +615,15 @@ def test_p6c():
     SB.call('MAPINIT ohne Kopie', 1, p=mp, a=0, check=map_check(m, 0, 0))
     SB.call('SETCELL in DMP', 6, 1, p=(0, 0, 0, 0), a=0, dump=[(0x5000 + 24, 1)],
             check=lambda b: [] if b.extra[0] == b'\1' else ['DMP nicht geändert'])
+    # Ziel der Arbeitskopie (P6d): [P1, P1 + 2 W H) muss in $2000 ... LIB ($B000) liegen, sonst E_RANGE
+    n2 = 2 * W * H
+    for nm, dst, a in (('genau unter LIB', 0xB000 - n2, 0), ('ein Byte über LIB', 0xB000 - n2 + 1, 6),
+                       ('ab LIB', 0xB000, 6), ('BSS', 0xE000, 6), ('DVG', 0xE800, 6), ('unter $2000', 0x1FFF, 6),
+                       ('$0400', 0x0400, 6), ('Überlauf 65536', 0x10000 - n2 + 2, 6), ('I/O', 0xD000 - 4, 6)):
+        SB.call(f'MAPINIT Arbeitskopie {nm}', 1, p=(ADDR['dmp'], dst, 0, 0), a=a,
+                check=(lambda a, dst: lambda b: ([] if b.b('map_ok') == (a == 0) else ['map_ok']) +
+                       ([] if a or b.w('ptrs', 0) == dst else ['Kopie nicht benutzt']))(a, dst))
+        SB.call(f'CELL nach MAPINIT {nm}', 5, p=(0, 0, 0, 0), a=0 if a == 0 else 5)
     cyc = SB.run()
     fails += SB.fails
     print(f'P6c sim B (Karte, {W}x{H}): {len(SB.steps)} Aufrufe, {len(SB.fails)} Fehler, Zyklen {cyc}')
@@ -636,9 +648,9 @@ def test_p6c():
         data = dbemap.to_dmp(mm)[2:]
         nm = f'{w}x{h} NT {len(mm.tiles)}'
         use_copy = n <= 2048
-        SC.call(f'MAPINIT {nm}', 1, p=(ADDR['dmp'], 0xC000 if use_copy else 0, 0, 0),
+        SC.call(f'MAPINIT {nm}', 1, p=(ADDR['dmp'], 0x8000 if use_copy else 0, 0, 0),
                 pre=[(ADDR['dmp'], data)], a=0, rx=w & 255, ry=h & 255,
-                rp=(mm.start, mm.direction), check=map_check(mm, 0xC000 if use_copy else 0, 0))
+                rp=(mm.start, mm.direction), check=map_check(mm, 0x8000 if use_copy else 0, 0))
         probe = sorted({0, n - 1, mm.start, n // 2, rnd.randrange(n), rnd.randrange(n)})
         for i in probe:
             SC.call(f'{nm} CELL {i}', 5, p=(i, 0, 0, 0), a=0, rx=mm.cells[i] & 255, ry=mm.content[i], rp=(i, 0))
@@ -657,12 +669,260 @@ def test_p6c():
 
 
 
+# ------------------------------------------------------------------ P6d: VIEW ohne Objekte
+P6D_ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'dts': (0x9000, 0xB400, 0xF000), 'dbg': 0xFE00}
+BIGBUF = (0x0D00, 0x1C00)       # größter Puffer, der im sim65-Harness den Parameterblock nicht überschreibt
+
+
+class ViewRunner:
+    """Baut aus dbeview-Szenen eine Szenendatei (nur nötige Setz-Aufrufe zwischen den Ansichten) und vergleicht
+    jede VIEW-Antwort bytegenau mit dbeview.view."""
+
+    def __init__(self, dbeview, dbetex):
+        self.dv, self.dt = dbeview, dbetex
+        self.reset()
+
+    def reset(self):
+        self.scene = Scene()
+        self.scene.call(0)
+        self.state = {}
+        self.expect = []            # (Name, Result) je VIEW, None für Setz-Aufrufe
+
+    def _call(self, f, x=0, y=0, p=(0, 0, 0, 0), want=None):
+        self.scene.call(f, x, y, p)
+        self.expect.append(want)
+
+    def setup(self, sc):
+        """Setz-Aufrufe für sc; Rückgabe: Liste der (Aufruf, erwartetes A)"""
+        st, dv, dt = self.state, self.dv, self.dt
+        dvg = dv.dvg_bytes(sc.dvg)[2:]
+        if st.get('dvg') != dvg:
+            self.scene.seg(P6D_ADDR['dvg'], dvg)
+            self._call(12, p=(P6D_ADDR['dvg'], 0xFFFF, 0, 0), want=('setup', 0))
+            st['dvg'] = dvg
+            st.pop('dts', None)
+            st.pop('bg', None)
+        for k in range(3):
+            ts = sc.dts[k]
+            key = (id(ts), ts.ne if ts else 0, sc.vram_bases['dts'][k])
+            if st.get(('dts', k)) != key or 'dts' not in st:
+                if ts is None:
+                    self._call(13, k, p=(0, 0, 0, 0), want=('setup', 0))
+                else:
+                    data = (getattr(ts, 'dts_prg', None) or dt.to_dts(ts))[2:]
+                    if st.get(('dtsdata', k)) != data:
+                        self.scene.seg(P6D_ADDR['dts'][k], data)
+                        st[('dtsdata', k)] = data
+                    self._call(13, k, p=(P6D_ADDR['dts'][k], sc.vram_bases['dts'][k], 0, 0), want=('setup', 0))
+                st[('dts', k)] = key
+        st['dts'] = True
+        bg = (sc.dbg is not None, sc.bgfill, sc.vram_bases['dbg'])
+        if st.get('bg') != bg:
+            if sc.dbg is not None and not st.get('dbgdata'):
+                self.scene.seg(P6D_ADDR['dbg'], self.dbg_bytes)
+                st['dbgdata'] = True
+            self._call(14, sc.bgfill, p=(P6D_ADDR['dbg'] if sc.dbg is not None else 0, sc.vram_bases['dbg'], 0, 0),
+                       want=('setup', 0))
+            st['bg'] = bg
+        dmp = self.dv.dbemap.to_dmp(sc.dmp)[2:]
+        if st.get('dmp') != dmp:
+            self.scene.seg(P6D_ADDR['dmp'], dmp)
+            self._call(1, p=(P6D_ADDR['dmp'], 0, 0, 0), want=('setup', 0))
+            st['dmp'] = dmp
+            st.pop('pos', None)
+        if st.get('pos') != (sc.pos, sc.dir):
+            self._call(2, sc.dir, p=(sc.pos, 0, 0, 0), want=('setup', 0))
+            st['pos'] = (sc.pos, sc.dir)
+        if st.get('buf') != sc.buf:
+            self._call(15, p=(sc.buf[0], sc.buf[1], 0, 0), want=('setup', 0))
+            st['buf'] = sc.buf
+
+    def add(self, name, sc):
+        sc.objects = []
+        sc.itemtab = [0] * 64
+        self.setup(sc)
+        self._call(4, p=(sc.ap, 0, 0, 0), want=(name, self.dv.view(sc)))
+
+    def run(self):
+        r = run(self.scene)
+        calls = [c for c in r.items if isinstance(c, Call)]
+        assert len(calls) == len(self.expect) + 1
+        fails, nview, codes = [], 0, {}
+        for c, w in zip(calls[1:], self.expect):
+            name, res = w
+            if name == 'setup':
+                if c.a != res:
+                    fails.append(f'Setz-Aufruf F={c.f}: A = {c.a}')
+                continue
+            nview += 1
+            codes[res.a] = codes.get(res.a, 0) + 1
+            pb = struct.unpack('<HHHH', c.pb[2:10])
+            got = (c.a, c.x, c.y, c.p[0], pb)
+            want = (res.a, res.x, 0, res.p0, (res.p0, res.vcllen, res.vmslen, 0))
+            if got != want or c.buf != res.buffer:
+                msg = f'{name}: A/X/Y/P0/PB sim {got} <> Referenz {want}'
+                if c.buf != res.buffer:
+                    msg += '; ' + (first_diff(c.buf, res.buffer) or 'Länge')
+                fails.append(msg)
+        return nview, fails, codes, r.cycles
+
+
+def corridor_map(dbemap, n=24):
+    """Gang mit deckenden Wänden und einheitlichem Boden/Decke (Zyklenziel 8, Zeile 2)."""
+    T = dbemap.Tile
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, 1 | 4, 0)]
+    w, h = n, 5
+    cells = [1] * (w * h)
+    for x in range(1, w - 1):
+        cells[2 * w + x] = 0
+    for y in (1, 3):                            # Seitengänge
+        for x in range(4, w - 1, 6):
+            cells[y * w + x] = 0
+    m = dbemap.Map('gang', w, h, t, cells, [0] * (w * h), [], 2 * w + 1, 1, 1)
+    dbemap.validate(m)
+    return m
+
+
+def time_view(runner, sc):
+    """Zyklen eines VIEW: Lauf mit VIEW minus Lauf mit F = 7 an seiner Stelle (gleiche Szene)."""
+    runner.reset()
+    sc.objects, sc.itemtab = [], [0] * 64
+    runner.setup(sc)
+    base = bytes(runner.scene.b)
+    a = Scene(); a.b = bytearray(base); a.call(4, p=(sc.ap, 0, 0, 0), quiet=True)
+    b = Scene(); b.b = bytearray(base); b.call(7, p=(sc.ap, 0, 0, 0), quiet=True)
+    return run(a).cycles - run(b).cycles
+
+
+def test_p6d():
+    sys.path.insert(0, TOOLS)
+    sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
+    import copy, random
+    import dbemap, dbetex, dbeview
+    dbeview.dbemap = dbemap
+    from test_dbeview import abgrund_map
+    full = bool(os.environ.get('DBEVIEW_FULL'))
+    tmp = tempfile.TemporaryDirectory()
+    A = dbeview.build_demo_assets(tmp.name)
+    A2 = dbeview.double_fronts(A)
+    dbg_prg, _, _ = dbetex.build_background(dbetex.load_bg_conf(os.path.join(tmp.name, 'bg.toml')))
+    demo = dbemap.load_toml(DEMO_MAP)
+    ok = True
+    total = 0
+    allcodes = {}
+
+    def free(m):
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+
+    def go(label, scenes):
+        nonlocal ok, total
+        R = ViewRunner(dbeview, dbetex)
+        R.dbg_bytes = dbg_prg[2:]
+        for name, sc in scenes:
+            R.add(name, sc)
+        n, fails, codes, cyc = R.run()
+        total += n
+        for k, v in codes.items():
+            allcodes[k] = allcodes.get(k, 0) + v
+        print(f'P6d sim {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        for f in fails[:10]:
+            print('FAIL', f)
+        ok = ok and not fails
+
+    # demo: alle freien Zellen x 4 Richtungen, Bit 3 aus/an, ohne DBG, ap != 0, origin
+    sc_demo = []
+    for bc in (False, True):
+        for i in free(demo):
+            for v in range(4):
+                sc_demo.append((f'demo {i}/{v} bc{int(bc)}', dbeview.make_scene(A, demo, i, v, band_cover=bc)))
+    for i in free(demo)[::3]:
+        for v in range(4):
+            sc_demo.append((f'demo ohne DBG {i}/{v}', dbeview.make_scene(A, demo, i, v, dbg=False, bgfill=0x5A)))
+    for ap in (0x0123, 0xE200, 0xF800):
+        for i in free(demo)[::4]:
+            sc_demo.append((f'demo ap {ap:#x} {i}', dbeview.make_scene(A, demo, i, (i + ap) & 3, ap=ap,
+                                                                        band_cover=bool(i & 1))))
+    g = copy.deepcopy(A.dvg)
+    g.origin = 123
+    for i in free(demo)[::2]:
+        sc = dbeview.make_scene(A, demo, i, i & 3)
+        sc.dvg = g
+        dbeview.layout_vram(sc)
+        sc_demo.append((f'demo origin 123 {i}', sc))
+    go('demo', sc_demo)
+    # abgrund
+    m = abgrund_map()
+    go('abgrund', [(f'abgrund {i}/{v}', dbeview.make_scene(A, m, i, v, band_cover=bool(i & 1)))
+                   for i in free(m) for v in range(4)])
+    # Gang
+    gm = corridor_map(dbemap)
+    go('gang', [(f'gang {i}/{v}', dbeview.make_scene(A, gm, i, v, band_cover=bool(v & 1)))
+                for i in free(gm) for v in range(4)])
+    # zufall (ohne Objekte): Zufallskarten (INHALT, Lücken, blockierte Zellen), Bit 3 zufällig, DBG zufällig
+    nmaps, nviews = (200, 20) if full else (60, 6)
+    for part in range(0, nmaps, 20):
+        scs = []
+        for k in range(part, min(part + 20, nmaps)):
+            base = dbeview.random_scene(k, A, nobj=0, buf=BIGBUF if k % 3 == 0 else dbeview.DEFAULT_BUF)
+            rnd = random.Random(k)
+            fr = free(base.dmp)
+            for j in range(nviews):
+                sc = copy.copy(base)
+                sc.vram_bases = copy.deepcopy(base.vram_bases)
+                sc.pos, sc.dir = rnd.choice(fr), rnd.randrange(4)
+                if j == nviews - 1:
+                    sc.ap = rnd.choice((0x0040, 0x0123))
+                    dbeview.layout_vram(sc)
+                scs.append((f'zufall {k}/{j}', sc))
+        go(f'zufall {part}-{min(part + 20, nmaps) - 1}', scs)
+    # Überlauf: kleine Puffer (A = 2/3, Kürzung, Ränder weggelassen)
+    T = dbemap.Tile
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((2, 2, 2, 2), 1, 1, 1, 0)]
+    rows = ['#######'] * 3 + ['#.....#'] * 4
+    gm2 = dbemap.Map('gitter', 7, 7, t, [1 if ch == '#' else 0 for r in rows for ch in r], [0] * 49, [], 6 * 7 + 3, 0, 1)
+    ov = [dbeview.make_scene(A, demo, i, v) for i in free(demo)[::2] for v in range(4)]
+    ov += [dbeview.make_scene(A, gm2, 6 * 7 + x, v, band_cover=True) for x in range(1, 6) for v in (0, 1, 3)]
+    ov += [dbeview.random_scene(k, A, nobj=0) for k in range(300, 312)]
+    scs = []
+    for n_, sc in enumerate(ov):
+        for size in (64, 128, 256, 512, 1024):
+            s2 = copy.copy(sc)
+            s2.buf = (0x1300, 0x1300 + size)
+            scs.append((f'überlauf {n_} {size}', s2))
+    go('überlauf', scs)
+    # zwei Fronten je Zelle (synthetische DVG)
+    scs = [(f'2F demo {i}/{v} bc{int(bc)}', dbeview.make_scene(A2, demo, i, v, band_cover=bc))
+           for bc in (False, True) for i in free(demo) for v in range(4)]
+    scs += [(f'2F zufall {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(80)]
+    go('zwei Fronten', scs)
+    print(f'P6d sim: {total} Ansichten bytegleich verglichen, A-Codes gesamt {dict(sorted(allcodes.items()))}'
+          f' -> {"ok" if ok else "FEHLER"}')
+
+    # Zyklen je VIEW (Differenz zweier Läufe)
+    if os.environ.get('DBE_NOCYCLES'):
+        return ok
+    R = ViewRunner(dbeview, dbetex)
+    R.dbg_bytes = dbg_prg[2:]
+    rnd = random.Random(4)
+    samples = {
+        'Gang (deckend, einheitlich)': [dbeview.make_scene(A, gm, i, v) for i in free(gm) for v in (1, 3)],
+        'demo': [dbeview.make_scene(A, demo, i, v) for i in free(demo) for v in range(4)],
+        'zufall (offen, gemischt)': [dbeview.random_scene(k, A, nobj=0) for k in range(40)],
+        'zwei Fronten': [dbeview.make_scene(A2, demo, i, v) for i in free(demo)[::2] for v in range(4)],
+    }
+    for label, scs in samples.items():
+        cy = [time_view(R, sc) for sc in scs]
+        print(f'P6d Zyklen {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+    return ok
+
+
 def main():
     build()
     if '--build' in sys.argv:
         return 0
     ok = test_p6a()
     ok = test_p6c() and ok
+    ok = test_p6d() and ok
     return 0 if ok else 1
 
 

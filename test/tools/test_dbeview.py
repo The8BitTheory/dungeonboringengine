@@ -510,6 +510,45 @@ class TestRandom(unittest.TestCase):
         self.assertGreater(clipped, 5)
 
 
+class TestDoubleFronts(unittest.TestCase):
+    """Synthetische DVG mit zwei Frontflaechen je Zelle (9.3 zufall, 9.5 Crawl; P6b-Review): Liste und Pixel."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.a2 = dbeview.double_fronts(env().assets)
+
+    def test_geometry(self):
+        g, g0 = self.a2.dvg, env().assets.dvg
+        self.assertEqual(dbeview.parse_dvg(self.a2.dvg_prg).elems, g.elems)
+        for d in range(1, g.D + 1):
+            for s, ce in dbeview._Ctx(dbeview.make_scene(self.a2, env().demo)).cells_of(d):
+                n0 = sum(1 for e in g0.elems if e.d == d and e.s == s and e.art == dbeview.ART_FRONT)
+                self.assertEqual(sum(1 for e in ce if e.art == dbeview.ART_FRONT), 2 * n0)
+        # mindestens eine Zelle mit Reihenfolge F, S, F' (INHALT ordnet anders)
+        self.assertTrue(any([e.art for e in ce][:3] == [0, 1, 0] for d in range(1, g.D + 1)
+                            for _, ce in dbeview._Ctx(dbeview.make_scene(self.a2, env().demo)).cells_of(d)))
+
+    def test_demo_pixels(self):
+        m = env().demo
+        for bc in (False, True):
+            for i, c in enumerate(m.cells):
+                if m.tiles[c].flags & WEG:
+                    continue
+                for v in range(4):
+                    sc = dbeview.make_scene(self.a2, m, i, v, band_cover=bc, buf=BIG)
+                    check_pixels(self, sc, i * 4 + v, f"zwei Fronten: Zelle {i} Richtung {v} bc {bc}")
+
+    def test_random_pixels(self):
+        ok = 0
+        for k in range(60 if FULL else 20):
+            sc = dbeview.random_scene(1000 + k, self.a2, buf=BIG)
+            if dbeview.view(sc).a == 2:
+                continue
+            check_pixels(self, sc, k, f"zwei Fronten: Zufallsszene {k}")
+            ok += 1
+        self.assertGreater(ok, 10)
+
+
 class TestRand(unittest.TestCase):
     """Sprites gezielt an den Fensterraendern (s = +-1, +-2, d = 1 ... 3, alle p) in einem leeren Raum."""
 

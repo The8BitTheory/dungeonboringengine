@@ -109,7 +109,7 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | F | Name | Eingang | Ausgang |
 |---|---|---|---|
 | 0 | `INIT` | – | Zustand gelöscht (BSS, OBJN = 0, Puffer = Standard); X = `DBE_VERSION` (0.2: 3); P0 = Codeende, P1 = BSS-Ende |
-| 1 | `MAPINIT` | P0 = DMP, P1 = Arbeitskopie (0 = keine; sonst 2·W·H Byte für Kachel- und Inhaltsebene), X Bit 0 = Automap-Bit „gesehen“ in `VIEW` setzen (nur mit P6f, sonst ignoriert) | prüft Magic, Version, Offsets, Länge; Startzelle und -richtung übernommen (wie `SETPOS`); OBJN = 0; X = W, Y = H; P0 = Startzelle, P1 = Startrichtung. A = 1 Format |
+| 1 | `MAPINIT` | P0 = DMP, P1 = Arbeitskopie (0 = keine; sonst 2·W·H Byte für Kachel- und Inhaltsebene), X Bit 0 = Automap-Bit „gesehen“ in `VIEW` setzen (nur mit P6f, sonst ignoriert) | prüft Magic, Version, Offsets, Länge; Startzelle und -richtung übernommen (wie `SETPOS`); OBJN = 0; X = W, Y = H; P0 = Startzelle, P1 = Startrichtung. A = 1 Format; A = 6, wenn die Arbeitskopie [P1, P1 + 2·W·H) nicht ganz in `$2000` … `$AFFF` liegt (unter der Lib; Lib, BSS, DVG, I/O und MMU bleiben unberührt; darunter gemeinsames RAM) |
 | 2 | `SETPOS` | P0 = Zelle, X = Richtung | A = 0; 6, wenn Zelle ≥ W·H (Position unverändert) |
 | 3 | `MOVE` | X = Aktion (3.4) | P6f |
 | 4 | `VIEW` | P0 = Bildpuffer im VRAM (AP) | VCL-Liste im Puffer; A = 0, 2 (gekürzt) oder 3 (Ränder weggelassen); X = Einträge (höchstens 255), Y = 0; P0 = VCLADR; VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 ohne GEOMSET/MAPINIT |
@@ -323,7 +323,10 @@ Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH
 
 | Größe | Grenze | bei Überschreitung |
 |---|---|---|
-| DVG | NE ≤ 255 (keine Kopie, die Lib liest die Tabelle direkt; 0.1-`MAXWS` entfällt, review-notes C.3), VW ≤ 80, VH ≤ 100, D ≤ 7 | GEOMSET A = 1 |
+| DVG | NE ≤ 255 (keine Kopie, die Lib liest die Tabelle direkt; 0.1-`MAXWS` entfällt, review-notes C.3), VW ≤ 80, VH ≤ 100, D ≤ 7, S ≤ 15 (P6d: höchstens 31 Zellen je Tiefe) | GEOMSET A = 1 |
+| DTS | NST ≤ 32 (Stilzeilentabelle, P6d) | TEXSET A = 1 |
+| DBG | P ≥ 1 | BGSET A = 1 |
+| Wartebereich je Tiefe | 16 deckende Seiten bzw. Fronten ohne DVG-Bit 3 (P6d) | A = 2 (Tabellen voll) |
 | Sichtliste | MAXITEM = 96 | A = 2 |
 | Puffer | BL (Standard 2304) für VCL + VMS zusammen | A = 2 bzw. 3 (5.10) |
 | Objektliste | 16 | mehr wird ignoriert |
@@ -476,3 +479,36 @@ Festlegungen, die die Spezifikation offen ließ:
 - Gespeichert (3.2): je DTS/S2-Satz 16 Byte (`recs`): gültig, VRAM-Basis, NS/NA, NST/NP, ID (S2), Inhaltsanfang, drei absolute Tabellenadressen (DTS: Slotkarte, Stiltabelle, Verzeichnis; S2: Indextabelle, Verzeichnis, Kerntabelle). Kerne und VMS-Listen braucht `VIEW` nicht als Tabellenadresse: die Verzeichniseinträge enthalten inhaltsrelative Offsets (Inhaltsanfang + Offset); `angle_map` (S2-Kopf 12–15) liest `VIEW` über Inhaltsanfang + festen Kopfversatz. Abweichung von 3.2 („liest nie Kopf-Offsets“): nur feste Kopffelder, keine Offsetwörter. DBG: Basis, VRAM-Basis, P, y0, h, Flags; `o_v` und Füllbytes über die Basis. Karte: absolute Adressen von Kachelebene, Inhaltsebene, Kacheltabelle, Ereignissen; DVG: Tiefen- und Elementtabelle, Zeilentabelle (200 Byte).
 - `BGSET` speichert X immer als Füllbyte (auch mit DBG); `P0 = 0` und `TEXSET`/`SPRITESET` mit `P0 = 0` löschen auch ohne `GEOMSET` (A = 0).
 - Test: `test/sim/run_sim.py` (P6c sim A: Geometrie und Assets mit den Demo-Daten, Fehler- und Pool-Fälle, ID-Wechsel; B: Karte `demo.toml` mit/ohne Arbeitskopie; C: Karten 128 × 128, 255 × 64, 1 × 255, 255 × 1 mit NT = 256 usw.). Vergleich der BSS-Werte gegen aus den Dateien berechnete Erwartungen.
+
+## Ergebnis P6d (2026-11-25)
+
+Umgesetzt: `VIEW` ohne Objekte in `engine/view.s` (eingebunden von `lib.s`): Abschnitte 5.1–5.7, 5.9 (Bänder mit Rand über `clip_image`: Kerne und VMS-Liste mit Typ 3, Probelauf für die Größe), 5.10, 5.11. Objektplätze rufen `objekte` auf (P6e, noch leer); `clip_image` ist allgemein (Bildlage x0/y0, Ausschnitt L/R/T/B, T·stride) und für Sprites wiederverwendbar.
+
+Aufbau: Sichtdurchlauf vorne → hinten; jeder Eintrag kommt mit seinen Parametern in die Sichtliste (8 Felder × 96, je ein Array). Seine Größe liefert derselbe Erzeuger wie die Ausgabe im Zählmodus (keine getrennte Größenrechnung, damit nv/nm immer zur Ausgabe passen). STOP setzt den Stapelzeiger zurück und springt in die Ausgabe. Zellen werden je Tiefe einmal berechnet (feste Achse je Tiefe, Seitenachse je Zelle); Boden/Decke/blocked je Zelle und das Boden-/Deckenelement je Zelle merkt sich der Zellendurchlauf, `baender` läuft über Zellen (Fallback: alle Elemente, wenn eine Zelle zwei Boden- oder Deckenelemente hat). `spans(bcov)` wird zwischengespeichert, bis `bcov` sich ändert. Blockkopie der VMS-Listen mit selbstmodifizierendem Code (`vcopy`).
+
+Umsetzung der Entscheidungen aus dem P6c-Review:
+1. `TEXSET` legt je Stil die Adresse der Stilzeile ab (`sty_lo/hi[Art · 32 + st]`); `resolve` rechnet kein st · NS. Dafür neu geprüft: NST ≤ 32 (sonst A = 1).
+2. S2-Satz: `recs+14` = NA · D (für den Index (f · NA + ai) · D + d − 1 in P6e), `recs+15` = 0; die Kerntabellenadresse entfällt.
+3. `MAPINIT`: Arbeitskopie nur in `$2000 ≤ P1` und `P1 + 2·W·H ≤ $B000` (ohne 16-Bit-Überlauf), sonst A = 6 und keine gültige Karte (wie bei A = 1). Test: genau unter `$B000` ok; ein Byte darüber, ab `$B000`, BSS, DVG, I/O, unter `$2000`, `$0400`, Überlauf: A = 6 und danach `CELL` A = 5. Die untere Grenze `$2000` ist im sim65-Harness nicht positiv testbar (dort liegt das Programm).
+4. Synthetische DVG mit zwei Fronten je Zelle: `dbeview.double_fronts(assets)` (jede Front der Tiefen ≥ 1 doppelt, um −1/+1/0 Spalten verschoben, abwechselnd direkt dahinter oder hinter der Seite: F, S, F′ prüft die INHALT-Reihenfolge) und `dbeview.dvg_bytes(dvg)`; `test_dbeview.TestDoubleFronts` (Pixel demo × 4 Richtungen × Bit 3, Zufall) und sim-Vergleich (Abschnitt „zwei Fronten“).
+
+Weitere Festlegungen:
+- `GEOMSET` prüft zusätzlich S ≤ 15 (Zellentabelle je Tiefe, 31 Einträge), `BGSET` P ≥ 1 (sonst Endlosschleife bei q mod P); beide A = 1.
+- Wartebereich (pend) 16 Einträge je Tiefe; mehr gibt A = 2 („Tabellen voll“). Die Referenz kennt keine Grenze; in allen Testszenen nicht erreicht.
+- Die Lib-BSS beginnt mit `bss_start` vor allen Variablen (auch denen von `view.s`); `argx` ist exportiert (Tests).
+
+Test (`test/sim/run_sim.py`, `test_p6d`): je Ansicht A, X, Y, P0, VCLADR/VCLLEN/VMSLEN/OBJVIS und der Puffer (VCL + VMS) bytegleich mit `dbeview.view`. Sätze: demo (alle freien Zellen × 4 Richtungen × Bit 3 aus/an, ohne DBG mit Füllbyte, ap `$0123`/`$E200`/`$F800` (Fenster über 65535), origin 123), abgrund, Gang, zufall (Standard 60 Karten × 6 Ansichten, `DBEVIEW_FULL=1` 200 × 20; INHALT, Lücken, blockierte Zellen, Außenkachel, Bit 3 und DBG zufällig, ap ≠ 0, Puffer 2304 bzw. 3840 Byte), überlauf (BUFSET 64 … 1024 Byte: A = 2 und A = 3), zwei Fronten. Ergebnis: 1302 Ansichten (voll: 4942) bytegleich, davon A = 2: 270 (873), A = 3: 20 (69). P6a/P6c weiter grün. Zyklen: Differenz zweier Läufe (VIEW gegen F = 7, neuer stiller Aufrufsatz 4 im Harness).
+
+Größen: Lib-Code 7 960 Byte (`$B000–$CF17`, davon VIEW etwa 5,6 KB), BSS 1 993 Byte (`$E000–$E7C8`). **Befund:** Es bleiben 232 Byte Code und 55 Byte BSS – zu wenig für P6e (Objekte, Sprite-Einträge mit x0/y0/Ausschnitt). Die Schätzung 2.6 (VIEW ≈ 3 KB) ist überschritten, vor allem weil alle Variablen absolut adressiert werden (Zeropage nur `$FA–$FD`).
+
+Zyklen je VIEW (sim65, Demo-Assets 140 × 96, D = 3):
+
+| Satz | n | min | Mittel | max | Ziel 8 |
+|---|---|---|---|---|---|
+| Gang, deckend, einheitliche Bänder | 60 | 29 959 | 90 696 | 106 247 | Mittel ≤ 30 000, max ≤ 45 000 |
+| demo | 56 | 29 927 | 68 655 | 111 364 | – |
+| zufall (offen, gemischt, Tapete) | 40 | 70 645 | 106 719 | 143 610 | max ≤ 80 000 |
+| zwei Fronten | 28 | 34 950 | 75 829 | 127 974 | – |
+
+**Befund:** Ziele verfehlt (Faktor etwa 3 bzw. 1,8). Profil (Gang): Zellendurchlauf und Zellen etwa 16 000, Erzeuger-Vorlauf (Verzeichniseintrag lesen, zweimal je Eintrag) 7 900, VMS-Kopie 5 300, `baender` 4 800, `spans` 3 900, `add` 3 600, `resolve` 3 200. Die Kosten verteilen sich breit (Schleifen über alle Elemente der Tiefe, absolute Adressierung, 16-Bit-Zeigerarithmetik), kein einzelner Engpass. Vorschläge für P6f: mehr Zeropage während `VIEW` (retten/zurückschreiben), vorberechnete Element-/Zellentabellen je Tiefe bei `GEOMSET`, Erzeugerwerte je Eintrag aus dem Zähllauf aufheben, Spannen inkrementell.
+
