@@ -57,7 +57,7 @@ Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für We
 | Bereich | Größe | Inhalt | Standard-Ladeadresse (Werkzeug) |
 |---|---|---|---|
 | `$0000–$1FFF` | – | während des Aufrufs Bank 0 (gemeinsam): keine Engine-Daten | – |
-| `$0400–$4FFF` | 19 KB | BASIC-Variablen; das Spiel begrenzt mit `POKE 57,0:POKE 58,80:CLR` auf `$5000` (Blitz!: P6a prüft, Abschnitt 12) | – |
+| `$0400–$4FFF` | 19 KB | BASIC-Variablen; das Spiel begrenzt mit `POKE 57,0:POKE 58,80:CLR` als erster Anweisung auf `$5000` (interpretiert und Blitz!: in P6a gemessen, Abschnitt 12) | – |
 | `$5000–$6FFF` | 8 KB | DMP (W·H ≤ etwa 4000), optional Arbeitskopie bei kleinen Karten | `dbemap` `$5000` (bisher `$8000`) |
 | `$7000–$8FFF` | 8 KB | Sprite-Sätze S2 (mehrere hintereinander) | `dbespr` `$7000` |
 | `$9000–$AFFF` | 8 KB | DTS Wand | `dbetex` `$9000` (bisher `$A000`) |
@@ -420,7 +420,12 @@ Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) u
 
 ## 12. Offene Punkte
 
-1. **Blitz!-Variablen in Bank 1:** Liegen die Variablen eines Image-2-Kompilats in Bank 1 ab `$0400`, und respektiert die Runtime `$39/$3A` (Obergrenze)? P6a prüft mit Watchpoints auf `$5000–$FEFF` in Bank 1. Falls nicht: Speicherkarte F anpassen.
+1. **Blitz!-Variablen in Bank 1 – geprüft in P6a, Ergebnis: Karte F bleibt.** Messung mit `test/vice_blitzvars.py` (VICE, Haltepunkte an zwei `SYS`-Marken; Bank 1 `$5000–$FEFF` vorher mit `$A5` gefüllt, danach auf Änderungen geprüft; Zeiger `$2D–$3A` gelesen), Programme „passt“ (Felder 3 KB, 61 Strings, Müllsammlung) und „Stress“ (Strings bis `OUT OF MEMORY`), je interpretiert und als Blitz!-Kompilat (Image 2, über `BOOT`):
+   - Variablen, Felder und Strings liegen **nur in Bank 1** (BASIC 7: Variablenbereich ab `VARTAB` = `$0400`, Felder dahinter, Strings von `MEMSIZ` (`$39/$3A`) nach unten). Das Kompilat verhält sich gleich; die ersten geänderten Bytes liegen bei `$0402` (Skalare der Runtime, 7-Byte-Plätze laut Blitz!-Analyse), Felder dahinter.
+   - **Vorgabe ohne Begrenzung:** `MEMSIZ` = `$FF00` (interpretiert) bzw. **`$FC00` (Blitz!)**; die Strings wachsen von dort nach unten (im Test bis `$5A84`, im Stresstest bis ins Variablengebiet). Ohne Begrenzung belegen Strings also Bank 1 `$5000–$FBFF`, genau dort, wo Karte F die Spieldaten ablegt.
+   - **Die Blitz!-Runtime respektiert `$39/$3A`:** `POKE 57,0:POKE 58,80:CLR` als **erste Anweisung** (vor jeder Variablenbenutzung; `CLR` löscht alle Variablen) setzt `MEMSIZ` und `FRETOP` auf `$5000`. Mit Begrenzung blieb Bank 1 `$5000–$FEFF` in allen Läufen **unverändert (0 Byte)**, auch im Stresstest, der mit `?OUT OF MEMORY` (Fehler 16) endete, wenn Felder und Strings die 19 KB `$0400–$4FFF` füllten (interpretiert und kompiliert gleich). Obergrenze der Strings = `$4FFF`.
+   - Folge: Das Spiel beginnt mit `POKE 57,0:POKE 58,80:CLR` (in `crawl.bas` und jedem Testprogramm, ebenso im kompilierten Programm; Zeile 10 der Tests), dann liegen alle Variablen in `$0400–$4FFF`. Mit dem Stub (8 KB gemeinsam) sind `$0400–$1FFF` von Bank 1 während des Aufrufs nicht sichtbar, die Lib berührt sie nicht (nicht eigens getestet; die Lib schreibt nur in den Bereich `$0C00–$1BFF`, den Bank 0 und die Sicht der Lib teilen, und der Rauchtest prüft Bank 0 `$1C00–$3FFF`).
+   - Ein Watchpoint auf Bank-1-Adressen war nicht nötig: Das Füllmuster zeigt jede Änderung, unabhängig vom Befehl, der sie schreibt.
 2. **Residente VMS-Listen** (TEXSET/SPRITESET kopieren die Listen einmal in einen Bank-0-Bereich über dem Programm; `VIEW` verweist nur noch darauf, außer bei beschnittenen Listen): spart je Bild das Kopieren und entschärft den Puffer bei Gittern. Nicht in P6; Entscheidung nach den Messungen aus P6f/P6g.
 3. **Ladepuffer des Spiels** in Bank 0 für VRL (Plan 3 „Zu prüfen“): P7.
 
@@ -431,3 +436,15 @@ Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) u
 3. MOVE, CELL und Automap-Bit bleiben in P6 (P6f).
 4. Neues Kachel-Flag „Inhalt zeichnen“ in DMP (P4 erweitern): Wandzellen mit diesem Flag (Tür, Gitter, Bogen) zeichnen Seitenfläche, dann ihre Objekte nach Unterposition, dann die Front. Betrifft P4 (Flag-Bit festlegen, dbemap), P6d/P6e (VIEW) und dbeview.
 5. VMS-Listen fest in Bank 0 statt Kopie je Bild: nach den Messungen entscheiden.
+
+## Ergebnis P6a (2026-11-25)
+
+Umgesetzt: Stub mit `RCR_LIB = $06`, `LIB = $B000`, `lib.cfg` (Code `$B000` 8 KB, `LIBBSS` `$E000` 2 KB), `dbe.inc` (2.2/2.3, 3.1), Dispatcher mit Tabelle 3 (F ≥ 17 und alle noch nicht umgesetzten F: `E_NOTIMPL`), `INIT`, `POOLSET`, `BUFSET`; sim65-Harness (`test/sim/viewsim.c`, `sim.cfg`, `run_sim.py`); VICE-Rauchtest (`test/vice_smoke.py`, `test/vice/smoke.bas`); Blitz!-Messung (`test/vice_blitzvars.py`). `VERSION` = 0.2 (Dateien `dbe0.2.stub`, `dbe0.2.lib`).
+
+Größen (`build/*.map`): Lib-Code 322 Byte (`$B000–$B141`), Lib-Variablen 11 Byte, Stub 132 Byte. Die Schätzung 2.6 (≈ 5,1 KB Code) bleibt unberührt, die 8 KB sind reichlich.
+
+Festlegungen, die die Spezifikation offen ließ:
+- `INIT` löscht zusätzlich `ITEMPH`…`OBJVIS` (`$0C08–$0C11`) und setzt `VCLADR` = `$1300`.
+- `POOLSET`: Poolanfang ≥ Poolende (Ende ≠ 0) gibt `E_RANGE` (6) und lässt den alten Pool stehen (3 nennt nur A = 0).
+- Die Lib hat im Normalbuild keine Testfunktionen; `build.sh` baut zusätzlich `dbe0.2-test.lib` mit `-DDBE_TEST`: F = 250 (liefert `$D506 AND $0F`, `$FF00`, ein Byte aus `$1300`, schreibt `$A5` nach `$1301`) und F = 251 (Warteschleife, P0 × etwa 1300 Zyklen). Nur für den Rauchtest.
+- Der Rauchtest prüft: `$D506` = x6 und `$FF00 = $7E` im Aufruf, Lesen und Schreiben von Bank 0 bis `$1FFF` aus der Lib, Jiffy-Uhr zählt in einem Aufruf von etwa 1 Mio. Zyklen weiter (30–120 Jiffies), Prüfsumme Bank 0 `$1C00–$3FFF` unverändert, `BUFSET` über den Stub, danach `VMW`, `VMD`, `RXV` (interpretiert und Blitz! Image 2).

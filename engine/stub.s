@@ -3,8 +3,8 @@
 ; SYS 3328          : init – Kernal-Interruptweiche nach Bank 1 kopieren, Lib initialisieren (= Funktion 0)
 ; SYS 3331,F,X,Y    : Lib-Funktion F aufrufen, Ergebnis per RREG A,X,Y
 ;
-; Der Stub schaltet für die Dauer des Aufrufs das untere 4-KB-RAM gemeinsam ($D506)
-; und $FF00 auf Bank 1 mit I/O ($7E). VCL-Puffer ($0B00), Parameterblock ($0C00)
+; Der Stub schaltet für die Dauer des Aufrufs das untere 8-KB-RAM gemeinsam ($D506)
+; und $FF00 auf Bank 1 mit I/O ($7E). Parameterblock ($0C00), Puffer der Engine ($1300-$1BFF)
 ; und Stub bleiben dabei sichtbar. Interrupts laufen über die Kopie der Kernal-Weiche
 ; in Bank 1 ($FF05-$FFFF) weiter.
 
