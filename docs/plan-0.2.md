@@ -154,4 +154,4 @@ Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweil
 | Guide von VDC-BASIC | wird erst in P8 auf v3 umgestellt |
 | `vrl.py` | kanonische Fassung in vdc-basic `tools/vrl.py`; die Engine verweist darauf bzw. hält eine Kopie |
 | `origin` | gehört nicht zur Geometrie-ID (Viewport verschieben ohne Neuimport der Texturen) |
-| Schwelle T | patchbares Byte in VDC-BASIC (`$1C04`); VICE-Wert (2) nur vorläufig, Messung auf echter Hardware mit `test/bench` in vdc-basic |
+| Schwelle T | patchbares Byte in VDC-BASIC (`$1C04`), Standard 14 (Platzhalter aus der Kostenformel); VICE misst 2, nicht übertragbar; endgültig nach Messung in Z64K bzw. auf echter Hardware (`test/bench` in vdc-basic) |
