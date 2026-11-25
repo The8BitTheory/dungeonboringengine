@@ -423,3 +423,11 @@ Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) u
 1. **Blitz!-Variablen in Bank 1:** Liegen die Variablen eines Image-2-Kompilats in Bank 1 ab `$0400`, und respektiert die Runtime `$39/$3A` (Obergrenze)? P6a prüft mit Watchpoints auf `$5000–$FEFF` in Bank 1. Falls nicht: Speicherkarte F anpassen.
 2. **Residente VMS-Listen** (TEXSET/SPRITESET kopieren die Listen einmal in einen Bank-0-Bereich über dem Programm; `VIEW` verweist nur noch darauf, außer bei beschnittenen Listen): spart je Bild das Kopieren und entschärft den Puffer bei Gittern. Nicht in P6; Entscheidung nach den Messungen aus P6f/P6g.
 3. **Ladepuffer des Spiels** in Bank 0 für VRL (Plan 3 „Zu prüfen“): P7.
+
+## Entscheidungen des Nutzers (2026-11-25)
+
+1. BASIC-Variablen in Bank 1 auf `$0400–$4FFF` begrenzen (ca. 19 KB reichen). P6a prüft, wo ein Blitz!-Kompilat seine Variablen ablegt, und setzt die String-Obergrenze.
+2. WALLSET/SPRITESET v1 entfallen ohne Kompatibilitätspfad; Crawl kommt in P7 per Konverter.
+3. MOVE, CELL und Automap-Bit bleiben in P6 (P6f).
+4. Neues Kachel-Flag „Inhalt zeichnen“ in DMP (P4 erweitern): Wandzellen mit diesem Flag (Tür, Gitter, Bogen) zeichnen Seitenfläche, dann ihre Objekte nach Unterposition, dann die Front. Betrifft P4 (Flag-Bit festlegen, dbemap), P6d/P6e (VIEW) und dbeview.
+5. VMS-Listen fest in Bank 0 statt Kopie je Bild: nach den Messungen entscheiden.

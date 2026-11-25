@@ -155,3 +155,9 @@ Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweil
 | `vrl.py` | kanonische Fassung in vdc-basic `tools/vrl.py`; die Engine verweist darauf bzw. hält eine Kopie |
 | `origin` | gehört nicht zur Geometrie-ID (Viewport verschieben ohne Neuimport der Texturen) |
 | Schwelle T | patchbares Byte in VDC-BASIC (`$1C04`), Standard 14 (Platzhalter aus der Kostenformel); VICE misst 2, nicht übertragbar; endgültig nach Messung in Z64K bzw. auf echter Hardware (`test/bench` in vdc-basic) |
+| BASIC-Variablen Bank 1 | `$0400–$4FFF` (ca. 19 KB inkl. Strings, Obergrenze wird abgesenkt); Assets und Lib ab `$5000` (Speicherkarte in P6-engine.md) |
+| WALLSET/SPRITESET v1 | entfallen; Crawl wird in P7 per Konverter auf DVG/DTS/Sprite-Sätze v2 umgestellt |
+| MOVE, CELL, Automap-Bit | bleiben in P6 (P6f) |
+| Objekte in Wandzellen | neues Kachel-Flag „Inhalt zeichnen“ (Tür, Gitter, Bogen): Seitenfläche, dann Objekte, dann Front |
+| VMS-Listen fest in Bank 0 | nach den Messungen in P6 entscheiden |
+| Schwelle T (Z64K) | 3–4 in der Anzeige (VICE 2); `vrl.py` nutzt die Tabelle `fill_done(L)` |
