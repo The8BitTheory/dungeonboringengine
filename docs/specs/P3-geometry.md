@@ -160,7 +160,7 @@ PRG-Datei: 2 Byte Ladeadresse, dann der Inhalt. Alle Offsets relativ zum Inhalt 
 | 6 | S (größtes \|s\| unter den Elementen) |
 | 7 | NE: Anzahl Elemente (≤ 255) |
 | 8–9 | stride |
-| 10–11 | origin |
+| 10–11 | origin (Lage des Fensters im Puffer; **nicht** Teil der Geometrie-ID) |
 | 12–13 | Geometrie-ID (5.5) |
 | 14 | Horizontband y0 (T_{D+1}, beschnitten) |
 | 15 | Horizontband y1 (B_{D+1}, exklusiv, beschnitten) |
@@ -227,7 +227,7 @@ NE ≤ 255 (Westwood: 79), VW ≤ 80, VH ≤ 100, alle Byte-Felder 0 … 255 au�
 
 ### 5.5 Geometrie-ID
 
-`binascii.crc_hqx(inhalt_mit_id_0, 0xFFFF)`: CRC-16/CCITT über den ganzen Inhalt, in dem die Bytes 12–13 vor der Berechnung 0 sind. Ergebnis 0 wird durch 1 ersetzt. DTS (P5) trägt die ID und wird nur zu einer DVG mit gleicher ID angenommen.
+`binascii.crc_hqx(inhalt_mit_id_0, 0xFFFF)`: CRC-16/CCITT über den ganzen Inhalt, in dem die Bytes 12–13 (ID) **und 10–11 (`origin`)** vor der Berechnung 0 sind: Die ID beschreibt die Form (stride, Rechtecke, Masken), nicht die Lage des Fensters im Puffer; Texturen (DTS, DBG) bleiben bei verschobenem `origin` gültig. Ergebnis 0 wird durch 1 ersetzt. DTS (P5) trägt die ID und wird nur zu einer DVG mit gleicher ID angenommen.
 
 ## 6. `<name>.geom.json`
 

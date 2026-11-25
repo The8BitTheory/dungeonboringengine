@@ -292,9 +292,20 @@ class Dvg(unittest.TestCase):
         c = bytearray(self.raw[2:])
         gid = struct.unpack("<H", c[12:14])[0]
         c[12:14] = b"\0\0"
+        c[10:12] = b"\0\0"       # origin zaehlt nicht zur ID
         exp = binascii.crc_hqx(bytes(c), 0xFFFF) or 1
         self.assertEqual(gid, exp)
         self.assertEqual(self.js["geometry_id"], gid)
+
+    def test_geometry_id_ignores_origin(self):
+        a = dbegeom.Geometry(conf_for(140, 96))
+        b = dbegeom.Geometry(dbegeom.parse_config({"viewport": {"preset": "westwood", "width_px": 140, "height": 96, "origin": 321}}))
+        for g in (a, b):
+            g.atlas_size = dbegeom.layout_atlas(g)
+        ca, ga = dbegeom.build_dvg(a)
+        cb, gb = dbegeom.build_dvg(b)
+        self.assertNotEqual(ca, cb)
+        self.assertEqual(ga, gb)
 
     def test_deterministic(self):
         with tempfile.TemporaryDirectory() as t:

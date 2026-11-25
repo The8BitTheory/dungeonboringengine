@@ -209,6 +209,25 @@ def anchor_byte(xp, yp):
     return max(-128, min(127, xp // 2)), min(255, yp)
 
 
+def best_rect(rows, w):
+    """Groesstes Rechteck aus Einsen in den Zeilenbitmasken (Spec 4.4): maximale Flaeche, dann groessere
+    Breite, kleineres ky, kleineres kx. Ergebnis (kx, ky, kw, kh) oder None. Auch von dbetex benutzt."""
+    h = len(rows)
+    best = None
+    for ky in range(h):
+        acc = (1 << w) - 1
+        for ke in range(ky, h):
+            acc &= rows[ke]
+            if not acc:
+                break
+            ln, kx = Geometry.longest_run(acc, w)
+            kh = ke - ky + 1
+            key = (ln * kh, ln, -ky, -kx)
+            if best is None or key > best[0]:
+                best = (key, (kx, ky, ln, kh))
+    return best[1] if best else None
+
+
 class Geometry:
     def __init__(self, conf):
         self.conf = conf
@@ -349,22 +368,7 @@ class Geometry:
         return best
 
     def _kernel(self, im):
-        w = im.rect[2]
-        rows = self.full_rows(im.mask)
-        h = len(rows)
-        best = None
-        for ky in range(h):
-            acc = (1 << w) - 1
-            for ke in range(ky, h):
-                acc &= rows[ke]
-                if not acc:
-                    break
-                ln, kx = self.longest_run(acc, w)
-                kh = ke - ky + 1
-                key = (ln * kh, ln, -ky, -kx)
-                if best is None or key > best[0]:
-                    best = (key, (kx, ky, ln, kh))
-        im.kernel = best[1] if best else (0, 0, 0, 0)
+        im.kernel = best_rect(self.full_rows(im.mask), im.rect[2]) or (0, 0, 0, 0)
 
     def _cover(self, im):
         d = im.d
@@ -689,7 +693,9 @@ def build_dvg(geo):
         tab += row
     content = bytearray(head) + depth + tab
     assert len(content) == total
-    gid = binascii.crc_hqx(bytes(content), 0xFFFF) or 1
+    tmp = bytearray(content)
+    tmp[10:12] = b"\0\0"            # origin (Lage, nicht Form) fliesst nicht in die ID ein
+    gid = binascii.crc_hqx(bytes(tmp), 0xFFFF) or 1
     struct.pack_into("<H", content, 12, gid)
     return bytes(content), gid
 

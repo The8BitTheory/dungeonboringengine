@@ -1,0 +1,30 @@
+format  = "dbetex"
+version = 1
+
+[texset]
+name       = "demo_walls"
+kind       = "wall"
+geom       = "west140.geom.json"
+dvg        = "west140.dvg"
+out        = "build"
+load       = 0xA000
+vrl_load   = 0x4000
+pool_bytes = 26624
+
+[[style]]
+name = "ziegel"
+png  = "ziegel_atlas.png"
+
+[[style]]
+name = "gitter"
+png  = "gitter_atlas.png"
+
+[[style]]
+name     = "fenster"
+aseprite = "fenster.json"
+tag      = "fenster"
+
+[[style]]
+name     = "bogen"
+aseprite = "fenster.json"
+tag      = "bogen"

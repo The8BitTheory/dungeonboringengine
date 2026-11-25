@@ -1,0 +1,13 @@
+format  = "dbetex"
+version = 1
+
+[texset]
+name = "demo_floor"
+kind = "floor"
+geom = "west140.geom.json"
+out  = "build"
+load = 0xA400
+
+[[style]]
+name = "stein"
+png  = "stein_atlas.png"

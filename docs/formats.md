@@ -167,7 +167,7 @@ PRG-Datei (2 Byte Ladeadresse, `[output].load`, Standard `$E400`, Bank 1). Alle 
 | 5 / 6 | D (Tiefe) / S (größtes \|s\|) |
 | 7 | NE: Anzahl Elemente (≤ 255) |
 | 8–9 / 10–11 | stride / origin |
-| 12–13 | Geometrie-ID: CRC-16/CCITT (`binascii.crc_hqx`, Start `$FFFF`) über den Inhalt mit Bytes 12–13 = 0; 0 wird 1 |
+| 12–13 | Geometrie-ID: CRC-16/CCITT (`binascii.crc_hqx`, Start `$FFFF`) über den Inhalt mit Bytes 12–13 und 10–11 (origin) = 0; 0 wird 1. `origin` gehört nicht zur ID (Form, nicht Lage) |
 | 14 / 15 | Horizontband y0 / y1 (exklusiv, beschnitten) |
 | 16 / 17 | Elementlänge = 16 / Länge Tiefeneintrag = 8 |
 | 18–19 / 20–21 | Offset Tiefentabelle (24) / Offset Elementtabelle (24 + 8·(D+1)) |
@@ -286,3 +286,19 @@ Karte und Objektliste speichern Unterpositionen absolut: 0 NW, 1 NO, 2 SW, 3 SO,
 | 3 W | 1 | 4 | 0 | 3 | 2 |
 
 `tools/crawlmap.py` wandelt `CRAWL128.CD1` verlustfrei in DMP um (Kachelindex = Crawl-Zellwert, NT ≥ 43, weil Crawl den Ausgang zur Laufzeit auf Kachel 42 setzt); Beispiele: `docs/specs/examples/demo.toml`, `docs/specs/examples/crawl128.toml`.
+
+## DTS v1 (Texturset, von `tools/dbetex.py`)
+
+PRG-Datei: 2 Byte Ladeadresse (Standard `$A000`, Bank 1), dann der Inhalt; Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P5-textures.md`. Ein DTS enthält eine Art (Wand, Boden, Decke); die Bilddaten stehen getrennt in einer VRL-Datei (`RXV` an die VRAM-Basis, die `TEXSET` angibt); alle VRAM-Offsets sind relativ zu dieser Basis.
+
+Kopf (32 Byte): `"DT"`, Version 1, Art (0 Wand, 1 Boden, 2 Decke), Geometrie-ID (Wort, aus der DVG), NE, D, NS (Slots), NST (Stile, ≤ 32), NI (Bilder, ≤ 254), NK (Kerne), je ein Wort Offset von Slotkarte, Stiltabelle, Bildverzeichnis, Kerntabelle, Datenbereich, Gesamtlänge, dann U (VRAM-Länge), CRC der VRAM-Daten (`crc_hqx`, Start `$FFFF`), stride, Reserve 0. Bereiche lückenlos in dieser Reihenfolge.
+
+- **Slotkarte** (NE + 2·(D + 1) Byte): Index 0 … NE − 1 = DVG-Element, NE + d = Deckenband d, NE + (D + 1) + d = Bodenband d; Wert = Slot dieser Art oder `$FF`.
+- **Stiltabelle** (NST × NS Byte): Bildindex, `$FE` = kein Bild, `$FF` = Rückgriff auf Stil 0. DMP-Stilnummer n ≥ 1 = Stil n − 1; 0 = nichts.
+- **Bildverzeichnis** (NI × 16 Byte): Flags (Bit 0 DECKEND, 1 AUSSCHNITT, 2 ZEILEN, 3 RAND), Slot, nk, h, Offset des ersten Kerns (bei ZEILEN der h Füllbytes), VRAM-Offset der Randbytes, Anzahl Randbytes, Offset und Länge der VMS-Liste, Quellbild (bei AUSSCHNITT der Vollfront-Eintrag), 0.
+- **Kerntabelle** (NK × 8 Byte): VRAM-Offset, dx, dy, w, h, srcstep (0 = gepackt, sonst Quellzeilenabstand).
+- **Datenbereich**: VMS-Listen (Alpha, Anzahl Befehle, Befehle Typ 1 `01 ofs len`, Typ 8 `08 ofs`) und Zeilenfüllbytes.
+
+## DBG v1 (Tapete, von `tools/dbetex.py bg`)
+
+PRG-Datei (Standard `$A900`), Inhalt: `"DB"`, Version 1, VW, VH, Geometrie-ID (Wort), P (Panoramabreite in Byte, Wort), y0, h, Flags (Bit 0 WRAP), 4 Versatzwörter o_v (N, O, S, W), U = P · h (Wort), CRC der VRAM-Daten (Wort), dann VH Füllbytes (Farbe · 17 für Zeilen außerhalb [y0, y0 + h), sonst 0). Das Panorama liegt zeilenweise (P Byte je Zeile) in der zugehörigen VRL. Details und Zeichenregel: `docs/specs/P5-textures.md` 6.
