@@ -810,3 +810,10 @@ Beispiele (VIEW / VCL, interpretiert): Gang Süd 44 700 / 235 800; Raum mit Himm
 - Neues Werkzeug `test/vice_vclprof.py` (VCL-Zeit je Eintrag und je VMS-Befehl, Herkunft der Einträge, Overdraw; `--static` ohne VICE) für die Analyse `P6g-vcl-analysis.md`.
 - Aussagekraft der Zyklen: VICE modelliert die VDC-Wartezeiten nur grob (Bytes sind fast kostenlos); Hochrechnung auf Z64K in der Analyse (Abschnitt 4).
 
+
+## Entscheidungen nach der VCL-Analyse (2026-11-25)
+
+1. VDC-BASIC-Optimierung (VMC-Zeile, VMS Typ 1/8, VCL-Eintrag) kommt später, nicht vor P7.
+2. Kanten auf ganze Bytes (2-Pixel-Stufen) als Option je Projekt: `view.toml` Schalter `byte_edges` (Standard `false` = pixelgenau); dbegeom rundet Masken dann auf Bytegrenzen.
+3. Gerendert wird mit 2 MHz (FAST, VIC aus während VIEW und VCL). Zyklenziele und Messungen werden auf 2 MHz bezogen.
+4. `MEMSIZ $4000`: BASIC-Variablen in Bank 1 `$0400–$3FFF`; erste Anweisung `POKE 57,0:POKE 58,64:CLR`. Asset-Bereiche ab `$4000` neu aufteilen (Speicherkarte 2.4 in P6h nachziehen).
