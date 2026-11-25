@@ -71,7 +71,8 @@ Flags:
 | 2 | DECKEND | `VIEW`: Flächen dieser Kachel decken ihre Spaltenbereiche ab (nur, wenn auch das Bild im DTS deckend ist); dahinter wird dann nicht mehr gezeichnet |
 | 3 | TÜR | Tür (Spiellogik; `VIEW` behandelt sie wie jede Kachel mit Flächen) |
 | 4 | AUTOMAP | auf der Automap als Wand zeichnen (sonst als Boden) |
-| 5–7 | – | 0 |
+| 5 | INHALT | „Inhalt zeichnen“ (Nutzerentscheidung 4, Plan 9): `VIEW` zeichnet in einer Zelle mit Flächen zusätzlich ihre Objekte (Gegenstand der Inhaltsebene und Objektliste, P6 5.8); Malreihenfolge Seitenfläche, Objekte nach Unterposition, Front. Für Tür, Gitter, Bogen. Ohne Flächen (alle Wandstile 0) ohne Wirkung (`dbemap` warnt). Das Flag ändert nicht, ob die Flächen abdecken (DECKEND) |
+| 6–7 | – | 0 (reserviert; `dbemap` lehnt gesetzte Bits ab) |
 
 Regeln für `VIEW` (P6):
 
@@ -85,6 +86,7 @@ Regeln für `VIEW` (P6):
 
   Beispiel: Blick nach Norden, Block vorne → seine Südfläche; Block links → Ostfläche.
 - Boden und Decke werden auch in Zellen mit Flächen gezeichnet (Gitter, Tür, Fenster in einer Zelle). Bei einer Kachel mit DECKEND und vier Wandstilen ≠ 0 sind Boden und Decke unsichtbar; `VIEW` behandelt solche Zellen bei der Lückenprüfung der Bänder nicht als Lücke (Inhalt der Felder egal, `dbemap` setzt 0).
+- Eine Zelle mit Flächen zeigt **keine** Objekte, außer die Kachel hat das Flag INHALT: dann malt `VIEW` (Plan 5, Entscheidung 4) in dieser Reihenfolge Seitenfläche, Objekte der Zelle nach Unterposition (2.6), Front. Bei mehreren Elementen je Zelle: erst alle Fronten, dann die Objekte, dann alle Seiten in Sichtreihenfolge (Ausgabe rückwärts: Seiten, Objekte, Fronten).
 - Zellen außerhalb der Karte verhalten sich wie die Kachel aus Kopf-Byte 11.
 
 ### 2.5 Ereignisse (NE × 4 Byte)
@@ -216,7 +218,7 @@ class Map:
     tiles: list[Tile]; cells: list[int]; content: list[int]; events: list[Event]
     start: int; direction: int; outside: int
 
-FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16}
+FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32}
 EVENT_TYPES = {"gegner": 1, "teleport": 2, "ausgang": 3, "text": 4}
 SUBPOS_VIEW = [[0,1,3,4,2], [3,0,4,1,2], [4,3,1,0,2], [1,4,0,3,2]]   # [v][q] -> p (2.6)
 
@@ -285,6 +287,7 @@ Testdaten: `test/tools/data/crawl128.cd1` (Kopie aus `game/crawl.d81`, 244 Byte 
 - Beispiel aus Abschnitt 3 bauen: W = 7, H = 5, NT = 4, NE = 3 (Teleport bei (1,3), Ausgang bei (5,3), Gegner bei (3,1)), Start = 1·7 + 2 = 9, Richtung 1; Zelle (3,1) hat Kachel 1 und Gegenstand 2; Kachel `wand` = `01 01 01 01 00 00 17 00`, `gitter` = `02 02 02 02 01 01 01 23`. Kopf-Offsets 24 / 59 / 94 / 126, Gesamtlänge 138.
 - Rundlauf: `from_dmp(to_dmp(m))` == m (bis auf Namen); `to_dmp(load_toml(to_toml(from_dmp(d))))` == d für das Beispiel, die Crawl-Karte und 50 Zufallskarten (Seed fest, W, H 1 … 40, bis 12 Kacheln, Gegenstände, Ereignisse).
 - Ereignisse sortiert nach (Zelle, Typ, Parameter).
+- Flag `inhalt` (Bit 5): TOML-Rundlauf, `from_dmp`/`validate` lehnen gesetzte Bits 6/7 ab, Warnung bei `inhalt` ohne Wandflächen.
 - Fehlerfälle (je eine kleine TOML im Test): unbekanntes Zeichen (Meldung mit Zeile/Spalte), ungleiche Zeilenlängen, Start auf WEG-Kachel, `item = 64`, Stil 256, unbekanntes Flag, unbekannter Ereignistyp, W = 256, W·H > 16384, Leerzeichen am Zeilenende, `index` nur bei einem Teil der Kacheln.
 - `face`: alle 4 Richtungen × (Front, links, rechts) gegen Tabelle 2.4.
 - `SUBPOS_VIEW`: jede Zeile ist eine Permutation von 0 … 4; Mitte immer 2; Drehung um 90° nach rechts (v + 1) verschiebt die Ecken NW → NO → SO → SW in der Weltsicht konsistent (Probe aus 2.6).

@@ -260,7 +260,8 @@ Zeilenweise, ein Byte je Zelle: Kachelindex < NT.
 | 2 | DECKEND | `VIEW`: Flächen decken ihre Spaltenbereiche ab (nur, wenn auch das Bild im DTS deckend ist) |
 | 3 | TÜR | Tür (Spiellogik) |
 | 4 | AUTOMAP | auf der Automap als Wand zeichnen |
-| 5–7 | – | 0 |
+| 5 | INHALT | „Inhalt zeichnen“: eine Zelle mit Flächen zeichnet zusätzlich ihre Objekte (Gegenstand der Inhaltsebene und Objektliste), Reihenfolge Seitenfläche, Objekte, Front (Tür, Gitter, Bogen); ohne Flächen ohne Wirkung |
+| 6–7 | – | 0 |
 
 Eine Zelle hat Flächen, wenn mindestens ein Wandstil ≠ 0 ist. Gezeigte Kachelfläche je Lage (d, s) und Blickrichtung v: Front (v + 2) AND 3; Seite links (s < 0) (v + 1) AND 3; Seite rechts (s > 0) (v + 3) AND 3. Boden und Decke werden auch in Zellen mit Flächen gezeichnet; bei DECKEND und vier Wandstilen ≠ 0 sind sie unsichtbar und zählen bei der Lückenprüfung der Bänder nicht als Lücke. Zellen außerhalb der Karte verhalten sich wie die Kachel aus Kopf-Byte 11.
 
@@ -302,3 +303,17 @@ Kopf (32 Byte): `"DT"`, Version 1, Art (0 Wand, 1 Boden, 2 Decke), Geometrie-ID 
 ## DBG v1 (Tapete, von `tools/dbetex.py bg`)
 
 PRG-Datei (Standard `$A900`), Inhalt: `"DB"`, Version 1, VW, VH, Geometrie-ID (Wort), P (Panoramabreite in Byte, Wort), y0, h, Flags (Bit 0 WRAP), 4 Versatzwörter o_v (N, O, S, W), U = P · h (Wort), CRC der VRAM-Daten (Wort), dann VH Füllbytes (Farbe · 17 für Zeilen außerhalb [y0, y0 + h), sonst 0). Das Panorama liegt zeilenweise (P Byte je Zeile) in der zugehörigen VRL. Details und Zeichenregel: `docs/specs/P5-textures.md` 6.
+
+## S2 v1 (Sprite-Satz, von `tools/dbespr.py`)
+
+PRG-Datei: 2 Byte Ladeadresse (Standard `$7000`, Bank 1), dann der Inhalt (≤ 8192 Byte); Offsets relativ zum Inhalt, Wörter Low/High, VRAM-Offsets relativ zur VRAM-Basis aus `SPRITESET`. Quelle: `docs/specs/P5b-sprites.md`. Die Bilddaten stehen in einer VRL-Datei (`RXV` an die VRAM-Basis). Bereiche lückenlos in der Reihenfolge Kopf, Indextabelle, Bildverzeichnis, Kerntabelle, Tagtabelle, Datenbereich.
+
+Kopf (40 Byte): `"S2"`, Version 1, Flags (Bit 0 Gegenstand), Geometrie-ID (Wort; 0 = jede Geometrie mit gleichem Stride und D), D, NA (1 … 4), NP (1 … 32), NI (≤ 254), NK (Wort), `angle_map[0 … 3]`, je ein Wort Offset von Indextabelle, Bildverzeichnis, Kerntabelle, Tagtabelle, dann NT (≤ 32), 0, Offset Datenbereich, Gesamtlänge, U (VRAM-Länge), CRC der VRAM-Daten (`crc_hqx`, Start `$FFFF`), stride (je ein Wort), Reserve 0 (4 Byte).
+
+- **Blickwinkel:** a = (2 + v − o) AND 3 (v Spieler, o Objekt, o = `$FF` → a = 0); 0 Vorderseite, 1 rechte Flanke, 2 Rücken, 3 linke Flanke; `angle_map[a]` = Bildwinkel ai < NA.
+- **Indextabelle** (NP · NA · D Byte): Eintrag (f, ai, d) bei `(f · NA + ai) · D + d − 1`: Bildindex, `$FE` = nichts zeichnen, `$FF` = Phase 0 desselben (ai, d) (in Phase 0 nicht erlaubt); f ≥ NP → f = 0.
+- **Bildverzeichnis** (NI × 16 Byte): Flags (Bit 3 RAND), w (Byte), h, Fußpunkt fx, fy (Byte-Spalte, Zeile im Bild; liegt auf dem DVG-Anker), nk, Offset des ersten Kerns, VRAM-Offset der Randbytes, Anzahl Randbytes, Offset und Länge der VMS-Liste (0 = keine).
+- **Kerntabelle** (NK × 8 Byte): wie DTS, srcstep immer 0 (gepackt).
+- **Tagtabelle** (NT × 12 Byte): Name (8 Byte ASCII, mit `$00` aufgefüllt), erste Phase, Anzahl Phasen, Modus (0 forward, 1 reverse, 2 pingpong), Dauer je Phase in Jiffies (1 … 255).
+- **Datenbereich:** VMS-Listen, nur Typ 1 und 8, Befehle in Zeilenreihenfolge mit streng steigendem Offset (Zeile · stride + Spalte, links oben im Bild), Typ-1-Lauf innerhalb einer Zeile.
+- **Beschneiden** (Referenz `dbespr.clip_image`, für `VIEW`): Kerne auf den Ausschnitt kürzen (volle Breite behält srcstep, sonst Quellzeilenabstand = ursprüngliche Breite), VMS-Liste neu schreiben mit Bezugspunkt links oben im Ausschnitt; nicht sichtbare Befehle werden durch VMS-Typ 3 (`03 n_lo n_hi`, source skip) ersetzt, nach dem letzten sichtbaren Befehl endet die Liste.

@@ -18,7 +18,7 @@ import sys
 import tomllib
 from dataclasses import dataclass, field
 
-FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16}
+FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32}
 EVENT_TYPES = {"gegner": 1, "teleport": 2, "ausgang": 3, "text": 4}
 SUBPOS_VIEW = [[0, 1, 3, 4, 2], [3, 0, 4, 1, 2], [4, 3, 1, 0, 2], [1, 4, 0, 3, 2]]  # [v][q] -> p (2.6)
 DIRS = "NOSW"
@@ -85,8 +85,8 @@ def validate(m):
     for i, t in enumerate(m.tiles):
         if len(t.walls) != 4 or any(not 0 <= v <= 255 for v in tuple(t.walls) + (t.floor, t.ceiling, t.automap_char)):
             raise ValueError(f"Kachel {i}: Stil oder Zeichen ausserhalb 0 ... 255")
-        if not 0 <= t.flags <= 31:
-            raise ValueError(f"Kachel {i}: ungueltige Flags {t.flags}")
+        if not 0 <= t.flags <= 63:
+            raise ValueError(f"Kachel {i}: ungueltige Flags {t.flags} (Bits 6 und 7 sind reserviert)")
     for i, c in enumerate(m.cells):
         if not 0 <= c < nt:
             raise ValueError(f"Zelle {i}: Kachelindex {c} >= NT {nt}")
@@ -117,6 +117,9 @@ def warnings_for(m):
     w = []
     if m.width * m.height > WARN_CELLS:
         w.append(f"{m.width * m.height} Zellen > {WARN_CELLS}: die Lib haelt die Karte in Bank 1")
+    for i, t in enumerate(m.tiles):
+        if t.flags & FLAGS["inhalt"] and not any(t.walls):
+            w.append(f"Kachel {i} ({t.name or i}): Flag inhalt ohne Wandflaechen hat keine Wirkung")
     return w
 
 
@@ -173,6 +176,8 @@ def from_dmp(data):
     tiles = []
     for i in range(nt):
         r = b[o_tiles + 8 * i:o_tiles + 8 * i + 8]
+        if r[6] & 0xC0:
+            raise ValueError(f"Kachel {i}: reservierte Flag-Bits 6/7 gesetzt ({r[6]:#04x})")
         tiles.append(Tile(tuple(r[0:4]), r[4], r[5], r[6], r[7], f"k{i}"))
     events = []
     for i in range(ne):

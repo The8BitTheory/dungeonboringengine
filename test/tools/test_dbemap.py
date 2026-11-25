@@ -88,7 +88,7 @@ class TestBuild(unittest.TestCase):
             nt = rnd.randint(1, 12)
             tiles = []
             for i in range(nt):
-                fl = 0 if i == 0 else rnd.randint(0, 31)
+                fl = 0 if i == 0 else rnd.randint(0, 63)
                 tiles.append(Tile(tuple(rnd.randint(0, 255) for _ in range(4)), rnd.randint(0, 255),
                                   rnd.randint(0, 255), fl, rnd.randint(0, 255)))
             cells = [rnd.randrange(nt) for _ in range(w * h)]
@@ -172,6 +172,33 @@ class TestErrors(unittest.TestCase):
 
     def test_unknown_flag(self):
         self.fails(BASE.replace('["weg"]', '["weg", "foo"]'), "unbekanntes Flag 'foo'")
+
+    def test_flag_inhalt(self):
+        m = load(BASE.replace('["weg"]', '["weg", "inhalt"]'))
+        self.assertEqual(m.tiles[0].flags, 1 | 32)
+        self.assertEqual(dbemap.FLAGS["inhalt"], 32)
+        self.assertEqual(dbemap.warnings_for(m), [])
+        d = dbemap.to_dmp(m)
+        m2 = dbemap.from_dmp(d)
+        self.assertEqual(m2.tiles[0].flags, 33)
+        self.assertEqual(dbemap.to_dmp(dbemap.loads_toml(dbemap.to_toml(m2), "x")), d)
+        self.assertIn('"inhalt"', dbemap.to_toml(m2))
+        self.assertIn("inhalt", dbemap.describe(m2))
+
+    def test_flag_inhalt_without_faces_warns(self):
+        m = load(BASE.replace("floor = 1", 'floor = 1\nflags = ["inhalt"]'))
+        self.assertTrue(any("inhalt" in w for w in dbemap.warnings_for(m)))
+
+    def test_reserved_flag_bits(self):
+        m = load(BASE)
+        m.tiles[0].flags = 64
+        with self.assertRaisesRegex(ValueError, "Flags"):
+            dbemap.validate(m)
+        m.tiles[0].flags = 1
+        d = bytearray(dbemap.to_dmp(m))
+        d[2 + 24 + 2 * 9 + 6] = 0x40          # Flags der Kachel 0 (nach Kachel- und Inhaltsebene)
+        with self.assertRaisesRegex(ValueError, "Flag-Bits"):
+            dbemap.from_dmp(bytes(d))
 
     def test_unknown_event_type(self):
         self.fails(BASE.replace('"." = "g"', '"." = { tile = "g", events = [{ type = "xyz" }] }'),
