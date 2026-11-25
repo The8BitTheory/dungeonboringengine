@@ -1,5 +1,7 @@
 # Dungeon-Crawler-Engine für den C128 – Entwurf
 
+**Hinweis (Stand 0.2):** Dieser Entwurf beschreibt Engine 0.1. Für Engine 0.2 (Boden, Decke, Tapete, freier Viewport, RLE, 8 KB gemeinsames RAM, neue Speicherkarte) gelten `docs/plan-0.2.md` und `docs/specs/P6-engine.md` (Speicherkarte 2.4 mit `MEMSIZ $4000`, Funktionen, `VIEW`); die Datenformate stehen in `docs/formats.md`. Abschnitte zu Speicher (3.1) und Funktionstabelle sind dort ersetzt.
+
 Stand: 2026-11-23, Entwurf zur Abstimmung. Ausgangspunkt ist `game/crawl.bas` aus [dungeoncrawlerjam2025](https://github.com/The8BitTheory/dungeoncrawlerjam2025) (Crawl 128) mit VDC-BASIC v2g. Die Engine entsteht in diesem Repo.
 
 ### Entscheidungen (2026-11-23)

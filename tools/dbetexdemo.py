@@ -25,7 +25,10 @@ PAL = dbegeom.PALETTE
 
 def default_geom(width=140, height=96):
     """(geom-dict wie geom.json, dvg-Bytes mit Ladeadresse) fuer Westwood width x height."""
-    conf = dbegeom.parse_config({"viewport": {"preset": "westwood", "width_px": width, "height": height}})
+    vp = {"preset": "westwood", "width_px": width, "height": height}
+    if os.environ.get("DBE_BYTE_EDGES") == "1":         # Messung: Demo mit Kanten auf ganze Bytes (test/vice_view.py --byte-edges)
+        vp["byte_edges"] = True
+    conf = dbegeom.parse_config({"viewport": vp})
     geo = dbegeom.Geometry(conf)
     geo.atlas_size = dbegeom.layout_atlas(geo)
     content, gid = dbegeom.build_dvg(geo)
@@ -213,7 +216,7 @@ kind       = "wall"
 geom       = "{geom}"
 dvg        = "{dvg}"
 out        = "build"
-load       = 0xA000
+load       = 0x8000
 vrl_load   = 0x4000
 pool_bytes = 26624
 
@@ -244,7 +247,7 @@ name = "demo_floor"
 kind = "floor"
 geom = "{geom}"
 out  = "build"
-load = 0xA400
+load = 0xEE00
 
 [[style]]
 name = "stein"
@@ -252,7 +255,7 @@ png  = "stein_atlas.png"
 '''
 
 CEIL_TOML = FLOOR_TOML.replace("demo_floor", "demo_ceil").replace('"floor"', '"ceiling"') \
-    .replace("stein_atlas", "holz_atlas").replace('"stein"', '"holz"').replace("0xA400", "0xA600")
+    .replace("stein_atlas", "holz_atlas").replace('"stein"', '"holz"').replace("0xEE00", "0xF600")
 
 BG_TOML = '''format  = "dbebg"
 version = 1
@@ -267,7 +270,7 @@ wrap    = true
 above   = 3
 below   = 1
 out     = "build"
-load    = 0xA900
+load    = 0xFB80
 '''
 
 

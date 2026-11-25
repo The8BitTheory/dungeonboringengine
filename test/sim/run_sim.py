@@ -345,7 +345,7 @@ def test_geomcheck():
     A = dbeview.build_demo_assets(tmp.name)
     base = bytes(dbeview.dvg_bytes(A.dvg)[2:])
     A2 = dbeview.double_fronts(A)
-    base2 = bytes(dbeview.dvg_bytes(A2.dvg)[2:])        # Tiefe 3: genau 16 deckende Seiten/Fronten ohne Bit 3
+    base2 = bytes(dbeview.dvg_bytes(dbeview.without_band_cover(A2.dvg))[2:])        # Tiefe 3: genau 16 deckende Seiten/Fronten ohne Bit 3
 
     def el(data, i, off, val):
         d = bytearray(data)
@@ -481,8 +481,9 @@ def test_p6c():
     A = dbeview.build_demo_assets(tmp.name)
 
     # ---- Daten an ihren Bank-1-Adressen (2.4)
-    # sim65: Lib-Code an $B000 wie auf dem C128; die Demo-DTS sind größer als die Bereiche der Karte 2.4 (sim.cfg)
-    ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'wall': 0x6000, 'floor': 0x8300, 'ceil': 0xF000, 'dbg': 0xFE00,
+    # sim65: Lib-Code an $B000 wie auf dem C128; die Demo-DTS sind größer als die Bereiche der Karte 2.4 (sim.cfg):
+    # DVG $E800, Decke ab $EE00 (3,2 KB statt 1,25 KB, endet vor DBG), DBG $FB80 (Standard); alles unter $FC00 (Runtime)
+    ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'wall': 0x6000, 'floor': 0x8300, 'ceil': 0xEE00, 'dbg': 0xFB80,
             'bigmap': 0x2E00}
     S2A = [0x4000, 0x5040, 0x5340, 0x5840]  # Typ 9: S2 ab $4000 (SPRITESET prüft); die DMP lädt nur Szene B ($5000)
     dvg = A.dvg_prg[2:]
@@ -819,7 +820,9 @@ def test_p6c():
 
 
 # ------------------------------------------------------------------ P6d: VIEW ohne Objekte
-P6D_ADDR = {'dmp': 0x2E00, 'dvg': 0xE800, 'dts': (0x6000, 0x8300, 0xF000), 'dbg': 0xFE00}   # S2: ViewRunner.S2_AREAS
+# Demo-DTS größer als die Bereiche von 2.4: DVG $E800 (bis 1,8 KB), Decke $EF00-$FBAE (alles unter $FC00), DBG in der Lücke
+# zwischen Wand und Boden (Platz dort für Wand-DTS mit doppelten Slots)
+P6D_ADDR = {'dmp': 0x2E00, 'dvg': 0xE800, 'dts': (0x6000, 0x8300, 0xEF00), 'dbg': 0x8280}   # S2: ViewRunner.S2_AREAS
 BIGBUF = (0x1300, 0x1C00)       # größter erlaubter Puffer (BUFSET-Fenster, P6d-opt)
 
 

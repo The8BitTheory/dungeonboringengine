@@ -1,8 +1,9 @@
 # P6g VICE-Szenen (docs/specs/P6-engine.md 9.4); Vorlage fuer test/vice_view.py (@...@ werden ersetzt).
+# @FAST@ = "fast:" (2 MHz, VIC-Anzeige aus waehrend VIEW und VCL; Lauf mit --fast) oder leer, @SLOW@ = "slow" oder "rem".
 # Marken (RTS in Bank 0): 3148 = $0C4C vor VIEW, 3149 = $0C4D nach ::VCL (Szene fertig), 3150 = $0C4E Tabellenende.
 # Ergebnisse fuer den Harness: $0C40 A, $0C41 X von VIEW; $0C42 A, $0C43 X, $0C44 Y, $0C45/6 P0 von SETPOS/MOVE.
 # Exitcode: 0 = fertig, 61-63 = Datei fehlt, 10 = INIT, 20+n = Setz-Aufruf n fehlgeschlagen, 199 = kein VDC-BASIC v3, 200+ = BASIC-Fehler.
-1 poke 57,0:poke 58,80:clr:trap 9000
+1 poke 57,0:poke 58,64:clr:trap 9000
 2 if peek(dec("1c03"))<>dec("30") then r=199:goto 8995
 10 bank 0:poke 3148,96:poke 3149,96:poke 3150,96
 20 bload"dbe@VERSION@.stub",b0,u8:bload"dbe@VERSION@.lib",b1,u8:if ds<>0 then r=60:goto 8995
@@ -28,11 +29,12 @@
 2070 poke 3138,a:poke 3139,x:poke 3140,y:poke 3141,peek(3072):poke 3142,peek(3073)
 2080 if n=255 then tb=tb+6:goto 2100
 2090 tb=tb+6+6*n
-2100 sys 3148
+2100 @FAST@sys 3148
 2110 poke 3072,0:poke 3073,0:sys 3331,4,0,0:rreg a,x,y
 2120 v=peek(3072)+256*peek(3073):poke 3136,a:poke 3137,x
 2130 vcl v
 2140 sys 3149
+2145 @SLOW@
 2150 goto 2010
 2200 sys 3150
 8990 r=0

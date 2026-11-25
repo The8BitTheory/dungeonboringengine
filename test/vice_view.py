@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """VICE-Szenen P6g (docs/specs/P6-engine.md 9.4): Engine 0.2 und VDC-BASIC v3 im echten x128, ereignisgesteuert.
 
-Aufruf: test/vice_view.py [--port N] [--timeout S] [--only i|c] [--check] [--png DIR] [--control] [--no-sim]
+Aufruf: test/vice_view.py [--port N] [--timeout S] [--only i|c] [--check] [--png DIR] [--control] [--no-sim] [--no-fast]
+                         [--byte-edges]
   --check   nur Python: Szenen bauen, Speicherkarte prüfen, view/run_vcl gegen paint_reference (kein VICE)
   --png DIR Bilder der erwarteten Fenster (Montage) schreiben
   --control Gegenprobe: Modell von Szene 5 verfälscht, der Lauf muss genau eine Abweichung melden (Exitcode 0)
   --no-sim  ohne sim65-Gegenmessung der Zyklen (Spalte sim65)
+  --no-fast ohne den zweiten Lauf mit 2 MHz (FAST, VIC-Anzeige aus während VIEW und VCL); sonst je Lauf zwei VICE-Läufe,
+            Zyklen beider Takte in der Tabelle (Spalten "2M", Stoppuhr in Takten zu 1 MHz, also in µs)
+  --byte-edges  Demo-Geometrie mit view.toml-Schalter byte_edges (Kanten auf ganze Bytes) statt pixelgenau
 
 Ablauf (test/vice/view.bas, interpretiert und als Blitz!-Kompilat mit Runtime-Image 2):
-  BOOT (VDC-BASIC v3) -> POKE 57,0:POKE 58,80:CLR -> Stub und Lib laden, INIT -> Chunky-Modus wie Crawl (VDC-Register laut
+  BOOT (VDC-BASIC v3) -> POKE 57,0:POKE 58,64:CLR -> Stub und Lib laden, INIT -> Chunky-Modus wie Crawl (VDC-Register laut
   crawl.bas 10059-10135, 64-KB-VRAM vorher gelöscht) -> DVG, DMP, DTS (3), DBG, S2 (4 Sätze) an die Adressen der Speicherkarte
   (P6 2.4) in Bank 1, VRL der Texturen/Tapete/Sprites per RXV in den VRAM-Pool -> POOLSET, GEOMSET, TEXSET, BGSET,
   SPRITESET, ITEMSET, MAPINIT -> je Schritt der Szenentabelle (Bank 0 $8000, SETPOS oder MOVE, Objektliste): VIEW, ::VCL.
@@ -38,12 +42,12 @@ dbeview.dbemap = dbemap
 from PIL import Image
 
 # ------------------------------------------------------------------ Speicherkarte (P6 2.4) und VRAM
-# Vorgabe P6 2.4: DMP $5000, S2 $7000, Wand-DTS $9000, DVG $E800, Boden $F000, Decke $F800, DBG $FE00. Befund P6g: der verbesserte
-# Blitz!-Runtime (Image 2) macht das obere 1 KB ($FC00-$FFFF) gemeinsam und belegt $FC00-$FEFF; Daten dort (Decke, DBG)
-# zerstören ihn beim BLOAD. Daher liegen DVG, Decke, Boden und DBG hier dicht gepackt in $E800-$FBFF (5 KB).
+# Vorgabe P6 2.4 (MEMSIZ $4000, P6h): DMP $4000, S2 $6000, Wand-DTS $8000 (12 KB), Lib $B000-$DBFF, DVG $E800, Boden $EE00,
+# Decke $F600, DBG $FB80. Der verbesserte Blitz!-Runtime (Image 2) macht das obere 1 KB ($FC00-$FFFF) gemeinsam und belegt
+# $FC00-$FEFF; Daten dort zerstören ihn beim BLOAD. Die kleinen Test-Assets liegen hier dicht gepackt in $E800-$FBFF (5 KB).
 HIGH = (0xE800, 0xFC00)
-LOW = {'dmp': (0x5000, 0x7000), 'dts0': (0x9000, 0xB000)}           # Bereich (von, bis exklusiv)
-S2_START, S2_END = 0x7000, 0x9000
+LOW = {'dmp': (0x4000, 0x6000), 'dts0': (0x8000, 0xB000)}           # Bereich (von, bis exklusiv)
+S2_START, S2_END = 0x6000, 0x8000
 POOL = (9600, 46335)                     # VRAM-Pool: hinter dem Attribut-RAM (AP 0, 2 x 9600) bis zum Bildschirm-RAM
 SCN_ADDR = 0x8000                        # Szenentabelle, Bank 0
 VRL_ADDR = 0x9000                        # Ladepuffer der VRL-Dateien, Bank 0 (RXV-Quelle ab +5)
@@ -94,9 +98,9 @@ def build_assets(tmp):
     wt = open(P('walls.toml')).read().replace('[[style]]\nname     = "bogen"\naseprite = "fenster.json"\ntag      = "bogen"\n', '')
     open(P('w3.toml'), 'w').write(wt)
     open(P('f1.toml'), 'w').write(dbeview.GEN_FLOOR_TOML.format(
-        name="vice_floor", kind="floor", load="0xF000", styles='[[style]]\nname = "stein"\npng = "stein_atlas.png"\n'))
+        name="vice_floor", kind="floor", load="0xEE00", styles='[[style]]\nname = "stein"\npng = "stein_atlas.png"\n'))
     open(P('c1.toml'), 'w').write(dbeview.GEN_FLOOR_TOML.format(
-        name="vice_ceil", kind="ceiling", load="0xF800", styles='[[style]]\nname = "holz"\npng = "holz_atlas.png"\n'))
+        name="vice_ceil", kind="ceiling", load="0xF600", styles='[[style]]\nname = "holz"\npng = "holz_atlas.png"\n'))
     open(P('bg2.toml'), 'w').write(open(P('bg.toml')).read().replace('himmel.png', 'himmel2.png'))
     a = Small()
     a.dvg, a.dvg_prg, a.sprites = A.dvg, A.dvg_prg, A.sprites
@@ -218,14 +222,14 @@ def build_steps():
 
 # ------------------------------------------------------------------ Szenen, Erwartung
 def s2_layout(assets):
-    """(Adresse, Inhalt) der Sprite-Sätze dicht ab $7000 (16-Byte-Ausrichtung); je Satz eine Datei."""
+    """(Adresse, Inhalt) der Sprite-Sätze dicht ab $6000 (16-Byte-Ausrichtung); je Satz eine Datei."""
     a, out = S2_START, []
     for ss in assets.sprites[:4]:
         data = dbespr.to_s2(ss)[2:]
         out.append((a, data))
         a = (a + len(data) + 15) & ~15
     if a > S2_END:
-        raise SystemExit(f'S2 ({a - S2_START} Byte) passt nicht in $7000-$8FFF')
+        raise SystemExit(f'S2 ({a - S2_START} Byte) passt nicht in $6000-$7FFF')
     return out
 
 
@@ -349,7 +353,7 @@ def model_run(world, exp):
 
 
 # ------------------------------------------------------------------ BASIC-Programm
-def basic_listing(world):
+def basic_listing(world, fast=False):
     """test/vice/view.bas mit den Platzhaltern @LOADS@ (Dateien laden) und @SETUP@ (Setz-Aufrufe)."""
     sc = world.sc0
     B = world.bases
@@ -375,6 +379,7 @@ def basic_listing(world):
     for i, (f, x, y, p0, p1) in enumerate(calls):
         setup.append(f'p0={p0}:p1={p1}:f={f}:x={x}:y={y}:gosub 9500:if a<>0 then r={20 + i}:goto 8995')
     text = open(os.path.join(HERE, 'vice', 'view.bas')).read().replace('@VERSION@', VERSION)
+    text = text.replace('@FAST@', 'fast:' if fast else '').replace('@SLOW@', 'slow' if fast else 'rem')
     out, n = [], 0
     for line in text.split('\n'):
         if line.strip() in ('@LOADS@', '@SETUP@'):
@@ -611,16 +616,19 @@ def compare(world, exp, model, got, sim=None):
 
 
 def report(name, lines, bad):
+    """Zyklen: Monitor-Stoppuhr (Takte zu 1 MHz). Spalten mit 2M: Lauf mit FAST (2 MHz, VIC aus), falls vorhanden."""
+    two = any(isinstance(L, dict) and 'cyc2' in L for L in lines)
     print(f'--- {name}')
     print(f'{"#":>2} {"Szene":<34} {"A":>1} {"X":>3} {"VCL":>4} {"VMS":>5} {"Modell":>6} {"Ref":>4} {"VIEW":>7} {"VCL":>9} '
-          f'{"VIEW+VCL":>9} {"mit BASIC":>9} {"sim65":>7}')
+          f'{"VIEW+VCL":>9} {"mit BASIC":>9} {"sim65":>7}' + (f' | {"VIEW 2M":>7} {"VCL 2M":>9} {"V+V 2M":>9}' if two else ''))
     for L in lines:
         if not isinstance(L, dict):
             print(L)
             continue
         c = L['cyc']
         print(f'{L["k"]:>2} {L["name"]:<34} {L["a"]:>1} {L["x"]:>3} {L["nv"]:>4} {L["nm"]:>5} '
-              f'{"ja" if L["pix"] else "NEIN":>6} {L["ref"]:>4} {c["view"]:>7} {c["vcl"]:>9} {c["sum"]:>9} {c["total"]:>9} {c["sim"] or "-":>7}')
+              f'{"ja" if L["pix"] else "NEIN":>6} {L["ref"]:>4} {c["view"]:>7} {c["vcl"]:>9} {c["sum"]:>9} {c["total"]:>9} {c["sim"] or "-":>7}' +
+              (f' | {L["cyc2"]["view"]:>7} {L["cyc2"]["vcl"]:>9} {L["cyc2"]["sum"]:>9}' if 'cyc2' in L else ''))
         for m_ in L['msg']:
             print('      ', m_)
     ds = [L for L in lines if isinstance(L, dict)]
@@ -631,6 +639,12 @@ def report(name, lines, bad):
             if not any(vals):
                 continue
             print(f'    {lab:<10} Mittel {sum(vals) // n:>9}  min {min(vals):>9}  max {max(vals):>9}')
+        if two:
+            for key, lab in (('view', 'VIEW'), ('vcl', 'VCL'), ('sum', 'VIEW+VCL')):
+                v1 = [L['cyc'][key] for L in ds]
+                v2 = [L['cyc2'][key] for L in ds]
+                print(f'    {lab + " 2 MHz":<14} Mittel {sum(v2) // n:>9}  min {min(v2):>9}  max {max(v2):>9}'
+                      f'  (Verhaeltnis zu 1 MHz {sum(v2) / sum(v1):.2f})')
     print(f'    {"alle gleich" if not bad else str(bad) + " Fehler"}', flush=True)
 
 
@@ -671,8 +685,12 @@ def main():
     ap.add_argument('--control', action='store_true',
                     help='Gegenprobe: ein Byte im Fenster des Modells von Szene 5 verfälschen; der Lauf muss genau diese Szene melden')
     ap.add_argument('--no-sim', action='store_true', help='keine sim65-Gegenmessung')
+    ap.add_argument('--byte-edges', action='store_true', help='Demo-Geometrie mit byte_edges = true (Kanten auf ganze Bytes)')
+    ap.add_argument('--no-fast', action='store_true', help='ohne den zweiten Lauf mit 2 MHz (FAST)')
     a = ap.parse_args()
     vs.sh(['sh', os.path.join(ROOT, 'engine', 'build.sh')], stdout=subprocess.DEVNULL)
+    if a.byte_edges:
+        os.environ['DBE_BYTE_EDGES'] = '1'           # dbetexdemo.default_geom
     tmp = tempfile.TemporaryDirectory()
     world = World(tmp.name)
     exp = world.expected()
@@ -692,50 +710,77 @@ def main():
     open(boot_bas, 'w').write(''.join(lines))
     boot_prg = os.path.join(OUT, 'boot.prg')
     vs.tok(boot_bas, boot_prg)
-    src_bas = os.path.join(OUT, 'view.bas')
-    open(src_bas, 'w').write(basic_listing(world))
     wd = os.path.join(OUT, 'view-files')
     shutil.rmtree(wd, ignore_errors=True)
     os.makedirs(wd)
     bad = 0
-    if a.only != 'c':
-        prg = os.path.join(OUT, 'view-i.prg')
-        vs.tok(src_bas, prg, '0x4001')
-        d64 = os.path.join(OUT, 'view-i.d64')
+    node, blitzc = vm.find_node(), vm.find_blitzc()
+
+    def build(compiled, fast):
+        """Programm bauen (interpretiert: getokenisiert ab $4001; kompiliert: Blitz!). Rückgabe PRG oder None."""
+        suf = ('c' if compiled else 'i') + ('f' if fast else '')
+        src_bas = os.path.join(OUT, f'view{"-f" if fast else ""}.bas')
+        open(src_bas, 'w').write(basic_listing(world, fast))
+        if not compiled:
+            prg = os.path.join(OUT, f'view-{suf}.prg')
+            vs.tok(src_bas, prg, '0x4001')
+            return prg
+        prep = os.path.join(OUT, f'view-b{"f" if fast else ""}.bas')
+        vs.sh(['python3', '-B', os.path.join(vs.VDC, 'test', 'blitzprep.py'), src_bas, prep])
+        src = os.path.join(OUT, f'view-src{"f" if fast else ""}.prg')
+        vs.tok(prep, src)
+        cdir = os.path.join(OUT, f'view-blitz{"-f" if fast else ""}')
+        shutil.rmtree(cdir, ignore_errors=True)
+        c = subprocess.run([node, blitzc, src, cdir, '--name', 'T'], capture_output=True, text=True)
+        cprg = os.path.join(cdir, 'c.prg')
+        if c.returncode or not os.path.exists(cprg) or open(cprg, 'rb').read(2) != b'\x01\x40':
+            print(f'kompiliert: Compiler rc {c.returncode}: {c.stdout.strip()}')
+            scr = os.path.join(cdir, 'screen.txt')
+            if os.path.exists(scr):
+                print(open(scr).read())
+            return None
+        return cprg
+
+    def one(compiled, fast):
+        """Ein Lauf. Rückgabe (Zeilen, Fehlerzahl, Fehlerbit) oder None, wenn das Programm nicht gebaut werden konnte."""
+        prg = build(compiled, fast)
+        if prg is None:
+            return None
+        d64 = os.path.join(OUT, f'view-{"c" if compiled else "i"}{"f" if fast else ""}.d64')
         make_disk(world, d64, boot_prg, prg, wd)
         rc, got = run_one(world, d64, boot_prg, port, a.timeout, exp, wd)
-        print(f'interpretiert: exit {rc}, BASIC-Fehler {got["errors"]}, Ende erreicht {got["end"]}')
+        what = 'kompiliert (Blitz!, Image 2)' if compiled else 'interpretiert'
+        print(f'{what}{", 2 MHz (FAST)" if fast else ""}: exit {rc}, BASIC-Fehler {got["errors"]}, Ende erreicht {got["end"]}')
         lines_, b = compare(world, exp, model, got, sim)
-        report('interpretiert', lines_, b)
-        bad |= (rc != 0) | (b != (1 if a.control else 0)) | bool(got['errors']) | (not got['end'])
-    if a.only != 'i':
-        node, blitzc = vm.find_node(), vm.find_blitzc()
-        if not node or not blitzc:
+        return lines_, b, (rc != 0) | (b != (1 if a.control else 0)) | bool(got['errors']) | (not got['end'])
+
+    for compiled in (False, True):
+        if (a.only == 'c' and not compiled) or (a.only == 'i' and compiled):
+            continue
+        if compiled and (not node or not blitzc):
             print('kompiliert: SKIP (blitzc nicht gefunden)')
             bad |= 2
-        else:
-            prep = os.path.join(OUT, 'view-b.bas')
-            vs.sh(['python3', '-B', os.path.join(vs.VDC, 'test', 'blitzprep.py'), src_bas, prep])
-            src = os.path.join(OUT, 'view-src.prg')
-            vs.tok(prep, src)
-            cdir = os.path.join(OUT, 'view-blitz')
-            shutil.rmtree(cdir, ignore_errors=True)
-            c = subprocess.run([node, blitzc, src, cdir, '--name', 'T'], capture_output=True, text=True)
-            cprg = os.path.join(cdir, 'c.prg')
-            if c.returncode or not os.path.exists(cprg) or open(cprg, 'rb').read(2) != b'\x01\x40':
-                print(f'kompiliert: Compiler rc {c.returncode}: {c.stdout.strip()}')
-                scr = os.path.join(cdir, 'screen.txt')
-                if os.path.exists(scr):
-                    print(open(scr).read())
+            continue
+        r1 = one(compiled, False)
+        if r1 is None:
+            bad |= 1
+            continue
+        lines1, b1, e1 = r1
+        bad |= e1
+        name = 'kompiliert (Blitz!, Image 2)' if compiled else 'interpretiert'
+        if not a.no_fast:
+            # Zweiter Lauf mit FAST (2 MHz, VIC-Anzeige aus waehrend VIEW und VCL): gleiche Pruefung, Zyklen als cyc2
+            r2 = one(compiled, True)
+            if r2 is None:
                 bad |= 1
             else:
-                d64 = os.path.join(OUT, 'view-c.d64')
-                make_disk(world, d64, boot_prg, cprg, wd)
-                rc, got = run_one(world, d64, boot_prg, port, a.timeout, exp, wd)
-                print(f'kompiliert (Blitz!, Image 2): exit {rc}, BASIC-Fehler {got["errors"]}, Ende erreicht {got["end"]}')
-                lines_, b = compare(world, exp, model, got, sim)
-                report('kompiliert (Blitz!, Image 2)', lines_, b)
-                bad |= (rc != 0) | (b != (1 if a.control else 0)) | bool(got['errors']) | (not got['end'])
+                lines2, b2, e2 = r2
+                bad |= e2
+                for L1, L2 in zip(lines1, lines2):
+                    if isinstance(L1, dict) and isinstance(L2, dict):
+                        L1['cyc2'] = L2['cyc']
+                        L1['msg'] += [f'(2 MHz) {m_}' for m_ in L2['msg']]
+        report(name, lines1, b1)
     sys.exit(1 if bad else 0)
 
 

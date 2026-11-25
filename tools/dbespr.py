@@ -29,6 +29,7 @@ import sys
 from dataclasses import dataclass, field
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dbemem  # noqa: E402
 import dbetex  # noqa: E402
 import vrl  # noqa: E402
 from dbetex import (PALETTE, TexError, Kern, to_indices, classify, choose_kerns, pack_image,  # noqa: E402
@@ -264,7 +265,7 @@ def load_conf(path, out=None, strict=False, key=None):
     c = {"name": str(sp["name"]), "geom": os.path.join(base, sp["geom"]),
          "dvg": os.path.join(base, sp["dvg"]) if sp.get("dvg") else None,
          "out": out or os.path.join(base, sp.get("out", ".")),
-         "load": I("load", sp.get("load", 0x7000), 0, 0xFFFF), "vrl_load": I("vrl_load", sp.get("vrl_load", 0x4000), 0, 0xFFFF),
+         "load": I("load", sp.get("load", dbemem.default_load("s2")), 0, 0xFFFF), "vrl_load": I("vrl_load", sp.get("vrl_load", 0x4000), 0, 0xFFFF),
          "angles": na, "angle_map": list(amap), "mirror": mirror, "derive": derive,
          "phases": I("phases", sp["phases"], 1, 32) if "phases" in sp else None,
          "max_kerns": I("max_kerns", sp.get("max_kerns", 4), 0, 16), "kern_min": I("kern_min", sp.get("kern_min", 16), 1, 65535),
@@ -620,7 +621,9 @@ def build_spriteset(conf):
 
 # ---------------------------------------------------------------- S2 (4)
 
-def to_s2(ss, load=0x7000):
+def to_s2(ss, load=None):
+    if load is None:
+        load = dbemem.default_load("s2")
     NP, NA, D, NI, NT = ss.np, ss.na, ss.depth, len(ss.images), len(ss.tags)
     nk = sum(len(i.kerns) for i in ss.images)
     if NI > 254 or NP > 32 or NA > 4 or NT > 32 or nk > 65535 or len(ss.vram) > 65535:
@@ -841,6 +844,7 @@ def cmd_build(a):
     conf = load_conf(a.toml, a.out, a.strict, a.key)
     ss, warns, infos, sources = build_spriteset(conf)
     s2 = to_s2(ss, conf["load"])
+    dbetex.check_bank1("s2", conf["load"], len(s2) - 2)
     stream = vrl.encode(list(ss.vram))
     out, name = conf["out"], conf["name"]
     write(os.path.join(out, name + ".s2"), s2)

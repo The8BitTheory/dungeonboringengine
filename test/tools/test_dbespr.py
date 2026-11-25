@@ -430,8 +430,8 @@ class TestBuild(unittest.TestCase):
 
     def test_format(self):
         ss = self.ss
-        data = dbespr.to_s2(ss, 0x7000)
-        self.assertEqual(data[:2], b"\x00\x70")
+        data = dbespr.to_s2(ss, 0x6000)
+        self.assertEqual(data[:2], b"\x00\x60")
         c = data[2:]
         self.assertEqual(c[:3], b"S2\x01")
         NP, NA, D, NI = c[8], c[7], c[6], c[9]
@@ -456,7 +456,7 @@ class TestBuild(unittest.TestCase):
         self.assertEqual(back.images, ss.images)
         self.assertEqual((back.index, back.tags, back.angle_map, back.np, back.na, back.depth, back.stride),
                          (ss.index, ss.tags, ss.angle_map, ss.np, ss.na, ss.depth, ss.stride))
-        self.assertEqual(dbespr.to_s2(back, 0x7000), data)
+        self.assertEqual(dbespr.to_s2(back, 0x6000), data)
         # Determinismus
         ss2 = dbespr.build_spriteset(dbespr.load_conf(os.path.join(env.dir, "blob.toml")))[0]
         self.assertEqual(dbespr.to_s2(ss2), data)

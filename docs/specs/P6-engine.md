@@ -50,38 +50,40 @@ Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen i
 | `$0C51–$0CB0` | OBJL | 16 × 6 Byte (2.5) |
 | `$0CB1–$0CFF` | – | Reserve |
 
-### 2.4 Bank 1 (Speicherkarte F, Vorgabe)
+### 2.4 Bank 1 (Speicherkarte G, Vorgabe; P6h: `MEMSIZ $4000`)
 
-Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für Werkzeuge (Ladeadressen) und Spiele.
+Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für Werkzeuge (Ladeadressen, `tools/dbemem.py`) und Spiele. Gegenüber Karte F (P6a, `MEMSIZ $5000`) sind die BASIC-Variablen auf `$0400–$3FFF` begrenzt; die 4 KB `$4000–$4FFF` gehen an die Assets (Wand-DTS 8 → 12 KB), alle Bereiche darüber rutschen um 4 KB nach unten.
 
 | Bereich | Größe | Inhalt | Standard-Ladeadresse (Werkzeug) |
 |---|---|---|---|
 | `$0000–$1FFF` | – | während des Aufrufs Bank 0 (gemeinsam): keine Engine-Daten | – |
-| `$0400–$4FFF` | 19 KB | BASIC-Variablen; das Spiel begrenzt mit `POKE 57,0:POKE 58,80:CLR` als erster Anweisung auf `$5000` (interpretiert und Blitz!: in P6a gemessen, Abschnitt 12) | – |
-| `$5000–$6FFF` | 8 KB | DMP (W·H ≤ etwa 4000), optional Arbeitskopie bei kleinen Karten | `dbemap` `$5000` (bisher `$8000`) |
-| `$7000–$8FFF` | 8 KB | Sprite-Sätze S2 (mehrere hintereinander) | `dbespr` `$7000` |
-| `$9000–$AFFF` | 8 KB | DTS Wand | `dbetex` `$9000` (bisher `$A000`) |
-| `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (P6d-opt; RAM unter I/O, `$FF00 = $7F`) | – |
+| `$0400–$3FFF` | 15 KB | BASIC-Variablen, Felder, Strings; das Spiel begrenzt mit `POKE 57,0:POKE 58,64:CLR` als erster Anweisung auf `$4000` (interpretiert und Blitz!) | – |
+| `$4000–$5FFF` | 8 KB | DMP (W·H ≤ etwa 4000), optional Arbeitskopie bei kleinen Karten | `dbemap`, `crawlmap` `$4000` |
+| `$6000–$7FFF` | 8 KB | Sprite-Sätze S2 (mehrere hintereinander) | `dbespr` `$6000` |
+| `$8000–$AFFF` | 12 KB | DTS Wand | `dbetex` wall `$8000` |
+| `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (RAM unter I/O, `$FF00 = $7F`); Reserve nach P6h 207 Byte | – |
 | `$DC00–$DFFF` | 1 KB | Lib-Tabellen (LIBTAB: Zellentabelle von GEOMSET, Kachelzusammenfassung), nicht in der Datei | – |
 | `$E000–$E7FF` | 2 KB | Lib-Variablen (BSS) | – |
-| `$E800–$EDFF` | 1,5 KB | DVG | `dbegeom` `$E800` (bisher `$E400`) |
-| `$EE00–$F5FF` | 2 KB | DTS Boden | `dbetex` floor **`$EE00`** (P6g; vorher `$F000`) |
-| `$F600–$FAFF` | 1,25 KB | DTS Decke | `dbetex` ceiling **`$F600`** (P6g; vorher `$F800`) |
-| `$FB00–$FBFF` | 256 B | DBG (24 + VH ≤ 124 Byte) | `dbetex bg` **`$FB00`** (P6g; vorher `$FE00`) |
+| `$E800–$EDFF` | 1,5 KB | DVG | `dbegeom` `$E800` |
+| `$EE00–$F5FF` | 2 KB | DTS Boden | `dbetex` floor `$EE00` |
+| `$F600–$FB7F` | 1,375 KB | DTS Decke (1 Stil der Demo: 1 295 Byte) | `dbetex` ceiling `$F600` |
+| `$FB80–$FBFF` | 128 B | DBG (24 + VH ≤ 124 Byte) | `dbetex bg` `$FB80` |
 | `$FC00–$FEFF` | 768 B | **gesperrt:** Blitz!-Runtime (Image 2) – auch im interpretierten Spiel frei lassen | – |
 | `$FF00–$FF04` | – | MMU | – |
 | `$FF05–$FFFF` | – | Kopie der Kernal-Interruptweiche | – |
 
-Begründung: Das Demo-Wand-DTS mit 4 Stilen hat 8,7 KB (P5-Beispiel; mit `max_kerns` 16 weniger, review-notes G.1/G.2) und passt nicht in die bisherige Vorgabe `$A000–$A8FF`; die Lib wird größer als 4 KB (2.6).
+Bank-1-Fenster für Assets: `$4000–$AFFF` (28 KB) und `$E800–$FBFF` (5 KB). **Alle Engine-Daten liegen darin**; der Rest ist Lib (`$B000–$E7FF`), Runtime oder Bank-0-Sicht. Listen für VCL-Typ 9 (Inhalt von DTS und S2) müssen ab `$4000` liegen (nicht in `$D000–$DFFF`; die Engine prüft die Adresse in `TEXSET`/`SPRITESET`, Abschnitt 6a); die Karte erfüllt das für alle Bereiche.
 
-**Korrektur P6g (Blitz!-Runtime, Image 2):** Der verbesserte Runtime kopiert gemeinsamen Code nach `$FC00`, schaltet `$D506` auf `$0C` (unten **und oben** 1 KB gemeinsam) und senkt die String-Obergrenze auf `$FC00` (`blitz128/runtime2026/README.md`). Solange das Kompilat läuft, landet jeder Zugriff auf Bank 1 `$FC00–$FEFF` im gemeinsamen RAM, also im Runtime: ein `BLOAD …,B1` dorthin zerstört ihn (Kompilat hängt; interpretiert fällt es nicht auf, weil dort `$D506` = `$04` gilt). Darum gilt für **alle** Engine-Daten in Bank 1 die Obergrenze **`$FBFF`** (interpretiert und kompiliert gleich, damit ein Spiel in beiden Formen dieselben Dateien lädt):
+Begründung: Das Demo-Wand-DTS mit 4 Stilen hat 8,7 KB (P5-Beispiel; mit `max_kerns` 16 weniger, review-notes G.1/G.2) und passt jetzt in den Wandbereich. Boden und Decke der Demo (9,1 und 3,2 KB mit mehreren Stilen) passen weiterhin nicht in ihre Bereiche (Asset-Befund, `P6g-vcl-analysis.md` Abschnitt 6); wer mehr braucht, packt die Dateien dicht in die Fenster oben (die Adressen sind Parameter von `GEOMSET`/`TEXSET`/`BGSET`).
 
-- Die hohen Bereiche DVG, DTS Boden, DTS Decke und DBG teilen sich `$E800–$FBFF` (**5 KB statt 6 KB**). Die Tabelle oben ist die Vorgabe der Werkzeuge; ein Spiel darf die vier Dateien in diesem Fenster auch dicht packen (die Adressen sind Parameter von `GEOMSET`/`TEXSET`/`BGSET`; Beispiel `test/vice_view.py`: DVG `$E800`, Decke `$ED30`, Boden `$F240`, DBG `$F9C0`).
+**Blitz!-Runtime (Image 2, P6g):** Der verbesserte Runtime kopiert gemeinsamen Code nach `$FC00`, schaltet `$D506` auf `$0C` (unten **und oben** 1 KB gemeinsam) und senkt die String-Obergrenze auf `$FC00` (`blitz128/runtime2026/README.md`). Solange das Kompilat läuft, landet jeder Zugriff auf Bank 1 `$FC00–$FEFF` im gemeinsamen RAM, also im Runtime: ein `BLOAD …,B1` dorthin zerstört ihn (Kompilat hängt; interpretiert fällt es nicht auf, weil dort `$D506` = `$04` gilt). Darum gilt für **alle** Engine-Daten in Bank 1 die Obergrenze **`$FBFF`** (interpretiert und kompiliert gleich, damit ein Spiel in beiden Formen dieselben Dateien lädt):
+
+- Die hohen Bereiche DVG, DTS Boden, DTS Decke und DBG teilen sich `$E800–$FBFF` (5 KB). Ein Spiel darf die vier Dateien in diesem Fenster auch dicht packen (Beispiel `test/vice_view.py`: DVG `$E800`, Decke `$ED30`, Boden `$F240`, DBG `$F9C0`).
 - VCL-Typ 9: Listen in Bank 1 nur in `$4000–$CFFF` oder `$E000–$FBFF` (VDC-BASIC erlaubt bis `$FEFF`; der Rest gehört dem Runtime).
-- `MEMSIZ` (`$39/$3A`): Das Spiel setzt ihn mit der ersten Anweisung auf `$5000` (P6a); der Runtime senkt ihn beim Start ohnehin nur auf `$FC00`. Die Reihenfolge ist damit unkritisch. Wer mehr Platz für Assets braucht, kann `MEMSIZ` tiefer setzen (z. B. `POKE 58,64` → `$4000`: 4 KB `$4000–$4FFF` für DVG oder ein DTS, auch für Typ 9 zulässig; dafür nur 15 KB für Variablen und Strings) – Entscheidung des Spiels, nicht Vorgabe.
+- `MEMSIZ` (`$39/$3A`): Das Spiel setzt ihn mit der ersten Anweisung auf `$4000` (`POKE 57,0:POKE 58,64:CLR`, Messung P6a mit `$5000`, Abschnitt 12; `test/vice_blitzvars.py` prüft jetzt `$4000`); der Runtime senkt ihn beim Start ohnehin nur auf `$FC00`. Die Reihenfolge ist damit unkritisch. Variablen und Strings haben 15 KB (`$0400–$3FFF`); die 4 KB mehr für Assets sind die Folge der Entscheidung 4 nach der VCL-Analyse.
 - Der Stub schaltet während des Lib-Aufrufs `$D506` = (alt AND `$F0`) OR `$06` (oben nicht gemeinsam) und stellt den alten Wert wieder her; VCL-Typ 9 ebenso mit `$07`. Das verträgt sich mit dem Runtime (P6g: alle 42 Szenen als Kompilat gleich); Interrupts in diesen Fenstern laufen über die Kernal-Weiche in Bank 1 und berühren `$FC00–$FEFF` nicht.
-- **Folgen für Werkzeuge:** `dbetex` Vorgaben floor `$EE00`, ceiling `$F600`, bg `$FB00`; alle Werkzeuge (`dbetex`, `dbegeom`, `dbespr`, `dbemap`) sollen bei Ladeadresse + Länge > Bereichsende (Tabelle oben, höchstens `$FC00`) **abbrechen** statt still zu schreiben. Anzupassen: `tools/dbeview.py` (`DEFAULT_DTS_ADDR`, `build_demo_assets`: `load` der Boden-/Decken-TOMLs), `test/vice_view.py` (TOML-`load`-Werte sind dort ohne Wirkung, es packt selbst), `test/sim/run_sim.py` (`ADDR`/`P6D_ADDR` mit DBG `$FE00`: nur Simulator, kein Fehler, aber zur Vorgabe angleichen), P5-Beispiele mit Boden/Decke-Ladeadressen. Die Lib prüft die Obergrenze nicht (Länge der Daten unbekannt); eine Prüfung „Daten in `$2000 … $FBFF`, nicht in Lib/BSS“ wäre P6d-Review K5 mit neuer Grenze.
-- Die Demo-Assets (Wand 8,7 KB, Boden 9,1 KB mit 3 Stilen, Decke 3,2 KB) passten schon vorher nicht; das bleibt ein Asset-Befund (`docs/specs/P6g-vcl-analysis.md`, Abschnitt 6).
+- **Werkzeuge (P6h umgesetzt):** `tools/dbemem.py` hält die Ladeadressen und die Bereichsgrenzen (Tabelle oben). `dbemap`/`crawlmap build`, `dbespr build`, `dbetex build`/`bg` und `dbegeom` brechen mit Fehlercode 1 und einer Meldung ab, wenn Ladeadresse + Länge das Ende des Bereichs der Datei überschreiten (liegt die Ladeadresse im Standardbereich der Art) bzw. das Ende des freien Fensters (eigene, dichte Packung) oder wenn die Ladeadresse in keinem der beiden Fenster liegt. Die Lib prüft die Obergrenze nicht (Länge der Daten unbekannt); eine Prüfung „Daten in `$2000 … $FBFF`, nicht in Lib/BSS“ wäre P6d-Review K5 mit neuer Grenze.
+- Die Demo-Assets (Wand 8,7 KB, Boden 9,1 KB mit 3 Stilen, Decke 3,2 KB) werden von `build_texset` und den Tests ohne Bereichsprüfung benutzt (nur die Schreibwege prüfen); im sim65-Harness (`run_sim.py`) liegen sie wie bisher in eigenen Adressen, alles unter `$FC00`.
 
 ### 2.5 Objektliste (`$0C51`, je 6 Byte)
 
@@ -322,8 +324,8 @@ Alle Parameter als Wort (Low/High), auch Bytewerte (VDC-BASIC `vcl-format.md`).
 
 | Typ | Länge | Felder | Verwendung |
 |---|---|---|---|
-| 2 | 11 | src, dst, count, reps, step = stride | Kerne mit srcstep 0 |
-| 3 | 13 | src, dst, count, reps, step = stride, srcstep | Kerne mit srcstep ≠ 0, beschnittene Kerne, Tapete (srcstep P) |
+| 2 | 11 | src, dst, count, reps, step = stride | Kerne mit srcstep 0 **oder srcstep = count** (P6h; Quelle läuft ohnehin hinter dem vorigen Lauf weiter) |
+| 3 | 13 | src, dst, count, reps, step = stride, srcstep | Kerne mit srcstep ∉ {0, count}, beschnittene Kerne (Teilbreite), Tapete (srcstep P, immer Typ 3) |
 | 4 | 7 | vaddr, byte, count | Zeilenfüllung, eine Zeile |
 | 5 | 11 | vaddr, byte, count, reps, step = stride | Zeilenfüllung, mehrere gleiche Zeilen |
 | 12 | 7 | src, dst, list | Rand (VMS) beschnitten; Liste im Puffer, Befehle Typ 1, 3, 8 (Build `VMS_COPY`: auch unbeschnittene) |
@@ -448,14 +450,14 @@ Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) u
 | Wo | Änderung | Grund |
 |---|---|---|
 | P3 (`dbegeom`) | DVG-Flag Bit 3 „Bandabdeckung“ für Fronten (5.1); Standard `load` `$E800` | 5.2, Speicherkarte |
-| P4 (`dbemap`, `crawlmap`) | Standard-Ladeadresse `$5000` | Speicherkarte |
-| P5 (`dbetex`) | `max_kerns` 0 … 16; `vms_buffer` → Prüfung „VCL + VMS je Bild gegen den gemeinsamen Puffer 2304“; Standard `load` Wand `$9000`, Boden `$F000`, Decke `$F800`, DBG `$FE00`; `sim_vms` Typ 3 (P5b) | review-notes G.1–G.3 |
+| P4 (`dbemap`, `crawlmap`) | Standard-Ladeadresse `$4000` (P6h; Karte F: `$5000`) | Speicherkarte |
+| P5 (`dbetex`) | `max_kerns` 0 … 16; `vms_buffer` → Prüfung „VCL + VMS je Bild gegen den gemeinsamen Puffer 2304“; Standard `load` Wand `$8000`, Boden `$EE00`, Decke `$F600`, DBG `$FB00` (P6h; Karte F: `$9000`, `$F000`, `$F800`, `$FE00`, nach P6g `$EE00`, `$F600`, `$FB00`); `sim_vms` Typ 3 (P5b) | review-notes G.1–G.3 |
 | P5 4.4/4.6 | Formatregel VMS-Listen (Zeilenreihenfolge, steigender ofs, Lauf in einer Zeile) ausdrücklich | Beschneiden, G.7 |
 | `engine-design.md` | Funktionstabelle, Speicher 3.1 → Verweis auf P6 (P8) | – |
 
 ## 12. Offene Punkte
 
-1. **Blitz!-Variablen in Bank 1 – geprüft in P6a, Ergebnis: Karte F bleibt.** Messung mit `test/vice_blitzvars.py` (VICE, Haltepunkte an zwei `SYS`-Marken; Bank 1 `$5000–$FEFF` vorher mit `$A5` gefüllt, danach auf Änderungen geprüft; Zeiger `$2D–$3A` gelesen), Programme „passt“ (Felder 3 KB, 61 Strings, Müllsammlung) und „Stress“ (Strings bis `OUT OF MEMORY`), je interpretiert und als Blitz!-Kompilat (Image 2, über `BOOT`):
+1. **Blitz!-Variablen in Bank 1 – geprüft in P6a, Ergebnis: Karte F bleibt** (P6h: `MEMSIZ` jetzt `$4000`, `POKE 58,64`, 15 KB für Variablen; das Ergebnis gilt gleich, `test/vice_blitzvars.py` und die Rauchtests nutzen `$4000`). Messung mit `test/vice_blitzvars.py` (VICE, Haltepunkte an zwei `SYS`-Marken; Bank 1 `$5000–$FEFF` vorher mit `$A5` gefüllt, danach auf Änderungen geprüft; Zeiger `$2D–$3A` gelesen), Programme „passt“ (Felder 3 KB, 61 Strings, Müllsammlung) und „Stress“ (Strings bis `OUT OF MEMORY`), je interpretiert und als Blitz!-Kompilat (Image 2, über `BOOT`):
    - Variablen, Felder und Strings liegen **nur in Bank 1** (BASIC 7: Variablenbereich ab `VARTAB` = `$0400`, Felder dahinter, Strings von `MEMSIZ` (`$39/$3A`) nach unten). Das Kompilat verhält sich gleich; die ersten geänderten Bytes liegen bei `$0402` (Skalare der Runtime, 7-Byte-Plätze laut Blitz!-Analyse), Felder dahinter.
    - **Vorgabe ohne Begrenzung:** `MEMSIZ` = `$FF00` (interpretiert) bzw. **`$FC00` (Blitz!)**; die Strings wachsen von dort nach unten (im Test bis `$5A84`, im Stresstest bis ins Variablengebiet). Ohne Begrenzung belegen Strings also Bank 1 `$5000–$FBFF`, genau dort, wo Karte F die Spieldaten ablegt.
    - **Die Blitz!-Runtime respektiert `$39/$3A`:** `POKE 57,0:POKE 58,80:CLR` als **erste Anweisung** (vor jeder Variablenbenutzung; `CLR` löscht alle Variablen) setzt `MEMSIZ` und `FRETOP` auf `$5000`. Mit Begrenzung blieb Bank 1 `$5000–$FEFF` in allen Läufen **unverändert (0 Byte)**, auch im Stresstest, der mit `?OUT OF MEMORY` (Fehler 16) endete, wenn Felder und Strings die 19 KB `$0400–$4FFF` füllten (interpretiert und kompiliert gleich). Obergrenze der Strings = `$4FFF`.
@@ -471,7 +473,7 @@ Beim Schreiben der Referenz entschieden; die 6502-Fassung folgt der Referenz:
 1. **X** (Ergebnis von `VIEW`) = Zahl der VCL-Einträge **ohne** das Ende-Byte (höchstens 255).
 2. **Leere Sprite-Einträge:** Bleibt nach dem Beschneiden weder Kern noch Rand übrig (z. B. nur transparente Bytes im Ausschnitt), wird nichts angehängt und OBJVIS nicht gesetzt.
 3. **Boden-/Deckenkacheln:** Die Maske schließt die Randpixel ein, benachbarte Trapeze überlappen sich an ihrer Kante. Bei verschiedenen Bildern entscheidet die Malreihenfolge: außen → innen (= umgekehrte DVG-Reihenfolge, so malt die Ausgabe von 5.6 Schritt 5).
-4. **DVG-Bit 3** setzt `dbegeom` erst mit P6h; die Referenz und ihre Tests behandeln beide Fälle (Bit fehlt: Fronten tragen `bcov` erst am Tiefenende ein, Pixel gleich).
+4. **DVG-Bit 3** setzt `dbegeom` seit P6h (vorher: nie); die Referenz und ihre Tests behandeln beide Fälle (Bit fehlt: Fronten tragen `bcov` erst am Tiefenende ein, Pixel gleich).
 5. **VMS Typ 2** (nicht von der Engine erzeugt) nimmt den Zeilenschritt aus VDC-Register 1; `run_vcl` hat dafür den Parameter `rowstep` (80).
 6. **`clip_image`:** Der Zeilenabstand der VMS-Offsets (Stride) ist ein zusätzlicher Parameter (P5b 6 nennt ihn nicht; `dbespr.clip_image(…, stride)` und `dbeview.clip_image(img, stride, …)` liefern dieselben Werte, im Test geprüft).
 7. **Puffer:** Szenen mit Kachelbildern, deren Bytes fast alle Rand sind (Muster mit Löchern in jedem Byte, z. B. 18 Kacheln Boden + 18 Decke), brauchen über 6 KB VMS; die 2 304 Byte reichen dort nicht (A = 2). Das ist ein Budgetfall für Spiele (`dbeview budget`), kein Fehler der Referenz.
@@ -817,3 +819,47 @@ Beispiele (VIEW / VCL, interpretiert): Gang Süd 44 700 / 235 800; Raum mit Himm
 2. Kanten auf ganze Bytes (2-Pixel-Stufen) als Option je Projekt: `view.toml` Schalter `byte_edges` (Standard `false` = pixelgenau); dbegeom rundet Masken dann auf Bytegrenzen.
 3. Gerendert wird mit 2 MHz (FAST, VIC aus während VIEW und VCL). Zyklenziele und Messungen werden auf 2 MHz bezogen.
 4. `MEMSIZ $4000`: BASIC-Variablen in Bank 1 `$0400–$3FFF`; erste Anweisung `POKE 57,0:POKE 58,64:CLR`. Asset-Bereiche ab `$4000` neu aufteilen (Speicherkarte 2.4 in P6h nachziehen).
+
+## Ergebnis P6h (2026-11-25)
+
+Umgesetzt: Speicherkarte G mit `MEMSIZ $4000` (2.4), Werkzeug-Ladeadressen und Bereichsprüfung (`tools/dbemem.py`), DVG-Bit 3 in `dbegeom`, `view.toml`-Schalter `byte_edges`, VCL-Typ 2 statt 3 bei srcstep = Länge (Engine und Referenz), Tests und Harness auf die neue Karte, Messung mit 2 MHz.
+
+### Speicherkarte
+
+Bank 1: Variablen `$0400–$3FFF` (15 KB), DMP `$4000–$5FFF`, S2 `$6000–$7FFF`, Wand-DTS `$8000–$AFFF` (12 KB), Lib `$B000–$DBFF`, LIBTAB `$DC00`, BSS `$E000–$E7FF`, DVG `$E800`, Boden `$EE00`, Decke `$F600–$FB7F`, DBG `$FB80–$FBFF`, `$FC00–$FEFF` Blitz!-Runtime (gesperrt). Gegenüber Karte F rutschen DMP, S2 und Wand um 4 KB nach unten, die Wand bekommt 4 KB mehr (das Demo-Wand-DTS mit 4 Stilen, 8 736 Byte, passt jetzt); der hohe Teil `$E800–$FBFF` bleibt (5 KB), nur die Grenze Decke/DBG wandert von `$FB00` auf `$FB80` (1 Stil der Demo-Decke hat 1 295 Byte, der alte Bereich hatte 1 280; DBG braucht höchstens 124 Byte). Alle Bereiche liegen ≥ `$4000` (VCL-Typ-9-Listen) und unter `$FC00`.
+
+### Werkzeuge
+
+- `tools/dbemem.py` (neu): Standard-Ladeadressen und `range_error(art, load, länge)`. `dbemap build`/`crawlmap` `$4000` (vorher `$8000`), `dbespr` `$6000` (`$7000`), `dbetex` Wand `$8000` (`$A000`), Boden `$EE00`, Decke `$F600`, DBG `$FB80` (`$A900`), `dbegeom` `$E800` (`$E400`). Die Schreibwege (`dbemap build`, `crawlmap`, `dbespr build`, `dbetex build`/`bg`, `dbegeom`) brechen mit Exitcode 1 und Meldung ab, wenn die Datei über das Bereichsende reicht oder ihre Ladeadresse in keinem Asset-Fenster liegt; liegt die Ladeadresse außerhalb des Standardbereichs der Art (dichte Packung), zählt das Ende des Fensters (`$AFFF` bzw. `$FBFF`). Die Rechenfunktionen (`to_dts`, `to_s2`, `to_dmp`, `build_texset`) prüfen nicht, damit Referenz und Tests die übergroßen Demo-Assets weiter benutzen können.
+- `dbegeom`: DVG-Flag **Bit 3** (Bandabdeckung) an allen Fronten, die die Bandzeilen ihrer Tiefe enthalten (JSON-Flag `bandcover`); die Geometrie-ID ändert sich dadurch. `dbeview.without_band_cover` erzeugt die Variante „Bit fehlt“ für die Tests (`make_scene(band_cover=False)` benutzt sie).
+- **`byte_edges`** (`[viewport]`, Standard `false`): Halbe Bytes (nur ein Pixel im Polygon) werden auf ganze Bytes gerundet: das Byte gehört zum Polygon, wenn sein Mittelpunkt innerhalb liegt; liegt er auf einer Kante, bekommt es das Polygon, das das linke Pixel besitzt (Nachbarflächen bleiben lückenlos und überlappungsfrei). Masken enthalten dann kein `L`/`R`, der Konverter erzeugt keine VMS-Typ-8-Befehle an den Kanten von Wänden und Kacheln (Sprites bleiben unberührt: `dbespr`).
+- VCL-Typ 3 mit srcstep = Länge wird als Typ 2 ausgegeben (Kerne; die Tapete bleibt Typ 3). Engine: neuer Einstieg `emit_vmcn` in `view.s` (Zählen und Schreiben, auch für beschnittene Kerne), Referenz `dbeview._kern_vmc`; bytegleich (sim65). In den Demo-Assets 29 von 256 Wandkernen; je Eintrag 2 VCL-Byte und der Typ-3-Mehraufwand weniger. Lib-Code **+41 Byte** (11 016 → 11 057 von 11 264), Reserve 207 Byte.
+
+### Tests
+
+- `test/tools` (255 Tests): neu `test_dbemem.py` (Bereiche, Fehlermeldungen, CLI von `dbemap`, `dbetex`, `dbespr`), in `test_dbegeom.py` Bit 3, `byte_edges` (Option, ganze Bytes, Rundung höchstens ein Pixel, keine Überlappung gleicher Art und Tiefe, andere ID, Bereichsprüfung des DVG).
+- `run_sim.py` (normal und `DBEVIEW_FULL=1`) bytegleich; Demo-DTS liegen im sim65 in eigenen Adressen (Decke `$EE00`/`$EF00`, DBG `$FB80`/`$8280`, alles unter `$FC00`).
+- `vice_smoke.py` (zusätzlich Prüfung `PEEK(58) = 64`), `vice_zp.py`, `vice_view.py` (interpretiert und Blitz!, je zwei Läufe) grün; alle 42 Szenen pixelgleich, `--control` meldet die verfälschte Szene. `.bas`-Vorlagen mit `POKE 58,64`; `vice_blitzvars.py` auf `$4000` angepasst.
+- `vice_view.py` misst jetzt zusätzlich mit **2 MHz**: zweiter Lauf mit `FAST:` vor `SYS 3148` (VIC-Anzeige aus) und `SLOW` nach `SYS 3149`, also genau während VIEW und VCL; gleiche Pixelprüfung. Die Stoppuhr zählt Takte zu 1 MHz (µs-Äquivalent). `--no-fast` überspringt ihn, `--byte-edges` baut die Demo-Geometrie mit `byte_edges`.
+
+### Zyklen (VICE, Mittel über 42 Szenen; interpretiert, Blitz! gleich ±100)
+
+| | 1 MHz | 2 MHz (FAST, VIC aus) | Verhältnis |
+|---|---|---|---|
+| VIEW (mit Stub) | 43 287 | 21 308 | 0,49 |
+| VCL | 200 279 | 122 369 | 0,61 |
+| VIEW + VCL | 243 566 | 143 678 | 0,59 |
+| VIEW + VCL, `byte_edges` | 210 350 | 123 062 | 0,59 |
+| VCL, `byte_edges` | 167 154 | 101 812 | 0,61 |
+
+VIEW halbiert sich (reiner CPU-Code, Badlines entfallen); VCL sinkt nur auf 61 %, weil die Wartezeiten des VDC bleiben. Das Verhältnis 0,61 liegt unter der Hochrechnung der Analyse (0,74); in VICE sind die VDC-Wartezeiten ein grobes Modell, Z64K bzw. Hardware bleiben maßgeblich.
+
+### `byte_edges` an der Demo (VICE-Szenen, `--byte-edges`)
+
+VCL −16,5 % bei 1 MHz (200 279 → 167 154) und −16,8 % bei 2 MHz (122 369 → 101 812); die Analyse hatte −37 000 (−18 %) geschätzt. Größen: Wand-DTS 7 520 → 7 254 Byte, Boden 1 916 → 1 504, Decke 1 295 → 1 086; VRAM-Pool belegt 44 751 → 44 591 Byte (−160). Alle 42 Szenen weiterhin pixelgleich zum jeweiligen Modell (andere Bilder als pixelgenau: schräge Kanten stufen in 2-Pixel-Schritten).
+
+### Offene Punkte
+
+- Sprites (`dbespr`) kennen `byte_edges` nicht; ein Schalter für halbtransparente Randbytes bleibt eine Entscheidung für P7.
+- Boden-/Decken-Demo (9,1 / 3,2 KB) passen weiter nicht in ihre Bereiche (Asset-Etat in P7).
+- Die Lib-Prüfung „Daten außerhalb von Lib/BSS“ (K5) fehlt weiterhin.

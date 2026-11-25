@@ -6,10 +6,11 @@ height   = 96
 origin   = 0
 stride   = 80
 depth    = 3
+# byte_edges = true     # Kanten auf ganze Bytes (2-Pixel-Stufen, keine halben Bytes: schneller, gröber); Standard false
 
 [output]
 name       = "west140"
 dir        = "build/geom"
-load       = 0xE400
+load       = 0xE800
 pool_bytes = 26624
 zoom       = 4

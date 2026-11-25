@@ -44,7 +44,7 @@ class TestBuild(unittest.TestCase):
     def test_demo(self):
         m = dbemap.load_toml(DEMO)
         d = dbemap.to_dmp(m)
-        self.assertEqual(d[:2], b"\x00\x80")
+        self.assertEqual(d[:2], b"\x00\x40")
         b = d[2:]
         self.assertEqual((m.width, m.height, len(m.tiles), len(m.events)), (7, 5, 4, 3))
         self.assertEqual(b[:5], b"DM\x01\x07\x05")

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """P6a, offener Punkt 1 (docs/specs/P6-engine.md 12): wo legt ein Programm seine Variablen, Felder und Strings in
-Bank 1 ab, interpretiert und als Blitz!-Kompilat (Image 2), und senkt `POKE 57,0:POKE 58,80:CLR` die Obergrenze?
+Bank 1 ab, interpretiert und als Blitz!-Kompilat (Image 2), und senkt `POKE 57,0:POKE 58,64:CLR` die Obergrenze?
 
 Aufruf: test/vice_blitzvars.py [--port N] [--timeout S]
-Je Programm (fit: passt in $0400-$4FFF; stress: belegt Strings bis OUT OF MEMORY) und je Modus (interpretiert, Blitz!),
+Je Programm (fit: passt in $0400-$3FFF; stress: belegt Strings bis OUT OF MEMORY) und je Modus (interpretiert, Blitz!),
 mit und ohne Begrenzung: Das Programm ruft an zwei Marken `SYS 3600` (RTS bei $0E10, vom Skript gesetzt). Haltepunkt
 auf der Marke:
-  Marke 1 (nach CLR):    Bank 1 $5000-$FEFF mit $A5 füllen, $0400-$4FFF sichern, Zeiger $2D-$3A lesen
-  Marke 2 (am Ende):     Zeiger lesen; geänderte Bytes in $5000-$FEFF zählen (min/max); belegten Bereich in
-                         $0400-$4FFF (gegenüber Marke 1) bestimmen
+  Marke 1 (nach CLR):    Bank 1 $4000-$FEFF mit $A5 füllen, $0400-$3FFF sichern, Zeiger $2D-$3A lesen
+  Marke 2 (am Ende):     Zeiger lesen; geänderte Bytes in $4000-$FEFF zählen (min/max); belegten Bereich in
+                         $0400-$3FFF (gegenüber Marke 1) bestimmen
 Ereignisgesteuert (Haltepunkte, kein sleep); Timeout und -limitcycles nur als Wächter. Portregel wie vice_smoke.py.
 """
 import argparse, os, shutil, subprocess, sys
@@ -41,7 +41,7 @@ STRESS = '''30 trap 100
 110 poke 3700,e:sys 3601
 120 bank 15:poke dec("d7ff"),e:end
 '''
-LIM = 'poke 57,0:poke 58,80:clr'
+LIM = 'poke 57,0:poke 58,64:clr'
 NOLIM = 'clr'
 
 
@@ -101,16 +101,16 @@ def experiment(label, text, compiled, port, tmo):
             if pc == MARK:
                 res['p1'] = ptrs(m)
                 m.cmd('bank ram01')
-                m.cmd('f 5000 feff a5')
+                m.cmd('f 4000 feff a5')
                 m.cmd('bank ram')
-                res['snap'] = dump1(m, 0x0400, 0x5000)
+                res['snap'] = dump1(m, 0x0400, 0x4000)
             else:
                 res['p2'] = ptrs(m)
                 res['e'] = m.mem(3700)[0]
-                hi = dump1(m, 0x5000, 0xFF00)
-                ch = [0x5000 + i for i, v in enumerate(hi) if v != 0xA5]
+                hi = dump1(m, 0x4000, 0xFF00)
+                ch = [0x4000 + i for i, v in enumerate(hi) if v != 0xA5]
                 res['above'] = (len(ch), ch[0] if ch else None, ch[-1] if ch else None)
-                lo = dump1(m, 0x0400, 0x5000)
+                lo = dump1(m, 0x0400, 0x4000)
                 ch = [0x0400 + i for i, (u, v) in enumerate(zip(res['snap'], lo)) if u != v]
                 res['below'] = (len(ch), ch[0] if ch else None, ch[-1] if ch else None)
                 m.s.sendall(b'quit\n')
@@ -138,7 +138,7 @@ def main():
     h = lambda v: '-' if v is None else f'${v:04X}'
     for prog, body in (('fit', FIT), ('stress', STRESS)):
         for compiled in (False, True):
-            for lim, lname in ((NOLIM, 'ohne Grenze'), (LIM, 'mit POKE 57,0:POKE 58,80:CLR')):
+            for lim, lname in ((NOLIM, 'ohne Grenze'), (LIM, 'mit POKE 57,0:POKE 58,64:CLR')):
                 text = HEAD.format(lim=lim) + body
                 r = experiment(prog, text, compiled, port, a.timeout)
                 mode = 'Blitz!' if compiled else 'interpretiert'
@@ -147,9 +147,9 @@ def main():
                     print('    nach CLR: ' + ' '.join(f'{k}=${v:04X}' for k, v in r['p1'].items()))
                     print('    am Ende:  ' + ' '.join(f'{k}=${v:04X}' for k, v in r['p2'].items()))
                     n, lo_, hi_ = r['above']
-                    print(f'    Bank 1 $5000-$FEFF geändert: {n} Byte, {h(lo_)} .. {h(hi_)}')
+                    print(f'    Bank 1 $4000-$FEFF geändert: {n} Byte, {h(lo_)} .. {h(hi_)}')
                     n, lo_, hi_ = r['below']
-                    print(f'    Bank 1 $0400-$4FFF seit Marke 1 geändert: {n} Byte, {h(lo_)} .. {h(hi_)}')
+                    print(f'    Bank 1 $0400-$3FFF seit Marke 1 geändert: {n} Byte, {h(lo_)} .. {h(hi_)}')
 
 
 if __name__ == '__main__':

@@ -1,38 +1,71 @@
 # dungeonboringengine
 
-Version 0.1 (Dateien `dbe0.1.stub` und `dbe0.1.lib`, Versionsnummer in `VERSION`).
+Version 0.2 (Dateien `dbe0.2.stub` und `dbe0.2.lib`, Versionsnummer in `VERSION`).
 
-Eine Dungeon-Crawler-Engine für den C128 (VDC, 64 KB VRAM), die auf [VDC-BASIC](https://github.com/The8BitTheory/vdc-basic) v2h aufbaut. Das Spiel bleibt ein BASIC-7-Programm (interpretiert oder mit Blitz! kompiliert); die Engine-Lib erledigt Sichtberechnung und Renderliste und gibt VDC-Befehlslisten für `VCL` aus.
+Eine Dungeon-Crawler-Engine für den C128 (VDC, 64 KB VRAM), die auf [VDC-BASIC](https://github.com/The8BitTheory/vdc-basic) v3 aufbaut. Das Spiel bleibt ein BASIC-7-Programm (interpretiert oder mit Blitz! kompiliert); die Engine-Lib erledigt Sichtberechnung und Renderliste und gibt VDC-Befehlslisten für `VCL` aus.
 
-- Entwurf und Entscheidungen: [docs/engine-design.md](docs/engine-design.md)
-- Aufruf, Parameterblock, Datenformate: [docs/formats.md](docs/formats.md)
+- Plan und Entscheidungen 0.2: [docs/plan-0.2.md](docs/plan-0.2.md)
+- Detailspezifikation der Engine (Speicherkarte, Funktionen, `VIEW`, Tests): [docs/specs/P6-engine.md](docs/specs/P6-engine.md)
+- Aufruf, Parameterblock, Datenformate, Speicherkarte: [docs/formats.md](docs/formats.md)
+- Entwurf 0.1 (Hintergrund): [docs/engine-design.md](docs/engine-design.md)
 
-## Stand
+## Stand (0.2)
 
-Schritt 1b: Gerüst (Stub in Bank 0, Lib in Bank 1, Interruptweiche), `INIT`, `MAPINIT`, `SETPOS`, `SETCELL`, `WALLSET`, `SPRITESET`, `ITEMSET`, `VIEW` mit Wänden, Objekten (transparent per `VMS`) und Gegenständen. Braucht VDC-BASIC v2h (Branch `v2h`, `vdcbasic2h.bin` = v2g + VCL-Typ 13 + Fehlerkorrekturen; VCL-Typ 12 und VMS-Listen mit 2 Byte Befehlszahl bleiben erhalten). v2g ab `ec049bd` funktioniert ebenfalls. Getestet mit Crawl 128 aus [dungeoncrawlerjam2025](https://github.com/The8BitTheory/dungeoncrawlerjam2025). Die Engine ist in Crawl 128 1.0f (dungeoncrawlerjam2025) integriert.
+Teilschritte P6a–P6h abgeschlossen (Ergebnisse in `docs/specs/P6-engine.md`): Gerüst (Stub in Bank 0 mit 8 KB gemeinsamem RAM, Lib in Bank 1 ab `$B000`, Interruptweiche), Karte (`MAPINIT`, `SETPOS`, `SETCELL`, `MOVE`, Automap), Assets (`GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`), `VIEW` mit Wänden, Kacheln, Boden, Decke, Tapete und Objekten in der richtigen Tiefe (VCL-Typ 9: VMS-Listen direkt aus Bank 1). 42 VICE-Szenen sind pixelgleich (interpretiert und als Blitz!-Kompilat mit Runtime-Image 2). Braucht VDC-BASIC v3 (Branch `v3`).
 
-## Test-Diskette
+Werkzeuge (Python 3 mit Pillow): `tools/vrl.py` (RLE für `RXV`), `dbegeom.py` (Sichtfenster, DVG; `view.toml`, Schalter `byte_edges` für Kanten auf ganze Bytes), `dbetex.py` (Wand-, Boden-, Decken-DTS, Tapete DBG), `dbespr.py` (Sprite-Sätze S2), `dbemap.py` und `crawlmap.py` (Karte DMP), `dbeview.py` (Referenz von `VIEW`), `dbemove.py`, `dbemem.py` (Speicherkarte). Das Beispielprojekt steht in `docs/specs/examples/`.
 
-`crawl128-dbe.d81`: Crawl 128 (Stand v2g, dungeoncrawlerjam2025 `af97452`) auf die Lib umgestellt, mit `vdcbasic2g.1300` aus vdc-basic `18dcab4` (VCL-Typ 12, VMS-Listen mit 2 Byte Befehlszahl). Start mit `RUN"CRAWL128"` bzw. Autostart in VICE (`x128 -80col -VDC64KB -drive8type 1581`).
+Die Fassung 0.1 (Crawl 128 mit `WALLSET`, `SPRITESET` v1) liegt nur noch als Test-Diskette `crawl128-dbe.d81` vor; Crawl wird mit P7 auf 0.2 umgestellt.
+
+## Speicherkarte Bank 1 (`MEMSIZ $4000`)
+
+Das Spiel beginnt mit `POKE 57,0:POKE 58,64:CLR` (Variablen `$0400–$3FFF`). Daten der Engine liegen nur in `$4000–$AFFF` und `$E800–$FBFF`:
+
+| Bereich | Inhalt |
+|---|---|
+| `$4000–$5FFF` | DMP (Karte) |
+| `$6000–$7FFF` | S2 (Sprite-Sätze) |
+| `$8000–$AFFF` | DTS Wand |
+| `$B000–$E7FF` | Lib, Tabellen, Variablen (nicht belegen) |
+| `$E800` / `$EE00` / `$F600` / `$FB80` | DVG / DTS Boden / DTS Decke / DBG (zusammen bis `$FBFF`) |
+| `$FC00–$FEFF` | gesperrt (Blitz!-Runtime) |
+
+Die Werkzeuge nehmen diese Ladeadressen als Standard und brechen mit einer Fehlermeldung ab, wenn eine Datei über ihren Bereich reicht.
 
 ## Bauen
 
-Voraussetzungen: cc65 (`ca65`, `ld65`, `cl65`, `sim65`), Python 3. Zum Testen außerdem VICE (`x128`, `c1541`, `petcat`) und Pillow.
+Voraussetzungen: cc65 (`ca65`, `ld65`, `cl65`, `sim65`), Python 3, Pillow. Zum Testen außerdem VICE 3.10 (`x128`, `c1541`), ACME und, für den Blitz!-Lauf, `node` mit dem Blitz!-Compiler; VDC-BASIC v3 unter `~/git/vdc-basic` (`VDCBASIC_DIR`).
 
 ```
-engine/build.sh                                   # build/dbe0.1.stub, build/dbe0.1.lib (Version aus `VERSION`)
-python3 tools/wallconv.py WALLS.VDC build/walls.wsm   # Wandsatz aus Crawl 128
-python3 tools/crawlsprites.py RED.VDC RED1.VDC build  # Geister und Edelstein aus Crawl 128
+engine/build.sh     # build/dbe0.2.stub, build/dbe0.2.lib (Version aus `VERSION`), dbe0.2-test.lib (mit Testfunktionen)
+python3 tools/dbegeom.py docs/specs/examples/view-west140.toml          # Geometrie: DVG, Vorlagen, Budget
+python3 tools/dbetex.py build walls.toml                                # Textur-DTS und VRL (siehe docs/specs/P5-textures.md)
+python3 tools/dbemap.py build docs/specs/examples/demo.toml demo.dmp    # Karte
 ```
+
+Die Lib belegt 11 057 von 11 264 Byte (`$B000–$DBFF`); die Reserve von 207 Byte nicht aufbrauchen.
 
 ## Testen
 
-| Werkzeug | Zweck |
+| Test | Zweck |
 |---|---|
-| `test/sim/run_viewsim.py CRAWL128.CD1 build/walls.wsm` | `VIEW` in sim65 für alle Zellen und Richtungen: Zyklen, Einträge, Listenlänge |
-| `test/vice_drive.py` | Crawl in VICE spielen, ereignisgesteuert (Haltepunkte, keine Wartezeiten): Screenshot und Zyklen je Taste, gestellte Szenen (`--scenes`), Summe der Renderphase (`--timing`) |
-| `test/patch_crawl.py crawl.prg out.prg` | `crawl.prg` (v2g) auf die Lib umstellen; `--timing`/`--ref-timing` bauen eine Zeitmessung ein, `--hook`/`--ref-hook` die Szenen-Testhilfe |
+| `python3 -m unittest discover -s test/tools` | Werkzeuge und Referenz (`dbeview`, `dbemove`, `dbemem` …), ohne Emulator |
+| `test/sim/run_sim.py` (`DBEVIEW_FULL=1` für den vollen Zufallssatz) | Lib in sim65: alle Funktionen, `VIEW` und `MOVE` bytegleich mit den Referenzen; Zyklen |
+| `test/vice_smoke.py` | Stub, Lib, Interrupts, Bank 0 `$1C00–$3FFF` unverändert, `RXV` (interpretiert und Blitz!) |
+| `test/vice_zp.py` | Zeropage-Block `$63–$72` unter Interrupts, danach rechnet BASIC richtig |
+| `test/vice_view.py` | 42 Szenen im echten x128, ganzes VRAM pixelgleich; Zyklen bei 1 MHz und 2 MHz (`--no-fast`, `--byte-edges`, `--check`, `--control`) |
+| `test/vice_vclprof.py` | Zerlegung der VCL-Zeit (`--static` ohne VICE) |
+| `test/vice_blitzvars.py` | Wo legt ein Blitz!-Programm Variablen ab; wirkt `MEMSIZ $4000` |
 
-Für den Test in VICE kommen `out.prg` (als `crawl128`), `vdcbasic2g.1300` (mit VCL-Typ 12), `dbe0.1.stub`, `dbe0.1.lib`, `walls.wsm`, `ghost.spr`, `gem.spr` und `ghosts.vdc` auf eine Kopie der Crawl-Diskette.
+VICE-Tests laufen ereignisgesteuert (Haltepunkte, Debug-Cartridge, keine festen Wartezeiten); der Port kommt aus `--port` oder `DBE_VICE_PORT` (Bereich 6631–6649).
 
-Zeile 5 von `crawl.bas` wartet auf eine Taste (Hilfe für den Autostart aus der IDE ohne gemountete Diskette). Der VICE-Treiber drückt dort die Leertaste.
+## Laden im Spiel
+
+```
+10 POKE 57,0:POKE 58,64:CLR
+20 BANK 0:BLOAD"DBE0.2.STUB",B0,U8:BLOAD"DBE0.2.LIB",B1,U8
+30 SYS 3328:RREG A,X,Y
+40 BLOAD"MAP.DMP",B1,U8:BLOAD"WALLS.DTS",B1,U8:BLOAD"VIEW.DVG",B1,U8:REM Ladeadressen stehen in den PRG-Köpfen
+```
+
+Texturen, Tapete und Sprites kommen als VRL-Dateien (`BLOAD` nach Bank 0, `RXV` ins VRAM); danach `POOLSET`, `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `MAPINIT`, `BUFSET` (Reihenfolge und Parameter: `docs/specs/P6-engine.md` Abschnitt 3; Beispiel `test/vice/view.bas`). Aufruf einer Funktion: `SYS 3331,F,X,Y` mit dem Parameterblock bei `$0C00`.

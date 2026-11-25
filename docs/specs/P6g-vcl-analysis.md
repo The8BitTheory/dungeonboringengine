@@ -27,6 +27,8 @@ Hinweis zu sim65 und VICE: VIEW in VICE liegt 7 % über sim65. Gründe sind der 
 
 ## 3. Speicherkarte (Korrektur in `P6-engine.md` 2.4)
 
+*Nachtrag P6h: mit `MEMSIZ $4000` gilt Karte G (`P6-engine.md` 2.4): DMP `$4000`, S2 `$6000`, Wand `$8000–$AFFF`; die Aussagen zu `$FC00` und zum hohen Fenster bleiben.*
+
 Die Blitz!-Runtime (Image 2) belegt das gemeinsame obere KB `$FC00–$FEFF` (`$D506` = `$0C`). Darum liegen jetzt **alle Bank-1-Daten unter `$FC00`**:
 
 - DVG `$E800–$EDFF` (1,5 KB), DTS Boden `$EE00–$F5FF` (2 KB), DTS Decke `$F600–$FAFF` (1,25 KB), DBG `$FB00–$FBFF`. Zusammen sind das 5 KB statt 6 KB; dicht packen ist erlaubt.

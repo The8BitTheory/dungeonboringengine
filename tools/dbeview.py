@@ -44,8 +44,8 @@ MAXITEM = 96
 MAX_SPANS = 4
 DEFAULT_BUF = (0x1300, 0x1C00)
 MAXCELL, MAXWALL, MAXPEND, MAXCELLELEM = 48, 96, 16, 16     # GEOMSET-Grenzen der Elementtabelle (P6 7)
-DEFAULT_DTS_ADDR = (0x9000, 0xF000, 0xF800)                  # Bank-1-Adressen der DTS (P6 2.4), fuer vms_bank1
-DEFAULT_S2_ADDR = 0x7000                                     # Bank-1-Adresse des ersten S2 (P6 2.4), fuer vms_bank1
+DEFAULT_DTS_ADDR = (0x8000, 0xEE00, 0xF600)                  # Bank-1-Adressen der DTS (P6 2.4), fuer vms_bank1
+DEFAULT_S2_ADDR = 0x6000                                     # Bank-1-Adresse des ersten S2 (P6 2.4), fuer vms_bank1
 E_OK, E_TOOMANY, E_PARTIAL = 0, 2, 3
 FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # F je Richtung v (N, O, S, W)
 RIGHT = [(1, 0), (0, 1), (-1, 0), (0, -1)]      # R je Richtung v
@@ -218,7 +218,7 @@ class Scene:
     vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9, Standardbuild);
                                                   # False = Build VMS_COPY (Kopie in den Puffer, Typ 12)
     dts_addr: tuple = DEFAULT_DTS_ADDR            # Bank-1-Adressen der DTS (Inhaltsanfang), nur fuer vms_bank1
-    s2_addr: tuple = None                         # Bank-1-Adressen der S2 je Satz; None: dicht ab $7000 (P6 2.4)
+    s2_addr: tuple = None                         # Bank-1-Adressen der S2 je Satz; None: dicht ab $6000 (P6 2.4)
 
     def s2_bank1(self, k):
         """Bank-1-Adresse (Inhaltsanfang) des Sprite-Satzes k."""
@@ -641,6 +641,11 @@ class _Item:
         self.ents = [e for e in self.ents if e[0] not in ("vms", "vms1")]
 
 
+def _kern_vmc(src, dst, cnt, reps, step, ss):
+    """VCL-Eintrag eines Kerns; srcstep = Laenge ist Typ 2 (srcstep 0, P6h). Die Tapete bleibt immer Typ 3."""
+    return ("vmc", src, dst, cnt, reps, step, 0 if ss == cnt else ss)
+
+
 def _fill_groups(fills):
     """Aufeinanderfolgende gleiche Fuellbytes gruppieren: [(erste Zeile, Anzahl, Byte)]."""
     out = []
@@ -726,8 +731,8 @@ class _View(_Ctx):
         if ent.flags & F_ZEILEN:
             return _Item([("vmf", (sc.ap + self.row(e.y + r) + e.x) & 0xFFFF, b, e.w, n, self.stride)
                           for r, n, b in _fill_groups(ent.fill)])
-        ents = [("vmc", (vb + k.src) & 0xFFFF, (t0 + k.dy * self.stride + k.dx) & 0xFFFF, k.w, k.h, self.stride,
-                 k.srcstep) for k in ent.kerns]
+        ents = [_kern_vmc((vb + k.src) & 0xFFFF, (t0 + k.dy * self.stride + k.dx) & 0xFFFF, k.w, k.h, self.stride,
+                          k.srcstep) for k in ent.kerns]
         if ent.flags & F_RAND:
             ents.append(self._vms_ent(kind, ent, (vb + ent.rand_ofs) & 0xFFFF, t0))
         return _Item(ents)
@@ -757,7 +762,7 @@ class _View(_Ctx):
 
     def _clipped_item(self, vb, kerns, vms, ref, rand_ofs, obj=None):
         sc = self.sc
-        ents = [("vmc", (vb + src) & 0xFFFF, (sc.ap + self.row(y) + x) & 0xFFFF, w, reps, self.stride, ss)
+        ents = [_kern_vmc((vb + src) & 0xFFFF, (sc.ap + self.row(y) + x) & 0xFFFF, w, reps, self.stride, ss)
                 for src, x, y, w, reps, ss in kerns]
         if vms:
             ents.append(("vms", (vb + rand_ofs) & 0xFFFF, (sc.ap + self.row(ref[1]) + ref[0]) & 0xFFFF, bytes(vms)))
@@ -1334,7 +1339,7 @@ def window_bytes(scene, vram):
 
 # ---------------------------------------------------------------- Sprite-Saetze (minimaler S2-Schreiber fuer Tests)
 
-def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_kerns=4, kern_min=16, load=0x7000):
+def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_kerns=4, kern_min=16, load=0x6000):
     """Minimaler S2-Schreiber nach P5b 4 (Dateischnittstelle; dbespr.py ist der eigentliche Importer).
 
     images: {(phase, ai, d): (rows, fx, fy)}; rows = Pixelzeilen (Palettenindex 0-15 oder None, gerade Breite).
@@ -1536,10 +1541,10 @@ def build_demo_assets(outdir):
     _atlas_styles(geom, outdir)
     empty_f = ", ".join(f'"floorband_d{d}"' for d in range(dvg.D + 1))
     empty_c = ", ".join(f'"ceilband_d{d}"' for d in range(dvg.D + 1))
-    ftoml = GEN_FLOOR_TOML.format(name="demo_floor3", kind="floor", load="0xF000", styles=(
+    ftoml = GEN_FLOOR_TOML.format(name="demo_floor3", kind="floor", load="0xEE00", styles=(
         '[[style]]\nname = "stein"\npng = "stein_atlas.png"\n\n[[style]]\nname = "gras"\npng = "gras_atlas.png"\n\n'
         f'[[style]]\nname = "pfuetze"\npng = "pfuetze_atlas.png"\nempty = [{empty_f}]\n'))
-    ctoml = GEN_FLOOR_TOML.format(name="demo_ceil3", kind="ceiling", load="0xF800", styles=(
+    ctoml = GEN_FLOOR_TOML.format(name="demo_ceil3", kind="ceiling", load="0xF600", styles=(
         '[[style]]\nname = "holz"\npng = "holz_atlas.png"\n\n'
         f'[[style]]\nname = "loch"\npng = "loch_atlas.png"\nempty = [{empty_c}]\n'))
     for n, t in (("floor3.toml", ftoml), ("ceil3.toml", ctoml)):
@@ -1566,6 +1571,14 @@ def with_band_cover(dvg):
             dt = d2.depth[e.d]
             if e.y <= dt.cy0 and e.y + e.h >= dt.fy1:
                 e.flags |= DVG_BANDCOVER
+    return d2
+
+
+def without_band_cover(dvg):
+    """Kopie der Dvg ohne DVG-Flag Bit 3 (dbegeom setzt es seit P6h; fuer Tests des Falls "Bit fehlt")."""
+    d2 = copy.deepcopy(dvg)
+    for e in d2.elems:
+        e.flags &= ~DVG_BANDCOVER
     return d2
 
 
@@ -1672,7 +1685,7 @@ def double_fronts(assets, objs=False):
         c[6] = t.ne
         struct.pack_into("<HHHHHH", c, 12, o_slot, o_style + delta, o_dir + delta, o_kern + delta, o_data + delta,
                          total + delta)
-        t.dts_prg = struct.pack("<H", 0x9000) + bytes(c[:o_slot]) + bytes(t.slot_map) + bytes(c[o_style:])
+        t.dts_prg = struct.pack("<H", 0x8000) + bytes(c[:o_slot]) + bytes(t.slot_map) + bytes(c[o_style:])
         t2 = dbetex.from_dts(t.dts_prg, ts.vram)
         assert t2.slot_map == t.slot_map and [e.kerns for e in t2.entries] == [e.kerns for e in ts.entries]
         return t
@@ -1684,7 +1697,7 @@ def double_fronts(assets, objs=False):
 
 def make_scene(assets, dmp, pos=None, direction=None, objects=(), itemtab=None, itemph=0, ap=0, dbg=True,
                bgfill=0x33, band_cover=False, buf=DEFAULT_BUF, sprites=True, start=None):
-    sc = Scene(with_band_cover(assets.dvg) if band_cover else assets.dvg, dmp)
+    sc = Scene(with_band_cover(assets.dvg) if band_cover else without_band_cover(assets.dvg), dmp)
     sc.dts = [assets.walls, assets.floor, assets.ceil]
     if dbg:
         sc.dbg, sc.dbg_vram = assets.dbg, assets.dbg_vram

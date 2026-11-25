@@ -114,7 +114,7 @@ def main(argv=None):
     ap.add_argument("paths", nargs="+", metavar="PATH", help="CRAWL128.CD1 OUT.dmp (mit --d81 nur OUT.dmp)")
     ap.add_argument("--d81", metavar="IMAGE.d81")
     ap.add_argument("--toml")
-    ap.add_argument("--load", default="0x8000")
+    ap.add_argument("--load", default="0x4000")
     ap.add_argument("--items", default="2,4")
     ap.add_argument("--floor", type=int, default=0)
     ap.add_argument("--ceiling", type=int, default=0)
@@ -137,7 +137,9 @@ def main(argv=None):
         m, warn = convert(data, items, a.floor, a.ceiling)
         for w in warn:
             print(f"Warnung: {w}", file=sys.stderr)
-        dmp = dbemap.to_dmp(m, int(a.load.replace("$", "0x"), 0))
+        load = int(a.load.replace("$", "0x"), 0)
+        dmp = dbemap.to_dmp(m, load)
+        dbemap.check_bank1(load, len(dmp) - 2)
         with open(out, "wb") as f:
             f.write(dmp)
         if a.toml:

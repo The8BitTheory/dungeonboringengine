@@ -13,10 +13,14 @@ Aufruf:
 Zellindex i = y * W + x; Richtungen 0 N, 1 O, 2 S, 3 W (Norden = kleineres y).
 """
 import argparse
+import os
 import struct
 import sys
 import tomllib
 from dataclasses import dataclass, field
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dbemem  # noqa: E402
 
 FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32}
 EVENT_TYPES = {"gegner": 1, "teleport": 2, "ausgang": 3, "text": 4}
@@ -123,9 +127,11 @@ def warnings_for(m):
     return w
 
 
-def to_dmp(m, load=0x8000):
+def to_dmp(m, load=None):
     """Karte als DMP-PRG (mit Ladeadresse) erzeugen."""
     validate(m)
+    if load is None:
+        load = dbemem.default_load("dmp")
     n = m.width * m.height
     nt = len(m.tiles)
     events = sorted(m.events, key=lambda e: (e.cell, e.type, e.param))
@@ -145,6 +151,13 @@ def to_dmp(m, load=0x8000):
         out += struct.pack("<HBB", e.cell, e.type, e.param)
     assert len(out) == 2 + total
     return bytes(out)
+
+
+def check_bank1(load, length):
+    """Abbruch (ValueError), wenn die Karte ueber ihren Bereich der Bank-1-Speicherkarte hinausreicht."""
+    err = dbemem.range_error("dmp", load, length)
+    if err:
+        raise ValueError(err)
 
 
 def from_dmp(data):
@@ -500,7 +513,7 @@ def main(argv=None):
     b = sub.add_parser("build")
     b.add_argument("map")
     b.add_argument("out")
-    b.add_argument("--load", default="0x8000", help="Ladeadresse (Standard $8000)")
+    b.add_argument("--load", default="0x4000", help="Ladeadresse (Standard $4000, Bank 1)")
     d = sub.add_parser("dump")
     d.add_argument("input")
     d.add_argument("--toml")
@@ -521,7 +534,9 @@ def main(argv=None):
         for w in warnings_for(m):
             print(f"Warnung: {w}", file=sys.stderr)
         if a.cmd == "build":
-            data = to_dmp(m, int(a.load.replace("$", "0x"), 0))
+            load = int(a.load.replace("$", "0x"), 0)
+            data = to_dmp(m, load)
+            check_bank1(load, len(data) - 2)
             with open(a.out, "wb") as f:
                 f.write(data)
             print(f"{a.out}: {len(data)} Byte, {m.width} x {m.height}, {len(m.tiles)} Kacheln, {len(m.events)} Ereignisse")

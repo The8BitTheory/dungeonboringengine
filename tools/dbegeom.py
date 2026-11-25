@@ -27,9 +27,12 @@ import tomllib
 import zlib
 from fractions import Fraction
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dbemem  # noqa: E402
+
 ART_FRONT, ART_SIDE, ART_FLOOR, ART_CEIL, ART_OBJ = 0, 1, 2, 3, 4
 ART_NAMES = {ART_FRONT: "front", ART_SIDE: "side", ART_FLOOR: "floor", ART_CEIL: "ceil", ART_OBJ: "obj"}
-FLAG_COVER, FLAG_PARTIAL, FLAG_CLIPPED = 1, 2, 4
+FLAG_COVER, FLAG_PARTIAL, FLAG_CLIPPED, FLAG_BANDCOVER = 1, 2, 4, 8
 VMS_BUFFER = 1300       # Plan Abschnitt 3: VMS-Puffer 1,3 KB
 
 WESTWOOD = {
@@ -61,7 +64,7 @@ def rnd(v):
 
 # ---------------------------------------------------------------- Konfiguration
 
-VIEWPORT_KEYS = {"preset", "width_px", "height", "origin", "stride", "depth"}
+VIEWPORT_KEYS = {"preset", "width_px", "height", "origin", "stride", "depth", "byte_edges"}
 OUTPUT_KEYS = {"name", "dir", "load", "pool_bytes", "zoom"}
 PLANE_KEYS = {"ref_size", "center_x", "width", "top", "bottom"}
 
@@ -100,6 +103,9 @@ def parse_config(cfg):
     height = _int("viewport", "height", vp["height"])
     origin = _int("viewport", "origin", vp.get("origin", 0))
     stride = _int("viewport", "stride", vp.get("stride", 80))
+    byte_edges = vp.get("byte_edges", False)
+    if not isinstance(byte_edges, bool):
+        raise GeomError("[viewport] byte_edges: true oder false erwartet")
     if width % 4 != 0:
         raise GeomError("[viewport] width_px: muss ein Vielfaches von 4 sein")
     if not 16 <= width <= 160:
@@ -165,9 +171,10 @@ def parse_config(cfg):
     name = out.get("name", f"{preset}{width}")
     return {
         "preset": preset, "width": width, "height": height, "origin": origin, "stride": stride,
+        "byte_edges": byte_edges,
         "depth": depth, "planes": planes,
         "name": str(name), "dir": str(out.get("dir", "build/geom")),
-        "load": _int("output", "load", out.get("load", 0xE400)),
+        "load": _int("output", "load", out.get("load", dbemem.default_load("dvg"))),
         "pool_bytes": _int("output", "pool_bytes", out.get("pool_bytes", 26624)),
         "zoom": _int("output", "zoom", out.get("zoom", 4)),
     }
@@ -314,7 +321,38 @@ class Geometry:
                         neg = True
                 if not (pos and neg):
                     res.add((px, r))
+        if self.conf["byte_edges"]:
+            res = self._round_bytes(res, edges, r0, r1, px0, px1)
         return res
+
+    @staticmethod
+    def _round_bytes(res, edges, r0, r1, px0, px1):
+        """Halbe Bytes (nur ein Pixel im Polygon) auf ganze Bytes runden: das Byte gehoert zum Polygon, wenn sein
+        Mittelpunkt (zwischen den beiden Pixeln) innerhalb liegt. Liegt der Mittelpunkt genau auf einer Kante, gehoert
+        das Byte dem Polygon, das das linke Pixel besitzt (Nachbarpolygone bleiben luckenlos und ueberlappungsfrei)."""
+        out = set()
+        for r in range(r0, r1 + 1):
+            cy = 2 * r + 1
+            for bx in range(px0 // 2, px1 // 2 + 1):
+                left, right = (2 * bx, r) in res, (2 * bx + 1, r) in res
+                if left and right:
+                    out.update(((2 * bx, r), (2 * bx + 1, r)))
+                elif left or right:
+                    cx = 4 * bx + 2
+                    on_edge = False
+                    for (x1, y1), (x2, y2) in edges:
+                        c = (x2 - x1) * (cy - y1) - (y2 - y1) * (cx - x1)
+                        if c == 0:
+                            on_edge = True
+                    pos = neg = False
+                    for (x1, y1), (x2, y2) in edges:
+                        c = (x2 - x1) * (cy - y1) - (y2 - y1) * (cx - x1)
+                        pos |= c > 0
+                        neg |= c < 0
+                    outside = pos and neg
+                    if not outside and (not on_edge or left):
+                        out.update(((2 * bx, r), (2 * bx + 1, r)))
+        return out
 
     def _fill_image(self, im, pix, poly):
         """Rechteck, Maske, Kern, Beschnitt aus Pixelmenge."""
@@ -450,6 +488,12 @@ class Geometry:
         for d in range(D + 1):
             self.band_rows.append((clip(self.T[d], self.T[d + 1]), clip(self.B[d + 1], self.B[d])))
         self.horizon = clip(self.T[D + 1], self.B[D + 1])
+        # DVG-Flag Bit 3 (Bandabdeckung, P6 5.1): Fronten, deren Rechteck die Bandzeilen ihrer Tiefe enthaelt
+        for im in self.images:
+            if im.art == ART_FRONT:
+                (c0, _), (_, f1) = self.band_rows[im.d]
+                if im.rect[1] <= c0 and im.rect[1] + im.rect[3] >= f1:
+                    im.flags |= FLAG_BANDCOVER
         # Luecken pruefen
         cover = [0] * H
         for (c0, c1), (f0, f1) in self.band_rows:
@@ -813,6 +857,8 @@ def build_json(geo, gid, bud):
                 fl.append("partial")
             if e.flags & FLAG_CLIPPED:
                 fl.append("clipped")
+            if e.flags & FLAG_BANDCOVER:
+                fl.append("bandcover")
             elements.append({"index": i, "name": e.name, "art": ART_NAMES[e.art], "d": e.d, "s": e.s,
                              "rect": list(e.rect), "kernel": list(e.kernel), "cover": list(e.cover),
                              "flags": fl, "src_dx": e.src_dx, "polygon": e.polygon, "mask": e.mask,
@@ -820,7 +866,8 @@ def build_json(geo, gid, bud):
     return {
         "format": "dbegeom", "version": 1, "geometry_id": gid,
         "viewport": {"preset": c["preset"], "width_px": geo.width, "height": geo.height,
-                     "origin": c["origin"], "stride": c["stride"], "depth": geo.D},
+                     "origin": c["origin"], "stride": c["stride"], "depth": geo.D,
+                     "byte_edges": c["byte_edges"]},
         "planes": planes, "bands": bands, "band_images": band_imgs, "horizon": list(geo.horizon),
         "atlas_size": list(geo.atlas_size),
         "elements": elements, "slots": slots, "budget": bud,
@@ -845,6 +892,9 @@ def generate(conf, outdir, name):
     geo = Geometry(conf)
     geo.atlas_size = layout_atlas(geo)
     content, gid = build_dvg(geo)
+    err = dbemem.range_error("dvg", conf["load"], len(content))
+    if err:
+        raise GeomError(err)
     os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, f"{name}.dvg"), "wb") as f:
         f.write(struct.pack("<H", conf["load"] & 0xFFFF) + content)

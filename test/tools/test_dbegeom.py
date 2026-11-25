@@ -278,7 +278,7 @@ class Dvg(unittest.TestCase):
 
     def test_header(self):
         raw = self.raw
-        self.assertEqual(struct.unpack("<H", raw[:2])[0], 0xE400)
+        self.assertEqual(struct.unpack("<H", raw[:2])[0], 0xE800)
         c = raw[2:]
         self.assertEqual(c[0:3], b"DV\x01")
         self.assertEqual((c[3], c[4], c[5], c[6], c[7]), (70, 96, 3, 3, 79))
@@ -351,7 +351,7 @@ class Dvg(unittest.TestCase):
             self.assertEqual(row[14], el["src_dx"])
             self.assertEqual(row[15], 0)
             fl = 0
-            for name, bit in (("cover", 1), ("partial", 2), ("clipped", 4)):
+            for name, bit in (("cover", 1), ("partial", 2), ("clipped", 4), ("bandcover", 8)):
                 if name in el["flags"]:
                     fl |= bit
             self.assertEqual(row[3], fl)
@@ -557,3 +557,98 @@ class Validation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BandCoverAndByteEdges(unittest.TestCase):
+    """P6h: DVG-Flag Bit 3 (Bandabdeckung) und view.toml-Schalter byte_edges."""
+
+    @staticmethod
+    def pixels(im):
+        x, y, w, h = im.rect
+        out = set()
+        for r, line in enumerate(im.mask):
+            for bx, ch in enumerate(line):
+                if ch in "#L":
+                    out.add((2 * (x + bx), y + r))
+                if ch in "#R":
+                    out.add((2 * (x + bx) + 1, y + r))
+        return out
+
+    def test_bit3_on_fronts_containing_the_bands(self):
+        for g in all_geos():
+            for im in g.images:
+                if im.art != dbegeom.ART_FRONT:
+                    continue
+                (c0, _), (_, f1) = g.band_rows[im.d]
+                want = im.rect[1] <= c0 and im.rect[1] + im.rect[3] >= f1
+                self.assertEqual(bool(im.flags & dbegeom.FLAG_BANDCOVER), want, im.name)
+            self.assertTrue(any(i.flags & dbegeom.FLAG_BANDCOVER for i in g.images))
+
+    def test_bit3_in_dvg_bytes(self):
+        g = geo_for(140, 96)
+        content, _ = dbegeom.build_dvg(g)
+        base = 24 + 8 * (g.D + 1)
+        n = 0
+        for i, e in enumerate(g.elements):
+            if isinstance(e, dict):
+                continue
+            fl = content[base + 16 * i + 3]
+            self.assertEqual(bool(fl & 8), bool(e.flags & dbegeom.FLAG_BANDCOVER))
+            n += bool(fl & 8)
+        self.assertGreater(n, 0)
+
+    def test_byte_edges_default_off(self):
+        self.assertFalse(conf_for(140, 96)["byte_edges"])
+        self.assertTrue(any(c in "LR" for im in geo_for(140, 96).images for line in im.mask for c in line))
+
+    def test_byte_edges_option_checked(self):
+        with self.assertRaises(dbegeom.GeomError):
+            dbegeom.parse_config({"viewport": {"width_px": 140, "height": 96, "byte_edges": 1}})
+        c = dbegeom.parse_config({"viewport": {"width_px": 140, "height": 96, "byte_edges": True}})
+        self.assertTrue(c["byte_edges"])
+
+    def test_byte_edges_whole_bytes(self):
+        for w, h in ((140, 96), (136, 92)):
+            conf = dbegeom.parse_config({"viewport": {"width_px": w, "height": h, "byte_edges": True}})
+            g = dbegeom.Geometry(conf)
+            exact = geo_for(w, h)
+            self.assertEqual(len(g.images), len(exact.images))
+            for im in g.images:
+                self.assertFalse(any(c in "LR" for line in im.mask for c in line), im.name)
+            # Rundung: ganze Bytes und leere Bytes bleiben, ein halbes Byte wird ganz oder leer (hoechstens 1 Pixel Unterschied)
+            for im in g.images:
+                ex = next(e for e in exact.images if e.name == im.name)
+                a, b = self.pixels(ex), self.pixels(im)
+                for p in a - b:
+                    self.assertNotIn((p[0] ^ 1, p[1]), a, im.name)    # entfaellt nur, wenn es ein halbes Byte war
+                for p in b - a:
+                    self.assertIn((p[0] ^ 1, p[1]), a, im.name)       # kommt nur dazu: das Partnerpixel war das halbe Byte
+
+    def test_byte_edges_tiling(self):
+        """Gleiche Art und Tiefe, verschiedene Zellen s: keine Ueberlappung (Nachbarflaechen teilen sich die Kante)."""
+        conf = dbegeom.parse_config({"viewport": {"width_px": 140, "height": 96, "byte_edges": True}})
+        g = dbegeom.Geometry(conf)
+        for d in range(g.D + 1):
+            for art in (dbegeom.ART_FRONT, dbegeom.ART_SIDE, dbegeom.ART_FLOOR, dbegeom.ART_CEIL):
+                seen = {}
+                for im in g.images:
+                    if im.d == d and im.art == art:
+                        for p in self.pixels(im):
+                            self.assertNotIn(p, seen, f"{im.name} und {seen.get(p)} ueberlappen")
+                            seen[p] = im.name
+
+    def test_byte_edges_fewer_half_bytes_and_new_id(self):
+        conf = dbegeom.parse_config({"viewport": {"width_px": 140, "height": 96, "byte_edges": True}})
+        _, gid_on = dbegeom.build_dvg(dbegeom.Geometry(conf))
+        _, gid_off = dbegeom.build_dvg(geo_for(140, 96))
+        self.assertNotEqual(gid_on, gid_off)
+
+    def test_load_default_and_range(self):
+        self.assertEqual(conf_for(140, 96)["load"], 0xE800)
+        with tempfile.TemporaryDirectory() as td:
+            conf = conf_for(140, 96)
+            conf["load"] = 0xEC00                    # DVG (1,5 KB) reicht ueber $EDFF hinaus
+            with self.assertRaises(dbegeom.GeomError) as cm:
+                dbegeom.generate(conf, td, "x")
+            self.assertIn("Bereichsende", str(cm.exception))
+            self.assertFalse(os.path.exists(os.path.join(td, "x.dvg")))

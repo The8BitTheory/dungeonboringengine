@@ -155,7 +155,7 @@ Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweil
 | `vrl.py` | kanonische Fassung in vdc-basic `tools/vrl.py`; die Engine verweist darauf bzw. hält eine Kopie |
 | `origin` | gehört nicht zur Geometrie-ID (Viewport verschieben ohne Neuimport der Texturen) |
 | Schwelle T | patchbares Byte in VDC-BASIC (`$1C04`), Standard 14 (Platzhalter aus der Kostenformel); VICE misst 2, nicht übertragbar; endgültig nach Messung in Z64K bzw. auf echter Hardware (`test/bench` in vdc-basic) |
-| BASIC-Variablen Bank 1 | `$0400–$4FFF` (ca. 19 KB inkl. Strings, Obergrenze wird abgesenkt); Assets und Lib ab `$5000` (Speicherkarte in P6-engine.md) |
+| BASIC-Variablen Bank 1 | `$0400–$4FFF` (ca. 19 KB inkl. Strings, Obergrenze wird abgesenkt); Assets und Lib ab `$5000` (Speicherkarte in P6-engine.md); **seit P6h `MEMSIZ $4000`**: Variablen `$0400–$3FFF` (15 KB), Assets ab `$4000` (Speicherkarte G, `P6-engine.md` 2.4) |
 | WALLSET/SPRITESET v1 | entfallen; Crawl wird in P7 per Konverter auf DVG/DTS/Sprite-Sätze v2 umgestellt |
 | MOVE, CELL, Automap-Bit | bleiben in P6 (P6f) |
 | Objekte in Wandzellen | neues Kachel-Flag „Inhalt zeichnen“ (Tür, Gitter, Bogen): Seitenfläche, dann Objekte, dann Front |

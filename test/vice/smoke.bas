@@ -1,6 +1,7 @@
 # P6a Rauchtest (docs/specs/P6-engine.md 10): Stub mit 8 KB gemeinsamem RAM, Lib-Testbuild.
 # Ergebnis als Exitcode der Debug-Cartridge: 0 = grün, 10.. = Nummer der fehlgeschlagenen Prüfung, 200+ = BASIC-Fehler.
-1 poke 57,0:poke 58,80:clr:trap 9000
+1 poke 57,0:poke 58,64:clr:trap 9000
+5 if peek(57)<>0 or peek(58)<>64 then r=30:goto 8995
 10 bank 0:bload"dbe0.2.stub",b0,u8:bload"dbe0.2-test.lib",b1,u8
 20 s=0:for i=7168 to 16383:s=s+peek(i):next
 30 sys 3328:rreg a,x,y:if a<>0 or x<>3 then r=10:goto 8995

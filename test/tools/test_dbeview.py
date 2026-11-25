@@ -131,7 +131,9 @@ class TestDvg(unittest.TestCase):
         g = dbeview.with_band_cover(env().assets.dvg)
         fr = [e for e in g.elems if e.art == dbeview.ART_FRONT]
         self.assertTrue(all(e.flags & 8 for e in fr))
-        self.assertFalse(any(e.flags & 8 for e in env().assets.dvg.elems))
+        # dbegeom setzt Bit 3 seit P6h an allen Fronten, die die Bandzeilen enthalten (alle Fronten der Demo)
+        self.assertTrue(all(e.flags & 8 for e in env().assets.dvg.elems if e.art == dbeview.ART_FRONT))
+        self.assertFalse(any(e.flags & 8 for e in dbeview.without_band_cover(env().assets.dvg).elems))
 
     def test_cells_contiguous(self):
         sc = dbeview.make_scene(env().assets, env().demo)

@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dbegeom  # noqa: E402
+import dbemem  # noqa: E402
 import vrl  # noqa: E402
 
 PALETTE = dbegeom.PALETTE
@@ -554,7 +555,7 @@ def load_tex_conf(path, out=None, strict=False, key=None, alpha_threshold=None):
         "name": str(ts["name"]), "kind": ts["kind"], "geom": os.path.join(base, ts["geom"]),
         "dvg": os.path.join(base, ts["dvg"]) if ts.get("dvg") else None,
         "out": out or os.path.join(base, ts.get("out", ".")),
-        "load": _int("load", ts.get("load", 0xA000), 0, 0xFFFF),
+        "load": _int("load", ts.get("load", dbemem.default_load(ts["kind"])), 0, 0xFFFF),
         "vrl_load": _int("vrl_load", ts.get("vrl_load", 0x4000), 0, 0xFFFF),
         "pool_bytes": _int("pool_bytes", ts.get("pool_bytes", 26624), 0, 1 << 24),
         "max_kerns": _int("max_kerns", ts.get("max_kerns", 4), 0, 4),
@@ -794,7 +795,9 @@ def build_texset(conf):
 
 # ---------------------------------------------------------------- DTS
 
-def to_dts(ts, load=0xA000):
+def to_dts(ts, load=None):
+    if load is None:
+        load = dbemem.default_load(KIND_NAMES[ts.kind])
     ne, D = ts.ne, ts.depth
     ns = sum(1 for v in ts.slot_map if v != FALLBACK)
     nst, ni = len(ts.styles), len(ts.entries)
@@ -1029,7 +1032,7 @@ def load_bg_conf(path, out=None, strict=False):
             "y0": bg.get("y0", "horizon"), "offsets": bg.get("offsets", "auto"), "wrap": bool(bg.get("wrap", True)),
             "above": bg.get("above", 0), "below": bg.get("below", 0),
             "out": out or os.path.join(base, bg.get("out", ".")),
-            "load": _int("load", bg.get("load", 0xA900), 0, 0xFFFF),
+            "load": _int("load", bg.get("load", dbemem.default_load("dbg")), 0, 0xFFFF),
             "vrl_load": _int("vrl_load", bg.get("vrl_load", 0x4000), 0, 0xFFFF),
             "key": bg.get("key"), "strict": strict}
 
@@ -1282,10 +1285,18 @@ def write(path, data):
         f.write(data)
 
 
+def check_bank1(kind, load, length):
+    """Abbruch, wenn die Datei ueber ihren Bereich der Bank-1-Speicherkarte (dbemem) hinausreicht."""
+    err = dbemem.range_error(kind, load, length)
+    if err:
+        raise TexError(err)
+
+
 def cmd_build(a):
     conf = load_tex_conf(a.toml, a.out, a.strict, a.key, a.alpha_threshold)
     ts, warns, infos = build_texset(conf)
     dts = to_dts(ts, conf["load"])
+    check_bank1(KIND_NAMES[ts.kind], conf["load"], len(dts) - 2)
     stream = vrl.encode(list(ts.vram))
     vrlf = vrl.pack_file(stream, conf["vrl_load"])
     out, name = conf["out"], conf["name"]
@@ -1309,6 +1320,7 @@ def cmd_build(a):
 def cmd_bg(a):
     conf = load_bg_conf(a.toml, a.out, a.strict)
     dbg, vram, warns = build_background(conf)
+    check_bank1("dbg", conf["load"], len(dbg) - 2)
     stream = vrl.encode(list(vram))
     write(os.path.join(conf["out"], conf["name"] + ".dbg"), dbg)
     write(os.path.join(conf["out"], conf["name"] + ".vrl"), vrl.pack_file(stream, conf["vrl_load"]))

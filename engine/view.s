@@ -2099,13 +2099,16 @@ gwall:  jsr     gsetup
         jeq     @rand
         bit     wmode
         bmi     @kw
-@kl:    ldy     #6              ; zählen
+@kl:    ldy     #4              ; zählen: e_cnt = w (srcstep = w ist Typ 2)
+        lda     (ZP1),y
+        sta     e_cnt
+        ldy     #6
         lda     (ZP1),y
         sta     e_ss
         iny
         lda     (ZP1),y
         sta     e_ss+1
-        jsr     emit_vmc
+        jsr     emit_vmcn
         clc
         lda     ZP1
         adc     #8
@@ -2118,10 +2121,14 @@ gwall:  jsr     gsetup
 ; schreiben: Kern (src, dx, dy, w, h, srcstep) direkt als Typ 2/3 (src = VB + src, dst = AP + row[y + dy] + x + dx)
 @kw:    ldy     #7
         lda     (ZP1),y
+        bne     @k3             ; srcstep >= 256: Typ 3
         dey
-        ora     (ZP1),y
-        bne     @k3
-        lda     #11
+        lda     (ZP1),y
+        beq     @k2             ; srcstep 0: Typ 2
+        ldy     #4
+        cmp     (ZP1),y
+        bne     @k3             ; srcstep = w (e_cnt) ist ebenfalls Typ 2
+@k2:    lda     #11
         jsr     vneed
         ldy     #0
         lda     #2
@@ -2779,10 +2786,14 @@ clipkerns:
         sta     e_ss
         lda     kst+1
         sta     e_ss+1
-@f:     bit     wmode
+@f:     sec                     ; e_cnt = Anzahl (ckwrite setzt es erneut)
+        lda     kb
+        sbc     ka
+        sta     e_cnt
+        bit     wmode
         bpl     @em
         jsr     ckwrite
-@em:    jsr     emit_vmc
+@em:    jsr     emit_vmcn
 @nx:    clc
         lda     ZP1
         adc     #8
@@ -3395,6 +3406,13 @@ mulst:  pha
 
 ; ---------------------------------------------------------------- VCL-Einträge (6)
 ; zählen: iv += Länge; schreiben: vp -= Länge (vneed), Eintrag bei vp, nent += 1 (höchstens 255)
+emit_vmcn:                      ; Kerne: srcstep = e_cnt ist Typ 2 (wie srcstep 0)
+        lda     e_ss
+        cmp     e_cnt
+        bne     emit_vmc
+        ldx     e_ss+1
+        bne     emit_vmc
+        stx     e_ss            ; = 0 (e_ss+1 ist 0)
 emit_vmc:
         lda     e_ss
         ora     e_ss+1

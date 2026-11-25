@@ -1,4 +1,4 @@
-# Schnittstellen und Datenformate (Stand: Objekte in VIEW)
+# Schnittstellen und Datenformate (Stand: Engine 0.2, P6h; die Abschnitte Dateien bis Sprite-Metadaten beschreiben noch 0.1)
 
 ## Dateien
 
@@ -153,9 +153,31 @@ Dateirahmen (PRG):
 
 Rohe Ströme ohne Kopf (`--raw`) sind möglich, z. B. eingebettet in DTS.
 
+## Speicherkarte Bank 1 (Engine 0.2, `MEMSIZ $4000`)
+
+Quelle und Begründung: `docs/specs/P6-engine.md` 2.4. Die Werkzeuge nehmen diese Adressen als Standard (`tools/dbemem.py`) und brechen ab, wenn eine Datei über ihren Bereich reicht.
+
+| Bereich | Inhalt | Werkzeug (Standard-Ladeadresse) |
+|---|---|---|
+| `$0400–$3FFF` | BASIC-Variablen (erste Anweisung `POKE 57,0:POKE 58,64:CLR`) | – |
+| `$4000–$5FFF` | DMP (Karte) | `dbemap`, `crawlmap` `$4000` |
+| `$6000–$7FFF` | S2 (Sprite-Sätze) | `dbespr` `$6000` |
+| `$8000–$AFFF` | DTS Wand | `dbetex` `$8000` |
+| `$B000–$DBFF` | Lib (`dbe0.2.lib`, Sprungtabelle bei `$B000`) | – |
+| `$DC00–$E7FF` | Lib-Tabellen und -Variablen (nicht in der Datei) | – |
+| `$E800–$EDFF` | DVG | `dbegeom` `$E800` |
+| `$EE00–$F5FF` | DTS Boden | `dbetex` `$EE00` |
+| `$F600–$FB7F` | DTS Decke | `dbetex` `$F600` |
+| `$FB80–$FBFF` | DBG (Tapete) | `dbetex bg` `$FB80` |
+| `$FC00–$FEFF` | **gesperrt** (Blitz!-Runtime) | – |
+
+Listen für VCL-Typ 9 (Inhalt von DTS und S2) liegen ab `$4000`, nicht in `$D000–$DFFF`. Wer die Dateien dicht packt, wählt eigene Ladeadressen in den Fenstern `$4000–$AFFF` und `$E800–$FBFF`; die Werkzeuge prüfen dann das Fensterende.
+
 ## DVG v1 (Sichtfenster-Geometrie, von `tools/dbegeom.py`)
 
-PRG-Datei (2 Byte Ladeadresse, `[output].load`, Standard `$E400`, Bank 1). Alle Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P3-geometry.md`.
+PRG-Datei (2 Byte Ladeadresse, `[output].load`, Standard `$E800`, Bank 1; Bereich bis `$EDFF`, Speicherkarte oben). Alle Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P3-geometry.md`.
+
+**`view.toml` `[viewport] byte_edges`** (Standard `false`): `true` rundet die Masken auf ganze Bytes (2-Pixel-Stufen an den schrägen Kanten; ein Byte gehört zum Polygon, wenn sein Mittelpunkt innerhalb liegt). Damit entstehen keine halben Bytes und keine VMS-Typ-8-Befehle an den Kanten von Wänden und Kacheln; in der Demo spart das etwa 17 % VCL-Zeit (`P6-engine.md`, Ergebnis P6h). Die Geometrie-ID ändert sich, Texturen müssen neu importiert werden. Sprites (`dbespr`) sind nicht betroffen.
 
 ### Kopf (24 Byte)
 
@@ -191,7 +213,7 @@ Front (0), Seite (1), Boden (2), Decke (3):
 | Offset | Inhalt |
 |---|---|
 | 0 / 1 / 2 | Art / d / s (vorzeichenbehaftet) |
-| 3 | Flags: Bit 0 = Spaltenbereich gültig, Bit 1 = Teilfront (Bild = Vollfront der Tiefe ab `src_dx`), Bit 2 = beschnitten |
+| 3 | Flags: Bit 0 = Spaltenbereich gültig, Bit 1 = Teilfront (Bild = Vollfront der Tiefe ab `src_dx`), Bit 2 = beschnitten, Bit 3 = Bandabdeckung (nur Fronten, deren Rechteck die Bandzeilen ihrer Tiefe enthält: e.y ≤ Deckenband y0 und e.y + e.h ≥ Bodenband y1 der Tiefe; `dbegeom` setzt es seit P6h für alle solchen Fronten, `VIEW` deckt damit Bänder, Kacheln und Tapete früher ab) |
 | 4–7 | x (Byte-Spalte), y (Zeile), w (Byte), h (Zeilen) des Rechtecks |
 | 8–11 | Kern kx, ky, kw, kh (relativ zum Rechteck; kw = 0: kein Kern) |
 | 12 / 13 | Spaltenbereich c0 / c1 (exklusiv, absolut) |
@@ -204,7 +226,7 @@ Ziel im Puffer: `AP + origin + y · stride + x`.
 
 ## DMP v1 (Karte, von `tools/dbemap.py` und `tools/crawlmap.py`)
 
-PRG-Datei: 2 Byte Ladeadresse (Standard `$8000`, Bank 1), dann der Inhalt. Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P4-map.md`. Zelle (x, y), Index i = y · W + x; Richtungen 0 N, 1 O, 2 S, 3 W (Norden = kleineres y). Stilnummer: 0 = nichts, n ≥ 1 = Stil n − 1 im zugehörigen DTS.
+PRG-Datei: 2 Byte Ladeadresse (Standard `$4000`, Bank 1, Bereich bis `$5FFF`), dann der Inhalt. Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P4-map.md`. Zelle (x, y), Index i = y · W + x; Richtungen 0 N, 1 O, 2 S, 3 W (Norden = kleineres y). Stilnummer: 0 = nichts, n ≥ 1 = Stil n − 1 im zugehörigen DTS.
 
 ### Kopf (24 Byte)
 
@@ -290,7 +312,7 @@ Karte und Objektliste speichern Unterpositionen absolut: 0 NW, 1 NO, 2 SW, 3 SO,
 
 ## DTS v1 (Texturset, von `tools/dbetex.py`)
 
-PRG-Datei: 2 Byte Ladeadresse (Standard `$A000`, Bank 1), dann der Inhalt; Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P5-textures.md`. Ein DTS enthält eine Art (Wand, Boden, Decke); die Bilddaten stehen getrennt in einer VRL-Datei (`RXV` an die VRAM-Basis, die `TEXSET` angibt); alle VRAM-Offsets sind relativ zu dieser Basis.
+PRG-Datei: 2 Byte Ladeadresse (Standard je Art: Wand `$8000` bis `$AFFF`, Boden `$EE00` bis `$F5FF`, Decke `$F600` bis `$FB7F`; Bank 1), dann der Inhalt; Offsets relativ zum Inhalt, Wörter Low/High. Quelle: `docs/specs/P5-textures.md`. Ein DTS enthält eine Art (Wand, Boden, Decke); die Bilddaten stehen getrennt in einer VRL-Datei (`RXV` an die VRAM-Basis, die `TEXSET` angibt); alle VRAM-Offsets sind relativ zu dieser Basis.
 
 Kopf (32 Byte): `"DT"`, Version 1, Art (0 Wand, 1 Boden, 2 Decke), Geometrie-ID (Wort, aus der DVG), NE, D, NS (Slots), NST (Stile, ≤ 32), NI (Bilder, ≤ 254), NK (Kerne), je ein Wort Offset von Slotkarte, Stiltabelle, Bildverzeichnis, Kerntabelle, Datenbereich, Gesamtlänge, dann U (VRAM-Länge), CRC der VRAM-Daten (`crc_hqx`, Start `$FFFF`), stride, Reserve 0. Bereiche lückenlos in dieser Reihenfolge.
 
@@ -302,11 +324,11 @@ Kopf (32 Byte): `"DT"`, Version 1, Art (0 Wand, 1 Boden, 2 Decke), Geometrie-ID 
 
 ## DBG v1 (Tapete, von `tools/dbetex.py bg`)
 
-PRG-Datei (Standard `$A900`), Inhalt: `"DB"`, Version 1, VW, VH, Geometrie-ID (Wort), P (Panoramabreite in Byte, Wort), y0, h, Flags (Bit 0 WRAP), 4 Versatzwörter o_v (N, O, S, W), U = P · h (Wort), CRC der VRAM-Daten (Wort), dann VH Füllbytes (Farbe · 17 für Zeilen außerhalb [y0, y0 + h), sonst 0). Das Panorama liegt zeilenweise (P Byte je Zeile) in der zugehörigen VRL. Details und Zeichenregel: `docs/specs/P5-textures.md` 6.
+PRG-Datei (Standard `$FB80`, Bank 1, Bereich bis `$FBFF`), Inhalt: `"DB"`, Version 1, VW, VH, Geometrie-ID (Wort), P (Panoramabreite in Byte, Wort), y0, h, Flags (Bit 0 WRAP), 4 Versatzwörter o_v (N, O, S, W), U = P · h (Wort), CRC der VRAM-Daten (Wort), dann VH Füllbytes (Farbe · 17 für Zeilen außerhalb [y0, y0 + h), sonst 0). Das Panorama liegt zeilenweise (P Byte je Zeile) in der zugehörigen VRL. Details und Zeichenregel: `docs/specs/P5-textures.md` 6.
 
 ## S2 v1 (Sprite-Satz, von `tools/dbespr.py`)
 
-PRG-Datei: 2 Byte Ladeadresse (Standard `$7000`, Bank 1), dann der Inhalt (≤ 8192 Byte); Offsets relativ zum Inhalt, Wörter Low/High, VRAM-Offsets relativ zur VRAM-Basis aus `SPRITESET`. Quelle: `docs/specs/P5b-sprites.md`. Die Bilddaten stehen in einer VRL-Datei (`RXV` an die VRAM-Basis). Bereiche lückenlos in der Reihenfolge Kopf, Indextabelle, Bildverzeichnis, Kerntabelle, Tagtabelle, Datenbereich.
+PRG-Datei: 2 Byte Ladeadresse (Standard `$6000`, Bank 1, Bereich bis `$7FFF`), dann der Inhalt (≤ 8192 Byte); Offsets relativ zum Inhalt, Wörter Low/High, VRAM-Offsets relativ zur VRAM-Basis aus `SPRITESET`. Quelle: `docs/specs/P5b-sprites.md`. Die Bilddaten stehen in einer VRL-Datei (`RXV` an die VRAM-Basis). Bereiche lückenlos in der Reihenfolge Kopf, Indextabelle, Bildverzeichnis, Kerntabelle, Tagtabelle, Datenbereich.
 
 Kopf (40 Byte): `"S2"`, Version 1, Flags (Bit 0 Gegenstand), Geometrie-ID (Wort; 0 = jede Geometrie mit gleichem Stride und D), D, NA (1 … 4), NP (1 … 32), NI (≤ 254), NK (Wort), `angle_map[0 … 3]`, je ein Wort Offset von Indextabelle, Bildverzeichnis, Kerntabelle, Tagtabelle, dann NT (≤ 32), 0, Offset Datenbereich, Gesamtlänge, U (VRAM-Länge), CRC der VRAM-Daten (`crc_hqx`, Start `$FFFF`), stride (je ein Wort), Reserve 0 (4 Byte).
 
