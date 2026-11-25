@@ -3,7 +3,7 @@
 
 Aufruf: test/vice_smoke.py [--port N] [--timeout S] [--only i|c]
 Prüft (test/vice/smoke.bas, interpretiert und als Blitz!-Kompilat mit Runtime-Image 2):
-  INIT über den Stub; während des Aufrufs $D506 = x6 und $FF00 = $7F; Code unter I/O ($DB80, BLOAD über $D000); die Lib sieht Bank 0 bis $1FFF (lesen und
+  INIT über den Stub; während des Aufrufs $D506 = x6 und $FF00 = $7F; Code unter I/O ($DBC0, BLOAD über $D000); die Lib sieht Bank 0 bis $1FFF (lesen und
   schreiben); ein langer Aufruf (etwa 1 Mio. Zyklen) lässt die Jiffy-Uhr weiterzählen; BUFSET über den Stub;
   Prüfsumme Bank 0 $1C00-$3FFF unverändert; danach funktionieren VMW und RXV.
 Ereignisgesteuert: Haltepunkt auf dem BASIC-Fehlervektor ($0300), Ende über die Debug-Cartridge ($D7FF);

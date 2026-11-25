@@ -158,7 +158,7 @@ Der Puffer [B0, B1) liegt im gemeinsamen RAM (Bank 0, Fenster `$1300–$1BFF`). 
 | 2 / 3 | seitwärts links / rechts |
 | 4 / 5 / 6 | drehen links / rechts / umdrehen |
 
-Drehen: Richtung ändern, X = 0. Schritt: Zielzelle nach Richtung; außerhalb der Karte → X = 1, Y = Außenkachel; Kachel-Flag WEG → X = 1, Y = Kachel; Objekt der Liste auf der Zielzelle ohne Bit 7 (blockiert nicht) und ohne Bit 6 → X = 2, Y = Objektindex; sonst Position = Ziel, X = 0, Y = Kachel. Immer: P0 = Position, P1 = Inhaltsbyte der Position, P2 = Index des ersten Ereignisses der Position in der DMP-Ereignisliste oder `$FFFF`. A = 0.
+Drehen: Richtung ändern, X = 0, Y = Kachel der Position (P6f). Schritt: Zielzelle nach Richtung; außerhalb der Karte → X = 1, Y = Außenkachel; Kachel-Flag WEG → X = 1, Y = Kachel; Objekt der Liste auf der Zielzelle ohne Bit 7 (blockiert nicht) und ohne Bit 6 → X = 2, Y = Objektindex; sonst Position = Ziel, X = 0, Y = Kachel. Immer: P0 = Position, P1 = Inhaltsbyte der Position, P2 = Index des ersten Ereignisses der Position in der DMP-Ereignisliste oder `$FFFF`. A = 0.
 
 ## 4. Zustand der Lib (BSS)
 
@@ -705,3 +705,43 @@ Lib-Code 10 457 Byte (`$B000–$D8D8`, P6e 10 596; Schritt 1 10 391, Schritt 2 1
 - Bytegleich: P6e Standard 1 743 / `VMS_COPY` 1 713 Ansichten (Rand 525), voll 5 383 / 5 353; P6d, P6a, P6c, GEOMSET grün. Zyklen unverändert (±40). Code 10 473 Byte (`$B000–$D8E8`), Reserve 791 (Testbuild bis `$DB80`: 535).
 - **Zeilenindex je Bild (offener Punkt 1):** 4 Byte je Bildzeile kosten in den Demo-Sätzen +20 … 60 % S2 (Satz „hoch“ +123 %), dazu Format-/Werkzeugänderung und ≈ 80–120 Byte Code. Nutzen: Zeilen vor T entfallen (oben hinaus ≈ −3 000), bei Rand links/rechts nur die Befehle rechts von R (≈ −1 500 … −2 500 je Objekt); links von L muss weiter gelesen werden. Das Ziel ≈ 6 900 bliebe verfehlt (Kerne und Grundlast ≈ 5 000). Empfehlung: nicht umsetzen; falls oben hinaus wichtig wird, grober Index (alle 8 Zeilen, ≈ 3–8 % S2).
 
+
+## Ergebnis P6f (2026-11-25)
+
+Umgesetzt: `MOVE` (3.4) und Automap-Bit 6 in `VIEW`; `CELL` war seit P6c fertig (Test `map_check`, unverändert). Referenz: neues Modul **`tools/dbemove.py`** (nur `MOVE`, braucht weder DVG noch DTS; `move(m, pos, v, objects, action, objn)`), der Automap-Teil in **`tools/dbeview.py`** (`Scene.automap`, `_View.seen`/`seen_floor`), weil er die Interna der Sichtberechnung (`cover`, `bcov`, Zelle je Eintrag) braucht. `view()` verändert bei `automap = True` das `dmp.content` der Szene (Tests arbeiten auf einer Kopie).
+
+### Festlegungen (Lücken der Spezifikation)
+
+- **MOVE:** `A = 5` ohne `MAPINIT`, `A = 6` bei X ≥ 7 (Zustand und P0–P2 unverändert). Drehen: **Y = Kachel der Position** (3.4 sagte nur X = 0). Schritt: Reihenfolge der Prüfungen Karte → WEG → Objekt; Objektliste: höchstens 16 Einträge (`OBJN` > 16 wird als 16 gelesen), kleinster Index gewinnt, Bit 6 (unsichtbar) und Bit 7 (blockiert nicht) blockieren nicht. P3 bleibt unverändert; `MOVE` setzt kein Automap-Bit. `px`, `py` werden beim Schritt direkt fortgeschrieben (kein `calcxy`; Randprüfung 8 Bit: `$FF` ≥ W, auch für W = 255). P2 = Index des ersten Ereignisses mit gleicher Zelle (lineare Suche, Abbruch beim ersten Eintrag mit größerer Zelle, weil die Liste nach Zelle sortiert ist, P4 2.5; Referenz und 6502 gleich).
+- **Automap:** `MAPINIT` X Bit 0 wirkt nur mit Arbeitskopie (P1 ≠ 0), sonst `map_auto` = 0 (das DMP in Bank 1 bleibt unverändert). Markiert wird Bit 6 der Inhaltsebene (a) bei jeder Wand (Front oder Seite) einer Zelle in der Karte, die nicht ganz von `cover` verdeckt ist und ein Bild hat („angenommen“ = vor MAXITEM-/Pufferprüfung von `itemadd`; ein danach verworfener Eintrag markiert trotzdem), (b) bei jeder Zelle in der Karte mit Bodenelement, die nicht blockiert ist (DECKEND + vier Wände), deren Tiefe sichtbare Bodenzeilen hat und deren Bodenelement (x … x + w) nicht ganz von `bcov` verdeckt ist (Stand nach `vcells`, vor `vband`; auch bei Lücke und Abgrund). Deckenkacheln markieren nicht; Zellen außerhalb nie. Bei Abbruch (`E_TOOMANY`) bleiben die bis dahin gesetzten Marken.
+- **Testbuild:** `TESTHI` (Funktion 252) von `$DB80` nach `$DBC0` verschoben (`lib-test.cfg`, `lib.s`, Kommentar in `vice_smoke.py`), weil der Testbuild mit den P6f-Funktionen sonst nicht mehr unter `$DB80` passt; die Probe liest jetzt `$DBBF` (Füllbyte `$EA`).
+- **Tests:** `run_sim.py`: P6a erwartet `F = 3` ohne `MAPINIT` als `E_STATE`; neu `test_p6f_move`, `test_p6f_auto`, `test_p6f_cycles`; `ViewRunner.mapx/mapp1` (MAPINIT mit Arbeitskopie bei `AUTO_ADDR` = `$3800`), `last_items`. `test/tools/test_dbemove.py` (Referenz).
+
+### Test (sim65, bytegleich mit den Referenzen)
+
+- **MOVE:** 22 884 Aufrufe (X = 0: 15 524, 1: 5 269, 2: 2 091): demo, abgrund, 6 Zufallskarten (mit Gittern/Türen/WEG, 0–300 Ereignisse), 255 × 4 (600 Ereignisse, Index > 255, Zeiger über Seiten, px + 1 = `$FF`), 1 × 40, 40 × 1, 4 × 255, 1 × 1; je Karte alle Zellen (bei > 60 Zellen 60 zufällige und die Ecken) × 4 Richtungen × 7 Aktionen mit Zufallsobjekten (Nachbarzellen, Bit 6/7, 16 Objekte, `OBJN` = 20) und 300 Aufrufe lange Zufallsketten ohne `SETPOS` dazwischen; verglichen A, X, Y, P0, P1, P2 und der BSS-Zustand (`pos`, `vdir`, `px`, `py`). Fehlerfälle X = 7/255 und `MOVE` ohne `MAPINIT`.
+- **Automap:** 2 332 Ansichten (demo, abgrund, offener Raum, Gang, 24 Zufallskarten mit 6 Ansichten, zwei Fronten, darunter Abbruch durch kleine Puffer), Ketten über dieselbe Karte (Marken sammeln sich an); nach jeder Ansicht ist die Arbeitskopie (2 W H Byte) gleich der Referenz; dazu `X = 1` ohne Kopie und `X = 0` mit Kopie (keine Marken, DMP unverändert). Alle früheren Sätze (P6a, P6c, GEOMSET, P6d, P6e, je Standard und `VMS_COPY`) und die Python-Tests (106) unverändert grün.
+
+### Größen
+
+Lib-Code **11 016 Byte** (`$B000–$DB07`, P6e-opt 10 473: +543), **Reserve 248 Byte** bis `$DBFF` (Testbuild bis `$DBBF`: 56). BSS 1 922 Byte (+2, `cellp`), Reserve 126; LIBTAB unverändert (945). Je Funktion: `f_move` 387 Byte (davon 14 Byte Tabellen `mvtab`/`mvdel`), `cellptr` 54, `mark_seen` 36, `vauto` 81, dazu je 3 Byte in `vwall` und `vdepth`; aus `vcells` entfielen 28 Byte (nach `cellptr` ausgelagert).
+
+### Zyklen (sim65, ohne Stub, Lauf mit Funktion minus Lauf mit F = 7)
+
+| Fall | Zyklen |
+|---|---|
+| MOVE drehen (Mittel / max) | 340 / 431 (ohne Ereignisse 224 + Kartenzugriffe) |
+| MOVE Schritt ok | 629 / 697 |
+| MOVE Schritt gegen Karte/WEG | 512 / 626 |
+| MOVE, 16 Objekte, blockierendes zuletzt | 941 |
+| Ereignissuche je Eintrag | ≈ 56 je Eintrag vor der Position (Abbruch beim ersten größeren; Ereignis an Position 600 von 600: 33 987; 3 … 600 Ereignisse alle hinter der Position: 254) |
+| VIEW Gang, Mittel / max, ohne Automap | 33 962 / 39 701 (P6e-opt 33 364 / 39 048: +600 durch `cellptr`) |
+| VIEW Gang mit Automap | 36 035 / 41 681 (+2 070) |
+| VIEW demo ohne / mit Automap (Mittel) | 24 916 / 27 035 |
+| VIEW zufall (0 Objekte) ohne / mit (Mittel, max) | 41 739 / 56 094 · 45 719 / 59 526 |
+
+### Offene Punkte
+
+1. Ereignissuche linear: im Review auf Abbruch beim ersten größeren Eintrag umgestellt (+4 Byte; Zellen ohne Ereignis kosten nur noch die Einträge davor, ≈ 56 Zyklen je Eintrag). Binäre Suche (≈ +50 Byte) erst bei Karten mit mehreren hundert Ereignissen nötig; Entscheidung Nutzer.
+2. Zyklenziel Gang (Mittel ≤ 30 000) bleibt offen (33 962; P6d-opt/P6e-opt unverändert). Automap kostet +6 %; Marken nur bei Bedarf einschalten (`MAPINIT` X Bit 0).
+3. Reserve nach P6f nur 248 Byte (Testbuild 56): P6g/P7 sollten keine größeren Funktionen mehr in die Lib legen, oder `VMS_COPY`-freie Einsparungen (`vauto` 81 Byte durch Marken in `vcells` ersetzen, ≈ −35 Byte, geänderte Semantik: `bcov` noch unvollständig) prüfen.

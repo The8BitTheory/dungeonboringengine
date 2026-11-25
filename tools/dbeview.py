@@ -213,6 +213,7 @@ class Scene:
     pos: int = 0
     dir: int = 0
     ap: int = 0
+    automap: bool = False                         # P6f: Automap-Bit 6 in dmp.content setzen (view veraendert dmp!)
     buf: tuple = DEFAULT_BUF
     vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9, Standardbuild);
                                                   # False = Build VMS_COPY (Kopie in den Puffer, Typ 12)
@@ -802,6 +803,7 @@ class _View(_Ctx):
                 self.pend = []
                 self.lue = {KIND_FLOOR: False, KIND_CEIL: False}
                 self.depth_cells(d)
+                self.seen_floor(d)
                 self.baender(d, KIND_FLOOR)
                 self.baender(d, KIND_CEIL)
                 self.tapete(d)
@@ -815,6 +817,26 @@ class _View(_Ctx):
             pass
         return self.output()
 
+    # ---- Automap (P6f): Bit 6 "gesehen" der Inhaltsebene, nur mit Scene.automap
+    def seen(self, c):
+        if self.sc.automap and c is not None:
+            self.m.content[c] |= 0x40
+
+    def seen_floor(self, d):
+        """Zellen mit nicht ganz verdecktem Bodenelement (bcov wie bei den Kacheln des Bodenbandes); nicht fuer
+        Zellen ausserhalb der Karte und nicht fuer blockierte Zellen (deckend, vier Waende), nur bei sichtbaren
+        Bodenzeilen der Tiefe. Ein Wandeintrag (depth_cells) markiert seine Zelle, sobald er nicht ganz verdeckt
+        ist und ein Bild hat (auch wenn add() ihn danach wegen Platz verwirft). Deckenkacheln markieren nicht."""
+        dt = self.g.depth[d]
+        if not self.sc.automap or dt.fy1 <= dt.fy0:
+            return
+        for e in self.g.elems[dt.first:dt.first + dt.n]:
+            if e.art != ART_FLOOR:
+                continue
+            c = self.cell(d, e.s)
+            if c is not None and not self.blocked(self.tile(c)) and not self.allcov(self.bcov, e.x, e.x + e.w):
+                self.seen(c)
+
     def depth_cells(self, d):
         for s, ce in self.cells_of(d):
             c = self.cell(d, s)
@@ -827,6 +849,7 @@ class _View(_Ctx):
                     ent = self.resolve(KIND_WALL, e.index, t.walls[self.face_of(e)])
                     if ent is None or self.allcov(self.cover, e.x, e.x + e.w):
                         continue
+                    self.seen(c)
                     self.add(self.wall_item(KIND_WALL, e, ent))
                     if self.deck(e, t, ent):
                         if e.art == ART_FRONT:

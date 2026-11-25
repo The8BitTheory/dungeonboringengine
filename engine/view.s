@@ -497,6 +497,7 @@ vdepth: lda     cd
         lda     cd
         sta     bsyk+2
         jsr     vcells
+        jsr     vauto
         lda     #1
         jsr     vband           ; Boden
         lda     #2
@@ -551,21 +552,8 @@ vcells: ldx     cd
         sta     ZP0
         lda     k_ehi,x
         sta     ZP0+1
-        ldy     k_si,x
-        sty     ksi
-        lda     dout
-        bne     @out
-        cpy     rlo
-        bcc     @out
-        cpy     rhi
+        jsr     cellptr         ; ZP1 = Kachel der Zelle, C = 1: außerhalb
         bcs     @out
-        clc                     ; Zelle = cbase + s * R
-        lda     cbase
-        adc     r_lo,y
-        sta     ZP1
-        lda     cbase+1
-        adc     r_hi,y
-        sta     ZP1+1
         ldy     #0
         lda     (ZP1),y
         tay
@@ -659,6 +647,92 @@ vcells: ldx     cd
 @oc:    jsr     vobjc
         jmp     @nx
 
+; Zelle kk der Tiefe: ksi = s + 15; ZP1 = cellp = Zelle = cbase + s * R in der Kachelebene, C = 1 außerhalb der Karte
+; (cellp + 1 = 0)
+cellptr:
+        ldx     kk
+        ldy     k_si,x
+        sty     ksi
+        lda     dout
+        bne     @o
+        cpy     rlo
+        bcc     @o
+        cpy     rhi
+        bcs     @o
+        lda     cbase           ; C = 0
+        adc     r_lo,y
+        sta     ZP1
+        sta     cellp
+        lda     cbase+1
+        adc     r_hi,y
+        sta     ZP1+1
+        sta     cellp+1
+        clc                     ; (negative Schritte erzeugen einen Übertrag)
+        rts
+@o:     lda     #0
+        sta     cellp+1
+        sec
+        rts
+
+; Automap (P6f): Bit 6 der Inhaltsebene der Zelle cellp setzen (nur mit map_auto, nicht außerhalb der Karte)
+mark_seen:
+        lda     map_auto
+        beq     @r
+        lda     cellp+1
+        beq     @r
+        clc
+        lda     cellp
+        adc     map_wh
+        sta     ZP1
+        lda     cellp+1
+        adc     map_wh+1
+        sta     ZP1+1
+        ldy     #0
+        lda     (ZP1),y
+        ora     #$40
+        sta     (ZP1),y
+@r:     rts
+
+; Automap Boden: je Zelle der Tiefe mit Bodenelement (gr_fc <> $FF: nicht blockiert, Bodenzeilen sichtbar) in der
+; Karte und nicht ganz verdecktem Element (bcov, vor vband) als gesehen markieren
+vauto:  lda     map_auto
+        beq     @r
+        ldx     cd
+        lda     d_kn,x
+        sta     kn
+        lda     d_k0,x
+        sta     kk
+        lda     #0
+        sta     kj
+@l:     ldy     kj
+        lda     gr_fc,y
+        cmp     #$FF
+        beq     @n
+        jsr     cellptr
+        bcs     @n
+        ldx     kk
+        lda     k_elo,x
+        sta     ZP0
+        lda     k_ehi,x
+        sta     ZP0+1
+        lda     k_fl,x          ; Platz des Bodenelements (16 * Platz): x bei +4, w bei +6
+        ora     #4
+        tay
+        lda     (ZP0),y
+        tax
+        iny
+        iny
+        clc
+        adc     (ZP0),y
+        jsr     allcov_b
+        bcs     @n
+        jsr     mark_seen
+@n:     inc     kk
+        inc     kj
+        dec     kn
+        bne     @l
+@r:     rts
+
 ; Wand eo der Zelle (ZP0, tp, ksi) im Sichtdurchlauf: allcov vor resolve
 vwall:  ldy     eo
         lda     (ZP0),y         ; Art 0 Front, 1 Seite
@@ -737,6 +811,7 @@ vwall:  ldy     eo
         lda     (ZP0),y
         and     #1
 @nd:    sta     wdeck
+        jsr     mark_seen
         jsr     itemadd         ; STOP möglich; auch ein verworfener Eintrag (nur Rand) deckt danach ab (Referenz)
         lda     wdeck
         beq     @r
@@ -3491,6 +3566,7 @@ ia:     .res 1
 ib:     .res 1
 ii:     .res 1
 ij:     .res 1
+cellp:  .res 2                  ; Zelle in der Kachelebene (cellptr), High = 0 außerhalb der Karte
 cbase:  .res 2                  ; Kachelebene + pos + d * F
 du:     .res 2                  ; rtab
 r_lo:   .res 31                 ; s * R je s + 15

@@ -16,9 +16,10 @@
 ; Alle anderen Funktionen (und F >= 17): A = E_NOTIMPL, bis ihr Teilschritt (P6d-P6f) sie umsetzt.
 ; Stand P6d: VIEW ohne Objekte (engine/view.s, docs/specs/P6-engine.md "Ergebnis P6d").
 ; Stand P6e: VIEW mit Objekten und Gegenständen (5.8; "Ergebnis P6e").
+; Stand P6f: MOVE (3.4) und Automap-Bit 6 in VIEW (nur MAPINIT X Bit 0 mit Arbeitskopie; "Ergebnis P6f").
 ;
 ; Übersetzen mit -DDBE_TEST (nur Tests, nie im Spiel, mit lib-test.cfg): Funktionen 250 (MMU-/Common-RAM-Probe),
-; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DB80) für den VICE-Rauchtest und 253
+; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DBC0) für den VICE-Rauchtest und 253
 ; (Zeropage-Block ZPB unter Interrupts, test/vice_zp.py).
 ; Übersetzen mit -DSIM: ohne LOADADDR (sim65-Harness, test/sim).
 
@@ -103,7 +104,7 @@ notimpl:
 
 ; Tabelle aus 3: F = 0 ... 16; nicht umgesetzte Einträge = notimpl
 functab:
-        .word   f_init-1,     f_mapinit-1,  f_setpos-1,   notimpl-1     ; 0 INIT, 1 MAPINIT, 2 SETPOS, 3 MOVE
+        .word   f_init-1,     f_mapinit-1,  f_setpos-1,   f_move-1      ; 0 INIT, 1 MAPINIT, 2 SETPOS, 3 MOVE
         .word   f_view-1,     f_cell-1,     f_setcell-1,  notimpl-1     ; 4 VIEW, 5 CELL, 6 SETCELL, 7 (ENEMYSTEP)
         .word   notimpl-1,    f_spriteset-1,f_itemset-1,  f_poolset-1   ; 8 (WALLSET), 9 SPRITESET, 10 ITEMSET, 11 POOLSET
         .word   f_geomset-1,  f_texset-1,   f_bgset-1,    f_bufset-1    ; 12 GEOMSET, 13 TEXSET, 14 BGSET, 15 BUFSET
@@ -600,9 +601,14 @@ f_mapinit:
         sta     map_cont+1
 @nocopy:
         jsr     mtiles          ; Kacheltabellen für VIEW
-        lda     argx
+        lda     argx            ; Automap nur mit Bit 0 und Arbeitskopie (P1 <> 0, P1 noch Eingabe)
         and     #1
-        sta     map_auto
+        ldx     P1
+        bne     @au
+        ldx     P1+1
+        bne     @au
+        lda     #0
+@au:    sta     map_auto
         lda     #1
         sta     map_ok
         lda     #0
@@ -691,6 +697,170 @@ f_setpos:
         sta     pos+1
         jsr     calcxy
         jmp     ok
+
+; ---------------------------------------------------------------- 3 MOVE (P6f, 3.4)
+; X = Aktion: 0/1 vor/zurück, 2/3 links/rechts, 4/5/6 drehen links/rechts/umdrehen; A = 6 bei X >= 7.
+; Ergebnis X: 0 ok, 1 Karte/WEG, 2 Objekt; Y: Kachel (Position bzw. Ziel) bzw. Objektindex; P0 = Position,
+; P1 = Inhaltsbyte der Position, P2 = Index des ersten Ereignisses der Position ($FFFF keines)
+f_move: lda     map_ok
+        jeq     e_state
+        ldx     argx
+        cpx     #7
+        jcs     range
+        lda     vdir
+        clc
+        adc     mvtab,x
+        and     #3
+        cpx     #4
+        jcc     @step
+        sta     vdir            ; drehen
+        ldx     #0
+@fin:   stx     t1              ; Ergebnis X, Y (t2)
+        sty     t2
+        lda     pos
+        sta     P0
+        lda     pos+1
+        sta     P0+1
+        txa
+        bne     @nt
+        tay                     ; X = 0: Y = Kachel der Position
+        jsr     getcell
+        lda     (ZP0),y
+        sta     t2
+@nt:    ldy     #2              ; P1 = Inhaltsbyte
+        jsr     getcell
+        ldy     #0
+        lda     (ZP0),y
+        sta     P1
+        sty     P1+1
+        dey                     ; P2 = Index des ersten Ereignisses der Zelle ($FFFF keines)
+        sty     P2
+        sty     P2+1
+        lda     map_ev
+        sta     ZP0
+        lda     map_ev+1
+        sta     ZP0+1
+        iny
+        sty     acc
+        sty     acc+1
+@e:     lda     acc
+        cmp     map_ne
+        lda     acc+1
+        sbc     map_ne+1
+        bcs     @d
+        ldy     #1              ; Liste nach Zelle sortiert (P4 2.5): Abbruch beim ersten größeren Eintrag
+        lda     (ZP0),y
+        cmp     pos+1
+        bcc     @nx
+        bne     @d
+        dey
+        lda     (ZP0),y
+        cmp     pos
+        bcc     @nx
+        bne     @d
+        lda     acc
+        sta     P2
+        lda     acc+1
+        sta     P2+1
+@d:     ldx     t1
+        ldy     t2
+        lda     #E_OK
+        rts
+@nx:    clc
+        lda     ZP0
+        adc     #4
+        sta     ZP0
+        bcc     @i
+        inc     ZP0+1
+@i:     inc     acc
+        bne     @e
+        inc     acc+1
+        bne     @e
+@step:  tax                     ; X = Zielrichtung d; Zielzelle (acc = x, y), außerhalb: 8 Bit, $FF >= W
+        clc
+        lda     px
+        adc     mvdel,x
+        sta     acc
+        cmp     map_w
+        bcs     @out
+        clc
+        lda     py
+        adc     mvdel+3,x
+        sta     acc+1
+        cmp     map_h
+        bcc     @in
+@out:   ldx     #1              ; außerhalb: Außenkachel
+        ldy     map_out
+        jmp     @fin
+@in:    txa                     ; Zellindex = pos + Schritt: O +1, W -1, S +W, N -W
+        lsr
+        lda     #1
+        bcs     @a
+        lda     map_w
+@a:     ldy     #0
+        cpx     #0
+        beq     @ng
+        cpx     #3
+        bne     @pl
+@ng:    eor     #$FF            ; negativ
+        clc
+        adc     #1
+        dey
+@pl:    clc
+        adc     pos
+        sta     P0
+        tya
+        adc     pos+1
+        sta     P0+1
+        ldy     #0              ; Kachel des Ziels
+        jsr     getcell
+        lda     (ZP0),y
+        sta     t0
+        jsr     tileflags
+        lsr                     ; WEG = Bit 0
+        bcc     @ow
+        ldx     #1
+        ldy     t0
+        jmp     @fin
+@ow:    lda     OBJN            ; Objekte der Liste (höchstens 16): erstes ohne Bit 6/7 auf der Zielzelle
+        cmp     #MAXOBJ+1
+        bcc     @oc
+        lda     #MAXOBJ
+@oc:    sta     t1
+        ldx     #0
+        ldy     #0
+@ol:    cpy     t1
+        beq     @go
+        lda     OBJL,x
+        cmp     P0
+        bne     @on
+        lda     OBJL+1,x
+        cmp     P0+1
+        bne     @on
+        lda     OBJL+5,x
+        and     #$C0
+        beq     @ob
+@on:    txa
+        clc
+        adc     #OBJLEN
+        tax
+        iny
+        bne     @ol
+@ob:    ldx     #2              ; Y = Objektindex
+        jmp     @fin
+@go:    lda     P0              ; Schritt ausführen
+        sta     pos
+        lda     P0+1
+        sta     pos+1
+        lda     acc
+        sta     px
+        lda     acc+1
+        sta     py
+        ldx     #0
+        jmp     @fin
+; Richtungszuwachs je Aktion; dx je Richtung N O S W (mvdel[d]), dy = mvdel[d + 3]
+mvtab:  .byte   0, 2, 3, 1, 3, 1, 2
+mvdel:  .byte   0, 1, 0, $FF, 0, 1, 0
 
 ; ---------------------------------------------------------------- 5 CELL
 f_cell: lda     map_ok
@@ -1489,12 +1659,12 @@ t_zp:   ldx     #ZPBLEN-1
         lda     #1
 @r:     ldy     #0
         rts
-; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DB80, Füllbyte $EA bis dahin): A = 0, X = $42,
-;      Y = Byte bei $DB7F (erwartet $EA: BLOAD hat über $D000 geladen und die Lib sieht RAM statt I/O)
+; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DBC0, Füllbyte $EA bis dahin): A = 0, X = $42,
+;      Y = Byte bei $DBBF (erwartet $EA: BLOAD hat über $D000 geladen und die Lib sieht RAM statt I/O)
         .segment "TESTHI"
 t_hi:   lda     #0
         ldx     #$42
-        ldy     $DB7F
+        ldy     $DBBF
         rts
         .segment LIBSEG
 .endif

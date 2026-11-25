@@ -185,8 +185,8 @@ def test_p6a():
     check('INIT OBJN = 0', objn == b'\0')
     for f in (17, 18, 255, 7, 8, 4, 3):
         c = nxt()
-        want = (5, 0, 0) if f == 4 else (255, 0, 0)          # VIEW ohne GEOMSET/MAPINIT: E_STATE
-        check(f'F={f} {"E_STATE" if f == 4 else "E_NOTIMPL"}', (c.a, c.x, c.y) == want, str((c.a, c.x, c.y)))
+        want = (5, 0, 0) if f in (3, 4) else (255, 0, 0)     # VIEW/MOVE ohne GEOMSET/MAPINIT: E_STATE (MOVE seit P6f)
+        check(f'F={f} {"E_STATE" if f in (3, 4) else "E_NOTIMPL"}', (c.a, c.x, c.y) == want, str((c.a, c.x, c.y)))
 
     def bufcase(name, want_a, want_buf):
         c = nxt(); d = nxt()[1]
@@ -827,6 +827,8 @@ class ViewRunner:
     """Baut aus dbeview-Szenen eine Szenendatei (nur nötige Setz-Aufrufe zwischen den Ansichten) und vergleicht
     jede VIEW-Antwort bytegenau mit dbeview.view."""
 
+    mapx, mapp1 = 0, 0              # MAPINIT: X und Arbeitskopie (P6f: Automap)
+
     def __init__(self, dbeview, dbetex, vcopy=False):
         self.dv, self.dt = dbeview, dbetex
         self.bank1 = not vcopy
@@ -880,7 +882,7 @@ class ViewRunner:
         dmp = self.dv.dbemap.to_dmp(sc.dmp)[2:]
         if st.get('dmp') != dmp:
             self.scene.seg(P6D_ADDR['dmp'], dmp)
-            self._call(1, p=(P6D_ADDR['dmp'], 0, 0, 0), want=('setup', 0))
+            self._call(1, self.mapx, p=(P6D_ADDR['dmp'], self.mapp1, 0, 0), want=('setup', 0))
             st['dmp'] = dmp
             st.pop('pos', None)
         if st.get('pos') != (sc.pos, sc.dir):
@@ -946,6 +948,7 @@ class ViewRunner:
 
     def run(self):
         r = run(self.scene, self.prg)
+        self.last_items = r.items
         calls = [c for c in r.items if isinstance(c, Call)]
         assert len(calls) == len(self.expect) + 1
         fails, nview, codes = [], 0, {}
@@ -1371,6 +1374,324 @@ def test_p6e(vcopy=False):
     return ok
 
 
+# ------------------------------------------------------------------ P6f: MOVE, Automap, Zyklen
+AUTO_ADDR = 0x3800                  # Arbeitskopie der Karte (2 W H Byte) in den Automap-Tests
+
+
+def move_maps(dbemap, dbeview):
+    """Karten für den MOVE-Test: (Name, Map). Mit Ereignissen (mehrere je Zelle, Indizes > 255), Türen, Objekten
+    nur in der Liste; Randfälle W = 255 (px + 1 = $FF), W = 1, H = 1."""
+    import random
+    from test_dbeview import abgrund_map
+    rnd = random.Random(61)
+    T = dbemap.Tile
+    out = [('demo', dbemap.load_toml(DEMO_MAP)), ('abgrund', abgrund_map())]
+    for k in range(6):
+        out.append((f'zufall {k}', dbeview.random_map(rnd, rnd.randint(3, 20), rnd.randint(3, 20))))
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, 1 | 4, 0), T((2, 2, 2, 2), 1, 1, 1 | 8, 0)]
+    for name, w, h in (('breit 255', 255, 4), ('schmal 1', 1, 40), ('flach 40', 40, 1), ('hoch 4', 4, 255),
+                       ('1x1', 1, 1)):
+        cells = [rnd.choice((0, 0, 0, 1, 2)) for _ in range(w * h)]
+        out.append((name, dbemap.Map(name, w, h, t, cells, [rnd.randrange(64) | rnd.choice((0, 0x40, 0x80)) for _ in cells],
+                                     [], 0, 0, rnd.choice((0, 1)))))
+    for name, m in out:
+        n = m.width * m.height
+        if name != 'demo':                                   # demo behält ihre drei Ereignisse
+            nev = 600 if name == 'breit 255' else (rnd.choice((0, 3, 40, 300)) if n > 40 else 5)   # Index > 255
+            evs = sorted({(rnd.randrange(n), rnd.choice((1, 2, 3, 4, 200)), rnd.randrange(256)) for _ in range(nev)})
+            m.events = [dbemap.Event(*e) for e in evs]
+        m.start = next((i for i, c in enumerate(m.cells) if not m.tiles[c].flags & 1), 0)
+        if m.tiles[m.cells[m.start]].flags & 1:
+            m.cells[m.start] = 0
+        dbemap.validate(m)
+    return out
+
+
+def test_p6f_move():
+    """MOVE (3.4): alle Zellen x Richtungen x Aktionen gegen tools/dbemove.py; Zufallsketten (Zustand pos/vdir/px/py
+    zwischen den Aufrufen), Objekte mit Bit 6/7 auf den Nachbarzellen, Fehlerfälle."""
+    sys.path.insert(0, TOOLS)
+    sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
+    import random
+    import dbemap, dbeview, dbemove
+    dbeview.dbemap = dbemap
+    L = labels()
+    pos_a, nst = L['pos'], 7
+    ok, total, fails, xs = True, 0, [], {0: 0, 1: 0, 2: 0}
+    rnd = random.Random(6)
+
+    def nobjs(m, cell, v):
+        """Objekte um die Zelle: auf den Nachbarzellen (auch blockierend), mit Bit 6/7, dazu zufällige"""
+        w = m.width
+        near = [c for c in (cell - w, cell + w, cell - 1, cell + 1) if 0 <= c < w * m.height]
+        n = rnd.choice((0, 0, 1, 2, 5, 16))
+        objs = []
+        for _ in range(n):
+            c = rnd.choice(near) if near and rnd.random() < 0.7 else rnd.randrange(w * m.height)
+            objs.append(dbeview.Obj(c, rnd.randrange(3), rnd.choice((0, 1, 2, 3, 0xFF)), rnd.randrange(4), rnd.randrange(8),
+                                    rnd.random() < 0.25, rnd.random() < 0.3))
+        return objs
+
+    for name, m in move_maps(dbemap, dbeview):
+        w, h = m.width, m.height
+        n = w * h
+        sc = Scene()
+        sc.call(0)
+        dmp = dbemap.to_dmp(m)[2:]
+        sc.seg(P6D_ADDR['dmp'], dmp)
+        sc.call(1, p=(P6D_ADDR['dmp'], 0, 0, 0))
+        exp = []                                            # (Referenz, Aktion, Zelle, Richtung, Objekte)
+        cells = range(n) if n <= 60 else sorted(rnd.sample(range(n), 60)) + [0, n - 1, w - 1, n - w]
+        for cell in cells:
+            for v in range(4):
+                for act in range(7):
+                    objs = nobjs(m, cell, v)
+                    sc.call(2, v, p=(cell, 0, 0, 0))
+                    nn = len(objs) if len(objs) < 16 or rnd.random() < 0.7 else 20      # OBJN > 16: nur 16 gelesen
+                    sc.call(3, act, objn=nn, objl=b''.join(
+                        struct.pack('<HBBBB', o.cell, o.set, o.dir, o.phase, o.byte5()) for o in objs))
+                    sc.dump(pos_a, 7)
+                    exp.append((dbemove.move(m, cell, v, objs, act, nn), cell, v, act))
+        # Zufallskette: MOVE ohne SETPOS dazwischen, mit festen Objekten (Bit 6/7 gemischt)
+        cell, v = m.start, m.direction
+        sc.call(2, v, p=(cell, 0, 0, 0))
+        objs = nobjs(m, cell, v) + nobjs(m, rnd.randrange(n), 0)
+        objs = objs[:16]
+        ob = b''.join(struct.pack('<HBBBB', o.cell, o.set, o.dir, o.phase, o.byte5()) for o in objs)
+        for _ in range(300):
+            act = rnd.choice((0, 0, 0, 1, 2, 3, 4, 5, 6))
+            r = dbemove.move(m, cell, v, objs, act)
+            sc.call(3, act, objn=len(objs), objl=ob)
+            sc.dump(pos_a, 7)
+            exp.append((r, cell, v, act))
+            cell, v = r.pos, r.dir
+        r = run(sc)
+        # Auswertung: Aufrufreihenfolge = SETPOS, MOVE, Dump je Eintrag (Ketten: erst SETPOS)
+        items = list(r.items)[2:]
+        k = 0
+        for ei, (ref, c0, v0, act) in enumerate(exp):
+            if ei < len(exp) - 300:
+                it_pos = items[k]; it_mv = items[k + 1]; dump = items[k + 2][1]; k += 3
+            else:
+                if ei == len(exp) - 300:
+                    k += 1                                  # SETPOS der Kette
+                it_mv = items[k]; dump = items[k + 1][1]; k += 2
+            want = (ref.a, ref.x, ref.y, ref.p0, ref.p1, ref.p2)
+            c = it_mv
+            have = (c.a, c.x, c.y, c.p[0], c.p[1], c.p[2])
+            pos_l = dump[0] | dump[1] << 8
+            st = (pos_l, dump[2], dump[5], dump[6])
+            wst = (ref.pos, ref.dir, ref.pos % w, ref.pos // w)
+            total += 1
+            xs[ref.x] = xs.get(ref.x, 0) + 1
+            if have != want or st != wst:
+                fails.append(f'{name} Zelle {c0} v {v0} Aktion {act}: sim {have} {st} <> Referenz {want} {wst}')
+        print(f'P6f MOVE {name} ({w}x{h}, {len(m.events)} Ereignisse): {len(exp)} Aufrufe, {len(fails)} Abweichungen so weit')
+    print(f'P6f MOVE: {total} Aufrufe verglichen (X = 0: {xs[0]}, 1: {xs[1]}, 2: {xs[2]})')
+    # Fehlerfälle: X >= 7, MOVE ohne MAPINIT
+    sc = Scene()
+    sc.call(0)
+    sc.call(3, 0)
+    m = dbemap.load_toml(DEMO_MAP)
+    sc.seg(P6D_ADDR['dmp'], dbemap.to_dmp(m)[2:])
+    sc.call(1, p=(P6D_ADDR['dmp'], 0, 0, 0))
+    sc.call(3, 7)
+    sc.call(3, 255)
+    sc.dump(pos_a, 7)
+    r = run(sc)
+    c = [i for i in r.items if isinstance(i, Call)]
+    exp_ = [(5, 0, 0), (0, 7, 5), (6, 0, 0), (6, 0, 0)]       # MOVE ohne MAPINIT, MAPINIT (W, H), X = 7, X = 255
+    for cc, (a, x, y) in zip(c[1:], exp_):
+        if (cc.a, cc.x, cc.y) != (a, x, y):
+            fails.append(f'Fehlerfall: A/X/Y {(cc.a, cc.x, cc.y)} <> {(a, x, y)}')
+    d = r.items[-1][1]
+    if (d[0] | d[1] << 8, d[2]) != (m.start, m.direction):
+        fails.append('Fehlerfall: Zustand verändert')
+    for f in fails[:10]:
+        print('FAIL', f)
+    ok = not fails
+    print(f'P6f MOVE -> {"ok" if ok else "FEHLER"}')
+    return ok
+
+
+def test_p6f_auto():
+    """Automap-Bit 6 in VIEW: Arbeitskopie der Inhaltsebene nach jeder Ansicht = dbeview (Scene.automap)."""
+    sys.path.insert(0, TOOLS)
+    sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
+    import copy, random
+    import dbemap, dbetex, dbeview
+    dbeview.dbemap = dbemap
+    from test_dbeview import abgrund_map, open_room
+    full = bool(os.environ.get('DBEVIEW_FULL'))
+    tmp = tempfile.TemporaryDirectory()
+    A = dbeview.build_demo_assets(tmp.name)
+    A2 = dbeview.double_fronts(A)
+    dbg_prg, _, _ = dbetex.build_background(dbetex.load_bg_conf(os.path.join(tmp.name, 'bg.toml')))
+    demo = dbemap.load_toml(DEMO_MAP)
+    ok, total, marked = True, 0, [0, 0]
+
+    def free(m):
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+
+    class AutoRunner(ViewRunner):
+        mapx, mapp1 = 1, AUTO_ADDR
+
+        def __init__(self, vcopy=False):
+            super().__init__(dbeview, dbetex, vcopy)
+            self.dbg_bytes = dbg_prg[2:]
+            self.ref, self.refkey, self.dumps = None, None, []
+
+        def add(self, name, sc):
+            sc.objects, sc.itemtab = [], [0] * 64
+            sc.vms_bank1, sc.dts_addr = self.bank1, P6D_ADDR['dts']
+            self.setup(sc)
+            key = dbeview.dbemap.to_dmp(sc.dmp)
+            if self.refkey != key:                          # neue Karte: MAPINIT hat die Kopie frisch angelegt
+                self.refkey, self.ref = key, copy.deepcopy(sc.dmp)
+            sc.s2_addr = tuple(self.s2_addr(ss) if ss is not None else 0 for ss in sc.s2)
+            sc2 = copy.copy(sc)
+            sc2.dmp, sc2.automap = self.ref, True
+            before = bytes(self.ref.content)
+            self._call(4, p=(sc.ap, 0, 0, 0), want=(name, self.dv.view(sc2)))
+            n = self.ref.width * self.ref.height
+            self.scene.dump(AUTO_ADDR, 2 * n)
+            self.dumps.append((name, bytes(self.ref.cells) + bytes(self.ref.content)))
+            marked[0] += sum(1 for a, b in zip(before, self.ref.content) if a != b)
+            marked[1] += 1
+
+    def go(label, scenes, runs=1):
+        nonlocal ok, total
+        R = AutoRunner()
+        for name, sc in scenes:
+            R.add(name, sc)
+        n, fails, codes, _ = R.run()
+        dumps = [i for i in R.last_items if not isinstance(i, Call)]
+        for (name, want), (addr, got) in zip(R.dumps, dumps):
+            if got != want:
+                bad = [i for i in range(len(got)) if got[i] != want[i]][:4]
+                fails.append(f'{name}: Arbeitskopie weicht ab (Offsets {bad})')
+        total += n
+        print(f'P6f Automap {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        for f in fails[:10]:
+            print('FAIL', f)
+        ok = ok and not fails
+
+    # Ketten über dieselbe Karte (Marken sammeln sich an): demo, abgrund, open_room, Gang
+    rnd = random.Random(8)
+    gm = corridor_map(dbemap)
+    for label, m in (('demo', demo), ('abgrund', abgrund_map()), ('raum', open_room()), ('gang', gm)):
+        fr = free(m)
+        scs = []
+        for bc in (False, True):
+            for i in rnd.sample(fr, len(fr)):
+                for v in range(4):
+                    scs.append((f'{label} {i}/{v} bc{int(bc)}', dbeview.make_scene(A, m, i, v, band_cover=bc)))
+        go(label, scs)
+    # zufall (INHALT, Lücken, blockierte Zellen), zwei Fronten, kleine Puffer (Abbruch: Marken bis dahin)
+    nmaps, nv = (60, 8) if full else (24, 6)
+    scs = []
+    for k in range(nmaps):
+        base = dbeview.random_scene(k, A, nobj=0)
+        rr = random.Random(k)
+        for j in range(nv):
+            sc = copy.copy(base)
+            sc.vram_bases = copy.deepcopy(base.vram_bases)
+            sc.pos, sc.dir = rr.choice(free(base.dmp)), rr.randrange(4)
+            if j == nv - 1:
+                sc.buf = (0x1300, 0x1300 + rr.choice((64, 128, 256)))
+            scs.append((f'zufall {k}/{j}', sc))
+    go('zufall', scs)
+    scs = [(f'2F demo {i}/{v}', dbeview.make_scene(A2, demo, i, v)) for i in free(demo) for v in range(4)]
+    scs += [(f'2F zufall {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(20)]
+    go('zwei Fronten', scs)
+    # ohne Arbeitskopie (X = 1, P1 = 0) und mit X = 0: keine Marken, DMP unverändert
+    for label, mx in (('X=1 ohne Kopie', 1), ('X=0 mit Kopie', 0)):
+        R = ViewRunner(dbeview, dbetex)
+        R.dbg_bytes = dbg_prg[2:]
+        R.mapx, R.mapp1 = mx, (0 if mx else AUTO_ADDR)
+        for i in free(demo):
+            for v in range(4):
+                R.add(f'{label} {i}/{v}', dbeview.make_scene(A, demo, i, v))
+        R.scene.dump(P6D_ADDR['dmp'], len(dbemap.to_dmp(demo)) - 2)
+        n, fails, codes, _ = R.run()
+        got = [i for i in R.last_items if not isinstance(i, Call)][-1][1]
+        if got != dbemap.to_dmp(demo)[2:]:
+            fails.append('DMP verändert')
+        print(f'P6f Automap {label}: {n} Ansichten, {len(fails)} Abweichungen')
+        ok = ok and not fails
+        for f in fails[:5]:
+            print('FAIL', f)
+    print(f'P6f Automap: {total} Ansichten, {marked[0]} Zellen markiert (über {marked[1]} Ansichten) -> '
+          f'{"ok" if ok and marked[0] else "FEHLER"}')
+    return ok and marked[0] > 0
+
+
+def test_p6f_cycles():
+    """Zyklen: MOVE je Fall (Lauf mit MOVE minus Lauf mit F = 7) und VIEW ohne/mit Automap."""
+    sys.path.insert(0, TOOLS)
+    sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
+    import random
+    import dbemap, dbetex, dbeview, dbemove
+    dbeview.dbemap = dbemap
+    tmp = tempfile.TemporaryDirectory()
+    A = dbeview.build_demo_assets(tmp.name)
+    dbg_prg, _, _ = dbetex.build_background(dbetex.load_bg_conf(os.path.join(tmp.name, 'bg.toml')))
+    demo = dbemap.load_toml(DEMO_MAP)
+
+    def mv_cycles(m, cell, v, act, objs=()):
+        pre = Scene()
+        pre.call(0)
+        pre.seg(P6D_ADDR['dmp'], dbemap.to_dmp(m)[2:])
+        pre.call(1, p=(P6D_ADDR['dmp'], 0, 0, 0))
+        pre.call(2, v, p=(cell, 0, 0, 0))
+        base = bytes(pre.b)
+        ol = b''.join(struct.pack('<HBBBB', o.cell, o.set, o.dir, o.phase, o.byte5()) for o in objs)
+        a = Scene(); a.b = bytearray(base); a.call(3, act, quiet=True, objn=len(objs), objl=ol)
+        b = Scene(); b.b = bytearray(base); b.call(7, act, quiet=True, objn=len(objs), objl=ol)
+        return run(a).cycles - run(b).cycles
+
+    cases = {}
+    for cell in range(demo.width * demo.height):
+        for v in range(4):
+            for act in range(7):
+                r = dbemove.move(demo, cell, v, [], act)
+                kind = 'drehen' if act >= 4 else ('Schritt ok' if r.x == 0 else
+                                                  ('Schritt Karte/WEG' if r.x == 1 else 'Objekt'))
+                cases.setdefault(kind, []).append((cell, v, act))
+    rnd = random.Random(3)
+    for kind, lst in sorted(cases.items()):
+        cy = [mv_cycles(demo, *c) for c in rnd.sample(lst, min(len(lst), 12))]
+        print(f'P6f Zyklen MOVE demo {kind}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+    # Objekt auf der Zielzelle: 16 Objekte, das blockierende zuletzt (Worst Case der Schleife)
+    cell = demo.start
+    tgt = cell + 1
+    objs = [dbeview.Obj(0, 0, 0, 0, 4, False, False)] * 15 + [dbeview.Obj(tgt, 0, 0, 0, 4)]
+    print(f'P6f Zyklen MOVE Objekt, 16 Objekte (blockierend zuletzt): {mv_cycles(demo, cell, 1, 0, objs)}')
+    # Ereignisse: Suche über die ganze Liste (keine Übereinstimmung), 600 Ereignisse
+    T = dbemap.Tile
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0)]
+    for ne in (0, 3, 100, 600):
+        m = dbemap.Map('ev', 40, 30, t, [0] * 1200, [0] * 1200, [dbemap.Event(c, 4, 1) for c in range(100, 100 + ne)],
+                       0, 0, 0)
+        print(f'P6f Zyklen MOVE Drehen mit {ne} Ereignissen (keines an der Position): {mv_cycles(m, 5, 0, 4)}')
+    m.events = [dbemap.Event(c, 4, 1) for c in range(1, 601)]
+    print(f'P6f Zyklen MOVE Drehen, Ereignis an Position 600 (letzte): {mv_cycles(m, 600, 0, 4)}')
+    # VIEW: Automap aus / an
+    for label, mx in (('ohne Automap', 0), ('mit Automap', 1)):
+        R = ViewRunner(dbeview, dbetex)
+        R.dbg_bytes = dbg_prg[2:]
+        R.mapx, R.mapp1 = mx, (AUTO_ADDR if mx else 0)
+        gm = corridor_map(dbemap)
+        for nm, m in (('Gang', gm), ('demo', demo)):
+            fr = [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+            scs = [dbeview.make_scene(A, m, i, v) for i in fr for v in ((1, 3) if m is gm else range(4))]
+            cy = [time_view(R, sc) for sc in scs]
+            print(f'P6f Zyklen VIEW {nm} {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+        cy = [time_view(R, dbeview.random_scene(k, A, nobj=0)) for k in range(40)]
+        print(f'P6f Zyklen VIEW zufall {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+    return True
+
+
 def main():
     build()
     if '--build' in sys.argv:
@@ -1382,6 +1703,10 @@ def main():
     ok = test_p6d(vcopy=True) and ok
     ok = test_p6e() and ok
     ok = test_p6e(vcopy=True) and ok
+    ok = test_p6f_move() and ok
+    ok = test_p6f_auto() and ok
+    if not os.environ.get('DBE_NOCYCLES'):
+        ok = test_p6f_cycles() and ok
     return 0 if ok else 1
 
 
