@@ -202,7 +202,7 @@ Die Python-Referenz (`tools/dbeview.py`, 9.1) setzt genau diesen Abschnitt um; d
 cover = bcov = 0;  ncov = 0
 for d in 0 .. D:
     pend = []                                   # (c0, c1, ziel) – ziel: beide Masken oder nur bcov
-    for e in Elemente der Tiefe d (DVG-Reihenfolge):
+    for e in Elemente der Tiefe d (DVG-Reihenfolge; Kachel-Flag INHALT: 5.2a):
         c = cell(d, e.s); t = Kachel(c)
         if e.art in (FRONT, SIDE):
             if not faces(t): continue
@@ -214,7 +214,7 @@ for d in 0 .. D:
                     mark(cover, e.c0, e.c1)
                     if e.flags Bit 3: mark(bcov, e.c0, e.c1) else pend += (e.c0, e.c1, nur bcov)
                 else: pend += (e.c0, e.c1, beide)
-        elif e.art == OBJ and d >= 1 and not faces(t):
+        elif e.art == OBJ and d >= 1 and (not faces(t) or t.flags INHALT):
             objekte(d, e, c)                    # 5.8, STOP möglich
     baender(d, BODEN); baender(d, DECKE)        # 5.6, STOP möglich
     tapete(d)                                   # 5.7, STOP möglich
@@ -222,6 +222,7 @@ for d in 0 .. D:
     if ncov == VW: break                        # ncov zählt belegte Spalten in cover
 ```
 
+- **5.2a Kachel-Flag INHALT (Nutzerentscheidung 4, DMP Bit 5):** Zellen mit Flächen und diesem Flag (Tür, Gitter, Bogen) zeigen auch ihre Objekte. Die Zelle trägt ihre Elemente in der Sichtliste in der Reihenfolge **Fronten, Objektplatz, Seiten** ein (statt DVG-Reihenfolge Front, Seite, Objektplatz), die Ausgabe rückwärts malt damit Seitenfläche, Objekte nach Unterposition, Front. Zellen = Gruppen gleichen s in der DVG (P3 5.3: zusammenhängend); alle anderen Zellen unverändert in DVG-Reihenfolge. Das Flag ändert die Abdeckung nicht.
 - `mark` setzt Bytes auf 1 und erhöht ncov für neu belegte Spalten von `cover`.
 - Elemente FLOOR/CEIL werden in der Schleife nicht ausgegeben (nur in `baender`).
 - Die Sichtliste wird bei der Ausgabe **rückwärts** abgearbeitet (5.11). Daraus folgt die Malreihenfolge je Tiefe D … 0: Tapete, Decke (Grund, Kacheln), Boden (Grund, Kacheln), Zellen außen → innen, je Zelle Seite vor Front bzw. Objekte hinten → vorne. Das ist Plan 5 mit review-notes B.1–B.3: Seitenflächen einer Tiefe verdecken erst nach den Objekten und Bändern dieser Tiefe; Fronten verdecken sofort (Seiten und Objekte derselben Tiefe weiter außen liegen hinter ihnen).
@@ -234,7 +235,7 @@ for d in 0 .. D:
 
 - Eine Abdeckung in `cover` aus Tiefe d gilt für alle Zeilen von P_{d+1} (P3 4.4). Objekte werden spaltenweise beschnitten; ein Sprite, das höher ist als die Wand an seiner Tiefe, verliert dabei Teile über der Wandoberkante (P5b 3.4 warnt).
 - Nicht abzudecken ist immer korrekt (nur Mehrarbeit).
-- Zellen mit Flächen zeigen keine Objekte (Plan 5: entweder Flächen oder Inhalt), auch wenn die Flächen nicht decken (Tür mit Gegenstand: Hinweis, review-notes G.14).
+- Zellen mit Flächen zeigen keine Objekte (Plan 5: entweder Flächen oder Inhalt), auch wenn die Flächen nicht decken – **außer** die Kachel hat das Flag INHALT (5.2a, review-notes G.14).
 
 ### 5.5 Gruppen der Malreihenfolge innerhalb eines Eintrags
 
@@ -429,6 +430,19 @@ Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) u
 2. **Residente VMS-Listen** (TEXSET/SPRITESET kopieren die Listen einmal in einen Bank-0-Bereich über dem Programm; `VIEW` verweist nur noch darauf, außer bei beschnittenen Listen): spart je Bild das Kopieren und entschärft den Puffer bei Gittern. Nicht in P6; Entscheidung nach den Messungen aus P6f/P6g.
 3. **Ladepuffer des Spiels** in Bank 0 für VRL (Plan 3 „Zu prüfen“): P7.
 
+## 12a. Festlegungen der Referenz `dbeview.py` (P6b)
+
+Beim Schreiben der Referenz entschieden; die 6502-Fassung folgt der Referenz:
+
+1. **X** (Ergebnis von `VIEW`) = Zahl der VCL-Einträge **ohne** das Ende-Byte (höchstens 255).
+2. **Leere Sprite-Einträge:** Bleibt nach dem Beschneiden weder Kern noch Rand übrig (z. B. nur transparente Bytes im Ausschnitt), wird nichts angehängt und OBJVIS nicht gesetzt.
+3. **Boden-/Deckenkacheln:** Die Maske schließt die Randpixel ein, benachbarte Trapeze überlappen sich an ihrer Kante. Bei verschiedenen Bildern entscheidet die Malreihenfolge: außen → innen (= umgekehrte DVG-Reihenfolge, so malt die Ausgabe von 5.6 Schritt 5).
+4. **DVG-Bit 3** setzt `dbegeom` erst mit P6h; die Referenz und ihre Tests behandeln beide Fälle (Bit fehlt: Fronten tragen `bcov` erst am Tiefenende ein, Pixel gleich).
+5. **VMS Typ 2** (nicht von der Engine erzeugt) nimmt den Zeilenschritt aus VDC-Register 1; `run_vcl` hat dafür den Parameter `rowstep` (80).
+6. **`clip_image`:** Der Zeilenabstand der VMS-Offsets (Stride) ist ein zusätzlicher Parameter (P5b 6 nennt ihn nicht; `dbespr.clip_image(…, stride)` und `dbeview.clip_image(img, stride, …)` liefern dieselben Werte, im Test geprüft).
+7. **Puffer:** Szenen mit Kachelbildern, deren Bytes fast alle Rand sind (Muster mit Löchern in jedem Byte, z. B. 18 Kacheln Boden + 18 Decke), brauchen über 6 KB VMS; die 2 304 Byte reichen dort nicht (A = 2). Das ist ein Budgetfall für Spiele (`dbeview budget`), kein Fehler der Referenz.
+8. **Pixelgleichheit gilt nur für A = 0** und Sprites, die nicht höher sind als ihre Wand und mit der Fußzeile am unteren Bildrand stehen (5.4).
+
 ## Entscheidungen des Nutzers (2026-11-25)
 
 1. BASIC-Variablen in Bank 1 auf `$0400–$4FFF` begrenzen (ca. 19 KB reichen). P6a prüft, wo ein Blitz!-Kompilat seine Variablen ablegt, und setzt die String-Obergrenze.
@@ -448,3 +462,17 @@ Festlegungen, die die Spezifikation offen ließ:
 - `POOLSET`: Poolanfang ≥ Poolende (Ende ≠ 0) gibt `E_RANGE` (6) und lässt den alten Pool stehen (3 nennt nur A = 0).
 - Die Lib hat im Normalbuild keine Testfunktionen; `build.sh` baut zusätzlich `dbe0.2-test.lib` mit `-DDBE_TEST`: F = 250 (liefert `$D506 AND $0F`, `$FF00`, ein Byte aus `$1300`, schreibt `$A5` nach `$1301`) und F = 251 (Warteschleife, P0 × etwa 1300 Zyklen). Nur für den Rauchtest.
 - Der Rauchtest prüft: `$D506` = x6 und `$FF00 = $7E` im Aufruf, Lesen und Schreiben von Bank 0 bis `$1FFF` aus der Lib, Jiffy-Uhr zählt in einem Aufruf von etwa 1 Mio. Zyklen weiter (30–120 Jiffies), Prüfsumme Bank 0 `$1C00–$3FFF` unverändert, `BUFSET` über den Stub, danach `VMW`, `VMD`, `RXV` (interpretiert und Blitz! Image 2).
+
+## Ergebnis P6c (2026-11-25)
+
+Umgesetzt in `engine/lib.s`: `MAPINIT`, `SETPOS`, `CELL`, `SETCELL`, `SETITEM`, `ITEMSET`, `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET` mit den Prüfungen aus 3.2. Lib-Code gesamt 2174 Byte (P6a: 322), BSS 512 Byte (`$E000–$E1FF`). Code je Funktion (Byte, einschließlich eigener Verzweigungen): `MAPINIT` 419, `SETPOS` 49, `CELL` 75, `SETCELL`/`SETITEM` 59, `ITEMSET` 29, `GEOMSET` 356, `TEXSET` 121, `BGSET` 107, `SPRITESET` 178; gemeinsame Hilfen (Kopfprüfung, Pool, Satz füllen, Zellzeiger, Kachel-Flags, px/py) etwa 500; Prüftabellen 68. Zyklen (reine Funktion, ohne Harness-Aufwand geschätzt): `MAPINIT` etwa 1 000 (7 × 5; Kopie je Byte etwa 16), `GEOMSET` etwa 5 500, `TEXSET` etwa 300; Ziel 8 (≤ 20 000) erfüllt.
+
+Festlegungen, die die Spezifikation offen ließ:
+- Fehlerreihenfolge: `E_STATE` (Karte bzw. Geometrie fehlt), `E_RANGE` (Satz-/Artnummer, Zelle), `E_FORMAT` (Magic, Version, feste Längen, Art ≠ X, NST = 0, NA ∉ 1…4, NP = 0), `E_GEOM` (ID, NE, D, Stride, VW, VH), `E_RANGE` (Pool). **Art-Byte ≠ X ist `E_FORMAT`** (3.1 ordnet es nicht zu).
+- `MAPINIT` setzt `map_ok` zuerst auf 0: nach einem Fehler (A = 1) liefern `CELL`/`SETPOS`/… `E_STATE`. Zusätzlich zu 3 geprüft: Startzelle < W·H, Richtung ≤ 3, Außenkachel < NT, Offsets lückenlos (24, +W·H, +W·H, +8·NT, +4·NE) und Gesamtlänge ohne 16-Bit-Überlauf. Rückgabe: X = W, Y = H, P0 = Startzelle, P1 = Startrichtung; X Bit 0 wird als `map_auto` gespeichert.
+- Arbeitskopie: P1 ≠ 0 kopiert beide Ebenen (2·W·H Byte). Ohne Kopie schreiben `SETCELL`/`SETITEM` **in die DMP selbst**.
+- `SETPOS`: Richtung > 3 gibt `E_RANGE` (Position unverändert). `CELL` außerhalb: A = 6, X = Außenkachel, Y = 0, **P1 = Flags der Außenkachel**.
+- `GEOMSET`: zusätzlich VW ≥ 1 und VH ≥ 1 (sonst `E_FORMAT`; VH = 0 würde die Zeilentabelle zerstören). Löschen bei anderer ID: alle DTS und die DBG; S2-Sätze mit ID ≠ 0 bei anderer ID, S2-Sätze mit ID 0 nur bei anderem D oder Stride. Rückgabe X = Bits der gelöschten S2-Sätze, Y = Bits 0–2 DTS, Bit 3 DBG. Bei A = 1 bleibt der Zustand unverändert.
+- Gespeichert (3.2): je DTS/S2-Satz 16 Byte (`recs`): gültig, VRAM-Basis, NS/NA, NST/NP, ID (S2), Inhaltsanfang, drei absolute Tabellenadressen (DTS: Slotkarte, Stiltabelle, Verzeichnis; S2: Indextabelle, Verzeichnis, Kerntabelle). Kerne und VMS-Listen braucht `VIEW` nicht als Tabellenadresse: die Verzeichniseinträge enthalten inhaltsrelative Offsets (Inhaltsanfang + Offset); `angle_map` (S2-Kopf 12–15) liest `VIEW` über Inhaltsanfang + festen Kopfversatz. Abweichung von 3.2 („liest nie Kopf-Offsets“): nur feste Kopffelder, keine Offsetwörter. DBG: Basis, VRAM-Basis, P, y0, h, Flags; `o_v` und Füllbytes über die Basis. Karte: absolute Adressen von Kachelebene, Inhaltsebene, Kacheltabelle, Ereignissen; DVG: Tiefen- und Elementtabelle, Zeilentabelle (200 Byte).
+- `BGSET` speichert X immer als Füllbyte (auch mit DBG); `P0 = 0` und `TEXSET`/`SPRITESET` mit `P0 = 0` löschen auch ohne `GEOMSET` (A = 0).
+- Test: `test/sim/run_sim.py` (P6c sim A: Geometrie und Assets mit den Demo-Daten, Fehler- und Pool-Fälle, ID-Wechsel; B: Karte `demo.toml` mit/ohne Arbeitskopie; C: Karten 128 × 128, 255 × 64, 1 × 255, 255 × 1 mit NT = 256 usw.). Vergleich der BSS-Werte gegen aus den Dateien berechnete Erwartungen.
