@@ -551,8 +551,8 @@ f_mapinit:
         lda     map_wh+1
         rol
         sta     acc+1
-        lda     P1+1            ; Ziel >= $2000 (darunter gemeinsames RAM) ...
-        cmp     #$20
+        lda     P1+1            ; Ziel >= $4000 (darunter BASIC-Variablen) ...
+        cmp     #$40
         jcc     range
         clc                     ; ... und Ziel + 2 W H <= LIB (Lib, BSS, DVG, I/O, MMU unberührt)
         lda     P1

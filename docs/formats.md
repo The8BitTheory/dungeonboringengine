@@ -1,63 +1,127 @@
-# Schnittstellen und Datenformate (Stand: Engine 0.2, P6h; die Abschnitte Dateien bis Sprite-Metadaten beschreiben noch 0.1)
+# Schnittstellen und Datenformate (Stand: Engine 0.2)
+
+Dieses Dokument und die README genügen, um die Engine aus einem BASIC-7-Spiel (interpretiert oder Blitz!) zu benutzen. Begründungen und Einzelheiten: `docs/specs/P6-engine.md`. Alle Adressen in P0–P3 sind Bank-1-Adressen der Daten (Inhaltsanfang = `BLOAD`-Adresse), VRAM-Basen sind VDC-Adressen.
 
 ## Dateien
 
-| Datei | Bank / Adresse | Inhalt |
+| Datei | Ziel | Inhalt |
 |---|---|---|
-| `DBE0.1.STUB` | Bank 0, `$0D00–$0D83` | Stub: Bankwechsel, Interruptweiche, Aufruf der Lib |
-| `DBE0.1.LIB` | Bank 1, ab `$C000` | Lib (Sprungtabelle bei `$C000`) |
-| `*.WSM` | Bank 1, beliebig (Crawl-Test: `$E000`) | Wandsatz-Metadaten |
-| `*.SPR` | Bank 1, beliebig (Crawl-Test: `$E200` Geister, `$EA00` Edelstein) | Sprite-Metadaten mit VMS-Listen |
-| gepackte Bilder (Crawl: `GHOSTS.VDC`) | VRAM, per `RTV` | nur die sichtbaren Bytes, in VMS-Reihenfolge |
+| `dbe0.2.stub` | Bank 0, `$0D00` | Stub: Bankwechsel, Interruptweiche, Aufruf der Lib |
+| `dbe0.2.lib` | Bank 1, `$B000–$DBFF` | Lib (Sprungtabelle bei `$B000`); `$DC00–$E7FF` Tabellen und Variablen, nicht in der Datei |
+| `*.dmp` | Bank 1, Standard `$4000` | Karte (DMP) |
+| `*.s2` | Bank 1, Standard `$6000` | Sprite-Sätze (S2) |
+| `*.dts` | Bank 1, Wand `$8000`, Boden `$EE00`, Decke `$F600` | Texturset (DTS) |
+| `*.dbg` | Bank 1, Standard `$FB80` | Tapete (DBG) |
+| `*.dvg` | Bank 1, Standard `$E800` | Sichtfenster-Geometrie (DVG) |
+| `*.vrl` | Bank 0, dann `RXV` ins VRAM | gepackte Bilder (VRL, Abschnitt „VRL v1“) |
 
-Laden in BASIC:
-
-```
-BLOAD"DBE0.1.STUB",B0,U(DD):BLOAD"DBE0.1.LIB",B1,U(DD):SYS 3328
-```
+Die Ladeadresse steht im PRG-Kopf der Dateien (`BLOAD"…",B1,U8`); die Werkzeuge nehmen die Standardadressen aus der Speicherkarte unten.
 
 ## Aufruf
 
 | Aufruf | Wirkung |
 |---|---|
-| `SYS 3328` | Init: kopiert die Kernal-Interruptweiche `$FF05–$FFFF` nach Bank 1, ruft dann `INFO` auf |
-| `SYS 3331,F,X,Y` | Funktion F aufrufen; Ergebnis mit `RREG A,X,Y` |
+| `SYS 3328` | Init: kopiert die Kernal-Interruptweiche `$FF05–$FFFF` nach Bank 1, ruft `INIT` (F 0) auf |
+| `SYS 3331,F,X,Y` | Funktion F aufrufen (X, Y = Eingangsbytes); Ergebnis mit `RREG A,X,Y` |
 
-- Der aktuelle `BANK` ist egal: Der Stub schaltet selbst um und stellt `$FF00` und `$D506` danach wieder her.
-- Während des Aufrufs gilt: `$FF00 = $7E` (Bank 1, nur RAM, I/O) und 4 KB gemeinsames RAM unten.
-- Interrupts bleiben an.
-- Zeropage: nur `$FA–$FD`.
+Ladefolge (erste Anweisung des Spiels begrenzt die BASIC-Variablen auf `$0400–$3FFF`):
+
+```
+10 POKE 57,0:POKE 58,64:CLR
+20 BANK 0:BLOAD"DBE0.2.STUB",B0,U8:BLOAD"DBE0.2.LIB",B1,U8
+30 SYS 3328:RREG A,X,Y:REM A=0, X=3 (Version)
+40 BLOAD"MAP.DMP",B1,U8:BLOAD"WALLS.DTS",B1,U8:BLOAD"VIEW.DVG",B1,U8:REM usw.
+```
+
+Danach `POOLSET` (optional), `GEOMSET` (zuerst, danach gelten DTS, DBG und S2 nur mit gleicher Geometrie-ID), `TEXSET` (Wand, Boden, Decke), `BGSET`, `SPRITESET`, `ITEMSET`, `MAPINIT`, `BUFSET` (optional). Bilddaten (VRL) kommen mit `RXV` ins VRAM, bevor `TEXSET`/`SPRITESET` ihre VRAM-Basis bekommen.
+
+Während des Aufrufs:
+
+- Der aktuelle `BANK` ist egal; der Stub schaltet selbst um und stellt danach `$FF00` und `$D506` wieder her. Interrupts bleiben an.
+- `$FF00 = $7F` (Bank 1 ohne I/O) und **8 KB gemeinsames RAM** unten (`$D506` = `$06`): Bank 1 unter `$2000` ist Bank 0. Daten der Engine liegen nie dort.
+- Zeropage: `$FA–$FD` und `$63–$72` (FAC/ARG); den Block rettet der Stub vor jedem Aufruf und stellt ihn danach wieder her.
+- Bank 0 `$1C00–$3FFF` (VDC-BASIC v3) wird nie beschrieben.
 
 ### Parameterblock (Bank 0)
 
-| Adresse | Name | Größe |
+| Adresse | Name | Inhalt |
 |---|---|---|
-| `$0C00` (3072) | P0 | Wort |
-| `$0C02` (3074) | P1 | Wort |
-| `$0C04` (3076) | P2 | Wort |
-| `$0C06` (3078) | P3 | Wort |
-| `$0C10` (3088) | Objektliste: Anzahl (max. 8) | Byte |
-| `$0C11` (3089) | je Objekt 4 Byte: Position (Wort), Sprite-Satz, Blickrichtung | |
+| `$0C00`, `$0C02`, `$0C04`, `$0C06` | P0–P3 | Wörter (Low/High), Ein- und Ausgabe |
+| `$0C08` | ITEMPH | Phase für Gegenstände der Inhaltsebene (Glitzern; Spiel setzt) |
+| `$0C0A` | VCLADR | `VIEW`: Adresse der VCL-Liste (auch in P0) |
+| `$0C0C` | VCLLEN | `VIEW`: Länge der VCL-Liste inklusive Ende-Byte |
+| `$0C0E` | VMSLEN | `VIEW`: Bytes der VMS-Listen |
+| `$0C10` | OBJVIS | `VIEW`: Bit i = Objekt i (ganz oder teilweise) ausgegeben |
+| `$0C50` | OBJN | Objektliste: Anzahl 0 … 16 |
+| `$0C51` | OBJL | 16 Objekte à 6 Byte (unten) |
+
+Puffer der Engine (VCL- und VMS-Listen) im gemeinsamen RAM `$1300–$1BFF` (Standard 2304 Byte, `BUFSET` verkleinert).
+
+### Objektliste (je 6 Byte ab `$0C51 + 6·i`)
+
+| Offset | Inhalt |
+|---|---|
+| 0–1 | Zellindex (Wort) |
+| 2 | Sprite-Satz 0 … 7 |
+| 3 | Objektrichtung 0–3 (N, O, S, W) oder `$FF` (Blickwinkel 0) |
+| 4 | Phase (Animationsbild) |
+| 5 | Bits 0–2: Unterposition (0 NW, 1 NO, 2 SW, 3 SO, 4 Mitte); Bit 6: unsichtbar (`VIEW` überspringt); Bit 7: blockiert nicht (`MOVE`); übrige Bits 0 |
+
+Gegenstände der Inhaltsebene (Bits 0–5 des Inhaltsbytes, Abschnitt „DMP v1“) kommen zusätzlich dazu.
 
 ### Funktionen
 
-| F | Name | Eingang | Ausgang |
+Karte und Richtung: 0 N, 1 O, 2 S, 3 W; Zelle = Zeile · W + Spalte.
+
+| F | Name | Eingang | Ausgang (A = Fehlercode, Tabelle unten) |
 |---|---|---|---|
-| 0 | `INIT` | – | setzt alle Variablen zurück; A = 0, X = Version; P0 = Codeende, P1 = Ende der Variablen |
-| 1 | `MAPINIT` | P0 = Kartenadresse (Bank 1), P1 = Breite, P2 = Höhe (< 256), P3 = Arbeitskopie (Bank 1, 0 = keine) | A = 0; mit P3 wird die Karte dorthin kopiert und die Kopie benutzt; Objektliste geleert |
-| 2 | `SETPOS` | P0 = Zellindex, X = Richtung (0 N, 1 O, 2 S, 3 W) | A = 0 |
-| 6 | `SETCELL` | P0 = Zellindex, X = neuer Zellwert | A = 0 oder 1 (außerhalb der Karte) |
-| 4 | `VIEW` | P0 = Bildpuffer im VRAM (`AP`) | VCL-Liste ab `$0B00` (2816), VMS-Listen ab `$0E00`; A = 0 oder 2 (Puffer voll), X = Einträge, Y = Länge |
-| 8 | `WALLSET` | P0 = Metadaten (Bank 1), P1 = VRAM-Adresse der Wandbilder | A = 0, 1 (Format) oder 2 (zu viele Einträge) |
-| 9 | `SPRITESET` | X = Satz 0–3, P0 = Metadaten (Bank 1; 0 = löschen), P1 = VRAM-Adresse der Bilddaten | A = 0 oder 1 (Format) |
-| 10 | `ITEMSET` | X = Zellwert 0–63, Y = Satz + 1 (0 = kein Gegenstand) | A = 0 |
-| 3, 5, 7 | – | – | A = 255 (nicht vorhanden) |
+| 0 | `INIT` | – | alles zurückgesetzt; X = Version (0.2: 3); P0 = Codeende, P1 = Ende der Variablen |
+| 1 | `MAPINIT` | P0 = DMP; P1 = Arbeitskopie (0 = keine, sonst 2·W·H Byte in `$4000 … $AFFF`); X Bit 0 = Automap (Bit 6 „gesehen“ in der Arbeitskopie setzen) | prüft Magic, Version, Offsets; Startzelle und -richtung übernommen; OBJN = 0; X = W, Y = H, P0 = Startzelle, P1 = Startrichtung. A = 1 Format, 6 Arbeitskopie außerhalb des Bereichs |
+| 2 | `SETPOS` | P0 = Zelle, X = Richtung | A = 0; 6 bei Zelle ≥ W·H |
+| 3 | `MOVE` | X = Aktion: 0 vor, 1 zurück, 2 links seitwärts, 3 rechts seitwärts, 4 links drehen, 5 rechts drehen, 6 umdrehen | X = 0 gegangen/gedreht; 1 blockiert (Rand der Karte oder Kachel mit Flag WEG); 2 Objekt im Weg (Y = Objektindex; Objekte mit Bit 6 oder 7 blockieren nicht); Y = Kachel; P0 = Position, P1 = Inhaltsbyte der Position, P2 = Index des ersten Ereignisses der Position (`$FFFF` = keines). A = 0 |
+| 4 | `VIEW` | P0 = Bildpuffer im VRAM (Anfang des Bildes) | VCL-Liste und VMS-Listen im Puffer; X = Einträge (höchstens 255); P0 = VCLADR; VCLLEN, VMSLEN, OBJVIS (Parameterblock). A = 0; 2 Liste gekürzt (hintere Teile fehlen); 3 Ränder einzelner Bilder weggelassen; 5 ohne GEOMSET/MAPINIT |
+| 5 | `CELL` | P0 = Zelle | X = Kachelindex, Y = Inhaltsbyte, P1 = Kachel-Flags. Außerhalb: A = 6, X = Außenkachel, Y = 0 |
+| 6 | `SETCELL` | P0 = Zelle, X = Kachelindex | A = 0; 6 bei Zelle außerhalb oder X ≥ NT |
+| 7, 8 | – | – | A = 255 (nicht vorhanden; 8 war `WALLSET` in 0.1) |
+| 9 | `SPRITESET` | X = Satz 0 … 7, P0 = S2 (0 = Satz löschen), P1 = VRAM-Basis der Bilder | A = 1 Format, 4 Geometrie passt nicht, 5 ohne GEOMSET, 6 Satznummer, Pool oder S2 unter `$4000` |
+| 10 | `ITEMSET` | X = Gegenstand 0 … 63, Y = Satz + 1 (0 = keiner) | A = 0; 6 bei X ≥ 64 oder Y > 8 |
+| 11 | `POOLSET` | P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = aus | A = 0; `TEXSET`, `BGSET`, `SPRITESET` prüfen danach, dass VRAM-Basis … Basis + Länge im Pool liegen (A = 6) |
+| 12 | `GEOMSET` | P0 = DVG, P1 = origin (Offset des Fensters im Bildpuffer: Ziel = P0 von `VIEW` + origin + y · stride + x; `$FFFF` = Wert aus der DVG) | A = 1 Format (Magic, Version, Längen, VW ≤ 80, VH ≤ 100, D ≤ 7, Elementtabelle). Texturen, Tapete und Sprite-Sätze mit anderer Geometrie-ID werden gelöscht |
+| 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Pool oder DTS unter `$4000` |
+| 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | A = 1, 4, 5, 6 wie `TEXSET` |
+| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv) | A = 0; 6 bei Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer bleibt) |
+| 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
+| ≥ 17 | – | – | A = 255 |
+
+### Fehlercodes
+
+| A | Name | Bedeutung |
+|---|---|---|
+| 0 | `E_OK` | ok |
+| 1 | `E_FORMAT` | Magic, Version oder Längen falsch |
+| 2 | `E_TOOMANY` | `VIEW`: Liste gekürzt |
+| 3 | `E_PARTIAL` | `VIEW`: nur Kerne gezeichnet, Ränder einzelner Bilder fehlen |
+| 4 | `E_GEOM` | Geometrie-ID, Elementzahl, Tiefe oder Stride passt nicht zur DVG |
+| 5 | `E_STATE` | falsche Reihenfolge: `GEOMSET` bzw. `MAPINIT` fehlt |
+| 6 | `E_RANGE` | Parameter außerhalb (Zelle, Satz, Kachelindex, Pool, Puffer, Adresse) |
+| 255 | `E_NOTIMPL` | Funktion nicht vorhanden |
+
+### Ein Bild zeichnen
+
+```
+POKE 3072,0:POKE 3073,0:SYS 3331,4,0,0:RREG A,X,Y   : REM VIEW, Bildpuffer = VRAM 0 (P0)
+V=PEEK(3072)+256*PEEK(3073):VCL V                    : REM P0 = VCLADR, ::VCL führt die Liste aus
+```
+
+`VIEW` schreibt keine Pixel, sondern nur die Liste. Die Liste enthält VCL-Typ 12 (VMS im Puffer, beschnitten) und Typ 9 (VMS direkt aus Bank 1, unbeschnittene Bilder aus DTS und S2). Typ 9 liest VDC-BASIC aus Bank 1 `$4000–$CFFF` bzw. `$E000–$FBFF`; darum die Adressgrenze `$4000` bei `TEXSET`/`SPRITESET`. Vor jedem `VIEW` Objektliste und Position aktualisieren (`SETPOS`/`MOVE`, `OBJN`/`OBJL`).
 
 ### Karte
 
-Das Kartenformat ist ab Version 0.2 das Format **DMP v1** (Abschnitt „DMP v1“ unten). Das frühere Format (ein Byte je Zelle, Bit 0 = Wand) entspricht der Kachelebene der Konvertierung von `tools/crawlmap.py`, bei der Kachelindex = Crawl-Zellwert gilt.
+Das Kartenformat ist **DMP v1** (Abschnitt „DMP v1“ unten). Die Arbeitskopie (`MAPINIT` P1) nimmt `SETCELL`, `SETITEM` und die Automap-Bits auf; ohne Arbeitskopie schreiben sie in die DMP selbst.
 
 ## Wandsatz-Metadaten (WSM), Version 1
+
+Nur 0.1 (`WALLSET` entfällt in 0.2; Ersatz: DVG und DTS). Dieser Abschnitt und „Sprite-Metadaten“ sind Historie.
 
 Alle Wörter im Format Low/High.
 

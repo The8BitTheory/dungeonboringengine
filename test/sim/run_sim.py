@@ -765,11 +765,11 @@ def test_p6c():
     SB.call('MAPINIT ohne Kopie', 1, p=mp, a=0, check=map_check(m, 0, 0))
     SB.call('SETCELL in DMP', 6, 1, p=(0, 0, 0, 0), a=0, dump=[(0x5000 + 24, 1)],
             check=lambda b: [] if b.extra[0] == b'\1' else ['DMP nicht geändert'])
-    # Ziel der Arbeitskopie (P6d): [P1, P1 + 2 W H) muss in $2000 ... LIB ($B000) liegen, sonst E_RANGE
+    # Ziel der Arbeitskopie (P6d): [P1, P1 + 2 W H) muss in $4000 ... LIB ($B000) liegen, sonst E_RANGE
     n2 = 2 * W * H
     for nm, dst, a in (('genau unter LIB', 0xB000 - n2, 0), ('ein Byte über LIB', 0xB000 - n2 + 1, 6),
-                       ('ab LIB', 0xB000, 6), ('BSS', 0xE000, 6), ('DVG', 0xE800, 6), ('unter $2000', 0x1FFF, 6),
-                       ('$0400', 0x0400, 6), ('Überlauf 65536', 0x10000 - n2 + 2, 6), ('I/O', 0xD000 - 4, 6)):
+                       ('ab LIB', 0xB000, 6), ('BSS', 0xE000, 6), ('DVG', 0xE800, 6), ('unter $4000', 0x3FFF, 6),
+                       ('$2000', 0x2000, 6), ('$0400', 0x0400, 6), ('Überlauf 65536', 0x10000 - n2 + 2, 6), ('I/O', 0xD000 - 4, 6)):
         SB.call(f'MAPINIT Arbeitskopie {nm}', 1, p=(ADDR['dmp'], dst, 0, 0), a=a,
                 check=(lambda a, dst: lambda b: ([] if b.b('map_ok') == (a == 0) else ['map_ok']) +
                        ([] if a or b.w('ptrs', 0) == dst else ['Kopie nicht benutzt']))(a, dst))
@@ -1378,7 +1378,8 @@ def test_p6e(vcopy=False):
 
 
 # ------------------------------------------------------------------ P6f: MOVE, Automap, Zyklen
-AUTO_ADDR = 0x3800                  # Arbeitskopie der Karte (2 W H Byte) in den Automap-Tests
+AUTO_ADDR = 0x4000                  # Arbeitskopie der Karte (2 W H Byte) in den Automap-Tests (MAPINIT ab $4000)
+AUTO_S2 = ((0x4800, 0x6000), (0xA700, 0xB000))      # S2-Bereiche dort: $4000-$47FF gehört der Arbeitskopie
 
 
 def move_maps(dbemap, dbeview):
@@ -1538,6 +1539,7 @@ def test_p6f_auto():
 
     class AutoRunner(ViewRunner):
         mapx, mapp1 = 1, AUTO_ADDR
+        S2_AREAS = AUTO_S2
 
         def __init__(self, vcopy=False):
             super().__init__(dbeview, dbetex, vcopy)
@@ -1611,6 +1613,7 @@ def test_p6f_auto():
     for label, mx in (('X=1 ohne Kopie', 1), ('X=0 mit Kopie', 0)):
         R = ViewRunner(dbeview, dbetex)
         R.dbg_bytes = dbg_prg[2:]
+        R.S2_AREAS = AUTO_S2
         R.mapx, R.mapp1 = mx, (0 if mx else AUTO_ADDR)
         for i in free(demo):
             for v in range(4):
@@ -1683,6 +1686,7 @@ def test_p6f_cycles():
     for label, mx in (('ohne Automap', 0), ('mit Automap', 1)):
         R = ViewRunner(dbeview, dbetex)
         R.dbg_bytes = dbg_prg[2:]
+        R.S2_AREAS = AUTO_S2
         R.mapx, R.mapp1 = mx, (AUTO_ADDR if mx else 0)
         gm = corridor_map(dbemap)
         for nm, m in (('Gang', gm), ('demo', demo)):
