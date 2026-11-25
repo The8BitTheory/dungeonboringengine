@@ -512,3 +512,15 @@ Zyklen je VIEW (sim65, Demo-Assets 140 × 96, D = 3):
 
 **Befund:** Ziele verfehlt (Faktor etwa 3 bzw. 1,8). Profil (Gang): Zellendurchlauf und Zellen etwa 16 000, Erzeuger-Vorlauf (Verzeichniseintrag lesen, zweimal je Eintrag) 7 900, VMS-Kopie 5 300, `baender` 4 800, `spans` 3 900, `add` 3 600, `resolve` 3 200. Die Kosten verteilen sich breit (Schleifen über alle Elemente der Tiefe, absolute Adressierung, 16-Bit-Zeigerarithmetik), kein einzelner Engpass. Vorschläge für P6f: mehr Zeropage während `VIEW` (retten/zurückschreiben), vorberechnete Element-/Zellentabellen je Tiefe bei `GEOMSET`, Erzeugerwerte je Eintrag aus dem Zähllauf aufheben, Spannen inkrementell.
 
+
+## Entscheidungen nach dem P6d-Review (2026-11-25)
+
+Nutzer:
+1. Lib-Code bis `$DFFF`: der Stub schaltet während des Aufrufs `$FF00 = $7F` (Bank 1 ohne I/O); die Lib greift nicht auf I/O zu.
+2. VMS-Listen werden nicht mehr je Bild nach Bank 0 kopiert: VDC-BASIC v3 bekommt eine Bank-1-Quelle für VMS-Listen (VCL-Typ 12 / VMS). Zyklenziele bleiben 30k/45k/80k.
+3. Zeropage-Block (z. B. `$63–$72`) während `VIEW`, im Stub gerettet und zurückgeschrieben – erst nach Nachweis in VICE (interpretiert und Blitz!, mit IRQ).
+
+Hauptagent (technisch):
+4. VCL-Liste nicht mehr fest bei B0, sondern an einer Adresse, die `VIEW` in P0 zurückgibt (`::VCL` mit diesem Wert).
+5. `$0B00`/`$0E00` als Reserve der Engine.
+6. `BUFSET` auf erlaubte Fenster beschränken (nicht unter `$1300`, nicht über `$1BFF`), `GEOMSET` prüft die Elementtabelle (Zellen zusammenhängend, Grenzen für Wartebereich und Masken) → `E_FORMAT`.
