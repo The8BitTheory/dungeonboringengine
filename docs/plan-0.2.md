@@ -67,19 +67,21 @@ stride   = 80
 2. **Boden und Decke** der Tiefe d:
    - einheitlicher Stil: ein Rechteck über die volle Breite (`VMC`, deckend) oder ein Farbverlauf (`VMF` je Zeile)
    - gemischte Stile: transparente Trapezkacheln je Zelle
-3. **Wände der Tiefe d:** Wandzellen in Tiefe d, außen nach innen, je Zelle erst die Seitenfläche, dann die Front.
-   - deckender Kern per `VMC`, transparenter Rand per `VMS`
-   - Fenster und Gitter sind nicht deckend, dahinter Gezeichnetes bleibt sichtbar
-4. **Dynamische Objekte der Tiefe d** (Gegner, Gegenstände, Projektile, Animationen) in freien Zellen der Tiefe d, außen nach innen. Innerhalb einer Zelle nach **Unterposition** sortiert: hinten links/rechts, Mitte, vorne links/rechts (Gegenstände am Boden wie bei Westwood mit 4 Plätzen, Gegner Mitte oder paarweise).
+3. **Zellen der Tiefe d von außen nach innen** (Reihenfolge wie bei EOB). Je Zelle entweder ihre Wandflächen oder ihr Inhalt:
+   - **Wandzelle:** erst die Seitenfläche, dann die Front. Deckender Kern per `VMC`, transparenter Rand per `VMS`. Fenster und Gitter sind nicht deckend, dahinter Gezeichnetes bleibt sichtbar.
+   - **Freie Zelle:** ihre **dynamischen Objekte** (Gegner, Gegenstände, Projektile, Animationen), sortiert nach **Unterposition**: hinten, Mitte, vorne. Gegenstände am Boden haben wie bei Westwood 4 Plätze, Gegner stehen in der Mitte oder paarweise. Die Unterpositionen sind absolut gespeichert (NW, NO, SW, SO, Mitte) und werden mit der Blickrichtung umgerechnet.
    - Objekte stehen mit dem Fußpunkt auf dem Boden ihrer Zelle. Deshalb überschneiden sie sich nicht mit den Boden- und Deckenbändern näherer Tiefen.
+   - Innere Nachbarfronten derselben Tiefe werden nach den Objekten der äußeren Zelle gezeichnet und verdecken sie dadurch richtig.
+   - Die Abdeckung durch Seitenflächen der Tiefe d schneidet keine Objekte derselben Tiefe weg.
    - Teile, deren Spalten alle durch nähere deckende Wände verdeckt sind, entfallen.
    - Animationsphase und Blickwinkel kommen aus der Objektliste.
+   - Objekte in der eigenen Zelle (d = 0) werden nicht gezeichnet (wie bei EOB).
 
-Bekannte Vereinfachung (wie bei Westwood): Die nahe Hälfte einer Seitenwand derselben Tiefe wird vom Objekt überdeckt statt umgekehrt.
+Fehler entstehen nur bei Sprites, die breiter als ihre Zelle sind.
 
 **Objektliste (Parameterblock, neu):**
-- je Objekt 6 Byte: Zellindex (Wort), Sprite-Satz, Blickrichtung, Animationsphase, Unterposition
-- bis zu 16 Objekte
+- je Objekt 6 Byte: Zellindex (Wort), Sprite-Satz, Blickrichtung, Animationsphase, Unterposition (absolut)
+- bis zu 16 Objekte; neue Lage in P6 (passt nicht mehr an `$0C10`, z. B. in den Puffer bei `$1300`)
 - Gegenstände aus der Inhaltsebene der Karte kommen zusätzlich über `ITEMSET` dazu
 
 ## 6. Formate
