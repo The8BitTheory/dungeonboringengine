@@ -45,6 +45,7 @@ MAX_SPANS = 4
 DEFAULT_BUF = (0x1300, 0x1C00)
 MAXCELL, MAXWALL, MAXPEND, MAXCELLELEM = 48, 96, 16, 16     # GEOMSET-Grenzen der Elementtabelle (P6 7)
 DEFAULT_DTS_ADDR = (0x9000, 0xF000, 0xF800)                  # Bank-1-Adressen der DTS (P6 2.4), fuer vms_bank1
+DEFAULT_S2_ADDR = 0x7000                                     # Bank-1-Adresse des ersten S2 (P6 2.4), fuer vms_bank1
 E_OK, E_TOOMANY, E_PARTIAL = 0, 2, 3
 FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # F je Richtung v (N, O, S, W)
 RIGHT = [(1, 0), (0, 1), (-1, 0), (0, -1)]      # R je Richtung v
@@ -213,8 +214,25 @@ class Scene:
     dir: int = 0
     ap: int = 0
     buf: tuple = DEFAULT_BUF
-    vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9), Build VMS_BANK1
+    vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9, Standardbuild);
+                                                  # False = Build VMS_COPY (Kopie in den Puffer, Typ 12)
     dts_addr: tuple = DEFAULT_DTS_ADDR            # Bank-1-Adressen der DTS (Inhaltsanfang), nur fuer vms_bank1
+    s2_addr: tuple = None                         # Bank-1-Adressen der S2 je Satz; None: dicht ab $7000 (P6 2.4)
+
+    def s2_bank1(self, k):
+        """Bank-1-Adresse (Inhaltsanfang) des Sprite-Satzes k."""
+        if self.s2_addr is not None:
+            return self.s2_addr[k]
+        a, seen = DEFAULT_S2_ADDR, {}
+        for j, ss in enumerate(self.s2):
+            if ss is None:
+                continue
+            if id(ss) not in seen:
+                seen[id(ss)] = a
+                a += len(_s2_content(ss))
+            if j == k:
+                return seen[id(ss)]
+        return 0
 
     def window(self):
         """Adressen aller Fensterbytes (Menge)."""
@@ -840,7 +858,13 @@ class _View(_Ctx):
                 continue
             cx0, cx1 = free[0], free[-1] + 1
             kerns, vms, ref = clip_image(img, self.stride, x0, y0, cx0, cx1, cy0, cy1)
-            item = self._clipped_item(self.sc.vram_bases["s2"][setn], kerns, vms, ref, img.rand_ofs, oi)
+            vb = self.sc.vram_bases["s2"][setn]
+            if vms and self.sc.vms_bank1 and (cx0, cx1, cy0, cy1) == (x0, x0 + img.w, y0, y0 + img.h):
+                item = self._clipped_item(vb, kerns, None, ref, img.rand_ofs, oi)     # unbeschnitten: Typ 9
+                item.ents.append(("vms1", (vb + img.rand_ofs) & 0xFFFF, (self.sc.ap + self.row(y0) + x0) & 0xFFFF,
+                                  (self.sc.s2_bank1(setn) + _s2_vofs(ss)[id(img)]) & 0xFFFF, bytes(img.vms)))
+            else:
+                item = self._clipped_item(vb, kerns, vms, ref, img.rand_ofs, oi)
             if item.v == 0:
                 continue
             self.add(item)
@@ -929,6 +953,26 @@ def _vms_offsets(ts):
         o_dir = c[16] | c[17] << 8
         cache = {id(e): c[o_dir + 16 * b + 10] | c[o_dir + 16 * b + 11] << 8 for b, e in enumerate(ts.entries)}
         ts._vofs = cache
+    return cache
+
+
+def _s2_content(ss):
+    """Inhalt der S2-Datei (ohne Ladeadresse), zwischengespeichert."""
+    c = getattr(ss, "_s2c", None)
+    if c is None:
+        import dbespr
+        c = ss._s2c = dbespr.to_s2(ss)[2:]
+    return c
+
+
+def _s2_vofs(ss):
+    """id(Bild) -> vofs (inhaltsrelativer Offset der VMS-Liste in der S2-Datei, P5b)."""
+    cache = getattr(ss, "_s2vofs", None)
+    if cache is None:
+        c = _s2_content(ss)
+        o_dir = c[18] | c[19] << 8
+        cache = {id(im): c[o_dir + 16 * b + 12] | c[o_dir + 16 * b + 13] << 8 for b, im in enumerate(ss.images)}
+        ss._s2vofs = cache
     return cache
 
 
@@ -1524,12 +1568,13 @@ def dvg_bytes(dvg, load=0xE800):
     return struct.pack("<H", load) + bytes(out)
 
 
-def double_fronts(assets):
+def double_fronts(assets, objs=False):
     """Synthetische Geometrie mit zwei Frontflaechen je Zelle (P6 9.3 zufall / 9.5 Crawl): jede Front der Tiefen
     d >= 1 bekommt eine Kopie (gleiches Bild ueber denselben Slot, Rechteck und Spaltenbereich um -1, +1 oder 0
     Spalten verschoben). Die Kopie steht abwechselnd direkt hinter der Front oder hinter der Seite der Zelle
-    (DVG-Reihenfolge F, S, F': die INHALT-Reihenfolge 5.2a weicht davon ab). Rueckgabe: Assets mit neuer Dvg und
-    angepassten Slotkarten der drei DTS (dvg_prg neu erzeugt)."""
+    (DVG-Reihenfolge F, S, F': die INHALT-Reihenfolge 5.2a weicht davon ab). objs: zusaetzlich ein zweiter
+    Objektplatz je Zelle (Anker um 3 Spalten und 1 Zeile verschoben, direkt hinter dem ersten). Rueckgabe: Assets mit
+    neuer Dvg und angepassten Slotkarten der drei DTS (dvg_prg neu erzeugt)."""
     g = assets.dvg
     elems, src, depth = [], [], []
     k = 0
@@ -1559,6 +1604,13 @@ def double_fronts(assets):
                         dup._after = e
                     k += 1
                     out.append(dup)
+                elif objs and e.art == ART_OBJ and d >= 1:
+                    dup = copy.deepcopy(e)
+                    dup.anchors = [(max(-128, min(127, ax + (3 if k & 1 else -3))), min(255, ay + 1))
+                                   for ax, ay in e.anchors]
+                    dup._after = e
+                    k += 1
+                    out.append(dup)
             # Kopien hinter ihr Bezugselement umsortieren
             ordered = [x for x in out if not hasattr(x, "_after")]
             for x in [x for x in out if hasattr(x, "_after")]:
@@ -1580,6 +1632,7 @@ def double_fronts(assets):
 
     def ts2(ts):
         t = copy.copy(ts)
+        t.__dict__.pop("_vofs", None)               # Cache der Vorlage (_vms_offsets) gilt fuer die neue Datei nicht
         t.slot_map = [ts.slot_map[i] for i in src] + list(ts.slot_map[len(g.elems):])
         t.ne = len(elems)
         # DTS-Bytes: dbetex.to_dts zaehlt NS aus der Slotkarte (doppelte Slots wuerden mitgezaehlt), daher die

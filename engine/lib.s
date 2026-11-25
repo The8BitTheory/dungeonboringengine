@@ -15,6 +15,7 @@
 ; Festlegungen zu P6c: siehe docs/specs/P6-engine.md "Ergebnis P6c".
 ; Alle anderen Funktionen (und F >= 17): A = E_NOTIMPL, bis ihr Teilschritt (P6d-P6f) sie umsetzt.
 ; Stand P6d: VIEW ohne Objekte (engine/view.s, docs/specs/P6-engine.md "Ergebnis P6d").
+; Stand P6e: VIEW mit Objekten und Gegenständen (5.8; "Ergebnis P6e").
 ;
 ; Übersetzen mit -DDBE_TEST (nur Tests, nie im Spiel, mit lib-test.cfg): Funktionen 250 (MMU-/Common-RAM-Probe),
 ; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DB80) für den VICE-Rauchtest und 253
@@ -23,6 +24,11 @@
 
         .include "dbe.inc"
         .macpack longbranch
+.ifdef SIM
+.define LIBSEG "LIBCODE"        ; sim65-Harness: Lib-Code an $B000 (test/sim/sim.cfg), getrennt vom C-Code
+.else
+.define LIBSEG "CODE"
+.endif
 
 ; Zeropage-Block ZPB ($63-$72, vom Stub gerettet und zurückgeschrieben): Zeiger und heiße Variablen von VIEW
 vp      = ZPB+0         ; VCL-Schreibzeiger (abwärts, zeigt auf den zuletzt geschriebenen Eintrag)
@@ -56,7 +62,7 @@ MAXPEND = 16            ; Wartebereich je Tiefe (deckende Seiten bzw. Fronten oh
 
         .segment "LIBBSS"
 bss_start:                      ; erster Teil von LIBBSS (view.s legt weitere Variablen an)
-        .segment "CODE"
+        .segment LIBSEG
 entry:  jmp     dispatch
         .byte   "DBE", DBE_VERSION
 
@@ -751,8 +757,14 @@ f_itemset:
         cmp     #9
         jcs     range
         ldx     argx
+        lda     itemtab,x       ; itemn = Anzahl der Einträge <> 0 (VIEW: Gegenstände nur, wenn itemn > 0)
+        beq     @o
+        dec     itemn
+@o:     lda     argy
         sta     itemtab,x
-        jmp     ok
+        beq     @r
+        inc     itemn
+@r:     jmp     ok
 
 ; ---------------------------------------------------------------- 12 GEOMSET
 f_geomset:
@@ -1067,6 +1079,7 @@ gcells: sta     gbld
         lda     #$FF
         sta     k_fl,x
         sta     k_ce,x
+        sta     k_ob,x
         bne     @chk
 @bad:   sec
         rts
@@ -1077,7 +1090,19 @@ gcells: sta     gbld
         sta     gj
 @chk:   lda     gart
         cmp     #4
+        bne     @nob
+        lda     gbld            ; Objektplatz: erster und letzter in der Zelle (P6e)
         jeq     @next
+        ldx     gkc
+        lda     gj
+        sta     k_oe-1,x
+        lda     k_ob-1,x
+        cmp     #$FF
+        jne     @next
+        lda     gj
+        sta     k_ob-1,x
+        jmp     @next
+@nob:
         ldy     #4              ; x + w <= VW
         lda     (op),y
         ldy     #6
@@ -1219,6 +1244,11 @@ f_texset:
         ldx     #gt_dts-geotab
         jsr     chkgeo
         jcs     e_geom
+.ifndef VMS_COPY
+        lda     P0+1            ; VCL-Typ 9: Listen in Bank 1 erst ab $4000 (VDC-BASIC P2d, 6a)
+        cmp     #$40
+        jcc     range
+.endif
         ldy     #24             ; U
         jsr     ldacc
         jsr     chk_pool
@@ -1352,6 +1382,11 @@ f_spriteset:
 @id:    ldx     #gt_s2-geotab
         jsr     chkgeo
         jcs     e_geom
+.ifndef VMS_COPY
+        lda     P0+1            ; VCL-Typ 9: Listen in Bank 1 erst ab $4000 (wie TEXSET)
+        cmp     #$40
+        jcc     range
+.endif
         ldy     #30             ; U
         jsr     ldacc
         jsr     chk_pool
@@ -1461,12 +1496,12 @@ t_hi:   lda     #0
         ldx     #$42
         ldy     $DB7F
         rts
-        .segment "CODE"
+        .segment LIBSEG
 .endif
 
         .include "view.s"
 
-        .segment "CODE"
+        .segment LIBSEG
 code_end:                       ; Codeende (nur ein Segment CODE, kein RODATA)
 
 ; ---------------------------------------------------------------- Variablen (Bank 1 $E000-$E7FF)
@@ -1537,6 +1572,7 @@ dbg_flags: .res 1
 bgfill: .res 1
 bgomt:  .res 8                  ; o_v mod P je Richtung (BGSET)
 itemtab:.res 64                 ; Gegenstand -> Satz + 1
+itemn:  .res 1                  ; Einträge <> 0 in itemtab
 sty_lo: .res 96                 ; TEXSET: Adresse der Stilzeile [Art * 32 + st]
 sty_hi: .res 96
 tpl:    .res 256                ; Kacheltabellen (MAPINIT, mtiles)
@@ -1553,6 +1589,8 @@ k_wo:   .res MAXCELL            ; erste Wand in wl
 k_wn:   .res MAXCELL            ; Anzahl Wände (Art 0/1)
 k_fl:   .res MAXCELL            ; Boden-/Deckenelement: 16 * Platz in der Zelle, $FF keins
 k_ce:   .res MAXCELL
+k_ob:   .res MAXCELL            ; Objektplätze: 16 * Platz des ersten und des letzten, k_ob = $FF keiner
+k_oe:   .res MAXCELL
 d_k0:   .res 8                  ; je Tiefe: erste Zelle, Anzahl Zellen
 d_kn:   .res 8
 wl:     .res MAXWALL            ; Wände: 16 * Platz in der Zelle (DVG-Reihenfolge)

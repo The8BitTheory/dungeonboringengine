@@ -386,25 +386,36 @@ class TestResult(unittest.TestCase):
         self.assertEqual(a.vms, c.vms)
 
     def test_vms_bank1(self):
-        """Build-Schalter VMS_BANK1: unbeschnittene Listen als VCL-Typ 9 mit Bank-1-Adresse, keine Pufferbytes;
-        beschnittene Listen weiter im Puffer (Typ 12); Bild gleich."""
+        """Standardbuild (vms_bank1): unbeschnittene Listen (Waende, Baender, Sprites) als VCL-Typ 9 mit
+        Bank-1-Adresse, keine Pufferbytes; beschnittene Listen weiter im Puffer (Typ 12); Bild gleich wie VMS_COPY."""
         e = env()
-        n9 = 0
-        for k, (i, v) in enumerate([(9, 0), (9, 1), (16, 2), (22, 3)]):
-            sc = dbeview.make_scene(e.assets, e.demo, i, v)
+        n9, n9s = 0, 0
+        rnd = random.Random(9)
+        s2a, a = [], 0x4000                     # S2 dicht ab $4000 (die Demo-DTS reichen ueber ihre Bereiche hinaus)
+        for ss in e.assets.sprites:
+            s2a.append(a if ss is not None else 0)
+            a += len(dbeview._s2_content(ss)) if ss is not None else 0
+        s2a += [0] * (8 - len(s2a))
+        cases = [(9, 0, 0), (9, 1, 0), (16, 2, 0), (22, 3, 0), (9, 0, 5), (16, 2, 5), (22, 1, 5), (9, 3, 5)]
+        for k, (i, v, nobj) in enumerate(cases):
+            objs = dbeview.random_objects(rnd, e.demo, i, v, nobj)
+            sc = dbeview.make_scene(e.assets, e.demo, i, v, objs, [0, 2, 3, 2] + [0] * 60)
             ref = dbeview.view(sc)
             sc1 = copy.copy(sc)
-            sc1.vms_bank1 = True
+            sc1.vms_bank1, sc1.s2_addr = True, tuple(s2a)
             res = dbeview.view(sc1)
             ents = dbeview.decode_vcl(res.buffer)
             n9 += sum(1 for x in ents if x[0] == 9)
+            n9s += sum(1 for x in ents if x[0] == 9 and 0x4000 <= x[3] < a)
             self.assertEqual(len(ents), len(dbeview.decode_vcl(ref.buffer)))
             self.assertLessEqual(res.vmslen, ref.vmslen)
+            self.assertEqual(res.objvis, ref.objvis)
             for x in ents:
                 if x[0] == 9:
                     self.assertIn(x[3], res.lists1)
-            check_pixels(self, sc1, k, f"vms_bank1 {i}/{v}")
+            check_pixels(self, sc1, k, f"vms_bank1 {i}/{v}/{nobj}")
         self.assertGreater(n9, 0)
+        self.assertGreater(n9s, 0)                  # unbeschnittene Sprites als Typ 9
 
     def test_back_to_front_order(self):
         """Der letzte Eintrag (vorne) ist spaeter in der Liste als der erste (hinten): erste Eintraege = Tapete."""

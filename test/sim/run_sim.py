@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """sim65-Gerüst für die Lib (docs/specs/P6-engine.md 9.2).
 
-Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c, P6d; P6d zweimal:
-                               Standardbuild und Build-Schalter VMS_BANK1)
+Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c, P6d, P6e; P6d und P6e
+                               zweimal: Standardbuild (unbeschnittene VMS-Listen als Typ 9) und Build-Schalter VMS_COPY)
          Umgebung: DBEVIEW_FULL=1 voller Zufallssatz (200 x 20), DBE_NOCYCLES=1 ohne Zyklenmessung
          run_sim.py --build    nur bauen
 
@@ -21,7 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'build', 'sim')
 PRG = os.path.join(OUT, 'viewsim.prg')
 LBL = os.path.join(OUT, 'viewsim.lbl')
-PRG1 = os.path.join(OUT, 'viewsim1.prg')         # Build-Schalter VMS_BANK1 (unbeschnittene VMS-Listen aus Bank 1)
+PRGC = os.path.join(OUT, 'viewsimc.prg')         # Build-Schalter VMS_COPY (unbeschnittene VMS-Listen in den Puffer)
 PRGM = os.path.join(OUT, 'viewsimm.prg')         # nur Test: MAXITEM = 8 (Abbruch über die Eintragszahl)
 
 Call = namedtuple('Call', 'f a x y p pb buf')      # p: 4 Wörter, pb: 10 Byte $0C08-$0C11
@@ -53,7 +53,7 @@ class Scene:
 def build():
     os.makedirs(OUT, exist_ok=True)
     src = [os.path.join(HERE, 'viewsim.c'), os.path.join(HERE, 'glue.s'), os.path.join(ROOT, 'engine', 'lib.s')]
-    for prg, lbl, defs in ((PRG, LBL, []), (PRG1, os.path.join(OUT, 'viewsim1.lbl'), ['--asm-define', 'VMS_BANK1']),
+    for prg, lbl, defs in ((PRG, LBL, []), (PRGC, os.path.join(OUT, 'viewsimc.lbl'), ['--asm-define', 'VMS_COPY']),
                            (PRGM, os.path.join(OUT, 'viewsimm.lbl'), ['--asm-define', 'MAXITEM_T=8'])):
         subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, 'sim.cfg'), '-O', '--asm-define', 'SIM']
                        + defs + ['--asm-include-dir', os.path.join(ROOT, 'engine'), '-Ln', lbl,
@@ -78,7 +78,7 @@ def run(scene, prg=PRG):
     with tempfile.TemporaryDirectory() as td:
         sc, rs = os.path.join(td, 'scene'), os.path.join(td, 'result')
         open(sc, 'wb').write(scene.encode())
-        r = subprocess.run(['sim65', '-c', prg, sc, rs], capture_output=True, text=True)
+        r = subprocess.run(['sim65', '-c', prg, sc, rs], capture_output=True, text=True, timeout=300)   # Wächter gegen Hänger
         if r.returncode:
             raise RuntimeError(f'sim65 Exitcode {r.returncode}: {r.stdout}{r.stderr}')
         cyc = int(re.search(r'(\d+) cycles', r.stdout + r.stderr).group(1))
@@ -103,7 +103,7 @@ def run(scene, prg=PRG):
     return Run(items, cyc)
 
 
-VCL_LEN = {0: 1, 2: 11, 3: 13, 4: 7, 5: 11, 12: 7}      # P6 Abschnitt 6
+VCL_LEN = {0: 1, 2: 11, 3: 13, 4: 7, 5: 11, 9: 7, 12: 7}      # P6 Abschnitt 6
 
 
 def decode_vcl(buf):
@@ -238,6 +238,7 @@ def test_p6a():
 TOOLS = os.path.join(ROOT, 'tools')
 DEMO_MAP = os.path.join(ROOT, 'docs', 'specs', 'examples', 'demo.toml')
 HDR = 0x1400            # Platz für Kopf-Kopien mit gezielten Fehlern (gemeinsames RAM)
+HDR2 = 0xA700           # Kopf-Kopien, die gültig sein müssen (S2 und DTS ab $4000 wegen VCL-Typ 9; frei in P6c)
 
 
 class Bss:
@@ -337,6 +338,7 @@ def test_geomcheck():
     """GEOMSET prüft die Elementtabelle (P6d-opt, Abschnitt 7): Fehlerfälle A = 1 und keine gültige Geometrie
     (geom_ok = 0), Grenzfälle A = 0; dbeview.parse_dvg wirft in denselben Fällen ViewError."""
     sys.path.insert(0, TOOLS)
+    import copy
     import dbeview
     L = labels()
     tmp = tempfile.TemporaryDirectory()
@@ -362,8 +364,65 @@ def test_geomcheck():
                 d[o_e + 16 * i + 12] = d[o_e + 16 * i + 13] = 0
                 return bytes(d)
         raise AssertionError
+    # synthetische Geometrien über dbeview.Dvg (Zellen je Tiefe neu zusammensetzen, first/n neu berechnen)
+    def rebuild(fn, S=None):
+        g = copy.deepcopy(A.dvg)
+        cells = [dbeview._Ctx.cells_of(type('C', (), {'g': g})(), d) for d in range(g.D + 1)]
+        cells = [[(s_, list(es)) for s_, es in c] for c in cells]
+        fn(g, cells)
+        elems = []
+        for d, c in enumerate(cells):
+            g.depth[d].first, g.depth[d].n = len(elems), sum(len(es) for _, es in c)
+            for s_, es in c:
+                for e in es:
+                    e2 = copy.copy(e)
+                    e2.d, e2.s = d, s_
+                    elems.append(e2)
+        g.elems = elems
+        if S is not None:
+            g.S = S
+        return bytes(dbeview.dvg_bytes(g)[2:])
+    proto_obj = next(e for e in A.dvg.elems if e.art == 4)
+    proto_side = copy.copy(next(e for e in A.dvg.elems if e.art == 1))
+    proto_side.flags = 0                                # nicht deckend: kein Wartebereich
+    proto_ceil = next(e for e in A.dvg.elems if e.art == 3)
+
+    def pad_cell(n):                                    # Zelle (1, -1) mit Objektplätzen auf n Elemente auffüllen
+        def fn(g, cells):
+            es = next(es for s_, es in cells[1] if s_ == -1)
+            es += [copy.copy(proto_obj) for _ in range(n - len(es))]
+        return fn
+
+    def more_cells(ncell, nwall):                       # neue Zellen (S = 15) mit Objektplatz und Wänden
+        def fn(g, cells):
+            have = sum(len(c) for c in cells)
+            walls = sum(1 for c in cells for _, es in c for e in es if e.art < 2)
+            free = [(d, s_) for d in (3, 2, 1) for s_ in list(range(4, 16)) + list(range(-15, -3))
+                    if all(s_ != t for t, _ in cells[d])]
+            for k in range(ncell - have):
+                d, s_ = free[k]
+                cells[d].append((s_, [copy.copy(proto_obj)]))
+            k = 0
+            while walls < nwall:
+                d, s_ = free[k // 15]
+                es = next(es for t, es in cells[d] if t == s_)
+                es.append(copy.copy(proto_side))
+                walls += 1
+                k += 1
+        return fn
+
+    def two_ceils(g, cells):
+        es = next(es for s_, es in cells[2] if any(e.art == 3 for e in es))
+        es.append(copy.copy(proto_ceil))
     nd = base[5]
     cases = [
+        ('16 Elemente in einer Zelle', rebuild(pad_cell(16)), 0),
+        ('17 Elemente in einer Zelle', rebuild(pad_cell(17)), 1),
+        ('48 Zellen', rebuild(more_cells(48, 0), S=15), 0),
+        ('49 Zellen', rebuild(more_cells(49, 0), S=15), 1),
+        ('96 Wände', rebuild(more_cells(30, 96), S=15), 0),
+        ('97 Wände', rebuild(more_cells(30, 97), S=15), 1),
+        ('zwei Deckenelemente', rebuild(two_ceils), 1),
         ('demo', base, 0), ('zwei Fronten (16 wartend)', base2, 0),
         ('17 wartende in Tiefe 3', depth3_ceil(base2), 1),
         ('Zelle nicht zusammenhängend', el(base, 12, 2, 1), 1),
@@ -393,11 +452,21 @@ def test_geomcheck():
             fails.append(f'parse_dvg {name}: ViewError {bool(py)}, erwartet {bool(a)}')
         if not a:
             S.call(f'GEOMSET {name} zurück', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    # VIEW nach fehlgeschlagenem GEOMSET: A = 5 (keine gültige Geometrie), nach gültigem wieder 0
+    import dbemap
+    dmp = dbemap.to_dmp(dbemap.load_toml(DEMO_MAP))[2:]
+    S.call('GEOMSET demo', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    S.call('MAPINIT', 1, p=(0x5000, 0, 0, 0), pre=[(0x5000, dmp)], a=0)
+    S.call('VIEW gültig', 4, p=(0, 0, 0, 0), a=0)
+    S.call('GEOMSET 17 Elemente', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, rebuild(pad_cell(17)))], a=1)
+    S.call('VIEW nach fehlgeschlagenem GEOMSET', 4, p=(0, 0, 0, 0), a=5)
+    S.call('GEOMSET demo erneut', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    S.call('VIEW wieder gültig', 4, p=(0, 0, 0, 0), a=0)
     S.run()
     fails += S.fails
     for f in fails:
         print('FAIL', f)
-    print(f'GEOMSET-Prüfungen: {len(cases)} Fälle, {len(fails)} Fehler')
+    print(f'GEOMSET-Prüfungen: {len(cases)} Fälle + VIEW nach Fehler, {len(fails)} Fehler')
     return not fails
 
 
@@ -412,8 +481,10 @@ def test_p6c():
     A = dbeview.build_demo_assets(tmp.name)
 
     # ---- Daten an ihren Bank-1-Adressen (2.4)
-    ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'wall': 0x9000, 'floor': 0xB400, 'ceil': 0xF000, 'dbg': 0xFE00}
-    S2A = [0x7000, 0x8100, 0x8300, 0x8800]
+    # sim65: Lib-Code an $B000 wie auf dem C128; die Demo-DTS sind größer als die Bereiche der Karte 2.4 (sim.cfg)
+    ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'wall': 0x6000, 'floor': 0x8300, 'ceil': 0xF000, 'dbg': 0xFE00,
+            'bigmap': 0x2E00}
+    S2A = [0x4000, 0x5040, 0x5340, 0x5840]  # Typ 9: S2 ab $4000 (SPRITESET prüft); die DMP lädt nur Szene B ($5000)
     dvg = A.dvg_prg[2:]
     dts = [dbetex.to_dts(t)[2:] for t in (A.walls, A.floor, A.ceil)]
     dtsa = [ADDR['wall'], ADDR['floor'], ADDR['ceil']]
@@ -435,7 +506,6 @@ def test_p6c():
         s.seg(ADDR['dbg'], dbg)
         for k in range(4):
             s.seg(S2A[k], s2[k])
-        s.seg(ADDR['dmp'], dmp)
 
     # ================================================================ Szene A: Geometrie und Assets
     S = Seq(L)
@@ -506,6 +576,7 @@ def test_p6c():
         S.call(f'TEXSET Art {k}', 13, k, p=(TD[k], VR[k], 0, 0), a=0, rx=0, ry=0,
                check=rec_check(k, dts[k], TD[k], VR[k], 'dts'))
     S.call('TEXSET Art falsch', 13, 1, p=(TD[0], 0, 0, 0), a=1, same=True)
+    S.call('TEXSET unter $4000', 13, 0, p=(0x3FC0, VR[0], 0, 0), pre=[(0x3FC0, dts[0][:64])], a=6, same=True)
     terr = [('Magic', 1, (1, ord('X'))), ('Version', 1, (2, 2)), ('NST 0', 1, (9, 0)), ('NST 33', 1, (9, 33)),
             ('Art', 1, (3, 2))]
     for nm, ferr, e in terr:
@@ -569,8 +640,10 @@ def test_p6c():
     S.call('POOLSET aus 3', 11, p=(0, 0, 0, 0), a=0)
     S.call('SPRITESET 1 erneut', 9, 1, p=(S2A[1], 0x1000, 0, 0), a=0)
     # Satz 4: ID 0, Satz 7: Kopie von Satz 2 (Header-Kopie, Tabellen nur als Adressen)
-    S.call('SPRITESET ID 0', 9, 4, p=(HDR, 0x5000, 0, 0), pre=[(HDR, patched(s2[3], (4, 0, 2)))], a=0,
-           check=rec_check(7, patched(s2[3], (4, 0, 2)), HDR, 0x5000, 's2'))
+    S.call('SPRITESET unter $4000', 9, 4, p=(0x3FC0, 0x5000, 0, 0), pre=[(0x3FC0, patched(s2[3], (4, 0, 2)))], a=6,
+           check=lambda b: [] if b.b('recs', 16 * 7) == 0 else ['Satz 4 gesetzt'])
+    S.call('SPRITESET ID 0', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))], a=0,
+           check=rec_check(7, patched(s2[3], (4, 0, 2)), HDR2, 0x5000, 's2'))
     S.call('SPRITESET 7', 9, 7, p=(S2A[2], 0x6000, 0, 0), a=0, check=rec_check(10, s2[2], S2A[2], 0x6000, 's2'))
 
     # ---- ITEMSET
@@ -600,12 +673,13 @@ def test_p6c():
     S.call('GEOMSET andere ID und D', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg3)], a=0,
            rx=0x1A, ry=0, check=geom_check(dvg3, 0xFFFF, HDR + 0x400))
     S.call('GEOMSET zurück', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 0xFFFF, GD))
-    S.call('SPRITESET ID 0 erneut', 9, 4, p=(HDR, 0x5000, 0, 0), pre=[(HDR, patched(s2[3], (4, 0, 2)))], a=0)
+    S.call('SPRITESET ID 0 erneut', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))], a=0)
     dvg4 = patched(dvg, (12, gid ^ 0x77), (8, u16(dvg, 8) + 2), n=len(dvg))
     S.call('GEOMSET andere ID und Stride', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg4)], a=0,
            rx=0x10, ry=0)
     S.call('GEOMSET zurück 2', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0)
-    S.call('SPRITESET ID 0 und gleiche ID', 9, 4, p=(HDR, 0x5000, 0, 0), pre=[(HDR, patched(s2[3], (4, 0, 2)))], a=0)
+    S.call('SPRITESET ID 0 und gleiche ID', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))],
+           a=0)
     S.call('GEOMSET gleiche ID: Satz 4 bleibt', 12, p=(GD, 0x10, 0, 0), a=0, rx=0, ry=0)
     S.call('INIT löscht alles', 0, a=0, rx=3,
            check=lambda b: [] if b.raw('recs', 176) == bytes(176) and b.b('geom_ok') == 0 else ['Zustand'])
@@ -723,9 +797,9 @@ def test_p6c():
         data = dbemap.to_dmp(mm)[2:]
         nm = f'{w}x{h} NT {len(mm.tiles)}'
         use_copy = n <= 2048
-        SC.call(f'MAPINIT {nm}', 1, p=(ADDR['dmp'], 0x8000 if use_copy else 0, 0, 0),
-                pre=[(ADDR['dmp'], data)], a=0, rx=w & 255, ry=h & 255,
-                rp=(mm.start, mm.direction), check=map_check(mm, 0x8000 if use_copy else 0, 0))
+        SC.call(f'MAPINIT {nm}', 1, p=(ADDR['bigmap'], 0x8000 if use_copy else 0, 0, 0),
+                pre=[(ADDR['bigmap'], data)], a=0, rx=w & 255, ry=h & 255,
+                rp=(mm.start, mm.direction), check=map_check(mm, 0x8000 if use_copy else 0, 0, ADDR['bigmap']))
         probe = sorted({0, n - 1, mm.start, n // 2, rnd.randrange(n), rnd.randrange(n)})
         for i in probe:
             SC.call(f'{nm} CELL {i}', 5, p=(i, 0, 0, 0), a=0, rx=mm.cells[i] & 255, ry=mm.content[i], rp=(i, 0))
@@ -745,7 +819,7 @@ def test_p6c():
 
 
 # ------------------------------------------------------------------ P6d: VIEW ohne Objekte
-P6D_ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'dts': (0x9000, 0xB400, 0xF000), 'dbg': 0xFE00}
+P6D_ADDR = {'dmp': 0x2E00, 'dvg': 0xE800, 'dts': (0x6000, 0x8300, 0xF000), 'dbg': 0xFE00}   # S2: ViewRunner.S2_AREAS
 BIGBUF = (0x1300, 0x1C00)       # größter erlaubter Puffer (BUFSET-Fenster, P6d-opt)
 
 
@@ -753,10 +827,10 @@ class ViewRunner:
     """Baut aus dbeview-Szenen eine Szenendatei (nur nötige Setz-Aufrufe zwischen den Ansichten) und vergleicht
     jede VIEW-Antwort bytegenau mit dbeview.view."""
 
-    def __init__(self, dbeview, dbetex, bank1=False):
+    def __init__(self, dbeview, dbetex, vcopy=False):
         self.dv, self.dt = dbeview, dbetex
-        self.bank1 = bank1
-        self.prg = PRG1 if bank1 else PRG
+        self.bank1 = not vcopy
+        self.prg = PRGC if vcopy else PRG
         self.reset()
 
     def reset(self):
@@ -765,8 +839,8 @@ class ViewRunner:
         self.state = {}
         self.expect = []            # (Name, Result) je VIEW, None für Setz-Aufrufe
 
-    def _call(self, f, x=0, y=0, p=(0, 0, 0, 0), want=None):
-        self.scene.call(f, x, y, p)
+    def _call(self, f, x=0, y=0, p=(0, 0, 0, 0), want=None, **kw):
+        self.scene.call(f, x, y, p, **kw)
         self.expect.append(want)
 
     def setup(self, sc):
@@ -779,6 +853,8 @@ class ViewRunner:
             st['dvg'] = dvg
             st.pop('dts', None)
             st.pop('bg', None)
+            for k in range(8):
+                st.pop(('s2', k), None)
         for k in range(3):
             ts = sc.dts[k]
             key = (id(ts), ts.ne if ts else 0, sc.vram_bases['dts'][k])
@@ -813,13 +889,60 @@ class ViewRunner:
         if st.get('buf') != sc.buf:
             self._call(15, p=(sc.buf[0], sc.buf[1], 0, 0), want=('setup', 0))
             st['buf'] = sc.buf
+        # Sprite-Sätze (S2 an festen Adressen je Satzobjekt, P6e) und ITEMSET
+        for k in range(8):
+            ss = sc.s2[k]
+            key = (id(ss), sc.vram_bases['s2'][k]) if ss is not None else None
+            if st.get(('s2', k), 'neu') == key:
+                continue
+            if ss is None:
+                self._call(9, k, p=(0, 0, 0, 0), want=('setup', 0))
+            else:
+                addr = self.s2_addr(ss)
+                self._call(9, k, p=(addr, sc.vram_bases['s2'][k], 0, 0), want=('setup', 0))
+            st[('s2', k)] = key
+        it = st.setdefault('itemtab', [0] * 64)
+        for g in range(64):
+            if it[g] != sc.itemtab[g]:
+                self._call(10, g, sc.itemtab[g], want=('setup', 0))
+                it[g] = sc.itemtab[g]
 
-    def add(self, name, sc):
-        sc.objects = []
-        sc.itemtab = [0] * 64
+    S2_AREAS = ((0x4000, 0x6000), (0xA700, 0xB000))      # freie Bereiche für S2 (sim.cfg; ab $4000 wegen Typ 9)
+
+    def s2_addr(self, ss):
+        """Bank-1-Adresse eines Sprite-Satzes; lädt ihn beim ersten Gebrauch (Bereiche S2_AREAS, dicht)."""
+        tab = self.state.setdefault('s2addr', {})
+        if id(ss) in tab:
+            return tab[id(ss)][0]
+        import dbespr
+        data = dbespr.to_s2(ss)[2:]
+        used = self.state.setdefault('s2used', [a for a, b in self.S2_AREAS])
+        for i, (a, b) in enumerate(self.S2_AREAS):
+            if used[i] + len(data) <= b:
+                addr = used[i]
+                used[i] += (len(data) + 15) & ~15
+                break
+        else:
+            raise RuntimeError('kein Platz für den Sprite-Satz im sim65-Speicher')
+        self.scene.seg(addr, data)
+        tab[id(ss)] = (addr, ss)            # ss festhalten: id bleibt eindeutig
+        return addr
+
+    def add(self, name, sc, objs=False, objn=None):
+        """objs: Objekte, Gegenstände (itemtab) und ITEMPH der Szene übernehmen (P6e), sonst ohne Objekte (P6d);
+        objn: OBJN abweichend von der Länge der Liste (> 16 testen)."""
+        if not objs:
+            sc.objects = []
+            sc.itemtab = [0] * 64
         sc.vms_bank1, sc.dts_addr = self.bank1, P6D_ADDR['dts']
         self.setup(sc)
-        self._call(4, p=(sc.ap, 0, 0, 0), want=(name, self.dv.view(sc)))
+        sc.s2_addr = tuple(self.s2_addr(ss) if ss is not None else 0 for ss in sc.s2)
+        self._call(4, p=(sc.ap, 0, 0, 0), want=(name, self.dv.view(sc)), **self.objargs(sc, objn))
+
+    @staticmethod
+    def objargs(sc, objn=None):
+        ol = b''.join(struct.pack('<HBBBB', o.cell, o.set, o.dir, o.phase, o.byte5()) for o in sc.objects[:16])
+        return dict(itemph=sc.itemph, objn=len(sc.objects) if objn is None else objn, objl=ol)
 
     def run(self):
         r = run(self.scene, self.prg)
@@ -834,9 +957,9 @@ class ViewRunner:
                 continue
             nview += 1
             codes[res.a] = codes.get(res.a, 0) + 1
-            pb = struct.unpack('<HHHH', c.pb[2:10])
+            pb = struct.unpack('<HHHH', c.pb[2:10])            # VCLADR, VCLLEN, VMSLEN, OBJVIS
             got = (c.a, c.x, c.y, c.p[0], pb)
-            want = (res.a, res.x, 0, res.p0, (res.p0, res.vcllen, res.vmslen, 0))
+            want = (res.a, res.x, 0, res.p0, (res.p0, res.vcllen, res.vmslen, res.objvis))
             if got != want or c.buf != res.buffer:
                 msg = f'{name}: A/X/Y/P0/PB sim {got} <> Referenz {want}'
                 if c.buf != res.buffer:
@@ -872,7 +995,7 @@ def time_view(runner, sc):
     return run(a, runner.prg).cycles - run(b, runner.prg).cycles
 
 
-def test_p6d(bank1=False):
+def test_p6d(vcopy=False):
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import copy, random
@@ -892,11 +1015,11 @@ def test_p6d(bank1=False):
     def free(m):
         return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
 
-    tag = ' (VMS_BANK1)' if bank1 else ''
+    tag = ' (VMS_COPY)' if vcopy else ''
 
     def go(label, scenes):
         nonlocal ok, total
-        R = ViewRunner(dbeview, dbetex, bank1)
+        R = ViewRunner(dbeview, dbetex, vcopy)
         R.dbg_bytes = dbg_prg[2:]
         for name, sc in scenes:
             R.add(name, sc)
@@ -971,7 +1094,7 @@ def test_p6d(bank1=False):
             scs.append((f'überlauf {n_} {size}', s2))
     go('überlauf', scs)
     # Abbruch über die Eintragszahl (K4): Build mit MAXITEM = 8 gegen die Referenz mit MAXITEM = 8
-    if not bank1:
+    if not vcopy:
         orig = dbeview.MAXITEM
         try:
             dbeview.MAXITEM = 8
@@ -1000,7 +1123,7 @@ def test_p6d(bank1=False):
     # Zyklen je VIEW (Differenz zweier Läufe)
     if os.environ.get('DBE_NOCYCLES'):
         return ok
-    R = ViewRunner(dbeview, dbetex, bank1)
+    R = ViewRunner(dbeview, dbetex, vcopy)
     R.dbg_bytes = dbg_prg[2:]
     rnd = random.Random(4)
     samples = {
@@ -1015,6 +1138,223 @@ def test_p6d(bank1=False):
     return ok
 
 
+# ------------------------------------------------------------------ P6e: VIEW mit Objekten
+def tall_sets(dbeview, dvg):
+    """Zusätzliche Sprite-Sätze für den Rand-Test: 'hoch' (höher als das Fenster über dem Anker, ragt oben hinaus),
+    'links' (Fußpunkt rechts außen: ragt links hinaus), 'rechts' (Fußpunkt links: ragt rechts hinaus; ohne Bild für
+    d = 2, Index $FE)."""
+    D, stride = dvg.D, dvg.stride
+    out = []
+    for name, wb, h, fxf in (('hoch', 4, 90, 0.5), ('links', 30, 20, 1.0), ('rechts', 30, 20, 0.0)):
+        images = {}
+        for d in range(1, D + 1):
+            if name == 'rechts' and d == 2:     # kein Bild: Index $FE (P5b 6.3, Objekt entfällt)
+                continue
+            w = max(2, wb >> (d - 1))
+            hh = max(3, h >> (d - 1)) if name != 'hoch' else h
+            pix = dbeview.sprite_pixels('blob', 2 * w, hh, d & 3, 0)
+            images[(0, 0, d)] = (pix, min(w - 1, int(w * fxf)), hh - 1)
+        prg, vram = dbeview.make_s2(images, D, 1, 1, stride)
+        out.append(dbeview.read_s2(prg, vram))
+    return out
+
+
+def test_p6e(vcopy=False):
+    """VIEW mit Objekten und Gegenständen (5.8), Beschneiden mit VMS-Typ 3, OBJVIS: bytegleich mit dbeview.view."""
+    sys.path.insert(0, TOOLS)
+    sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
+    import copy, random
+    import dbemap, dbetex, dbeview
+    dbeview.dbemap = dbemap
+    from test_dbeview import open_room, mk_map
+    full = bool(os.environ.get('DBEVIEW_FULL'))
+    tmp = tempfile.TemporaryDirectory()
+    A = dbeview.build_demo_assets(tmp.name)
+    dbg_prg, _, _ = dbetex.build_background(dbetex.load_bg_conf(os.path.join(tmp.name, 'bg.toml')))
+    demo = dbemap.load_toml(DEMO_MAP)
+    extra = tall_sets(dbeview, A.dvg)
+    T = dbemap.Tile
+    WEG, DECK, INH = dbeview.T_WEG, dbeview.T_DECKEND, dbeview.T_INHALT
+    tag = ' (VMS_COPY)' if vcopy else ''
+    ok, total, allcodes = True, 0, {}
+    stats = {'obj': 0, 'vis': 0}
+
+    def free(m):
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & WEG]
+
+    def go(label, scenes, prg=None, maxitem=None):
+        nonlocal ok, total
+        R = ViewRunner(dbeview, dbetex, vcopy)
+        if prg:
+            R.prg = prg
+        R.dbg_bytes = dbg_prg[2:]
+        orig = dbeview.MAXITEM
+        try:
+            if maxitem:
+                dbeview.MAXITEM = maxitem
+            for sc_ in scenes:
+                name, sc = sc_[:2]
+                R.add(name, sc, objs=True, objn=sc_[2] if len(sc_) > 2 else None)
+                res = R.expect[-1][1]
+                stats['obj'] += len(sc.objects)
+                stats['vis'] += bin(res.objvis).count('1')
+        finally:
+            dbeview.MAXITEM = orig
+        n, fails, codes, _ = R.run()
+        total += n
+        for k, v in codes.items():
+            allcodes[k] = allcodes.get(k, 0) + v
+        print(f'P6e sim{tag} {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        for f in fails[:10]:
+            print('FAIL', f)
+        ok = ok and not fails
+
+    def with_extra(sc):
+        sc.s2 = list(sc.s2[:4]) + extra + [None]
+        return dbeview.layout_vram(sc)
+
+    items = [0, 2, 3, 2] + [0] * 60
+    # demo: alle freien Zellen x 4 Richtungen mit 0, 1 und 5 Objekten (fester Seed), Gegenstände, ITEMPH
+    rnd = random.Random(2025)
+    scs = []
+    for n in (0, 1, 5):
+        for i in free(demo):
+            for v in range(4):
+                objs = dbeview.random_objects(rnd, demo, i, v, n)
+                scs.append((f'demo {n} Obj {i}/{v}', dbeview.make_scene(A, demo, i, v, objs, items, (i + v) & 3,
+                                                                        band_cover=bool((i + v) & 1))))
+    go('demo 0/1/5 Objekte', scs)
+    # rand: Sprites an den Fensterrändern (s = -2 ... 2, d = 1 ... 3, alle q), oben hinaus, links/rechts hinaus
+    m = open_room()
+    cx, cy = m.start % m.width, m.start // m.width
+    scs = []
+    for setn in (0, 2, 3, 4, 5, 6):
+        for d in (1, 2, 3):
+            for s_ in (-2, -1, 0, 1, 2):
+                for q in range(5):
+                    o = dbeview.Obj((cy - d) * m.width + cx + s_, setn, 2, 1, q)
+                    sc = with_extra(dbeview.make_scene(A, m, objects=[o], buf=BIGBUF, band_cover=bool(q & 1)))
+                    scs.append((f'rand Satz {setn} d {d} s {s_} q {q}', sc))
+    go('rand', scs)
+    # rand hinter Wänden: Objekte teilweise verdeckt
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, WEG | DECK, 0)]
+    rows = ["#########", "#.......#", "#.#####.#", "#.#...#.#", "#.#...#.#", "#...#...#", "#########"]
+    mw = mk_map(rows, t, {"#": 1, ".": 0}, outside=1, start=5 * 9 + 2, direction=0)
+    scs = []
+    for i in free(mw):
+        for v in range(4):
+            for setn in (0, 3, 5):
+                objs = [dbeview.Obj(j, setn, (j + v) & 3, j & 1, q) for j in range(len(mw.cells)) for q in (0, 4)
+                        if not mw.tiles[mw.cells[j]].flags & WEG and (j + q) % 3 == 0]
+                scs.append((f'verdeckt {i}/{v} Satz {setn}', with_extra(dbeview.make_scene(A, mw, i, v, objs[:16]))))
+    go('rand verdeckt', scs)
+    # INHALT: Türen/Gitter mit Flag INHALT (deckend und nicht), Objekte und Gegenstände darauf
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, WEG | DECK, 0), T((2, 0, 2, 0), 1, 1, INH, 0),
+         T((3, 3, 3, 3), 1, 2, INH | DECK, 0), T((2, 2, 2, 2), 1, 1, WEG, 0)]
+    rows = ["#########", "#.D.G...#", "#.#E#.#.#", "#.......#", "#.G.D.E.#", "#########"]
+    content = [0] * (9 * 6)
+    mi = mk_map(rows, t, {"#": 1, ".": 0, "D": 2, "E": 3, "G": 4}, outside=1, start=3 * 9 + 1, direction=1)
+    for j, c in enumerate(mi.cells):
+        if c in (2, 3):
+            mi.content[j] = 1 + (j % 3)
+    scs = []
+    for i in free(mi):
+        for v in range(4):
+            objs = [dbeview.Obj(j, (j + v) % 4, v, j & 1, (j + v) % 6) for j, c in enumerate(mi.cells) if c in (2, 3, 4)]
+            scs.append((f'INHALT {i}/{v}', dbeview.make_scene(A, mi, i, v, objs[:16], items, v,
+                                                               band_cover=bool(i & 1))))
+    go('INHALT', scs)
+    # zwei Fronten und zwei Objektplätze je Zelle (k_ob < k_oe, synthetische DVG): demo und zufall mit Objekten
+    A3 = dbeview.double_fronts(A, objs=True)
+    rnd = random.Random(33)
+    scs = [(f'2F2O demo {i}/{v}', dbeview.make_scene(A3, demo, i, v, dbeview.random_objects(rnd, demo, i, v, 6), items,
+                                                     v, band_cover=bool(i & 1)))
+           for i in free(demo)[::2] for v in range(4)]
+    scs += [(f'2F2O zufall {k}', dbeview.random_scene(2000 + k, A3, nobj=12)) for k in range(40)]
+    go('zwei Fronten, zwei Objektplätze', scs)
+    # zufall mit Objekten (bis 16, Bit 6/7, Gegenstände, ITEMPH), OBJN > 16
+    nmaps, nviews = (200, 20) if full else (60, 6)
+    for part in range(0, nmaps, 20):
+        scs = []
+        for k in range(part, min(part + 20, nmaps)):
+            base = dbeview.random_scene(k, A, buf=BIGBUF if k % 3 == 0 else dbeview.DEFAULT_BUF)
+            rnd = random.Random(k)
+            fr = free(base.dmp)
+            for j in range(nviews):
+                sc = copy.copy(base)
+                sc.vram_bases = copy.deepcopy(base.vram_bases)
+                sc.pos, sc.dir = rnd.choice(fr), rnd.randrange(4)
+                sc.objects = dbeview.random_objects(rnd, sc.dmp, sc.pos, sc.dir, rnd.randint(0, 16))
+                sc.itemph = rnd.randrange(4)
+                if j == nviews - 1:
+                    sc.ap = rnd.choice((0x0040, 0x0123))
+                    dbeview.layout_vram(sc)
+                if j == 1:                  # OBJN = 20: nur die ersten 16 zählen
+                    sc.objects = dbeview.random_objects(rnd, sc.dmp, sc.pos, sc.dir, 20)
+                    scs.append((f'zufall {k}/{j} OBJN 20', sc))
+                else:
+                    scs.append((f'zufall {k}/{j}', sc))
+        go(f'zufall {part}-{min(part + 20, nmaps) - 1}', scs)
+    # Überlauf mit Objekten: kleine Puffer (A = 2/3)
+    rnd = random.Random(77)
+    ov = []
+    for i in free(demo)[::2]:
+        for v in range(4):
+            ov.append(dbeview.make_scene(A, demo, i, v, dbeview.random_objects(rnd, demo, i, v, 6), items, 1))
+    ov += [dbeview.random_scene(k, A, nobj=12) for k in range(300, 312)]
+    scs = []
+    for n_, sc in enumerate(ov):
+        for size in (64, 128, 256, 512, 1024):
+            s2 = copy.copy(sc)
+            s2.buf = (0x1300, 0x1300 + size)
+            scs.append((f'überlauf {n_} {size}', s2))
+    go('überlauf', scs)
+    # MAXITEM = 8 mit Objekten (leere Sprite-Einträge zählen nicht)
+    if not vcopy:
+        scs = [(f'MAXITEM 8 {k}', dbeview.random_scene(500 + k, A, nobj=16, buf=BIGBUF)) for k in range(30)]
+        go('MAXITEM = 8', scs, prg=PRGM, maxitem=8)
+    print(f'P6e sim{tag}: {total} Ansichten bytegleich verglichen, A-Codes gesamt {dict(sorted(allcodes.items()))},'
+          f' Objekte {stats["obj"]}, davon ausgegeben (OBJVIS) {stats["vis"]} -> {"ok" if ok else "FEHLER"}')
+    if os.environ.get('DBE_NOCYCLES') or vcopy:
+        return ok
+    # Zyklen: je VIEW mit Objekten, und je Objekt (Differenz zur Ansicht ohne Objekte)
+    R = ViewRunner(dbeview, dbetex, vcopy)
+    R.dbg_bytes = dbg_prg[2:]
+
+    def tv(sc):
+        R.reset()
+        R.setup(sc)
+        base = bytes(R.scene.b)
+        a = Scene(); a.b = bytearray(base); a.call(4, p=(sc.ap, 0, 0, 0), quiet=True, **R.objargs(sc))
+        b = Scene(); b.b = bytearray(base); b.call(7, p=(sc.ap, 0, 0, 0), quiet=True, **R.objargs(sc))
+        return run(a, R.prg).cycles - run(b, R.prg).cycles
+    rnd = random.Random(5)
+    for n in (1, 5):
+        cy = []
+        for i in free(demo):
+            for v in range(4):
+                sc = dbeview.make_scene(A, demo, i, v, dbeview.random_objects(rnd, demo, i, v, n), items, 0)
+                cy.append(tv(sc))
+        print(f'P6e Zyklen demo {n} Objekte: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+    cy = [tv(dbeview.random_scene(k, A)) for k in range(40)]
+    print(f'P6e Zyklen zufall (0-16 Objekte): n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+    # je Objekt: offener Raum, ein Objekt in (d, s) mit Satz; Differenz zur leeren Ansicht
+    for label, setn, cases in (('unbeschnitten', 0, [(1, 0, 4), (2, 0, 2), (3, 0, 4), (2, 1, 1)]),
+                               ('beschnitten (Rand)', 3, [(1, -1, 0), (1, 1, 4), (2, -2, 0), (2, 2, 1)]),
+                               ('beschnitten (oben)', 4, [(1, 0, 4), (2, 0, 4), (3, 0, 4)])):
+        per = []
+        for d, s_, q in cases:
+            o = dbeview.Obj((cy0 := m.start // m.width - d) * m.width + m.start % m.width + s_, setn, 2, 0, q)
+            sc1 = with_extra(dbeview.make_scene(A, m, objects=[o], buf=BIGBUF))
+            sc0 = with_extra(dbeview.make_scene(A, m, objects=[], buf=BIGBUF))
+            res = dbeview.view(sc1)
+            nbytes = len(res.vms)
+            per.append((tv(sc1) - tv(sc0), nbytes, res.objvis))
+        print(f'P6e Zyklen je Objekt {label}: ' + ', '.join(f'{c} ({b} VMS-Byte{"" if v else ", unsichtbar"})'
+                                                           for c, b, v in per))
+    return ok
+
+
 def main():
     build()
     if '--build' in sys.argv:
@@ -1023,7 +1363,9 @@ def main():
     ok = test_p6c() and ok
     ok = test_geomcheck() and ok
     ok = test_p6d() and ok
-    ok = test_p6d(bank1=True) and ok
+    ok = test_p6d(vcopy=True) and ok
+    ok = test_p6e() and ok
+    ok = test_p6e(vcopy=True) and ok
     return 0 if ok else 1
 
 

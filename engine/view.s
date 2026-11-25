@@ -1,4 +1,4 @@
-; dungeonboringengine 0.2 – VIEW (P6d: ohne Objekte; P6d-opt: Einpass), eingebunden von lib.s
+; dungeonboringengine 0.2 – VIEW (P6d: ohne Objekte; P6d-opt: Einpass; P6e: Objekte), eingebunden von lib.s
 ;
 ; docs/specs/P6-engine.md Abschnitt 5 (5.1-5.7, 5.9 Bänder mit Rand, 5.10, 5.11); die Liste ist bytegleich mit
 ; tools/dbeview.py view(). Ablauf (P6d-opt):
@@ -6,7 +6,7 @@
 ;   Einordnung von Boden/Decke, Bänder, Tapete, Wartebereich). Jeder angenommene Eintrag wird sofort geschrieben
 ;   (itemadd/gen): VCL-Einträge abwärts von B1, VMS-Listen aufwärts ab B0; reicht der Platz nicht, wird er
 ;   zurückgenommen (iovf), im Zählmodus gemessen und nach 5.10 entschieden.
-;   Spaltenmasken cover/bcov als Intervalllisten. Build-Schalter VMS_BANK1: unbeschnittene VMS-Listen als VCL-Typ 9.
+;   Spaltenmasken cover/bcov als Intervalllisten. Unbeschnittene VMS-Listen als VCL-Typ 9 (Bank 1); Build-Schalter VMS_COPY: Kopie in den Puffer (Typ 12).
 ; Zeropage: ZP0 = erstes Element der Zelle, ZP1 = Hilfszeiger (Slotkarte, Kerne, Listen); Block ZPB (lib.s):
 ; vp, mp, tp, dp, op und kk, kj, eo, wmode, kwi, kwn.
 
@@ -29,6 +29,7 @@ IT_STRIP = $80          ; Eintragstyp Bit 7: Rand weggelassen (5.10)
 IT_WALL  = 0            ; Wand- oder Kachelbild: g_kind, ex/ey/ew = Element, dp = Verzeichniseintrag
 IT_BAND  = 1            ; Bandbild: g_kind, dp, g_a = y0, g_b = Zeilen, g_c0/g_c1 = Spalten
 IT_BG    = 2            ; Tapete: g_a = r0, g_b = r1, g_c0/g_c1
+IT_SPR   = 3            ; Sprite (5.8): orx = Satz in recs, dp = Bildeintrag, cl_* = Lage und Ausschnitt, ofull, g_oi
 TF_DECK  = $04          ; Kachel-Flags (DMP)
 TF_INH   = $20
 EF_DECK  = $01          ; Bild-Flags (DTS)
@@ -148,6 +149,73 @@ f_view:
         sta     bgom
         lda     bgomt+1,x
         sta     bgom+1
+        ; Objektliste (5.8): sichtbare Objekte (Bit 6 = 0) der ersten min(OBJN, 16) mit Zellindex, Index, Offset;
+        ; obm = Bitfeld der Low-Bytes ihrer Zellindizes (Vorfilter je Zelle; erst die Bits des vorigen VIEW löschen)
+        ldy     nol
+        beq     @oc
+@oz:    lda     ol_lo-1,y
+        lsr
+        lsr
+        lsr
+        tax
+        lda     #0
+        sta     obm,x
+        dey
+        bne     @oz
+@oc:    lda     OBJN
+        cmp     #MAXOBJ+1
+        bcc     @on
+        lda     #MAXOBJ
+@on:    sta     tmp
+        ldy     #0
+        ldx     #0
+        stx     tmp2
+        tax
+        beq     @oe
+        ldx     #0
+@ol:    lda     OBJL+5,x
+        and     #$40
+        bne     @onx
+        lda     OBJL,x
+        sta     ol_lo,y
+        stx     tmp3
+        pha
+        and     #7
+        tax
+        lda     bittab,x
+        sta     mt
+        pla
+        lsr
+        lsr
+        lsr
+        tax
+        lda     obm,x
+        ora     mt
+        sta     obm,x
+        ldx     tmp3
+        lda     OBJL+1,x
+        sta     ol_hi,y
+        txa
+        sta     ol_o,y
+        lda     tmp2
+        sta     ol_i,y
+        iny
+@onx:   txa
+        clc
+        adc     #OBJLEN
+        tax
+        inc     tmp2
+        dec     tmp
+        bne     @ol
+@oe:    sty     nol
+        tya
+        ora     itemn
+        sta     objon
+        lda     vdir            ; SUBPOS[v] (P4 2.6): Tabellenanfang 5 v
+        asl
+        asl
+        adc     vdir            ; C = 0
+        sta     spbase
 ; ---- Tiefen 0 ... D
 @dl:    jsr     vdepth
         lda     cv_n            ; cover ganz belegt: ein Intervall [0, VW)
@@ -186,8 +254,9 @@ f_view:
 vstop:  ldx     savesp
         txs
 ; ---------------------------------------------------------------- Ende (5.11, Einpass)
-vfin:   lda     #0
+vfin:   lda     objv
         sta     OBJVIS
+        lda     objv+1
         sta     OBJVIS+1
         lda     vp
         sta     VCLADR
@@ -460,6 +529,11 @@ vcells: ldx     cd
         bne     @go
         rts
 @go:    sta     kn
+        lda     #0              ; objd: Objekte in dieser Tiefe möglich (d >= 1)
+        cpx     #0
+        beq     @od
+        lda     objon
+@od:    sta     objd
         lda     d_k0,x
         sta     kk
         lda     #0
@@ -525,19 +599,19 @@ vcells: ldx     cd
         jsr     bclass
         ldy     kj
         sta     gr_cc,y
-@cls:   bit     tsum            ; Wände (Flächen)
-        bpl     @nx
-        ldx     kk
+@cls:   bit     tsum            ; Flächen: Wände; keine Flächen: Objekte (5.2)
+        bpl     @obj
+        lda     tsum
+        and     #TF_INH
+        bne     @inh
+        ldx     kk              ; Durchlauf 0: alle Wände in DVG-Reihenfolge
         lda     k_wn,x
         beq     @nx
         sta     kwn
         lda     k_wo,x
         sta     kwi
-        ldy     #0              ; Durchläufe: 0 = alle; INHALT: 1 Fronten, 2 Seiten
-        lda     tsum
-        and     #TF_INH
-        bne     @inh
-        sty     pass
+        lda     #0
+        sta     pass
 @wl:    ldx     kwi
         lda     wl,x
         sta     eo
@@ -550,25 +624,35 @@ vcells: ldx     cd
         dec     kn
         jne     @cell
         rts
-@inh:   iny
-@ps:    sty     pass
+@inh:   lda     #1              ; INHALT (5.2a): Fronten, Objekte, Seiten
+        jsr     vpass
+        lda     objd
+        beq     @i2
+        jsr     vobjc
+@i2:    lda     #2
+        jsr     vpass
+        jmp     @nx
+@obj:   lda     objd            ; Objekte oder Gegenstände möglich (und d >= 1)
+        beq     @nx
+        jsr     vobjc
+        jmp     @nx
+
+; Wände der Zelle kk im Durchlauf A (0 alle, 1 Fronten, 2 Seiten)
+vpass:  sta     pass
         ldx     kk
+        lda     k_wn,x
+        beq     @r
+        sta     kwn
         lda     k_wo,x
         sta     kwi
-        lda     k_wn,x
-        sta     kwn
-@il:    ldx     kwi
+@l:     ldx     kwi
         lda     wl,x
         sta     eo
         jsr     vwall
         inc     kwi
         dec     kwn
-        bne     @il
-        ldy     pass
-        iny
-        cpy     #3
-        bcc     @ps
-        bcs     @nx
+        bne     @l
+@r:     rts
 
 ; Wand eo der Zelle (ZP0, tp, ksi) im Sichtdurchlauf: allcov vor resolve
 vwall:  ldy     eo
@@ -688,9 +772,415 @@ vwall:  ldy     eo
 
 passart: .byte  0, 1            ; Durchlauf 1 Fronten, 2 Seiten (5.2a)
 
-; Objekte einer Zelle (5.8): P6e
-objekte:
+;---------------------------------------------------------------- Objekte (5.8)
+; Objekte der Zelle kk (ZP0 = erstes Element, ksi): Kandidaten (Gegenstand der Inhaltsebene, Objekte der Liste),
+; dann je Objektplatz der Zelle in umgekehrter Malreihenfolge (p = 4 ... 0, bei gleichem p Objekte mit
+; absteigendem i, zuletzt der Gegenstand) je ein Sprite-Eintrag. Nur d >= 1 und Zellen in der Karte.
+vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekte/Gegenstände möglich)
+        lda     k_ob,x
+        cmp     #$FF
+        bne     @go
+@rt:    rts
+@go:
+        sta     eo
+        lda     dout
+        bne     @rt
+        ldy     ksi
+        cpy     rlo
+        bcc     @rt
+        cpy     rhi
+        bcs     @rt
+        clc                     ; c = pos + d F + s R
+        lda     idxd
+        adc     r_lo,y
+        sta     oclo
+        lda     idxd+1
+        adc     r_hi,y
+        sta     ochi
+        ldy     #0
+        sty     nc
+        lda     itemn
+        beq     @ob
+        clc                     ; Gegenstand g = Inhalt(c) AND 63 mit itemtab[g] <> 0: p = 2, Richtung $FF, ITEMPH
+        lda     map_cont
+        adc     oclo
+        sta     ZP1
+        lda     map_cont+1
+        adc     ochi
+        sta     ZP1+1
+        lda     (ZP1),y
+        and     #63
+        beq     @ob
+        tax
+        lda     itemtab,x
+        beq     @ob
+        sec
+        sbc     #1
+        sta     cset
+        lda     #2
+        sta     cp
+        lda     #$FF
+        sta     cdir
+        sta     coi
+        lda     ITEMPH
+        sta     cph
+        inc     nc
+@ob:    lda     oclo            ; Vorfilter: Low-Byte im Bitfeld obm?
+        and     #7
+        tay
+        lda     oclo
+        lsr
+        lsr
+        lsr
+        tax
+        lda     obm,x
+        and     bittab,y
+        beq     @ce
+        ldx     #0              ; Objekte der Liste in i-Reihenfolge
+@ol:    cpx     nol
+        bcs     @ce
+        lda     ol_lo,x
+        cmp     oclo
+        bne     @on
+        lda     ol_hi,x
+        cmp     ochi
+        bne     @on
+        stx     tmp
+        ldy     nc
+        lda     ol_i,x
+        sta     coi,y
+        lda     ol_o,x
+        tax
+        lda     OBJL+2,x
+        sta     cset,y
+        lda     OBJL+3,x
+        sta     cdir,y
+        lda     OBJL+4,x
+        sta     cph,y
+        lda     OBJL+5,x        ; p = SUBPOS[v][min(q, 4)]
+        and     #7
+        cmp     #5
+        bcc     @q
+        lda     #4
+        clc
+@q:     adc     spbase          ; C = 0
+        tax
+        lda     subpos,x
+        sta     cp,y
+        inc     nc
+        ldx     tmp
+@on:    inx
+        bne     @ol
+@ce:    lda     nc
+        beq     @r
+@el:    ldy     eo              ; Objektplätze der Zelle (DVG-Reihenfolge)
+        lda     (ZP0),y
+        cmp     #4
+        bne     @en
+        lda     #4
+        sta     ocp
+@pl:    ldx     nc
+@cl:    dex
+        bmi     @pn
+        lda     cp,x
+        cmp     ocp
+        bne     @cl
+        stx     ocj
+        jsr     vspr            ; STOP möglich
+        ldx     ocj
+        jmp     @cl
+@pn:    dec     ocp
+        bpl     @pl
+@en:    ldx     kk
+        lda     eo
+        cmp     k_oe,x
+        bcs     @r
+        adc     #16             ; C = 0
+        sta     eo
+        bne     @el
+@r:     rts
+
+; Kandidat ocj an Platz ocp des Objektplatzes eo (5.8 Schritte 3-6)
+vspr:   lda     cset,x
+        cmp     #8
+        bcs     @r0
+        asl
+        asl
+        asl
+        asl
+        adc     #48             ; C = 0: Satz in recs
+        tay
+        lda     recs,y
+        beq     @r0
+        sty     orx
+        lda     cdir,x          ; a = 0 bei $FF, sonst (2 + v - o) AND 3
+        cmp     #$FF
+        beq     @a0
+        eor     #$FF
+        sec
+        adc     vdir
+        clc
+        adc     #2
+        and     #3
+        tay
+        bpl     @a
+@a0:    ldy     #0
+@a:     lda     cph,x           ; f >= NP: f = 0
+        ldx     orx
+        cmp     recs+4,x
+        bcc     @p
+        lda     #0
+@p:     sta     oph
+        lda     recs+8,x        ; ai = angle_map[a] (Kopf 12-15)
+        sta     ZP1
+        lda     recs+9,x
+        sta     ZP1+1
+        tya
+        clc
+        adc     #12
+        tay
+        lda     (ZP1),y
+        tay
+        lda     cd              ; Index ai * D + d - 1
+        sec
+        sbc     #1
+@m:     dey
+        bmi     @md
+        clc
+        adc     dvg_d
+        bcc     @m
+@r0:    rts
+@md:    sta     obase
+        lda     recs+10,x       ; Indextabelle
+        sta     ZP1
+        lda     recs+11,x
+        sta     ZP1+1
+        lda     oph
+        beq     @f0
+        sta     tmp             ; + f * NA * D
+        lda     recs+14,x
+        sta     mw
+        lda     #0
+        sta     mw+1
+        lda     tmp
+        jsr     mul8
+        clc
+        lda     ZP1
+        adc     mr
+        sta     ZP1
+        lda     ZP1+1
+        adc     mr+1
+        sta     ZP1+1
+        ldy     obase
+        lda     (ZP1),y
+        cmp     #$FF
+        bne     @b
+        ldx     orx             ; $FF: Phase 0
+        lda     recs+10,x
+        sta     ZP1
+        lda     recs+11,x
+        sta     ZP1+1
+@f0:    ldy     obase
+        lda     (ZP1),y
+@b:     cmp     #$FE
+        bcs     @r0
+        ldx     orx             ; dp = Verzeichnis + 16 b
+        sta     tmp
+        lsr
+        lsr
+        lsr
+        lsr
+        sta     dp+1
+        lda     tmp
+        asl
+        asl
+        asl
+        asl
+        clc
+        adc     recs+12,x
+        sta     dp
+        lda     dp+1
+        adc     recs+13,x
+        sta     dp+1
+        ldy     #1              ; w, h, fx, fy
+        lda     (dp),y
+        sta     ow
+        iny
+        lda     (dp),y
+        sta     oh
+        lda     ocp             ; Anker p: Spalte (vorzeichenbehaftet), Zeile
+        asl
+        adc     eo              ; C = 0
+        adc     #4
+        tay
+        ldx     #0
+        lda     (ZP0),y
+        bpl     @ax
+        dex
+@ax:    stx     tmp
+        sec                     ; x0 = ax - fx (16 Bit)
+        ldy     #3
+        sbc     (dp),y
+        sta     cl_x0
+        lda     tmp
+        sbc     #0
+        sta     cl_x0+1
+        bmi     @x0n            ; cx0 = max(x0, 0)
+        lda     cl_x0
+        bcs     @x0             ; C = 1 (kein Borgen)
+@x0n:   lda     #0
+@x0:    sta     ocx0
+        clc                     ; cx1 = min(x0 + w, VW)
+        lda     cl_x0
+        adc     ow
+        tax
+        lda     cl_x0+1
+        adc     #0
+        bmi     @rr
+        bne     @x1v
+        cpx     dvg_vw
+        bcc     @x1
+@x1v:   ldx     dvg_vw
+@x1:    stx     ocx1
+        cpx     ocx0
+        beq     @rr
+        bcc     @rr
+        lda     ocp             ; y0 = ay - fy (16 Bit)
+        asl
+        adc     eo              ; C = 0
+        adc     #5
+        tay
+        lda     (ZP0),y
+        sec
+        ldy     #4
+        sbc     (dp),y
+        sta     cl_y0
+        lda     #0
+        sbc     #0
+        sta     cl_y0+1
+        bmi     @y0n            ; cy0 = max(y0, 0)
+        lda     cl_y0
+        bcs     @y0
+@y0n:   lda     #0
+@y0:    sta     ocy0
+        clc                     ; cy1 = min(y0 + h, VH)
+        lda     cl_y0
+        adc     oh
+        tax
+        lda     cl_y0+1
+        adc     #0
+        bmi     @rr
+        bne     @y1v
+        cpx     dvg_vh
+        bcc     @y1
+@y1v:   ldx     dvg_vh
+@y1:    stx     ocy1
+        cpx     ocy0
+        beq     @rr
+        bcc     @rr
+        ldx     ocx0            ; erste/letzte freie Spalte in cover
+        lda     ocx1
+        jsr     ffree
+        bcc     @vis
+@rr:    rts
+@vis:   sec                     ; Ausschnitt im Bild: L, R, T, B
+        sbc     cl_x0
+        sta     cl_r
+        txa
+        sec
+        sbc     cl_x0
+        sta     cl_l
+        sec
+        lda     ocy1
+        sbc     cl_y0
+        sta     cl_b
+        sec
+        lda     ocy0
+        sbc     cl_y0
+        sta     cl_t
+        ldx     #0              ; ofull: 1 unbeschnitten (L = 0, R = w, T = 0, B = h), 2 nur Zeilen (L = 0, R = w)
+        lda     cl_l
+        bne     @cut
+        lda     cl_r
+        cmp     ow
+        bne     @cut
+        ldx     #2
+        lda     cl_t
+        bne     @cut
+        lda     cl_b
+        cmp     oh
+        bne     @cut
+        dex
+@cut:   stx     ofull
+        lda     #0              ; cl_rt = T * stride
+        sta     cl_rt
+        sta     cl_rt+1
+        lda     cl_t
+        beq     @t0
+        lda     dvg_stride
+        sta     mw
+        lda     dvg_stride+1
+        sta     mw+1
+        lda     cl_t
+        jsr     mul8
+        lda     mr
+        sta     cl_rt
+        lda     mr+1
+        sta     cl_rt+1
+@t0:    lda     ofull           ; nur Zeilen: cl_rb = B * stride
+        cmp     #2
+        bne     @t1
+        lda     dvg_stride
+        sta     mw
+        lda     dvg_stride+1
+        sta     mw+1
+        lda     cl_b
+        jsr     mul8
+        lda     mr
+        sta     cl_rb
+        lda     mr+1
+        sta     cl_rb+1
+@t1:    ldx     ocj
+        lda     coi,x
+        sta     g_oi
+        lda     #IT_SPR
+        sta     g_type
+        jmp     itemadd
+
+; erste freie Spalte >= X und letzte freie < A in cover: C = 0, X = erste, A = letzte + 1; C = 1 keine
+ffree:  stx     ia
+        sta     ib
+        ldy     #0
+@f:     cpy     cv_n
+        bcs     @l
+        lda     ia
+        cmp     cv_e,y
+        bcs     @fn             ; E <= c0: weiter
+        cmp     cv_s,y
+        bcc     @l              ; S > c0: c0 frei
+        lda     cv_e,y          ; c0 im Intervall: erste freie = E (berührende Intervalle sind verbunden)
+        sta     ia
+        bcs     @l
+@fn:    iny
+        bne     @f
+@l:     ldy     cv_n
+@g:     dey
+        bmi     @e
+        lda     cv_s,y
+        cmp     ib
+        bcs     @g              ; S >= c1: weiter
+        lda     cv_e,y
+        cmp     ib
+        bcc     @e              ; E < c1: c1 - 1 frei
+        lda     cv_s,y
+        sta     ib
+@e:     lda     ia
+        cmp     ib
+        ldx     ia
+        lda     ib
         rts
+
+subpos: .byte   0, 1, 3, 4, 2,  3, 0, 4, 1, 2,  4, 3, 1, 0, 2,  1, 4, 0, 3, 2   ; SUBPOS[v][q] (P4 2.6)
 
 ; ---------------------------------------------------------------- Bänder und Kacheln (5.6)
 ; Einordnung im Zellendurchlauf (5.6 Schritt 1): X = Art (1 Boden, 2 Decke), A = n; Rückgabe A = $FE Lücke oder Stil.
@@ -1238,7 +1728,21 @@ itemadd:
         lda     nitems
         cmp     #MAXITEM
         bne     @g
-        lda     #E_TOOMANY
+        lda     g_type          ; leerer Sprite-Eintrag ist kein Eintrag (Referenz: add nur bei v > 0)
+        cmp     #IT_SPR
+        bne     @full
+        lda     #0
+        sta     wmode
+        sta     iv
+        sta     iv+1
+        sta     im
+        sta     im+1
+        jsr     gen
+        lda     iv
+        ora     iv+1
+        bne     @full
+        rts
+@full:  lda     #E_TOOMANY
         sta     verr
         jmp     vstop
 @g:     lda     vp
@@ -1256,8 +1760,20 @@ itemadd:
         lda     #WM_W
         sta     wmode
         jsr     gen
+        lda     g_type
+        cmp     #IT_SPR
+        beq     @spr
         inc     nitems
         rts
+@spr:   lda     vp              ; Sprite ohne geschriebenen Eintrag: leer
+        cmp     svp
+        bne     @acc
+        lda     vp+1
+        cmp     svp+1
+        bne     @acc
+        rts
+@acc:   inc     nitems
+        jmp     objmark
 ; Platz reicht nicht (Sprung aus vneed/vmsneed, beliebig tief): zurückrollen, zählen, entscheiden (5.10)
 iovf:   ldx     isp
         txs
@@ -1278,7 +1794,14 @@ iovf:   ldx     isp
         sta     im
         sta     im+1
         jsr     gen
-        sec                     ; frei = vp - mp = BL - nv - nm
+        lda     iv              ; leerer Sprite-Eintrag (nur Sprites können leer sein: alle Typen > 0)
+        ora     iv+1
+        bne     @ne
+        lda     g_type
+        cmp     #IT_SPR
+        bne     @ne
+        rts
+@ne:    sec                     ; frei = vp - mp = BL - nv - nm
         lda     vp
         sbc     mp
         sta     s1
@@ -1327,13 +1850,33 @@ iovf:   ldx     isp
         sta     wmode
         jsr     gen
         inc     nitems
-        rts
+        jmp     objmark
 @drop:  lda     #1
         sta     vpart
         rts
 @stop:  lda     #E_TOOMANY
         sta     verr
         jmp     vstop
+
+; angenommener Sprite-Eintrag eines Listenobjekts: OBJVIS-Bit i (auch ohne Rand)
+objmark:
+        lda     g_type
+        and     #$0F
+        cmp     #IT_SPR
+        bne     @r
+        ldx     g_oi
+        cpx     #8
+        bcs     @h
+        lda     bittab,x
+        ora     objv
+        sta     objv
+        rts
+@h:     cpx     #16
+        bcs     @r
+        lda     bittab-8,x
+        ora     objv+1
+        sta     objv+1
+@r:     rts
 
 ; vp -= A (Länge eines VCL-Eintrags); vp < mp: zu wenig Platz -> iovf
 vneed:  eor     #$FF
@@ -1372,11 +1915,105 @@ vmsneed:
 ; ---------------------------------------------------------------- Erzeuger (zählen bzw. schreiben)
 gen:    lda     g_type
         and     #$0F
-        beq     gwall
-        cmp     #IT_BAND
+        bne     @nw
+        jmp     gwall
+@nw:    cmp     #IT_BAND
         bne     @bg
         jmp     gband
-@bg:    jmp     gbg
+@bg:    cmp     #IT_SPR
+        bne     @g
+        jmp     gspr
+@g:     jmp     gbg
+
+; SPRITE (5.8, 5.9): Satz orx, Bildeintrag dp (S2), Lage cl_x0/cl_y0, Ausschnitt cl_l ... cl_b, ofull = unbeschnitten.
+; Kerne mit clipkerns; Rand unbeschnitten als Bank-1-Verweis (Typ 9; Build VMS_COPY: Kopie in den Puffer, Typ 12),
+; sonst mit clipvms_e
+gspr:   ldx     orx
+        lda     recs+1,x
+        sta     gvb
+        lda     recs+2,x
+        sta     gvb+1
+        lda     recs+8,x
+        sta     gcont
+        lda     recs+9,x
+        sta     gcont+1
+        ldy     #5              ; nk, Kerntabelle
+        lda     (dp),y
+        sta     kc
+        iny
+        clc
+        lda     (dp),y
+        adc     gcont
+        sta     ZP1
+        iny
+        lda     (dp),y
+        adc     gcont+1
+        sta     ZP1+1
+        jsr     clipkerns
+        ldy     #14             ; vlen
+        lda     (dp),y
+        sta     g_vlen
+        iny
+        lda     (dp),y
+        sta     g_vlen+1
+        ora     g_vlen
+        beq     @r
+        ldy     #8              ; Quelle = VB + rand_ofs
+        clc
+        lda     (dp),y
+        adc     gvb
+        sta     g_rsrc
+        iny
+        lda     (dp),y
+        adc     gvb+1
+        sta     g_rsrc+1
+        ldy     #12             ; ZP1 = Liste
+        clc
+        lda     (dp),y
+        adc     gcont
+        sta     ZP1
+        iny
+        lda     (dp),y
+        adc     gcont+1
+        sta     ZP1+1
+        bit     wmode
+        bmi     @w
+        lda     ofull           ; 1 = unbeschnitten
+        lsr
+        bcc     @cc
+        lda     #7              ; zählen: Eintrag (Typ 9), mit VMS_COPY auch die Liste
+        jsr     addiv
+.ifdef VMS_COPY
+        lda     g_vlen
+        sta     im
+        lda     g_vlen+1
+        sta     im+1
+.endif
+@r:     rts
+@w:     lda     g_type
+        bmi     @r              ; Rand weggelassen
+        lda     ofull
+        lsr
+        bcc     @cc
+        lda     g_rsrc
+        sta     e_src
+        lda     g_rsrc+1
+        sta     e_src+1
+.ifdef VMS_COPY
+        lda     g_vlen
+        sta     clen
+        lda     g_vlen+1
+        sta     clen+1
+.endif
+        lda     cl_y0
+        ldx     cl_x0
+        jsr     dstxy
+.ifdef VMS_COPY
+        jmp     vmscopy
+.else
+        jmp     vms9
+.endif
+@cc:    jmp     clipvms_e
 
 ; gemeinsamer Anfang Wand/Band: VRAM-Basis, Inhaltsanfang; ZP1 = fsrc = Kerne bzw. Füllbytes, kc = nk, fn = h
 gsetup: lda     g_kind
@@ -1539,9 +2176,9 @@ gwall:  jsr     gsetup
         beq     @r
         bit     wmode
         bmi     @rw
-        lda     #7              ; zählen: VMS-Eintrag + Liste im Puffer
+        lda     #7              ; zählen: VMS-Eintrag (Typ 9), mit VMS_COPY auch die Liste im Puffer
         jsr     addiv
-.ifndef VMS_BANK1
+.ifdef VMS_COPY
         ldy     #12
         lda     (dp),y
         sta     im
@@ -1557,8 +2194,8 @@ gwall:  jsr     gsetup
         jsr     dstxy
         ; weiter in vmsverb
 
-; Rand unbeschnitten (e_dst gesetzt): VMS-Eintrag mit src = VB + rand_ofs; die Liste wird in den Puffer kopiert
-; (Typ 12) bzw. mit VMS_BANK1 nur als Bank-1-Adresse eingetragen (Typ 9, Vorschlag P6d-opt)
+; Rand unbeschnitten (e_dst gesetzt): VMS-Eintrag mit src = VB + rand_ofs; die Liste wird als Bank-1-Adresse
+; eingetragen (Typ 9, 6a) bzw. im Build VMS_COPY in den Puffer kopiert (Typ 12)
 vmsverb:
         ldy     #6
         clc
@@ -1578,8 +2215,9 @@ vmsverb:
         lda     (dp),y
         adc     gcont+1
         sta     ZP1+1
-.ifdef VMS_BANK1
-        lda     ZP1
+.ifndef VMS_COPY
+; ZP1 = Liste (Bank 1), e_src/e_dst gesetzt: Typ 9
+vms9:   lda     ZP1
         sta     e_lst
         lda     ZP1+1
         sta     e_lst+1
@@ -1589,10 +2227,14 @@ vmsverb:
         ldy     #12
         lda     (dp),y
         sta     clen
-        sta     s3
         iny
         lda     (dp),y
         sta     clen+1
+; unbeschnittene Liste kopieren: ZP1 = Liste, clen = Länge, e_src/e_dst gesetzt; Typ 12
+vmscopy:
+        lda     clen
+        sta     s3
+        lda     clen+1
         sta     s3+1
         jsr     vmsneed
         lda     mp
@@ -1600,10 +2242,19 @@ vmsverb:
         lda     mp+1
         sta     e_lst+1
         ; vcopy: clen Byte von (ZP1) nach (mp), mp += clen
-        ldy     #0
+        ldy     #0              ; vierfach entrollt (14 Zyklen je Byte)
         ldx     clen+1
         beq     @r0
 @pg:    lda     (ZP1),y
+        sta     (mp),y
+        iny
+        lda     (ZP1),y
+        sta     (mp),y
+        iny
+        lda     (ZP1),y
+        sta     (mp),y
+        iny
+        lda     (ZP1),y
         sta     (mp),y
         iny
         bne     @pg
@@ -1611,14 +2262,35 @@ vmsverb:
         inc     mp+1
         dex
         bne     @pg
-@r0:    ldx     clen
-        beq     @e
-@b:     lda     (ZP1),y
+@r0:    lda     clen
+        and     #3
+        beq     @q
+        tax
+@b1:    lda     (ZP1),y
         sta     (mp),y
         iny
         dex
-        bne     @b
-        clc
+        bne     @b1
+@q:     lda     clen
+        lsr
+        lsr
+        beq     @e2
+        tax
+@b4:    lda     (ZP1),y
+        sta     (mp),y
+        iny
+        lda     (ZP1),y
+        sta     (mp),y
+        iny
+        lda     (ZP1),y
+        sta     (mp),y
+        iny
+        lda     (ZP1),y
+        sta     (mp),y
+        iny
+        dex
+        bne     @b4
+@e2:    clc
         tya
         adc     mp
         sta     mp
@@ -1790,7 +2462,7 @@ gband:  jsr     gsetup
         bmi     @vw
         lda     #7
         jsr     addiv
-.ifndef VMS_BANK1
+.ifdef VMS_COPY
         ldy     #12
         lda     (dp),y
         sta     im
@@ -1809,8 +2481,18 @@ gband:  jsr     gsetup
         bpl     @cc
         lda     g_type
         bmi     @r
-@cc:    ldy     #10             ; ZP1 = Liste
+@cc:    ldy     #6              ; Quelle = VB + rand_ofs, ZP1 = Liste, g_vlen
         clc
+        lda     (dp),y
+        adc     gvb
+        sta     g_rsrc
+        iny
+        lda     (dp),y
+        adc     gvb+1
+        sta     g_rsrc+1
+        iny
+        iny
+        clc                     ; Y = 10
         lda     (dp),y
         adc     gcont
         sta     ZP1
@@ -1818,9 +2500,16 @@ gband:  jsr     gsetup
         lda     (dp),y
         adc     gcont+1
         sta     ZP1+1
+        iny
+        lda     (dp),y
+        sta     g_vlen
+        iny
+        lda     (dp),y
+        sta     g_vlen+1
         lda     #0
         sta     cl_rt
         sta     cl_rt+1
+        sta     ofull           ; allgemeiner Ausschnitt
         jmp     clipvms_e
 
 ; BG(r0, r1, c0, c1) (5.7)
@@ -2159,12 +2848,10 @@ clipvms_e:
         bit     wmode
         bpl     @go
         bvs     @x              ; Größe bekannt (iovf)
-        ldy     #12             ; Platz für höchstens 2 * vlen Byte (je Befehl höchstens ein Typ 3 dazu)
-        lda     (dp),y
+        lda     g_vlen          ; Platz für höchstens 2 * vlen Byte (je Befehl höchstens ein Typ 3 dazu)
         asl
         sta     s3
-        iny
-        lda     (dp),y
+        lda     g_vlen+1
         rol
         sta     s3+1
         bcc     @s
@@ -2196,10 +2883,21 @@ clipvms_e:
         sta     cn+1
         sta     cb
         sta     cb+1
-        lda     dvg_stride
+        lda     ofull           ; nur Zeilen beschnitten (Sprite mit L = 0, R = w): ohne Spaltenrechnung
+        cmp     #2
+        bne     @gen
+        jmp     @rows
+@gen:   lda     dvg_stride
         sta     crn
         lda     dvg_stride+1
         sta     crn+1
+        sec                     ; crt = rs - T * stride
+        lda     #0
+        sbc     cl_rt
+        sta     crt
+        lda     #0
+        sbc     cl_rt+1
+        sta     crt+1
         ldy     #3
 @cmd:   lda     ccnt
         bne     @c1
@@ -2230,14 +2928,24 @@ clipvms_e:
         lda     crn+1
         sta     crs+1
         clc
+        lda     crt
+        adc     dvg_stride
+        sta     crt
+        lda     crt+1
+        adc     dvg_stride+1
+        sta     crt+1
+        clc
         lda     crn
         adc     dvg_stride
         sta     crn
         lda     crn+1
         adc     dvg_stride+1
         sta     crn+1
-        inc     cr
-        bne     @rw
+        inc     cr              ; r >= B: Ende (8-Bit-Zähler läuft nicht über, K6)
+        lda     cr
+        cmp     cl_b
+        bcc     @rw
+        jmp     @done
 @rd:    lda     cr              ; r >= B: Ende
         cmp     cl_b
         bcc     @r1
@@ -2298,8 +3006,8 @@ clipvms_e:
         bne     @v1             ; >= 256 > L
         lda     cend
         cmp     cl_l
-        beq     @i1
-        bcc     @i1
+        jeq     @i1
+        jcc     @i1
 @v1:    lda     ccol            ; a = max(col, L)
         cmp     cl_l
         bcs     @a1
@@ -2312,11 +3020,12 @@ clipvms_e:
         bcc     @b1
 @b0:    lda     cl_r
 @b1:    sta     cbb
-        sec                     ; k += a - col
-        lda     ca
+        lda     ca              ; k += a - col
+        sec
         sbc     ccol
+        beq     @k1
         jsr     ckadd
-        jsr     cflush
+@k1:    jsr     cflush
         sec
         lda     ca
         sbc     cl_l
@@ -2328,15 +3037,25 @@ clipvms_e:
         sbc     ca
         bit     wmode
         bpl     @l0
-        ldy     #0
+        ldy     #0              ; schreiben: Byte nach op (cb nur im Zählmodus)
         sta     (op),y
         inc     op
-        bne     @l0
+        bne     @l1
         inc     op+1
+        bne     @l1
 @l0:    inc     cb
         bne     @l1
         inc     cb+1
-@l1:    sec                     ; k += col + ln - b
+@l1:    lda     cendh           ; k += col + ln - b
+        bne     @kr
+        lda     cend
+        sec
+        sbc     cbb
+        beq     @kz
+        jsr     ckadd
+@kz:    ldy     #4
+        jmp     @cmd
+@kr:    sec
         lda     cend
         sbc     cbb
         tax
@@ -2356,6 +3075,83 @@ clipvms_e:
         jsr     ckadd
         ldy     #4
         jmp     @cmd
+; nur Zeilen [T, B): sichtbar genau die Befehle mit T * stride <= ofs < B * stride (Spalten bleiben, P5b 4.6),
+; ofs' = ofs - T * stride; davor übersprungene Bytes als ein Typ 3; ab ofs >= B * stride Ende
+@rows:  ldy     #3
+@rc:    lda     ccnt
+        bne     @rc1
+        lda     ccnt+1
+        jeq     @done
+        dec     ccnt+1
+@rc1:   dec     ccnt
+        tya                     ; ZP1 += Y
+        clc
+        adc     ZP1
+        sta     ZP1
+        bcc     @rc2
+        inc     ZP1+1
+@rc2:   ldy     #1              ; ofs >= B * stride: Ende
+        lda     (ZP1),y
+        cmp     cl_rb
+        iny
+        lda     (ZP1),y
+        sbc     cl_rb+1
+        jcs     @done
+        dey                     ; ofs < T * stride: überspringen
+        lda     (ZP1),y
+        cmp     cl_rt
+        iny
+        lda     (ZP1),y
+        sbc     cl_rt+1
+        bcs     @rv
+        ldy     #0
+        lda     (ZP1),y
+        cmp     #1
+        bne     @ri8
+        ldy     #3
+        lda     (ZP1),y
+        jsr     ckadd
+        ldy     #4
+        bne     @rc
+@ri8:   inc     ck
+        bne     @ri9
+        inc     ck+1
+@ri9:   ldy     #3
+        bne     @rc
+@rv:    jsr     cflush          ; sichtbar: cot = ofs - rT
+        ldy     #1
+        sec
+        lda     (ZP1),y
+        sbc     cl_rt
+        sta     cot
+        iny
+        lda     (ZP1),y
+        sbc     cl_rt+1
+        sta     cot+1
+        ldy     #0
+        lda     (ZP1),y
+        cmp     #1
+        beq     @rv1
+        lda     #8
+        jsr     cput3
+        ldy     #3
+        jmp     @rc
+@rv1:   jsr     cput3
+        ldy     #3
+        lda     (ZP1),y
+        bit     wmode
+        bpl     @rl
+        ldy     #0
+        sta     (op),y
+        inc     op
+        bne     @rn
+        inc     op+1
+        bne     @rn
+@rl:    inc     cb
+        bne     @rn
+        inc     cb+1
+@rn:    ldy     #4
+        jmp     @rc
 @done:  lda     cn
         ora     cn+1
         bne     @vis
@@ -2389,14 +3185,9 @@ clipvms_e:
         sta     mp
         lda     op+1
         sta     mp+1
-        ldy     #6              ; src = VB + rand_ofs, dst = AP + row[y0 + T] + x0 + L
-        clc
-        lda     (dp),y
-        adc     gvb
+        lda     g_rsrc          ; src = VB + rand_ofs, dst = AP + row[y0 + T] + x0 + L
         sta     e_src
-        iny
-        lda     (dp),y
-        adc     gvb+1
+        lda     g_rsrc+1
         sta     e_src+1
         clc
         lda     cl_x0
@@ -2432,19 +3223,12 @@ cflush: lda     ck
         jmp     cput3
 @r:     rts
 
-; cot = rs - rT + A
+; cot = rs - rT + A (crt = rs - rT)
 cofs_o: clc
-        adc     crs
+        adc     crt
         sta     cot
-        lda     crs+1
+        lda     crt+1
         adc     #0
-        sta     cot+1
-        sec
-        lda     cot
-        sbc     cl_rt
-        sta     cot
-        lda     cot+1
-        sbc     cl_rt+1
         sta     cot+1
         rts
 
@@ -2454,7 +3238,7 @@ cput3:  inc     cn
         inc     cn+1
 @n:     bit     wmode
         bpl     @c
-        ldy     #0
+        ldy     #0              ; schreiben (cb nur im Zählmodus)
         sta     (op),y
         iny
         lda     cot
@@ -2466,8 +3250,9 @@ cput3:  inc     cn
         lda     op
         adc     #3
         sta     op
-        bcc     @c
+        bcc     @r
         inc     op+1
+        rts
 @c:     clc
         lda     cb
         adc     #3
@@ -2661,6 +3446,7 @@ cv_n:   .res 1                  ; Intervalle in cover, bcov (Masken)
 bc_n:   .res 1
 nent:   .res 1
 cd:     .res 1
+objv:   .res 2                  ; OBJVIS
 vz_end:
 cv_s:   .res MAXIV
 cv_e:   .res MAXIV
@@ -2819,4 +3605,40 @@ cendh:  .res 1
 ca:     .res 1
 cbb:    .res 1
 cot:    .res 2
-        .segment "CODE"
+crt:    .res 2                  ; rs - T * stride
+cl_rb:  .res 2                  ; B * stride (nur Zeilen beschnitten)
+g_vlen: .res 2                  ; Länge der VMS-Liste (clipvms_e)
+g_rsrc: .res 2                  ; VB + rand_ofs
+; Objekte (5.8)
+obm:    .res 32                 ; Bitfeld: Low-Byte eines Objekt-Zellindex (bleibt bis zum nächsten VIEW)
+objd:   .res 1
+objon:  .res 1                  ; nol OR itemn (0: keine Objekte und Gegenstände möglich)
+nol:    .res 1                  ; sichtbare Objekte der Liste: Zellindex, Index i, Offset 6 i
+ol_lo:  .res MAXOBJ
+ol_hi:  .res MAXOBJ
+ol_i:   .res MAXOBJ
+ol_o:   .res MAXOBJ
+spbase: .res 1                  ; 5 v
+oclo:   .res 1                  ; Zellindex der Zelle
+ochi:   .res 1
+nc:     .res 1                  ; Anzahl Kandidaten (Tabellen cp ... coi in LIBTAB)
+ocp:    .res 1                  ; aktuelles p
+ocj:    .res 1                  ; aktueller Kandidat
+orx:    .res 1                  ; Satz in recs
+oph:    .res 1
+obase:  .res 1
+ow:     .res 1
+oh:     .res 1
+ocx0:   .res 1
+ocx1:   .res 1
+ocy0:   .res 1
+ocy1:   .res 1
+ofull:  .res 1                  ; 1 = unbeschnitten
+g_oi:   .res 1
+        .segment "LIBTAB"       ; Arbeitstabellen von VIEW (INIT löscht sie nicht)
+cp:     .res MAXOBJ+1           ; Kandidaten: p, Satz, Richtung, Phase, Objektindex ($FF Gegenstand)
+cset:   .res MAXOBJ+1
+cdir:   .res MAXOBJ+1
+cph:    .res MAXOBJ+1
+coi:    .res MAXOBJ+1
+        .segment LIBSEG

@@ -117,11 +117,11 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | 6 | `SETCELL` | P0 = Zelle, X = Kachelindex | A = 0; 6 bei Zelle außerhalb oder X ≥ NT |
 | 7 | – | – | A = 255 (`ENEMYSTEP` reserviert) |
 | 8 | – | – | A = 255 (`WALLSET` entfällt) |
-| 9 | `SPRITESET` | X = Satz 0 … 7, P0 = S2 (0 = Satz löschen), P1 = VRAM-Basis | prüft `"S2"`, Version, ID (0 oder = DVG-ID), D, Stride; A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Satznummer/Pool |
+| 9 | `SPRITESET` | X = Satz 0 … 7, P0 = S2 (0 = Satz löschen), P1 = VRAM-Basis | prüft `"S2"`, Version, ID (0 oder = DVG-ID), D, Stride; A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Satznummer/Pool bzw. S2 unter `$4000` (VCL-Typ 9, 6a) |
 | 10 | `ITEMSET` | X = Gegenstand 0 … 63, Y = Satz + 1 (0 = keiner) | A = 0; 6 bei X ≥ 64 oder Y > 8 |
 | 11 | `POOLSET` | P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = keine Prüfung | A = 0; TEXSET/BGSET/SPRITESET prüfen danach Basis … Basis + U ⊆ Pool |
 | 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = aus der DVG) | prüft Magic, Version, Elementlänge 16, Tiefeneintrag 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1, dazu die Elementtabelle (7, P6d-opt; Fehler dort: A = 1 und keine gültige Geometrie); Zeilentabelle, Zellentabelle; TEXSET/BGSET/SPRITESET mit anderer ID werden gelöscht (Bit je Satz in Y: Bit 0–2 DTS, Bit 3 DBG; X = Bits der S2-Sätze); A = 1 Format |
-| 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | prüft `"DT"`, Version 1, Art = X, ID, NE, D, Stride; A = 1, 4, 5, 6 |
+| 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | prüft `"DT"`, Version 1, Art = X, ID, NE, D, Stride; A = 1, 4, 5, 6 (auch DTS unter `$4000`, VCL-Typ 9, 6a) |
 | 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | prüft `"DB"`, Version, VW, VH, ID; A = 1, 4, 5, 6 |
 | 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv) | A = 0; 6, wenn Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer bleibt; Fenster `$1300–$1BFF`, P6d-opt) |
 | 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
@@ -316,8 +316,8 @@ Alle Parameter als Wort (Low/High), auch Bytewerte (VDC-BASIC `vcl-format.md`).
 | 3 | 13 | src, dst, count, reps, step = stride, srcstep | Kerne mit srcstep ≠ 0, beschnittene Kerne, Tapete (srcstep P) |
 | 4 | 7 | vaddr, byte, count | Zeilenfüllung, eine Zeile |
 | 5 | 11 | vaddr, byte, count, reps, step = stride | Zeilenfüllung, mehrere gleiche Zeilen |
-| 12 | 7 | src, dst, list | Rand (VMS); Liste im Puffer, Befehle Typ 1, 3, 8 |
-| 9 | 7 | src, dst, list (Bank 1) | nur Build `VMS_BANK1`: unbeschnittene Liste direkt aus Bank 1 (6a) |
+| 12 | 7 | src, dst, list | Rand (VMS) beschnitten; Liste im Puffer, Befehle Typ 1, 3, 8 (Build `VMS_COPY`: auch unbeschnittene) |
+| 9 | 7 | src, dst, list (Bank 1) | Rand (VMS) unbeschnitten (Wände, Kacheln, Bänder voller Breite, Sprites): Liste direkt aus Bank 1 (6a) |
 | 0 | 1 | – | Ende |
 
 Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH), count ≤ 80, VMS-Typ-1-Länge ≤ 255.
@@ -334,9 +334,9 @@ Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH
 | 5–6 | list: Adresse der VMS-Liste in **CPU-RAM Bank 1** |
 
 - Listenformat unverändert wie Typ 12 (`vms-format.md`: Alpha, Anzahl, Befehle; die Engine erzeugt 1, 3, 8).
-- Die Liste liegt ganz in Bank 1 `$2000–$CFFF` oder `$E000–$FEFF` (nie in `$D000–$DFFF`, nie unter `$2000`). VDC-BASIC liest sie mit `$FF00 = $7E` (Bank 1 mit I/O, VDC-Register erreichbar; Schleife im gemeinsamen RAM `$1C00–$1FFF`) und stellt danach seine Konfiguration wieder her. Interrupts dürfen laufen (Kernal-Weiche in Bank 1 `$FF05–$FFFF`, wie beim Stub).
-- Die Engine schreibt Typ 9 nur für **unbeschnittene** Listen (Wand-/Kachelbilder, Bänder in voller Breite; P6e: unbeschnittene Sprites): list = Inhaltsanfang des DTS + vofs. Beschnittene Listen bleiben Typ 12 im Puffer. Typ 9 belegt keine Pufferbytes (m = 0 in 5.10; „ohne Rand“ und „verwerfen“ gelten nur für Listen im Puffer).
-- Engine: Build-Schalter `VMS_BANK1` (`ca65 -DVMS_BANK1`); Referenz: `Scene.vms_bank1`, `Scene.dts_addr`; `run_vcl(..., bank1=...)` führt Typ 9 aus. Bis VDC-BASIC Typ 9 kann, bleibt der Standardbuild (Kopie, Typ 12).
+- Die Liste liegt ganz in Bank 1 `$4000–$CFFF` oder `$E000–$FEFF` (nie in `$D000–$DFFF`, nie unter `$4000`: VDC-BASIC schaltet für Typ 9 das gemeinsame RAM kurz auf 16 KB unten, P2d). Die Engine prüft das in `TEXSET` und `SPRITESET` (Adresse < `$4000` → A = 6; nicht im Build `VMS_COPY`); Typ 9 belegt keine Pufferbytes. VDC-BASIC liest sie mit `$FF00 = $7E` (Bank 1 mit I/O, VDC-Register erreichbar; Schleife im gemeinsamen RAM `$1C00–$1FFF`) und stellt danach seine Konfiguration wieder her. Interrupts dürfen laufen (Kernal-Weiche in Bank 1 `$FF05–$FFFF`, wie beim Stub).
+- Die Engine schreibt Typ 9 nur für **unbeschnittene** Listen (Wand-/Kachelbilder, Bänder in voller Breite, unbeschnittene Sprites): list = Inhaltsanfang des DTS bzw. S2 + vofs. Beschnittene Listen bleiben Typ 12 im Puffer. Typ 9 belegt keine Pufferbytes (m = 0 in 5.10; „ohne Rand“ und „verwerfen“ gelten nur für Listen im Puffer).
+- Engine: **Standard** seit dem P6e-Review (VDC-BASIC P2d abgenommen); der alte Weg (Kopie, Typ 12) bleibt als Build-Schalter `VMS_COPY` (`ca65 -DVMS_COPY`, kostet im Standardbuild nichts, sim testet beide). Referenz: `Scene.vms_bank1` (Vorgabe noch `False` = `VMS_COPY`, weil die Demo-Assets nicht in die Bereiche von 2.4 passen und sich Bank-1-Adressen sonst überlappen), `Scene.dts_addr`, `Scene.s2_addr` (`None`: dicht ab `$7000`); `run_vcl(..., bank1=...)` führt Typ 9 aus.
 
 ## 7. Grenzen
 
@@ -350,6 +350,7 @@ Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH
 | Einträge je VIEW | MAXITEM = 96 | A = 2 |
 | Puffer | BL (Standard 2304) für VCL + VMS zusammen | A = 2 bzw. 3 (5.10) |
 | Objektliste | 16 | mehr wird ignoriert |
+| Objektplätze je Zelle (Art 4) | beliebig viele (innerhalb der 16 Elemente); Zellentabelle: erster und letzter | – |
 | Sprite-Sätze | 8 | A = 6 |
 | Kerne je Bild | 16 (DTS und S2) | Lib verarbeitet nk, wie angegeben; Werkzeuge begrenzen |
 | Karte | W, H ≤ 255, W·H ≤ 16384 | MAPINIT A = 1 |
@@ -585,3 +586,66 @@ Lib-Code 8 935 Byte (`$B000–$D2E6`, P6d: 7 960), LIBTAB 764 Byte, BSS 1 799 By
 2. GEOMSET 24 400 Zyklen (demo, Ziel 20 000; einmalig).
 3. VDC-BASIC Typ 9 (6a) umsetzen, danach `VMS_BANK1` zum Standard machen und in VICE (P6g) messen.
 4. P6e: Objektplätze in die Zellentabelle, Objekte im Zellendurchlauf (Intervallmaske für „erste/letzte freie Spalte“).
+
+## Ergebnis P6e (2026-11-25)
+
+Umgesetzt: Objekte und Gegenstände in `VIEW` (5.8) in `engine/view.s`, bytegleich mit `dbeview.view` (keine Änderung an `tools/dbeview.py` nötig).
+
+### Umsetzung
+
+- **sim-Harness:** Lib-Code im Harness an `$B000` (Segment `LIBCODE`, `.define LIBSEG` in `lib.s` unter `SIM`); `sim.cfg`: Harness `$2000–$2BFF`, Stack bis `$2DFF`, Daten `$2E00–$AFFF`, die Datei ist zusammenhängend bis `$DBFF`. Ladeadressen der Tests: DTS Wand `$6000`, Boden `$8300`, Decke `$F000`, S2 ab `$3000` (zusätzliche Sätze ab `$A700`), große Karten (P6c C) `$2E00`. `viewsim.c` weist Segmente in Harness und Lib-Code ab. sim65 läuft mit Wächter-Timeout (300 s).
+- **Zellentabelle (GEOMSET):** `k_ob`/`k_oe` = 16 · Platz des ersten/letzten Objektplatzes der Zelle (`$FF` keiner). Mehrere Objektplätze je Zelle sind erlaubt (wie die Referenz).
+- **Zellendurchlauf:** Zellen ohne Flächen → Objekte; Flächen mit INHALT → Fronten, Objekte, Seiten (5.2a); sonst nur Wände. `objd` (d ≥ 1 und Objekte bzw. Gegenstände möglich) schaltet den Objektteil je Tiefe ab, ohne Objekte kostet er nichts.
+- **Kandidaten:** Am Anfang von `VIEW` die Liste der sichtbaren Objekte (Bit 6 = 0, min(OBJN, 16)) mit Zellindex, i, 6 i und ein 256-Bit-Feld `obm` der Low-Bytes der Zellindizes (Vorfilter je Zelle; nur die Bits des vorigen `VIEW` werden gelöscht). Gegenstand aus der Inhaltsebene nur, wenn `itemn` > 0 (Anzahl der `itemtab`-Einträge ≠ 0, von `ITEMSET` geführt). Malreihenfolge ohne Sortieren: p = 4 … 0, je p die Kandidaten rückwärts (Objekte i absteigend, zuletzt der Gegenstand).
+- **Bild:** `lookup` nach P5b 6.3 (f ≥ NP → 0, `angle_map`, `$FF` → Phase 0, `$FE` → nichts), Anker x0/y0 16 Bit vorzeichenrichtig, Fenster- und `cover`-Ausschnitt (erste/letzte freie Spalte aus der Intervallliste, `ffree`).
+- **Erzeuger `gspr`:** Kerne mit `clipkerns`; Rand unbeschnitten als Kopie in den Puffer (Typ 12, **auch mit `VMS_BANK1`**, wie die Referenz), nur Zeilen beschnitten (L = 0, R = w) über einen schnellen Weg ohne Spaltenrechnung (sichtbar genau T · stride ≤ ofs < B · stride), sonst `clipvms_e`. `clipvms_e` liest Länge und Quelle aus `g_vlen`/`g_rsrc` (DTS und S2 haben verschiedene Verzeichnisse).
+- **Leere Sprite-Einträge** (weder Kern noch Randbefehl im Ausschnitt) sind keine Einträge: sie zählen nicht für MAXITEM (auch nicht bei voller Eintragszahl: dann Zählprobe) und setzen kein OBJVIS-Bit (12a.2). OBJVIS-Bit i bei Annahme, auch „ohne Rand“; nicht bei „verworfen“.
+- **K6:** Zeilenzähler in `clipvms_e` endet bei r = B (läuft nicht über). VMS-Kopie vierfach entrollt (14 statt 17 Zyklen je Byte, wirkt auch für Wände).
+- **VMS_BANK1** bleibt Build-Schalter; `TEXSET` weist dort DTS unter `$4000` ab (P2d, 6a). *(Überholt durch den Review-Nachtrag unten.)*
+
+### Test (`test/sim/run_sim.py`, `test_p6e`; GEOMSET-Grenzfälle in `test_geomcheck`)
+
+Bytegleich (A, X, Y, P0, VCLADR/VCLLEN/VMSLEN/**OBJVIS**, Puffer) in allen Sätzen: demo mit 0/1/5 Objekten (alle freien Zellen × 4 Richtungen, Gegenstände, ITEMPH), rand (Sätze blob, wache, breit und drei Zusatzsätze „hoch“ (oben hinaus), „links“, „rechts“; s = −2 … 2, d = 1 … 3, alle q), rand hinter deckenden Wänden, INHALT (Türen/Gitter deckend und nicht, Objekte und Gegenstände darauf), zufall mit 0–16 Objekten (Bit 6/7, unbekannte Sätze, OBJN = 20), überlauf (64 … 1024 Byte, A = 2 und 3), MAXITEM = 8. Standard: 1 600 Ansichten (mit `VMS_BANK1` 1 570), `DBEVIEW_FULL=1`: 5 240 (5 210), davon A = 2: 1 577, A = 3: 60; P6d voll 4 962 (4 942). P6a, P6c, P6d unverändert grün.
+
+GEOMSET (neu): 16 Elemente in einer Zelle ok / 17 A = 1, 48 Zellen ok / 49 A = 1, 96 Wände ok / 97 A = 1, zwei Deckenelemente A = 1, `VIEW` nach fehlgeschlagenem GEOMSET A = 5 (danach mit gültigem GEOMSET wieder 0); `parse_dvg` gleich.
+
+### Zyklen (sim65, Demo-Assets, ohne Stub)
+
+| Satz | Mittel | max |
+|---|---|---|
+| Gang ohne Objekte (P6d-Satz) | 40 439 (P6d-opt 41 446) | 50 280 |
+| Gang ohne Objekte, `VMS_BANK1` | 33 380 (33 017) | 39 066 |
+| demo mit 1 / 5 Objekten | 33 782 / 37 595 | 68 125 / 95 147 |
+| zufall mit 0–16 Objekten | 82 224 | 136 168 |
+
+Je Objekt (offener Raum, Differenz zur Ansicht ohne Objekte, enthält den Objektteil aller Zellen ≈ 2 700):
+
+| Fall | Zyklen | Ziel 8 |
+|---|---|---|
+| unbeschnitten (blob d = 1/2/3, 227/145/87 VMS-Byte) | 8 443 / 7 365 / 5 732 | 2 500 + 12 je Byte ≈ 5 200 / 4 240 / 3 540 |
+| Rand links/rechts (breit d = 1, 242 Listenbyte) | 25 400 – 27 200 | 4 000 + 12 · 242 ≈ 6 900 |
+| oben hinaus (hoch d = 1/2/3, nur Zeilen) | 25 255 / 15 774 / 18 303 | ≈ 7 500 / 6 100 / 7 000 |
+| unsichtbar (ausgeschnitten) | 2 724 | – |
+
+**Befund:** Ziele für Objekte verfehlt, unbeschnitten um etwa 1,5×, beschnitten um 3–4×. Ursache beschnitten: `clipvms_e` kostet je Befehl etwa 130 (unsichtbar) bzw. 250–280 Zyklen (sichtbar: Zeilenverfolgung, 16-Bit-Spalte, `cflush`/`cput3` je Befehl, Zähler). Ursache unbeschnitten: Kandidatensuche und Bildsuche (≈ 2 700 Grundlast je `VIEW` mit Objekten, je Zelle ≈ 100) und die Kopie (14 je Byte).
+
+### Größen
+
+Lib-Code 10 747 Byte (`$B000–$D9FA`, P6d-opt 8 935), LIBTAB 945 Byte, BSS 1 926 Byte (P6d-opt 1 799). Reserve: Code 517 Byte bis `$DBFF` (Testbuild bis `$DB80`: 261 Byte), BSS 122, LIBTAB 79.
+
+### Offene Punkte (P6f/P6g)
+
+1. `clipvms_e` beschleunigen: sichtbare Befehle blockweise (Folge sichtbarer Befehle einer Zeile mit einem Versatz kopieren), `cput3`/Zähler inline, Spalte 8-bittig bei stride < 256; Ziel ≈ 40–60 Zyklen je Befehl. Ebenso der Zeilenweg (sichtbare Folge in einem Lauf).
+2. Grundlast Objekte: Objekt-(d, s) einmal je `VIEW` statt Vergleich je Zelle (M9: Zellzeiger bei `SETPOS`), `lookup` je Kandidat cachen.
+3. Unbeschnittene Sprite-Listen mit `VMS_BANK1` als Typ 9 (spart die Kopie; Referenz und Spec 6a anpassen, sobald P2d entschieden ist).
+4. Code-Reserve nur 0,5 KB: P6f (MOVE, Automap) braucht Platz → Kandidaten für Einsparungen: `vpass`/Wandschleife zusammenlegen, `clipkerns`/`ckwrite` mit `mul8` vereinfachen; notfalls LIBTAB verkleinern oder Code bis `$DBFF` dicht.
+5. VICE-Lauf (P6g) mit Objekten; NMI weiterhin ungeprüft (P6d-opt).
+
+### Nachtrag Review P6e (2026-11-25)
+
+- **Typ 9 ist Standard** (6a): unbeschnittene Listen von Wänden, Kacheln, Bändern und jetzt auch Sprites gehen als VCL-Typ 9 nach Bank 1; Build-Schalter `VMS_COPY` = alter Weg (Typ 12 überall). `vmscopy` steht nur noch im `VMS_COPY`-Build. `SPRITESET` prüft wie `TEXSET` S2 ≥ `$4000` (A = 6); beide Prüfungen sind jetzt in P6c getestet (vorher lief P6c nur mit dem Build ohne Prüfung).
+- Referenz: unbeschnittene Sprites mit `vms_bank1` als `vms1` (Adresse `Scene.s2_bank1(k)` + vofs). `double_fronts(assets, objs=True)`: zweiter Objektplatz je Zelle; dabei Fehler gefunden: `copy.copy` übernahm den vofs-Cache der Vorlage (falsche Typ-9-Adressen bei Wänden der synthetischen DVG, fiel nur durch die Testreihenfolge nicht auf).
+- sim: Standard-PRG = Typ 9, `viewsimc.prg` = `VMS_COPY`; Lage in `ViewRunner`: DMP `$2E00`, S2 `$4000–$5FFF` und `$A700–$AFFF`; P6c: S2 ab `$4000`, gültige Kopf-Kopien bei `$A700`. Neuer Satz „zwei Fronten, zwei Objektplätze“ (k_ob < k_oe, 68 Ansichten). Satz „rechts“ ohne Bild für d = 2 (Index `$FE`, vorher ungetestet).
+- Bytegleich: Standard 1 668 / `VMS_COPY` 1 638 (P6e), voll 5 308 / 5 278; P6d voll 4 962 / 4 942; test_dbeview grün (`test_vms_bank1` mit Objekten).
+- Zyklen (Standard): Gang ohne Objekte 33 416 (max 39 111), demo 1/5 Objekte 26 311 / 29 988, zufall 0–16 Objekte 64 296; je Objekt unbeschnitten 4 318–5 001 (Ziel erreicht), beschnitten unverändert 15 800–27 200.
+- Größe (Standard): Code 10 596 Byte (`$B000–$D963`), Reserve 668 (Testbuild 412); `VMS_COPY` 10 747.

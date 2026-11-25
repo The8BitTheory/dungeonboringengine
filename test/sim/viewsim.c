@@ -6,7 +6,8 @@
      "DBS1"
      Folge von Sätzen, Typ-Byte zuerst:
        0                              Ende
-       1 addr(2) len(2) daten         Segment in den Speicher kopieren (nicht nach $2000-$4FFF, nicht unter $0200)
+       1 addr(2) len(2) daten         Segment in den Speicher kopieren (nicht unter $0200, nicht in Harness
+                                      $2000-$2DFF und Lib-Code $B000-$DBFF)
        2 f x y p0(2) p1(2) p2(2) p3(2) itemph nobj nbytes bytes
                                       Aufruf: Parameterblock $0C00-$0C07 = P0-P3, ITEMPH ($0C08) = itemph,
                                       OBJN ($0C50) = nobj, Objektliste ($0C51) = die nbytes Bytes (höchstens 96);
@@ -57,7 +58,8 @@ int main(int argc, char **argv)
         switch (t) {
         case 1:
             a = rd16(); n = rd16();
-            if (a < 0x0200 || (a < 0x5000 && a + n > 0x2000) || (unsigned long)a + n > 0x10000UL) return 3;
+            if (a < 0x0200 || (a < 0x2E00 && a + n > 0x2000) || (a < 0xDC00 && a + n > 0xB000)
+                || (unsigned long)a + n > 0x10000UL) return 3;
             if (fread((void *)a, 1, n, in) != n) return 2;
             break;
         case 2:
