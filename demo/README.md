@@ -12,7 +12,7 @@ Kompass (4 Rechtecke, Zeilen 96–99) die Blickrichtung. Drei Goblins gehen fest
 | Element | Umsetzung |
 |---|---|
 | Westwood-Geometrie 140 × 96 | `view.toml` (Preset `westwood`, `origin = 5`, stride 80, pixelgenau) |
-| 4 Wandstile | `ziegel`, `gitter`, `fenster`, `bogen` (`walls.toml`, Quellen `art/*_atlas.png`, `art/fenster.*` aus `docs/specs/examples/tex`) |
+| 4 Wandstile | `ziegel`, `gitter`, `fenster`, `bogen` (`walls.toml`, Quellen `art/*_atlas.png`, `art/fenster.*` aus `docs/specs/examples/tex`; Muster perspektivisch von `tools/dbepersp.py` abgeleitet) |
 | Boden und Decke | je ein Stil (`stein`, `holz`) |
 | Himmel | Deckenstil 0 (Hof): die Tapete zeigt sich in der Deckenlücke |
 | Abgrund | Bodenstil 0 mit Flag WEG (Kammer): Lücke im Boden, darunter Tapete mit `below = 0` |

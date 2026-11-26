@@ -39,16 +39,16 @@
 410 for g=0 to ng-1:read rl(g):for i=0 to rl(g)-1:read x,y:rt(g,i)=y*w+x:next:next
 500 fc=0:gosub 3100:gosub 3200
 # VRL-Basen im VRAM-Pool (Reihenfolge walls, floor, ceil, land, goblin, gem)
-600 data 9600,32903,36543,39657,44697,45766
+600 data 9600,33151,36791,39905,44945,46014
 # Setz-Aufrufe F, X, Y, P0, P1
 610 data 11,0,0,9600,46335
 611 data 12,0,0,59392,65535
 612 data 13,0,0,32768,9600
-613 data 13,1,0,60928,32903
-614 data 13,2,0,62976,36543
-615 data 14,51,0,64384,39657
-616 data 9,0,0,24576,44697
-617 data 9,1,0,25856,45766
+613 data 13,1,0,60928,33151
+614 data 13,2,0,62976,36791
+615 data 14,51,0,64384,39905
+616 data 9,0,0,24576,44945
+617 data 9,1,0,25856,46014
 618 data 10,1,2,0,0
 619 data 1,1,0,16384,20480
 # Routen

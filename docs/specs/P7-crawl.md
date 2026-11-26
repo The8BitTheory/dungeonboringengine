@@ -502,6 +502,19 @@ Zum Vergleich die Messung mit der **alten Lib** (vor P6i, 11 057 Byte): VICE kom
 
 Gegen P6i: VICE −1,7 / −1,6 / −0,9 / −0,8 %. Geist-Szene (kompiliert 2 MHz, Takte je Lauf, 3 Läufe) P6j: Richtung 0 223 654 / 221 080 / 221 607, 1: 217 207 / 250 665 / 251 056, 2: 251 181 / 220 673 / 222 463, 3: 218 445 / 219 807 / 221 615, ohne Geist 198 073 / 197 031 / 197 619 (Streuung durch die Geist-KI wie vorher). Release-Images `crawl128-110.d81`/`.d64` neu gebaut (`mkdisk.py`).
 
+**Nachtrag P2f (2026-11-26):** VDC-BASIC v3 mit der Zeilenschleife von `VMC`/`VMF` ohne JSR (`vdc-basic/docs/v3/P2f-vmc-loop.md`: Register direkt, Ready-Bit vor jedem `$D601`-Zugriff, Quellschritt einmal je Aufruf geprüft; VMC-Zeile VICE 180 → 136, Z64K 207 → 144 Takte bei 1 MHz). Lib und Spiel unverändert, nur `libs/vdcbasic3.prg` ersetzt. Pixeltest gegen 1.0f weiter **PASS**. VICE, Takte, je zwei identische Läufe; Z64K T9 in Jiffies, je zwei gleiche Läufe:
+
+| Konfiguration | CPU | 1.1 P6j | **1.1 P2f** | gegen P6j | 1.0f | P2f gegen 1.0f |
+|---|---|---|---|---|---|---|
+| VICE, kompiliert | 2 MHz | 3 353 392 | **3 104 710** (3,15 s) | −7,4 % | 3 385 841 | −8,3 % |
+| VICE, kompiliert | 1 MHz | 6 337 353 | **5 870 128** (5,96 s) | −7,4 % | 6 318 623 | −7,1 % |
+| VICE, interpretiert | 2 MHz | 21 908 130 | **21 652 569** (21,98 s) | −1,2 % | 21 550 022 | +0,5 % |
+| VICE, interpretiert | 1 MHz | 44 549 257 | **44 078 865** (44,74 s) | −1,1 % | 43 727 387 | +0,8 % |
+| Z64K, kompiliert (Jiffies) | 2 MHz | 256 | **230** (3,82 s) | −10,2 % | 260 | −11,5 % |
+| Z64K, kompiliert (Jiffies) | 1 MHz | 459 | **429** (7,13 s) | −6,5 % | 463 | −7,3 % |
+
+Kompiliert ist 1.1 damit 7–12 % schneller als 1.0f; interpretiert bleibt der Abstand klein, weil die Zeit dort im BASIC liegt. Release-Images `crawl128-110.d81`/`.d64` neu gebaut (`mkdisk.py`).
+
 ### 12.5 P7e: Demo (Engine)
 
 `demo/` (Beschreibung in `demo/README.md`), `test/vice_demo.py`: Tour mit 75 Tasten, ganzes VRAM an jedem Prompt gleich dem Modell, interpretiert und kompiliert. VRAM-Pool 36 735 Byte, belegt 36 291. Abweichungen von der Planung in 8.4: `max_kerns` höchstens 4 (nicht 16), der Goblin hat keinen Tag `IDLE` (die Phase kommt aus der Objektliste) und ist 2fach vergrößert (64 × 64). Review-Auflagen (Hinweis zur Tapete als Fernsicht in `docs/formats.md`, diese Korrekturen) sind umgesetzt.

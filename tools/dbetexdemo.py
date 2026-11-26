@@ -12,12 +12,14 @@ Aufruf: dbetexdemo.py OUTDIR [--geom GEOM.json]
 """
 import argparse
 import json
+import math
 import os
 import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dbegeom  # noqa: E402
+import dbepersp  # noqa: E402
 from PIL import Image  # noqa: E402
 
 PAL = dbegeom.PALETTE
@@ -62,51 +64,65 @@ def _paint(im, ox, oy, rect, mask, fn):
                         px_[ox + 2 * bx + side, oy + r] = PAL[c] + (255,)
 
 
-def _bh(geom, d):
-    W = [p["W"] for p in geom["planes"]]
-    return max(2, round(6 * W[d] / W[1]))
+BRICK = dbepersp.brick_pattern()
+JOINT = {14: 3}                                   # Fugen bleiben auch unter einem Pixel Breite sichtbar
 
 
-def brick(bh):
-    def fn(px, r):
-        row, rr = divmod(r, bh)
-        bw = 4 * bh
-        off = (row % 2) * (bw // 2)
-        cc = (px + off) % bw
-        if rr == 0 or cc == 0:
-            return 14
-        return 12 if ((px + off) // bw + row) % 2 == 0 else 8
-    return fn
+def _wall_fn(P, e, pattern=BRICK, bias=JOINT):
+    return dbepersp.element_fn(P, e, pattern, bias=bias)
+
+
+def _boxes_e(geom, arts):
+    """Element- bzw. Band-dicts (mit art, name, d, rect, mask, atlas) der Bilder mit Atlasplatz."""
+    res = []
+    for e in geom["elements"]:
+        if e["art"] in arts and e.get("atlas"):
+            res.append(e)
+    for b in geom["band_images"]:
+        if b["art"] in arts:
+            w, h = b["rect"][2], b["rect"][3]
+            res.append(dict(b, mask=["#" * w] * h))
+    return res
 
 
 def make_ziegel(geom, path):
+    """Wand, deckend: Ziegel im Wandraum (Fronten und Seiten, perspektivisch, dbepersp)."""
+    P = dbepersp.Persp(geom)
     im = Image.new("RGBA", tuple(geom["atlas_size"]), (0, 0, 0, 0))
-    for name, d, rect, mask, (ax, ay) in _boxes(geom, ("front", "side")):
-        _paint(im, ax, ay, rect, mask, brick(_bh(geom, d)))
+    for e in _boxes_e(geom, ("front", "side")):
+        ax, ay = e["atlas"]
+        _paint(im, ax, ay, e["rect"], e["mask"], _wall_fn(P, e))
     im.save(path)
 
 
 def make_gitter(geom, path):
+    """Wand, nicht deckend: Vollfronten als Gitter, Seiten wie Ziegel (perspektivisch).
+    Fronten liegen frontal auf einer Ebene (keine Verzerrung): Staebe ein Byte breit im Abstand 1/6 Zelle (auf Bytes
+    gerundet, haelt die VMS-Liste kurz), Querbalken ~ 2 Zeilen bei W_1 und skaliert mit W_d."""
+    P = dbepersp.Persp(geom)
     im = Image.new("RGBA", tuple(geom["atlas_size"]), (0, 0, 0, 0))
-    for name, d, rect, mask, (ax, ay) in _boxes(geom, ("front", "side")):
-        if name.startswith("front"):
-            h = rect[3]
+    W1 = geom["planes"][1]["W"]
+    for e in _boxes_e(geom, ("front", "side")):
+        if e["art"] == "front":
+            Wd, h = geom["planes"][e["d"]]["W"], e["rect"][3]
+            per = max(2, round(Wd / 12))                       # Stababstand in Bytes
+            rail = max(1, round(2 * Wd / W1))
 
-            def fn(px, r, h=h):
-                if h // 4 <= r < h // 4 + 2 or 3 * h // 4 <= r < 3 * h // 4 + 2:
+            def fn(px, r, h=h, per=per, rail=rail):
+                if h // 4 <= r < h // 4 + rail or 3 * h // 4 <= r < 3 * h // 4 + rail:
                     return 15
-                if (px // 2) % 8 == 3:
+                if (px // 2) % per == per // 2:
                     return 7
                 return None
         else:
-            fn = brick(_bh(geom, d))
-        _paint(im, ax, ay, rect, mask, fn)
+            fn = _wall_fn(P, e)
+        _paint(im, e["atlas"][0], e["atlas"][1], e["rect"], e["mask"], fn)
     im.save(path)
 
 
-def _front_fenster(w2, h, bogen):
+def _front_fenster(w2, h, bogen, base_fn):
     def fn(px, r):
-        base = brick(max(2, h // 12))(px, r)
+        base = base_fn(px, r)
         if bogen:
             cx, rad = w2 / 2, w2 * 0.18
             cy, bot = h * 0.4, h * 0.8
@@ -134,10 +150,13 @@ def make_fenster(geom, jpath, ppath):
     SW = max(x, 4 + fronts[2][2][2] * 2 + 4)
     SH = row2 + fronts[2][2][3] + 4
     sheet = Image.new("RGBA", (2 * SW, SH), (0, 0, 0, 0))
+    P = dbepersp.Persp(geom)
+    emap = {e["name"]: e for e in geom["elements"]}
     for fi, bogen in enumerate((False, True)):
         for name, d, rect, mask, _ in fronts:
             ax, ay = pos[name]
-            _paint(sheet, fi * SW + ax, ay, rect, mask, _front_fenster(rect[2] * 2, rect[3], bogen))
+            base = _wall_fn(P, emap[name])
+            _paint(sheet, fi * SW + ax, ay, rect, mask, _front_fenster(rect[2] * 2, rect[3], bogen, base))
     sheet.save(ppath)
     js = {"frames": [{"filename": f"fenster {i}", "frame": {"x": i * SW, "y": 0, "w": SW, "h": SH},
                       "rotated": False, "trimmed": False,
@@ -155,33 +174,53 @@ def make_fenster(geom, jpath, ppath):
         json.dump(js, f, indent=1)
 
 
-def make_stein(geom, path):
-    im = Image.new("RGBA", tuple(geom["atlas_size"]), (0, 0, 0, 0))
-    for name, d, rect, mask, (ax, ay) in _boxes(geom, ("floor", "floorband")):
-        if name.startswith("floorband"):
-            h = rect[3]
-            fn = lambda px, r, h=h: 1 if 2 * r < h else 0     # Verlauf dunkelgrau -> schwarz, je Zeile einfarbig
-        else:
-            cb = max(2, round(8 * geom["planes"][d]["W"] / geom["planes"][1]["W"]))
-            hb = max(1, cb // 2)
 
-            def fn(px, r, cb=cb, hb=hb):
-                if px % cb == 0 or r % hb == 0:
-                    return 1
-                return 14 if (px // cb + r // hb) % 2 == 0 else 7
-        _paint(im, ax, ay, rect, mask, fn)
+def _stein(u, v, t=0.25, j=0.012):
+    """Pflaster im Bodenraum: Quadrate von 1/4 Zelle, Schachbrett 14/7, Fuge 1."""
+    cu, cv = u / t, v / t
+    fu, fv = cu - math.floor(cu), cv - math.floor(cv)
+    if fu < j / t or fv < j / t:
+        return 1
+    return 14 if (math.floor(cu) + math.floor(cv)) % 2 == 0 else 7
+
+
+def _holz(u, v, pw=1 / 6, pl=0.5, j=0.012):
+    """Dielen im Deckenraum: Laengsbretter von 1/6 Zelle (Farbe 8/12 im Wechsel), Stoss alle 1/2 Zelle, versetzt je Brett."""
+    cu = u / pw
+    k = math.floor(cu)
+    if cu - k < j / pw:
+        return 6
+    vv = v / pl + (0.5 if k % 2 else 0)
+    if vv - math.floor(vv) < j / pl:
+        return 6
+    return 8 if (k + math.floor(vv)) % 2 == 0 else 12
+
+
+def _flat_atlas(geom, path, arts, tile, bandfn):
+    P = dbepersp.Persp(geom)
+    im = Image.new("RGBA", tuple(geom["atlas_size"]), (0, 0, 0, 0))
+    for e in _boxes_e(geom, arts):
+        if e["art"].endswith("band"):
+            fn = bandfn(e, P)
+        else:
+            fn = dbepersp.element_fn(P, e, tile, bias={1: 3, 6: 3})
+        _paint(im, e["atlas"][0], e["atlas"][1], e["rect"], e["mask"], fn)
     im.save(path)
+
+
+def make_stein(geom, path):
+    """Boden: Kacheln als Pflaster im Bodenraum; Baender einfarbige Zeilen (Verlauf dunkelgrau -> schwarz, ZEILEN)."""
+    def band(e, P):
+        h = e["rect"][3]
+        return lambda px, r: 1 if 2 * r < h else 0
+    _flat_atlas(geom, path, ("floor", "floorband"), _stein, band)
 
 
 def make_holz(geom, path):
-    im = Image.new("RGBA", tuple(geom["atlas_size"]), (0, 0, 0, 0))
-    for name, d, rect, mask, (ax, ay) in _boxes(geom, ("ceil", "ceilband")):
-        if name.startswith("ceilband"):
-            fn = lambda px, r: 8 if (px // 8) % 2 == 0 else 12
-        else:
-            fn = lambda px, r: 6 if r % 3 == 0 else (8 if (px // 16 + r // 3) % 2 == 0 else 12)
-        _paint(im, ax, ay, rect, mask, fn)
-    im.save(path)
+    """Decke: Kacheln und Baender als Dielen im Deckenraum (Baender ohne ZEILEN)."""
+    def band(e, P):
+        return dbepersp.element_fn(P, e, _holz, bias={6: 3})
+    _flat_atlas(geom, path, ("ceil", "ceilband"), _holz, band)
 
 
 def make_himmel(geom, path):

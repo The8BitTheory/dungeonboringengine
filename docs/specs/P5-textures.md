@@ -454,15 +454,26 @@ dbetex.py check  MAP.dmp|MAP.toml [--walls W.dts] [--floors F.dts] [--ceils C.dt
 
 | Datei | Inhalt |
 |---|---|
-| `ziegel_atlas.png` | Wand, deckend: Ziegelmuster im Rechteck jedes Elements (Fuge hellgrau 14, Ziegel braun 12/rot 8 im Wechsel), Ziegelhöhe ∝ W'_d / W'_1 (mindestens 2 Zeilen), nur innerhalb der Maske |
-| `gitter_atlas.png` | Wand, nicht deckend: Vollfronten als Gitter (senkrechte Stäbe, zwei Querbalken, Rest transparent), Seiten wie Ziegel |
+| `ziegel_atlas.png` | Wand, deckend: Ziegelmuster im **Wandraum** (10.4: Fronten und Seiten perspektivisch, Fugen laufen zum Fluchtpunkt; Fuge hellgrau 14, Ziegel braun 12/rot 8 im Wechsel; 4 Ziegel je Zelle, 16 Reihen je Zellhöhe), nur innerhalb der Maske |
+| `gitter_atlas.png` | Wand, nicht deckend: Vollfronten als Gitter (senkrechte Stäbe, zwei Querbalken, Rest transparent), Seiten wie Ziegel (perspektivisch); Stabbreite 1 Byte, Abstand 1/6 Zelle auf Bytes gerundet |
 | `fenster.json` + `fenster.png` | Aseprite-artiger Export (2 Frames, Tags `fenster`, `bogen`; Slices nur für Vollfronten, eine Slice verschoben): Front mit transparentem Fenster bzw. Rundbogen |
-| `stein_atlas.png` | Boden: Bänder einfarbige Zeilen (Verlauf dunkelgrau → schwarz, wird ZEILEN), Kacheln Pflastermuster |
-| `holz_atlas.png` | Decke: Bänder mit Balkenmuster (kein ZEILEN), Kacheln |
+| `stein_atlas.png` | Boden: Bänder einfarbige Zeilen (Verlauf dunkelgrau → schwarz, wird ZEILEN), Kacheln Pflaster im Bodenraum (Quadrate 1/4 Zelle, Querfugen je Tiefe, Längsfugen zum Fluchtpunkt) |
+| `holz_atlas.png` | Decke: Bänder und Kacheln Dielen im Deckenraum (Längsbretter 1/6 Zelle zum Fluchtpunkt, Stöße alle 1/2 Zelle; kein ZEILEN) |
 | `himmel.png` | Panorama P = 4 · VW Byte, h = Horizontbandhöhe + 6: Himmel hellblau, Berge dunkelgrau mit Zacken, je Viertel ein Merkmal (für den Versatz-Test sichtbar) |
 | `walls.toml`, `floor.toml`, `ceil.toml`, `bg.toml` | Projektdateien (Stile: ziegel, gitter, fenster, bogen) |
 
 Die erzeugten Dateien liegen in `docs/specs/examples/tex/` im Repo (klein, für die Doku); die Tests erzeugen sie neu in `tempfile.TemporaryDirectory`.
+
+### 10.4 Perspektivische Ableitung (`tools/dbepersp.py`)
+
+Die Engine projiziert nichts, jedes Element ist ein fertiges Bild. Ein im Bildschirmraum gemaltes Muster ist daher auf Seiten, Boden und Decke falsch (Fugen waagerecht/senkrecht statt zum Fluchtpunkt). `dbepersp` rechnet je Maskenpixel die Weltkoordinate und wertet ein flaches Muster dort aus (Weltmaß: Zellen, Ebene 1 bei Z = 1, Z_k = W_1 / W_k):
+
+- 1/Z = W / W_1 ist in x linear (x = C + X · W), bei Boden und Decke linear in der Zeile (W zwischen den Ebenen linear von B_d nach B_{d+1} bzw. T).
+- Front (Ebene d): u = (x − C) / W_d, v = (y − T_d) / W_d.
+- Seite an der Kante e: W(x) = (x − C) / e, u = Z = W_1 / W(x), v = (y − top(x)) / W(x), top linear in W zwischen T_d und T_{d+1}. Auf der Frontkante ist v gleich der Front: Reihen schließen an, Reihenhöhe gleich.
+- Boden/Decke: u = X = (x − C) / W, v = Z = W_1 / W.
+
+API: `Persp(geom)`, `element_fn(persp, element, pattern, n=4, bias=None)` (liefert `fn(px, r)` für Maskenmalen), Muster `pattern(u, v) -> Index | None` in Zellen (`brick_pattern()`, `flat_pattern(img, pixel_je_zelle)` kachelt ein flaches PNG und bildet auf die Palette ab). Je Pixel n × n Unterabtastungen, gewichtete Mehrheit; `bias={Farbe: Gewicht}` erhält dünne Fugen. Eigene flache Texturen: `flat_pattern(Image.open(...), ppc)` an `element_fn` übergeben und mit `_paint`-artiger Schleife in den Atlas malen (Vorbild `dbetexdemo.make_ziegel`).
 
 ### 10.2 Feste Werte (140 × 96, Westwood)
 
