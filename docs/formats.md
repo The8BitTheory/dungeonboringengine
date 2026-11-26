@@ -187,7 +187,7 @@ Ein Objekt in Zelle (d, s) mit Blickwinkel a zeichnet alle Teile seines Satzes m
 
 1. Aus der Blickrichtung ergeben sich Vorwärtsschritt F und Rechtsschritt R (N: −B/+1, O: +1/+B, S: +B/−1, W: −1/−B; B = Kartenbreite).
 2. Für jeden Eintrag wird die Zelle `pos + d·F + s·R` geprüft. Ist sie eine Wand und noch mindestens eine ihrer Spalten frei, wird der Eintrag vorgemerkt. Hat er Flag Bit 0, markiert er seine Spalten als verdeckt.
-3. Ein Objektplatz in einer freien Zelle merkt die passenden Sprite-Teile vor: erst die Objekte aus der Objektliste an dieser Position, dann den Gegenstand aus `ITEMSET` für den Zellwert. Sprite-Teile decken nichts ab, werden aber weggelassen, wenn alle ihre Spalten schon verdeckt sind.
+3. Ein Objektplatz in einer freien Zelle merkt die passenden Sprite-Teile vor: erst die Objekte aus der Objektliste an dieser Position, dann den Gegenstand aus `ITEMSET` für den Zellwert. Sprite-Teile decken nichts ab, werden aber weggelassen, wenn alle ihre Spalten schon verdeckt sind. **Sprites werden nicht gegen Wände beschnitten (seit P6i):** Ein Sprite wird vollständig gezeichnet, nähere Wände übermalen es danach (Malreihenfolge). Beschnitten wird nur am Rand des Sichtfensters. Ein Sprite, das höher ist als die Wand seiner Tiefe, ragt oben über die Wand hinaus und wird dort von Decke bzw. Tapete der näheren Tiefen übermalt; passende Sprite-Höhen sind Sache des Autors (`dbespr` warnt).
 4. Ausgabe nach `$0B00`: zuerst Typ 4 (`VMF AP+Clear-Offset, Wert, Länge`), dann alle vorgemerkten Einträge von hinten nach vorne: Wände als Typ 2 (`VMC Quelle, Ziel, Breite, Höhe, Zeilenbreite`), Sprite-Teile als Typ 12 (`VMS Quelle, Ziel, Liste`, die Liste kopiert `VIEW` nach `$0E00`) oder Typ 2; am Ende 0. Typ 12 braucht VDC-BASIC v2g mit dem VCL-Typ für `VMS`.
 5. Mehr als 22 sichtbare Einträge oder mehr als 512 Byte VMS-Listen passen nicht in die Puffer. Dann bricht `VIEW` hinten ab und meldet A = 2.
 
@@ -389,6 +389,8 @@ Kopf (32 Byte): `"DT"`, Version 1, Art (0 Wand, 1 Boden, 2 Decke), Geometrie-ID 
 ## DBG v1 (Tapete, von `tools/dbetex.py bg`)
 
 PRG-Datei (Standard `$FB80`, Bank 1, Bereich bis `$FBFF`), Inhalt: `"DB"`, Version 1, VW, VH, Geometrie-ID (Wort), P (Panoramabreite in Byte, Wort), y0, h, Flags (Bit 0 WRAP), 4 Versatzwörter o_v (N, O, S, W), U = P · h (Wort), CRC der VRAM-Daten (Wort), dann VH Füllbytes (Farbe · 17 für Zeilen außerhalb [y0, y0 + h), sonst 0). Das Panorama liegt zeilenweise (P Byte je Zeile) in der zugehörigen VRL. Details und Zeichenregel: `docs/specs/P5-textures.md` 6.
+
+**Hinweis für Autoren:** Die Tapete ist auch die Fernsicht: Sichtlinien, die länger als die Sichttiefe D sind, enden im Horizontband in der Tapete. Innenräume mit Landschafts-Tapete brauchen Sichtlinien ≤ D, sonst eine neutrale Tapete.
 
 ## S2 v1 (Sprite-Satz, von `tools/dbespr.py`)
 

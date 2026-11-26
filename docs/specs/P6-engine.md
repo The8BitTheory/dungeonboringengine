@@ -8,7 +8,7 @@ Die Lib bleibt eine Bank-1-Bibliothek hinter dem Stub (`SYS 3331,F,X,Y`). Sie li
 
 - 8 KB gemeinsames RAM (`$0000–$1FFF`), Puffer `$1300–$1BFF` für VCL- und VMS-Listen zusammen, Objektliste 16 × 6 Byte bei `$0C50`.
 - Geometrie, Texturen, Tapete und Sprites aus den P3/P5/P5b-Formaten; Karte DMP.
-- `VIEW` nach Plan 5: Sichtbarkeit vorne → hinten mit Spaltenmaske, Ausgabe hinten → vorne; je Tiefe Tapete, Decke, Boden, Zellen außen → innen mit Wandflächen oder Objekten nach Unterposition; Beschneiden von Sprites am Sichtfenster und an verdeckten Spalten über VMS-Typ 3.
+- `VIEW` nach Plan 5: Sichtbarkeit vorne → hinten mit Spaltenmaske, Ausgabe hinten → vorne; je Tiefe Tapete, Decke, Boden, Zellen außen → innen mit Wandflächen oder Objekten nach Unterposition; Beschneiden von Sprites am Sichtfenster über VMS-Typ 3 (seit P6i nicht mehr an verdeckten Spalten: Verdeckung von Sprites nur über die Malreihenfolge).
 - `WALLSET` (WSM) und Sprite-Sätze v1 entfallen (0.1-Formate). Crawl wird in P7 über einen Konverter auf DVG/DTS/S2 gebracht (review-notes G.6).
 
 Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen in Bank 0 (Abschnitt 12), DTS v2.
@@ -74,7 +74,7 @@ Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für We
 
 Bank-1-Fenster für Assets: `$4000–$AFFF` (28 KB) und `$E800–$FBFF` (5 KB). **Alle Engine-Daten liegen darin**; der Rest ist Lib (`$B000–$E7FF`), Runtime oder Bank-0-Sicht. Listen für VCL-Typ 9 (Inhalt von DTS und S2) müssen ab `$4000` liegen (nicht in `$D000–$DFFF`; die Engine prüft die Adresse in `TEXSET`/`SPRITESET`, Abschnitt 6a); die Karte erfüllt das für alle Bereiche.
 
-Begründung: Das Demo-Wand-DTS mit 4 Stilen hat 8,7 KB (P5-Beispiel; mit `max_kerns` 16 weniger, review-notes G.1/G.2) und passt jetzt in den Wandbereich. Boden und Decke der Demo (9,1 und 3,2 KB mit mehreren Stilen) passen weiterhin nicht in ihre Bereiche (Asset-Befund, `P6g-vcl-analysis.md` Abschnitt 6); wer mehr braucht, packt die Dateien dicht in die Fenster oben (die Adressen sind Parameter von `GEOMSET`/`TEXSET`/`BGSET`).
+Begründung: Das Demo-Wand-DTS mit 4 Stilen hat 8,7 KB (P5-Beispiel; `dbetex` erlaubt höchstens `max_kerns` 4, review-notes G.1/G.2) und passt jetzt in den Wandbereich. Boden und Decke der Demo (9,1 und 3,2 KB mit mehreren Stilen) passen weiterhin nicht in ihre Bereiche (Asset-Befund, `P6g-vcl-analysis.md` Abschnitt 6); wer mehr braucht, packt die Dateien dicht in die Fenster oben (die Adressen sind Parameter von `GEOMSET`/`TEXSET`/`BGSET`).
 
 **Blitz!-Runtime (Image 2, P6g):** Der verbesserte Runtime kopiert gemeinsamen Code nach `$FC00`, schaltet `$D506` auf `$0C` (unten **und oben** 1 KB gemeinsam) und senkt die String-Obergrenze auf `$FC00` (`blitz128/runtime2026/README.md`). Solange das Kompilat läuft, landet jeder Zugriff auf Bank 1 `$FC00–$FEFF` im gemeinsamen RAM, also im Runtime: ein `BLOAD …,B1` dorthin zerstört ihn (Kompilat hängt; interpretiert fällt es nicht auf, weil dort `$D506` = `$04` gilt). Darum gilt für **alle** Engine-Daten in Bank 1 die Obergrenze **`$FBFF`** (interpretiert und kompiliert gleich, damit ein Spiel in beiden Formen dieselben Dateien lädt):
 
@@ -200,7 +200,7 @@ Die Python-Referenz (`tools/dbeview.py`, 9.1) setzt genau diesen Abschnitt um; d
 - `resolve(kind, slotindex, n)`: n = 0 → nichts; DTS der Art fehlt → nichts; st = n − 1 ≥ NST → nichts; k = Slotkarte[slotindex] (`$FF` → nichts); b = Stiltabelle[st · NS + k]; b = `$FF` → b = Stiltabelle[k]; b ≥ `$FE` → nichts; sonst Verzeichniseintrag b. slotindex = e.index für Elemente, NE + d für Deckenband d, NE + D + 1 + d für Bodenband d.
 - `deck(e, t, ent)` = (e.flags Bit 0) und (t.flags DECKEND) und (ent.flags Bit 0) (review-notes D.5).
 - **Spaltenmasken** (je VW Byte, 0 = frei):
-  - `cover`: verdeckt für alles hinter P_{d+1} und für Objekte und Seiten derselben Tiefe weiter außen.
+  - `cover`: verdeckt für alles hinter P_{d+1} und für Objekte und Seiten derselben Tiefe weiter außen. Für Objekte dient es nur dem Verwerfen ganz verdeckter Sprites (5.8); beschnitten wird gegen `cover` nichts.
   - `bcov`: verdeckt für Bänder, Kacheln und Tapete der aktuellen Tiefe.
 - `allcov(m, c0, c1)`: alle Spalten c0 … c1 − 1 in m belegt.
 - `spans(m)`: maximale Folgen freier Spalten in [0, VW), links nach rechts; mehr als **4** Folgen → eine Folge [erste freie, letzte freie + 1); keine → leer.
@@ -245,7 +245,7 @@ for d in 0 .. D:
 
 ### 5.4 Abdeckung – Annahmen
 
-- Eine Abdeckung in `cover` aus Tiefe d gilt für alle Zeilen von P_{d+1} (P3 4.4). Objekte werden spaltenweise beschnitten; ein Sprite, das höher ist als die Wand an seiner Tiefe, verliert dabei Teile über der Wandoberkante (P5b 3.4 warnt).
+- Eine Abdeckung in `cover` aus Tiefe d gilt für alle Zeilen von P_{d+1} (P3 4.4). Objekte werden **nicht** gegen `cover` beschnitten (P6i, Nutzerentscheidung): ein Sprite wird vollständig gezeichnet und von den näheren Wänden, die in der Malreihenfolge später kommen, übermalt (Painter, Begründung 5.8a). Ein Sprite, das höher ist als die Wand an seiner Tiefe, wird über der Wandoberkante von den Deckenbändern bzw. der Tapete der näheren Tiefen übermalt (P5b 3.4 warnt weiterhin, weil es dann über dem Boden „schwebt“ bzw. in die Decke ragt).
 - Nicht abzudecken ist immer korrekt (nur Mehrarbeit).
 - Zellen mit Flächen zeigen keine Objekte (Plan 5: entweder Flächen oder Inhalt), auch wenn die Flächen nicht decken – **außer** die Kachel hat das Flag INHALT (5.2a, review-notes G.14).
 
@@ -286,12 +286,26 @@ Reihenfolge der Bereiche und Teile im Bild ist gleichgültig (sie überdecken si
 2. **Malreihenfolge:** p aufsteigend (0 hinten links, 1 hinten rechts, 2 Mitte, 3 vorne links, 4 vorne rechts; P3 3.3); bei gleichem p zuerst der Gegenstand, dann Objekte nach i aufsteigend. **Anhängen in umgekehrter Malreihenfolge.**
 3. Je Kandidat: Satz ungültig → überspringen; a = 0 bei Richtung `$FF`, sonst (2 + v − o) AND 3; Bild = `lookup(Satz, f, a, d)` (P5b 6.3; f ≥ NP → 0; `$FF` → Phase 0; `$FE` → überspringen).
 4. Anker (ax, ay) = e.anchor[p] (vorzeichenbehaftete Byte-Spalte, Zeile); x0 = ax − fx, y0 = ay − fy (16 Bit vorzeichenbehaftet).
-5. Ausschnitt: cx0 = max(x0, 0), cx1 = min(x0 + w, VW), cy0 = max(y0, 0), cy1 = min(y0 + h, VH); leer → überspringen. Dann in `cover`: erste freie Spalte ≥ cx0 und letzte freie Spalte < cx1 suchen; keine → überspringen; cx0 = erste, cx1 = letzte + 1.
+5. Ausschnitt nur am Fenster: cx0 = max(x0, 0), cx1 = min(x0 + w, VW), cy0 = max(y0, 0), cy1 = min(y0 + h, VH); leer → überspringen. `allcov(cover, cx0, cx1)` → überspringen (alle Spalten des Ausschnitts verdeckt). Sonst bleibt der Ausschnitt, wie er ist: kein Zuschneiden gegen `cover` (P6i). Liegt das Sprite ganz im Fenster, ist es unbeschnitten (Kerne + Rand als Typ 9 bzw. im Build `VMS_COPY` als Kopie, 5.9).
 6. `add(SPRITE(Satz, Bild, x0, y0, cx0, cx1, cy0, cy1))`; Objekte decken nichts ab. Bei Annahme: OBJVIS Bit i setzen (nur Listenobjekte).
+
+### 5.8a Verdeckung von Sprites über die Malreihenfolge (P6i)
+
+Ein Sprite in Tiefe d (Zelle s) wird vollständig gezeichnet. Ein Zuschneiden gegen `cover` ist unnötig, wenn jede Wand, die eine Spalte von `cover` zum Zeitpunkt des Sprites belegt, in der ausgeführten VCL **nach** dem Sprite kommt und selbst ungeschnitten ist. `cover` enthält dann genau:
+
+1. **Fronten und Seiten der Tiefen < d** (deckend): Die Ausgabe läuft Tiefe D … 0, die Tiefe d' < d kommt ganz nach d. Wände werden nie beschnitten (5.3); eine Wand, die wegen `allcov(cover)` entfällt, liegt in Spalten, die eine noch nähere, ebenfalls spätere Wand deckt. Eine deckende Front bzw. Seite der Tiefe d' deckt in ihren Spalten [c0, c1) alle Zeilen von P_{d'+1} (5.4, Seiten: das Trapez ist an jeder Spalte mindestens so hoch wie P_{d'+1}), ein Sprite in der Zelle d ≥ d' + 1 liegt darin, solange es nicht höher ist als die Wand seiner Tiefe.
+2. **Fronten der Tiefe d in Zellen weiter innen** (sie belegen `cover` sofort): Die Zellen einer Tiefe werden innen → außen durchlaufen und außen → innen gemalt, die innere Front kommt also nach dem Sprite der äußeren Zelle.
+3. **Front der eigenen INHALT-Zelle** (5.2a): Erzeugung Fronten, Objekte, Seiten, gemalt Seite, Objekte, **Front**; die Front kommt nach den Objekten.
+
+Seiten der Tiefe d (auch weiter innen) belegen `cover` erst am Ende der Tiefe (`pend`) und kommen ebenfalls nach dem Sprite. Fronten und Seiten derselben Tiefe weiter außen kommen vor dem Sprite, belegen aber beim Sprite `cover` noch nicht; das ist unverändert gegenüber P6 (dort wurde gegen sie ebenfalls nicht geschnitten).
+
+**Bänder, Kacheln, Tapete:** Bodenbänder, Deckenbänder, Kacheln und Tapete einer Tiefe d'' < d werden nach dem Sprite gemalt und übermalen Teile, die in ihre Zeilen ragen (zu hohe Sprites; Objekte stehen mit dem Fußpunkt auf dem Boden ihrer Zelle, Plan 5). Sie werden nur gegen `bcov` geschnitten; in einer Spalte, die eine deckende Wand der Tiefe d' belegt, fehlen sie genau ab der Tiefe d', also in den Zeilen, die diese Wand selbst deckt (Bit 3) bzw. die sie nach den eigenen Bändern übermalt (ohne Bit 3: `pend`, Bänder der Tiefe d' kommen vor ihren Wänden). Über und unter der Wand bleiben die Bänder der Tiefen < d' und übermalen das Sprite dort. Die Zusammenlegung von mehr als 4 Spannen (5.1 `spans`) malt Bänder über verdeckte Spalten; die Wände darüber kommen danach, das Ergebnis bleibt gleich. Alle Fälle betreffen Zeilen, die das Sprite schon in P6 ungeschnitten erreichte (geschnitten wurde nur nach Spalten); **zusätzliche Änderungen der Reihenfolge sind nicht nötig**.
+
+**Grenzfälle** (wie bisher, kein neuer Fehler): (a) Überlauf: ein Wandeintrag „ohne Rand“ oder „verworfen“ (5.10) belegt `cover` trotzdem; das Sprite dahinter ist dann teilweise sichtbar (A = 3). Bisher fehlte dort das Sprite und der alte Bildinhalt blieb stehen; beides ist ein Fehlerzustand. (b) Bänder ohne auflösbares Bild (gemischt, Grund leer, Kachel ohne Bild) malen nichts; dort steht dann ein zu hohes Sprite statt des alten Bildinhalts. (c) Sprites, die höher sind als die Wand ihrer Tiefe (P5b 3.4): Was über der Oberkante der verdeckenden Wand liegt, übermalen die Deckenbänder näherer Tiefen; vorher war es abgeschnitten. Das entspricht 0.1 (Crawl 1.0f übermalte ebenfalls).
 
 ### 5.9 Beschneiden
 
-Sprites und Bänder mit Rand werden mit `clip_image` (P5b 6) geschnitten. Ziel eines Kerns: `AP + row[Zeile] + Spalte`; Ziel einer beschnittenen VMS-Liste: `AP + row[cy0] + cx0`; unbeschnitten `AP + row[y0] + x0` (dann gilt y0 ≥ 0, x0 ≥ 0). VMS-Quelle immer `VB + rand_ofs` (die übersprungenen Bytes am Anfang erledigt Typ 3). Die 6502-Fassung rechnet ofs' mit einem laufenden Zeilenanfang (keine Multiplikation) und bricht ab, sobald r ≥ B.
+Sprites (nur am Fenster, 5.8) und Bänder mit Rand werden mit `clip_image` (P5b 6) geschnitten. Ziel eines Kerns: `AP + row[Zeile] + Spalte`; Ziel einer beschnittenen VMS-Liste: `AP + row[cy0] + cx0`; unbeschnitten `AP + row[y0] + x0` (dann gilt y0 ≥ 0, x0 ≥ 0). VMS-Quelle immer `VB + rand_ofs` (die übersprungenen Bytes am Anfang erledigt Typ 3). Die 6502-Fassung rechnet ofs' mit einem laufenden Zeilenanfang (keine Multiplikation) und bricht ab, sobald r ≥ B.
 
 ### 5.10 Größenrechnung und Überlauf
 
@@ -451,7 +465,7 @@ Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) u
 |---|---|---|
 | P3 (`dbegeom`) | DVG-Flag Bit 3 „Bandabdeckung“ für Fronten (5.1); Standard `load` `$E800` | 5.2, Speicherkarte |
 | P4 (`dbemap`, `crawlmap`) | Standard-Ladeadresse `$4000` (P6h; Karte F: `$5000`) | Speicherkarte |
-| P5 (`dbetex`) | `max_kerns` 0 … 16; `vms_buffer` → Prüfung „VCL + VMS je Bild gegen den gemeinsamen Puffer 2304“; Standard `load` Wand `$8000`, Boden `$EE00`, Decke `$F600`, DBG `$FB00` (P6h; Karte F: `$9000`, `$F000`, `$F800`, `$FE00`, nach P6g `$EE00`, `$F600`, `$FB00`); `sim_vms` Typ 3 (P5b) | review-notes G.1–G.3 |
+| P5 (`dbetex`) | `max_kerns` 0 … 4 (`dbespr` bis 16); `vms_buffer` → Prüfung „VCL + VMS je Bild gegen den gemeinsamen Puffer 2304“; Standard `load` Wand `$8000`, Boden `$EE00`, Decke `$F600`, DBG `$FB00` (P6h; Karte F: `$9000`, `$F000`, `$F800`, `$FE00`, nach P6g `$EE00`, `$F600`, `$FB00`); `sim_vms` Typ 3 (P5b) | review-notes G.1–G.3 |
 | P5 4.4/4.6 | Formatregel VMS-Listen (Zeilenreihenfolge, steigender ofs, Lauf in einer Zeile) ausdrücklich | Beschneiden, G.7 |
 | `engine-design.md` | Funktionstabelle, Speicher 3.1 → Verweis auf P6 (P8) | – |
 
@@ -609,7 +623,7 @@ Umgesetzt: Objekte und Gegenstände in `VIEW` (5.8) in `engine/view.s`, byteglei
 - **Zellentabelle (GEOMSET):** `k_ob`/`k_oe` = 16 · Platz des ersten/letzten Objektplatzes der Zelle (`$FF` keiner). Mehrere Objektplätze je Zelle sind erlaubt (wie die Referenz).
 - **Zellendurchlauf:** Zellen ohne Flächen → Objekte; Flächen mit INHALT → Fronten, Objekte, Seiten (5.2a); sonst nur Wände. `objd` (d ≥ 1 und Objekte bzw. Gegenstände möglich) schaltet den Objektteil je Tiefe ab, ohne Objekte kostet er nichts.
 - **Kandidaten:** Am Anfang von `VIEW` die Liste der sichtbaren Objekte (Bit 6 = 0, min(OBJN, 16)) mit Zellindex, i, 6 i und ein 256-Bit-Feld `obm` der Low-Bytes der Zellindizes (Vorfilter je Zelle; nur die Bits des vorigen `VIEW` werden gelöscht). Gegenstand aus der Inhaltsebene nur, wenn `itemn` > 0 (Anzahl der `itemtab`-Einträge ≠ 0, von `ITEMSET` geführt). Malreihenfolge ohne Sortieren: p = 4 … 0, je p die Kandidaten rückwärts (Objekte i absteigend, zuletzt der Gegenstand).
-- **Bild:** `lookup` nach P5b 6.3 (f ≥ NP → 0, `angle_map`, `$FF` → Phase 0, `$FE` → nichts), Anker x0/y0 16 Bit vorzeichenrichtig, Fenster- und `cover`-Ausschnitt (erste/letzte freie Spalte aus der Intervallliste, `ffree`).
+- **Bild:** `lookup` nach P5b 6.3 (f ≥ NP → 0, `angle_map`, `$FF` → Phase 0, `$FE` → nichts), Anker x0/y0 16 Bit vorzeichenrichtig, Fenster- und `cover`-Ausschnitt (erste/letzte freie Spalte aus der Intervallliste, `ffree`; seit P6i entfallen: nur Fenster, `allcov_c` verwirft ganz verdeckte Sprites).
 - **Erzeuger `gspr`:** Kerne mit `clipkerns`; Rand unbeschnitten als Kopie in den Puffer (Typ 12, **auch mit `VMS_BANK1`**, wie die Referenz), nur Zeilen beschnitten (L = 0, R = w) über einen schnellen Weg ohne Spaltenrechnung (sichtbar genau T · stride ≤ ofs < B · stride), sonst `clipvms_e`. `clipvms_e` liest Länge und Quelle aus `g_vlen`/`g_rsrc` (DTS und S2 haben verschiedene Verzeichnisse).
 - **Leere Sprite-Einträge** (weder Kern noch Randbefehl im Ausschnitt) sind keine Einträge: sie zählen nicht für MAXITEM (auch nicht bei voller Eintragszahl: dann Zählprobe) und setzen kein OBJVIS-Bit (12a.2). OBJVIS-Bit i bei Annahme, auch „ohne Rand“; nicht bei „verworfen“.
 - **K6:** Zeilenzähler in `clipvms_e` endet bei r = B (läuft nicht über). VMS-Kopie vierfach entrollt (14 statt 17 Zyklen je Byte, wirkt auch für Wände).
@@ -863,3 +877,44 @@ VCL −16,5 % bei 1 MHz (200 279 → 167 154) und −16,8 % bei 2 MHz (122 369 �
 - Sprites (`dbespr`) kennen `byte_edges` nicht; ein Schalter für halbtransparente Randbytes bleibt eine Entscheidung für P7.
 - Boden-/Decken-Demo (9,1 / 3,2 KB) passen weiter nicht in ihre Bereiche (Asset-Etat in P7).
 - Die Lib-Prüfung „Daten außerhalb von Lib/BSS“ (K5) fehlt weiterhin.
+
+## Ergebnis P6i (2026-11-26): Verdeckung von Sprites über die Malreihenfolge
+
+Nutzerentscheidung (von Anfang an vorgegeben, in P6 falsch umgesetzt): Sprites werden **nicht** gegen `cover` beschnitten. Ein Sprite wird vollständig gezeichnet und von den näheren Wänden übermalt; `cover` verwirft ein Sprite nur, wenn alle Spalten seines Fensterausschnitts belegt sind. Beschnitten wird nur am Rand des Sichtfensters (der Rest des Bildschirms gehört dem Spiel). Ein Sprite ganz im Fenster nimmt den schnellen unbeschnittenen Weg (Kerne + Rand als Typ 9, im Build `VMS_COPY` als Kopie).
+
+### Umsetzung
+
+- Spec 5.4, 5.8 Schritt 5, 5.9; neue Begründung **5.8a** (Analyse der Reihenfolge: alles, was ein Sprite in Tiefe d verdecken kann, kommt in der VCL danach und ist ungeschnitten; keine zusätzlichen Änderungen der Reihenfolge nötig; Grenzfälle Überlauf, Bänder ohne Bild, zu hohe Sprites). P5b 3.4 (Höhenprüfung) und 6 (Ausschnitt) nachgezogen.
+- Referenz `dbeview._View.objekte`: Spaltensuche durch `allcov(cover, cx0, cx1)` ersetzt. `paint_reference` war schon so (Sprites nur am Fenster beschnitten).
+- Lib `view.s` (`vspr`): `ffree` (erste/letzte freie Spalte) entfällt, stattdessen `allcov_c` (gibt es für die Wände ohnehin). Lib-Code **11 057 → 10 982 Byte (−75)**, Reserve bis `$DBFF` **207 → 282 Byte**. BSS unverändert.
+
+### Test
+
+- `python3 -m unittest discover -s test/tools`: 283 Tests grün, darunter der Offline-Vollvergleich `test_crawl01` (19 136 Ansichten pixelgleich zum 0.1-Modell; 0.1 hat ebenfalls einfach übermalt).
+- `run_sim.py` grün (P6a/P6c/GEOMSET, P6d 1 322 / `VMS_COPY` 1 302, P6e 1 743 / 1 713, P6f MOVE und Automap, alle bytegleich).
+- `run_crawl.py --dir test/tools/data`: 19 136 Ansichten bytegleich (sim65 gegen `dbeview.view`), alle A = 0.
+- `vice_view.py` (interpretiert und Blitz!, je 1 und 2 MHz): 42 Szenen pixelgleich. `vice_demo.py --only i`: 75 Prompts gleich dem Modell.
+- Crawl-Pixeltest im Spiel-Repo (`test/vice_crawl.py --ports 6633,6634`, neue Lib nach `libs/dbe0.2.lib.prg`, Stub unverändert): **PASS**, 1.1 interpretiert und kompiliert je 74 Prompts gleich 1.0f (Rundgang, Automap, 32 Geist-Szenen), `crawl01` gegen das echte 1.0f-Fenster 73 Prompts gleich. Die P7d-Zeitmessung für 1.1 ist mit dieser Lib zu wiederholen.
+
+### Zyklen VIEW (sim65, Crawl-Szenen wie `run_crawl.py`, ohne Stub; Mittel / max)
+
+| | vorher (P6h) | nachher | 0.1 |
+|---|---|---|---|
+| ohne Geist (400) | 16 863 / 26 104 | 16 747 / 25 877 | 16 369 / 19 215 |
+| mit Geist (9 168) | 20 755 / 45 666 | **18 833 / 30 364** | 18 745 / 25 746 |
+| Geist d = 1 seitlich (896) | 36 256 / 45 666 | **22 411 / 30 364** | 22 883 / 25 746 |
+| Geist d = 2 seitlich (1 312) | 21 301 / 38 285 | 18 053 / 28 805 | 18 932 / 23 735 |
+| Geist mittig (s = 0, d ≥ 1, 2 704) | 22 599 / 30 638 | 22 435 / 30 364 | 20 835 / 25 644 |
+| pos 67 Richtung 3, Geist Zelle 86 (d = 1, s = −1), Blick 0 / 1 | 45 666 / 43 348 | 28 951 / 30 324 | 25 521 / 25 049 |
+
+Das Beschneiden am Rand von `cover` (Zählprobe und Kopie der VMS-Liste, `clipvms_e`) kostete beim seitlichen Geist in Tiefe 1 etwa 14 000 Zyklen; das entfällt jetzt ganz. Ziel ≤ 28 382 (2 × 0.1): vorher 1 630 Ansichten darüber, jetzt 382 (davon 164 Geist d = 1 seitlich, 210 mittig; Maximum 30 364 = 1,07 × Ziel; größter Quotient zu 0.1 je Ansicht 1,82 → 1,37). Die VMS-Pufferbelegung im Crawl sinkt auf 0 (alle Geister und Edelsteine im Fenster gehen als Typ 9).
+
+### VCL-Mehrkosten durch übermalte Bytes (Crawl-Szenen, `dbeview.view`)
+
+| | VCL-Byte Mittel | VRAM-Schreibbytes Mittel (Δ, max Δ) | Δ Operationen (Mittel) | Schätzung Δ VCL (VICE-Modell P6g) |
+|---|---|---|---|---|
+| ohne Geist (Edelsteine) | 79 → 77 | 6 677 → 6 692 (+15, +54) | 5 VMC-Zeilen Typ 3 → Typ 2 | −480 Zyklen |
+| mit Geist | 92 → 90 | 6 743 → 6 781 (+38, +247) | +1 VMC-Zeile, +0,7 VMS1, +2,0 VMS8 | +900 Zyklen |
+| Geist d = 1 seitlich | 123 → 121 | 7 045 → 7 237 (+192, +247) | +10 VMC-Zeilen, +5,6 VMS1, +15,5 VMS8 | +11 600 Zyklen (max +21 800) |
+
+Schätzung mit den P6g-Werten (Eintrag 670, VMC-Zeile 187 bzw. 281 mit srcstep, VMS-Typ 1 308, Typ 8 706 Zyklen); auf Z64K/Hardware kommen etwa 5–7 Zyklen je zusätzlichem Byte dazu (+192 Byte ≈ +1 200). Beim seitlichen Geist in Tiefe 1 übertrifft die Ersparnis in VIEW (≈ −13 800) die VCL-Mehrkosten (≈ +11 600): VIEW + VCL ≈ −2 200 im Mittel; über alle Ansichten mit Geist ≈ −1 000, ohne Geist ≈ −600 (Schätzung, VICE-Modell). Die Mehrkosten kommen fast ganz von den halben Randbytes (VMS-Typ 8) des Geistes, die jetzt hinter der Wand gemalt und übermalt werden.

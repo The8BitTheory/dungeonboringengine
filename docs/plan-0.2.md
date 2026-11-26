@@ -138,7 +138,7 @@ Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweil
 | P4 | DMP, `dbemap.py`, `crawlmap.py` | Sonnet |
 | P5 | DTS-/DBG-Importer (PNG, Aseprite) | Sonnet |
 | P6 | Engine 0.2: 8 KB gemeinsames RAM, Puffer bei `$1300`, `POOLSET`/`GEOMSET`/`TEXSET`/`BGSET`, DMP, Objektliste neu, neues `VIEW`; sim65 mit Listenvergleich | Opus |
-| P7 | Crawl auf 0.2 (pixelgleich), Demo-Karte mit Fenstern, Himmel, Abgrund und Gegnern, Zeitvergleich | Sonnet, Haiku |
+| P7 | Crawl auf 0.2 (pixelgleich), Demo-Karte mit Fenstern, Himmel, Abgrund und Gegnern, Zeitvergleich | Sonnet, Haiku | **erledigt** (2026-11-26, Ergebnisse `docs/specs/P7-crawl.md` Abschnitt 12) |
 | P8 | Doku nachziehen | Sonnet |
 
 - **Reihenfolge:** P0, P1, P3 und P4 parallel; P2a, dann P2b/P2c; P5 nach P3; P6 nach P1–P5.
@@ -161,3 +161,8 @@ Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweil
 | Objekte in Wandzellen | neues Kachel-Flag „Inhalt zeichnen“ (Tür, Gitter, Bogen): Seitenfläche, dann Objekte, dann Front |
 | VMS-Listen fest in Bank 0 | nach den Messungen in P6 entscheiden |
 | Schwelle T (Z64K) | 3–4 in der Anzeige (VICE 2); `vrl.py` nutzt die Tabelle `fill_done(L)` |
+| Objekte und `cover` (P6i, 2026-11-26) | Objekte werden nicht gegen `cover` beschnitten; Verdeckung über die Render-Reihenfolge (Painter: Sprite vollständig, nähere Wände übermalen). `cover` verwirft nur ganz verdeckte Sprites, beschnitten wird nur am Viewport-Rand (`P6-engine.md` 5.8/5.8a) |
+| Automap in Crawl 1.1 (P7, 2026-11-26) | zeigt wie 1.0f immer den ganzen Dungeon (`AM%=0`, Standard); die Nebel-Variante (nur Erkundetes, `AM%=1`) bleibt optional im Quelltext. Abweichung „Automap nur Erkundetes“ aus P7 4.3 entfällt |
+| Font und Titel als VRL (P7, 2026-11-26) | `font.vrl` (1406 Byte statt 1732) und `title.vrl` (1021 statt 2340 Byte) per `tools/vrlpics.py`; der Titel bleibt gepackt im RAM ab 63493 und wird bei jeder Anzeige per `RXV` entpackt |
+| Crawl 1.1 (P7, 2026-11-26) | pixelgleich zu 1.0f (offline 19 136 Ansichten, Emulator 74 Prompts), Start nur über `BOOT`, Release `crawl128-110.d81/.d64`, Lib-Reserve 282 Byte |
+| Demo (P7e, 2026-11-26) | eigenes Programm im Engine-Repo (`demo/`), nicht als Crawl-Level; `max_kerns` höchstens 4, Goblin ohne Tag, 2fach vergrößert |

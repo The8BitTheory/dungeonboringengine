@@ -1,0 +1,95 @@
+format  = "dbemap"
+version = 1
+
+# Demo-Karte 20 x 16 (Dungeon Boring Engine, docs/specs/P7-crawl.md 8.3).
+# Wandstile: 1 ziegel, 2 gitter, 3 fenster, 4 bogen; Bodenstil 1 stein; Deckenstil 1 holz (Reihenfolge wie in walls.toml).
+#
+#   Hof (Himmel, Fenster nach Norden und Osten)  x 11-18, y 1-5      Kammer mit Abgrund  x 11-18, y 7-9
+#   Tuer (Torbogen, durchgehbar) bei (13, 6)       Gitter mit Edelstein bei (17, 6)
+#   Zimmer im Südwesten (Start; Fenster nach Westen und Süden)  x 1-6, y 10-14
+[map]
+name    = "demo"
+start   = [2, 11]
+dir     = "W"
+outside = "draussen"      # alles ausserhalb der Karte: keine Wände, kein Boden, keine Decke -> hinter Fenstern nur Tapete
+
+[tiles.wand]
+walls   = 1
+flags   = ["weg", "sicht", "deckend", "automap"]
+
+[tiles.gang]
+floor   = 1
+ceiling = 1
+
+[tiles.hof]               # Himmel: Deckenstil 0
+floor   = 1
+
+[tiles.abgrund]           # Abgrund: Bodenstil 0, nicht betretbar
+ceiling = 1
+flags   = ["weg"]
+
+[tiles.fenster]           # Wandstil fenster, nicht deckend: dahinter die Aussenkachel (nur Tapete)
+walls   = 3
+flags   = ["weg", "automap"]
+
+[tiles.gitter]            # nicht deckend, INHALT: dahinter (in der Zelle) ein Gegenstand
+walls   = 2
+floor   = 1
+ceiling = 1
+flags   = ["weg", "inhalt", "automap"]
+
+[tiles.tuer]              # Torbogen mit INHALT, ohne WEG: durchgehbar, Goblins gehen hindurch
+walls   = 4
+floor   = 1
+ceiling = 1
+flags   = ["inhalt", "tuer"]
+
+[tiles.draussen]
+# keine Wände, kein Boden, keine Decke
+
+[legend]
+"#" = "wand"
+"." = "gang"
+"," = "hof"
+":" = "abgrund"
+"F" = "fenster"
+"+" = "gitter"
+"D" = "tuer"
+"m" = { tile = "gang", item = 1 }
+"h" = { tile = "hof", item = 1 }
+"G" = { tile = "gitter", item = 1 }
+
+[layers]
+tiles = """
+############F#F#F###
+#........#,,,,,,,,,#
+#.######.##,,,,,,,,F
+#.######m##,,,,,h,,#
+#.######.##,,,,,,,,F
+#......####,,,,,,,,#
+###.##.######D###G##
+###.##.####........#
+###.##........::::.#
+###.######....::::.#
+#......###.#########
+F......###.#########
+#....m.....#########
+F......#############
+#......#############
+##F#F###############
+"""
+
+[[events]]                # Startpunkte der Goblins (Route je Goblin in demo.bas)
+at    = [13, 2]
+type  = "gegner"
+param = 1
+
+[[events]]
+at    = [15, 5]
+type  = "gegner"
+param = 2
+
+[[events]]
+at    = [12, 1]
+type  = "gegner"
+param = 3

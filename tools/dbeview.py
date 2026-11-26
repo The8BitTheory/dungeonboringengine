@@ -881,10 +881,8 @@ class _View(_Ctx):
             cy0, cy1 = max(y0, 0), min(y0 + img.h, self.sc.dvg.vh)
             if cx0 >= cx1 or cy0 >= cy1:
                 continue
-            free = [x for x in range(cx0, cx1) if not self.cover[x]]
-            if not free:
-                continue
-            cx0, cx1 = free[0], free[-1] + 1
+            if self.allcov(self.cover, cx0, cx1):        # ganz verdeckt -> verwerfen; sonst vollstaendig, nur am
+                continue                                 # Fenster beschnitten (P6i: Verdeckung ueber die Malreihenfolge)
             kerns, vms, ref = clip_image(img, self.stride, x0, y0, cx0, cx1, cy0, cy1)
             vb = self.sc.vram_bases["s2"][setn]
             if vms and self.sc.vms_bank1 and (cx0, cx1, cy0, cy1) == (x0, x0 + img.w, y0, y0 + img.h):

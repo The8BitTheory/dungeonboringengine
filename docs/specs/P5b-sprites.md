@@ -117,7 +117,7 @@ Gleiche (phase, angle, depth) doppelt → Fehler. Für Gegenstände und Tests; A
 - Das Bild beginnt auf der **geraden** Pixelspalte x_e = box.x − (box.x mod 2); w = ⌈(box.x + box.w − x_e) / 2⌉ Byte. Zusätzliche Randpixel sind transparent.
 - fx = ⌊(box.x + foot_x − x_e) / 2⌋, fy = foot_y. Liegt der Fußpunkt auf dem rechten Pixel eines Bytes, Info „Fußpunkt auf Bytegrenze gerundet“ (Anker sind Byte-genau, P3 4.3).
 - Prüfungen: 1 ≤ w ≤ min(VW, 127), 1 ≤ h ≤ VH, 0 ≤ fx < w, 0 ≤ fy < h (Fehler sonst).
-- **Höhenprüfung (Warnung):** Bild höher als die Wand an seiner Tiefe, also Oberkante ay − fy < T_d mit ay = Zeile des Ankers p = 0 (hinten links) der Zelle (d, 0) und T_d = Wandoberkante der Ebene d (`planes`). Grund: `VIEW` beschneidet nach Spalten; was über die Wandoberkante der davor liegenden Wand hinausragt, würde mit abgeschnitten (P6 5.4, review-notes G.8).
+- **Höhenprüfung (Warnung):** Bild höher als die Wand an seiner Tiefe, also Oberkante ay − fy < T_d mit ay = Zeile des Ankers p = 0 (hinten links) der Zelle (d, 0) und T_d = Wandoberkante der Ebene d (`planes`). Grund: was über die Wandoberkante hinausragt, ragt in die Decke; `VIEW` zeichnet das Sprite vollständig und lässt es von näheren Wänden und den Deckenbändern näherer Tiefen übermalen (seit P6i kein Beschneiden nach Spalten mehr, P6 5.4/5.8a, review-notes G.8).
 
 ## 4. Format S2 (Version 1)
 
@@ -230,7 +230,7 @@ Fehlt einem (f, ai) die Tiefe d (und greift kein `$FF`-Rückgriff auf ein Bild i
 def clip_image(img, x0, y0, cx0, cx1, cy0, cy1, stride) -> Clipped
 ```
 
-`img` = Bildeintrag (w, h, Kerne, Rand-VRAM-Offset, VMS-Liste), (x0, y0) = linke obere Bildecke im Sichtfenster (Byte-Spalte, Zeile; vorzeichenbehaftet), [cx0, cx1) × [cy0, cy1) = sichtbarer Ausschnitt im Sichtfenster (P6 bestimmt ihn aus Fenster und Abdeckung; immer ⊆ Bildrechteck und nicht leer), stride = Stride der Geometrie (S2-Kopf 34). Im Bild: L = cx0 − x0, R = cx1 − x0, T = cy0 − y0, B = cy1 − y0. **Unbeschnitten** heißt L = 0, R = w, T = 0, B = h.
+`img` = Bildeintrag (w, h, Kerne, Rand-VRAM-Offset, VMS-Liste), (x0, y0) = linke obere Bildecke im Sichtfenster (Byte-Spalte, Zeile; vorzeichenbehaftet), [cx0, cx1) × [cy0, cy1) = sichtbarer Ausschnitt im Sichtfenster (P6 bestimmt ihn aus dem Fenster, seit P6i nicht mehr aus der Abdeckung; immer ⊆ Bildrechteck und nicht leer), stride = Stride der Geometrie (S2-Kopf 34). Im Bild: L = cx0 − x0, R = cx1 − x0, T = cy0 − y0, B = cy1 − y0. **Unbeschnitten** heißt L = 0, R = w, T = 0, B = h.
 
 Ergebnis: Liste der Kern-Kopien, optional eine neue VMS-Liste, Bezugspunkt.
 

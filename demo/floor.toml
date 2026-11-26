@@ -1,0 +1,17 @@
+format  = "dbetex"
+version = 1
+
+# Boden: ein Stil. Abgrund = Bodenstil 0 (Lücke im Band: Tapete), kein eigener Stil.
+[texset]
+name       = "floor"
+kind       = "floor"
+geom       = "../build/demo/geom/west140.geom.json"
+dvg        = "../build/demo/geom/west140.dvg"
+out        = "../build/demo/tex"
+load       = 0xEE00
+vrl_load   = 0x9000
+pool_bytes = 36735
+
+[[style]]
+name = "stein"
+png  = "art/stein_atlas.png"

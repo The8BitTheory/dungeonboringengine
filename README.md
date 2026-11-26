@@ -11,11 +11,15 @@ Eine Dungeon-Crawler-Engine für den C128 (VDC, 64 KB VRAM), die auf [VDC-BASIC]
 
 ## Stand (0.2)
 
-Teilschritte P6a–P6h abgeschlossen (Ergebnisse in `docs/specs/P6-engine.md`): Gerüst (Stub in Bank 0 mit 8 KB gemeinsamem RAM, Lib in Bank 1 ab `$B000`, Interruptweiche), Karte (`MAPINIT`, `SETPOS`, `SETCELL`, `MOVE`, Automap), Assets (`GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`), `VIEW` mit Wänden, Kacheln, Boden, Decke, Tapete und Objekten in der richtigen Tiefe (VCL-Typ 9: VMS-Listen direkt aus Bank 1). 42 VICE-Szenen sind pixelgleich (interpretiert und als Blitz!-Kompilat mit Runtime-Image 2). Braucht VDC-BASIC v3 (Branch `v3`).
+Teilschritte P6a–P6i abgeschlossen (Ergebnisse in `docs/specs/P6-engine.md`): Gerüst (Stub in Bank 0 mit 8 KB gemeinsamem RAM, Lib in Bank 1 ab `$B000`, Interruptweiche), Karte (`MAPINIT`, `SETPOS`, `SETCELL`, `MOVE`, Automap), Assets (`GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`), `VIEW` mit Wänden, Kacheln, Boden, Decke, Tapete und Objekten in der richtigen Tiefe (VCL-Typ 9: VMS-Listen direkt aus Bank 1). 42 VICE-Szenen sind pixelgleich (interpretiert und als Blitz!-Kompilat mit Runtime-Image 2). Braucht VDC-BASIC v3 (Branch `v3`).
 
-Werkzeuge (Python 3 mit Pillow): `tools/vrl.py` (RLE für `RXV`), `dbegeom.py` (Sichtfenster, DVG; `view.toml`, Schalter `byte_edges` für Kanten auf ganze Bytes), `dbetex.py` (Wand-, Boden-, Decken-DTS, Tapete DBG), `dbespr.py` (Sprite-Sätze S2), `dbemap.py` und `crawlmap.py` (Karte DMP), `dbeview.py` (Referenz von `VIEW`), `dbemove.py`, `dbemem.py` (Speicherkarte). Das Beispielprojekt steht in `docs/specs/examples/`.
+Werkzeuge (Python 3 mit Pillow): `tools/vrl.py` (RLE für `RXV`), `dbegeom.py` (Sichtfenster, DVG; `view.toml`, Schalter `byte_edges` für Kanten auf ganze Bytes), `dbetex.py` (Wand-, Boden-, Decken-DTS, Tapete DBG), `dbespr.py` (Sprite-Sätze S2), `dbemap.py` und `crawlmap.py` (Karte DMP), `dbeview.py` (Referenz von `VIEW`), `dbemove.py`, `dbemem.py` (Speicherkarte). Für Crawl 128: `crawlconv.py` (wandelt die 1.0f-Daten von `crawl128-100f.d81` in DVG, DTS, S2, DMP und VRL von 0.2 um), `crawl01.py` (Referenz: das Bild von Crawl 1.0f aus dem 0.1-Modell, für den Pixelvergleich). Das Beispielprojekt steht in `docs/specs/examples/`.
 
-Die Fassung 0.1 (Crawl 128 mit `WALLSET`, `SPRITESET` v1) liegt nur noch als Test-Diskette `crawl128-dbe.d81` vor; Crawl wird mit P7 auf 0.2 umgestellt.
+**P7 abgeschlossen** (Spec und Ergebnisse: [docs/specs/P7-crawl.md](docs/specs/P7-crawl.md)): Crawl 128 Version 1.1 (Spiel-Repo `dungeoncrawlerjam2025`, Branch `dbe-0.2`) läuft auf Engine 0.2 und VDC-BASIC v3 mit **pixelgleichen** Bildern zu 1.0f (offline 19 136 Ansichten, im Emulator 74 Prompts interpretiert und kompiliert). Dazu die [Demo](demo/README.md) mit Westwood-Geometrie, Fenstern, Himmel, Abgrund und animierten Goblins. P6i: Sprites werden nicht gegen Wände beschnitten, die Verdeckung ergibt sich aus der Malreihenfolge.
+
+Die Fassung 0.1 (Crawl 128 mit `WALLSET`, `SPRITESET` v1) liegt nur noch als Test-Diskette `crawl128-dbe.d81` vor.
+
+**Demo:** `python3 demo/build.py` baut `build/demo/` mit Disk `dbe-demo.d81` und `.d64`; Beschreibung, Tasten und Speicher in [demo/README.md](demo/README.md), Test `test/vice_demo.py`.
 
 ## Speicherkarte Bank 1 (`MEMSIZ $4000`)
 
@@ -43,7 +47,7 @@ python3 tools/dbetex.py build walls.toml                                # Textur
 python3 tools/dbemap.py build docs/specs/examples/demo.toml demo.dmp    # Karte
 ```
 
-Die Lib belegt 11 057 von 11 264 Byte (`$B000–$DBFF`); die Reserve von 207 Byte nicht aufbrauchen.
+Die Lib belegt 10 982 von 11 264 Byte (`$B000–$DBFF`); die Reserve von 282 Byte nicht aufbrauchen.
 
 ## Testen
 
@@ -56,6 +60,10 @@ Die Lib belegt 11 057 von 11 264 Byte (`$B000–$DBFF`); die Reserve von 207 Byt
 | `test/vice_view.py` | 42 Szenen im echten x128, ganzes VRAM pixelgleich; Zyklen bei 1 MHz und 2 MHz (`--no-fast`, `--byte-edges`, `--check`, `--control`) |
 | `test/vice_vclprof.py` | Zerlegung der VCL-Zeit (`--static` ohne VICE) |
 | `test/vice_blitzvars.py` | Wo legt ein Blitz!-Programm Variablen ab; wirkt `MEMSIZ $4000` |
+| `test/tools/test_crawlconv.py`, `test_crawl01.py` | Konverter und Offline-Vollvergleich: 19 136 Ansichten von Crawl 1.0f bytegleich (in `unittest discover`) |
+| `test/sim/run_crawl.py` | dieselben Ansichten mit der Lib in sim65 gegen `dbeview.view` |
+| `test/vice_demo.py` | Demo-Tour (75 Tasten) im echten x128, ganzes VRAM an jedem Prompt gegen das Modell; `--check` ohne Emulator |
+| Spiel-Repo `test/vice_crawl.py` | Crawl 1.1 (interpretiert, kompiliert) gegen 1.0f an jedem Prompt (VRAM und Register); auch die Zeitmessung (`--timing`) |
 
 VICE-Tests laufen ereignisgesteuert (Haltepunkte, Debug-Cartridge, keine festen Wartezeiten); der Port kommt aus `--port` oder `DBE_VICE_PORT` (Bereich 6631–6649).
 

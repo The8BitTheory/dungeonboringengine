@@ -1152,12 +1152,13 @@ vspr:   lda     cset,x
         cpx     ocy0
         beq     @rr
         bcc     @rr
-        ldx     ocx0            ; erste/letzte freie Spalte in cover
-        lda     ocx1
-        jsr     ffree
+        ldx     ocx0            ; alle Spalten in cover belegt -> verwerfen; sonst vollständig, nur am Fenster
+        lda     ocx1            ; beschnitten (P6i: Verdeckung über die Malreihenfolge)
+        jsr     allcov_c        ; X bleibt cx0
         bcc     @vis
 @rr:    rts
-@vis:   sec                     ; Ausschnitt im Bild: L, R, T, B
+@vis:   lda     ocx1            ; Ausschnitt im Bild: L, R, T, B
+        sec
         sbc     cl_x0
         sta     cl_r
         txa
@@ -1194,39 +1195,6 @@ vspr:   lda     cset,x
         lda     #IT_SPR
         sta     g_type
         jmp     itemadd
-
-; erste freie Spalte >= X und letzte freie < A in cover: C = 0, X = erste, A = letzte + 1; C = 1 keine
-ffree:  stx     ia
-        sta     ib
-        ldy     #0
-@f:     cpy     cv_n
-        bcs     @l
-        lda     ia
-        cmp     cv_e,y
-        bcs     @fn             ; E <= c0: weiter
-        cmp     cv_s,y
-        bcc     @l              ; S > c0: c0 frei
-        lda     cv_e,y          ; c0 im Intervall: erste freie = E (berührende Intervalle sind verbunden)
-        sta     ia
-        bcs     @l
-@fn:    iny
-        bne     @f
-@l:     ldy     cv_n
-@g:     dey
-        bmi     @e
-        lda     cv_s,y
-        cmp     ib
-        bcs     @g              ; S >= c1: weiter
-        lda     cv_e,y
-        cmp     ib
-        bcc     @e              ; E < c1: c1 - 1 frei
-        lda     cv_s,y
-        sta     ib
-@e:     lda     ia
-        cmp     ib
-        ldx     ia
-        lda     ib
-        rts
 
 subpos: .byte   0, 1, 3, 4, 2,  3, 0, 4, 1, 2,  4, 3, 1, 0, 2,  1, 4, 0, 3, 2   ; SUBPOS[v][q] (P4 2.6)
 
