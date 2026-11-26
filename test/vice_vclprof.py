@@ -78,7 +78,7 @@ V.output = _t_output
 def entries(res):
     """Je VCL-Eintrag dict(typ, tag, kind, ops, rows, bytes, cmds{1,3,8}, writes=[(adr, n)])."""
     b0, b1 = res.bank0(), res.bank1()
-    p, out = res.p0, []
+    p, out = res.l0, []
     w = lambda i: b0[p + i] | b0[p + i + 1] << 8
     for tag, kind, et, item in res.tags:
         t = b0[p]

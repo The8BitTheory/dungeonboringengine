@@ -11,7 +11,7 @@ Eine Dungeon-Crawler-Engine für den C128 (VDC, 64 KB VRAM), die auf [VDC-BASIC]
 
 ## Stand (0.2)
 
-Teilschritte P6a–P6i abgeschlossen (Ergebnisse in `docs/specs/P6-engine.md`): Gerüst (Stub in Bank 0 mit 8 KB gemeinsamem RAM, Lib in Bank 1 ab `$B000`, Interruptweiche), Karte (`MAPINIT`, `SETPOS`, `SETCELL`, `MOVE`, Automap), Assets (`GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`), `VIEW` mit Wänden, Kacheln, Boden, Decke, Tapete und Objekten in der richtigen Tiefe (VCL-Typ 9: VMS-Listen direkt aus Bank 1). 42 VICE-Szenen sind pixelgleich (interpretiert und als Blitz!-Kompilat mit Runtime-Image 2). Braucht VDC-BASIC v3 (Branch `v3`).
+Teilschritte P6a–P6j abgeschlossen (Ergebnisse in `docs/specs/P6-engine.md`): Gerüst (Stub in Bank 0 mit 8 KB gemeinsamem RAM, Lib in Bank 1 ab `$B000`, Interruptweiche), Karte (`MAPINIT`, `SETPOS`, `SETCELL`, `MOVE`, Automap), Assets (`GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`), `VIEW` mit Wänden, Kacheln, Boden, Decke, Tapete und Objekten in der richtigen Tiefe (VCL-Typ 9: VMS-Listen direkt aus Bank 1). 42 VICE-Szenen sind pixelgleich (interpretiert und als Blitz!-Kompilat mit Runtime-Image 2). Braucht VDC-BASIC v3 (Branch `v3`).
 
 Werkzeuge (Python 3 mit Pillow): `tools/vrl.py` (RLE für `RXV`), `dbegeom.py` (Sichtfenster, DVG; `view.toml`, Schalter `byte_edges` für Kanten auf ganze Bytes), `dbetex.py` (Wand-, Boden-, Decken-DTS, Tapete DBG), `dbespr.py` (Sprite-Sätze S2), `dbemap.py` und `crawlmap.py` (Karte DMP), `dbeview.py` (Referenz von `VIEW`), `dbemove.py`, `dbemem.py` (Speicherkarte). Für Crawl 128: `crawlconv.py` (wandelt die 1.0f-Daten von `crawl128-100f.d81` in DVG, DTS, S2, DMP und VRL von 0.2 um), `crawl01.py` (Referenz: das Bild von Crawl 1.0f aus dem 0.1-Modell, für den Pixelvergleich). Das Beispielprojekt steht in `docs/specs/examples/`.
 
@@ -56,8 +56,8 @@ Die Lib belegt 10 982 von 11 264 Byte (`$B000–$DBFF`); die Reserve von 282 Byt
 | `python3 -m unittest discover -s test/tools` | Werkzeuge und Referenz (`dbeview`, `dbemove`, `dbemem` …), ohne Emulator |
 | `test/sim/run_sim.py` (`DBEVIEW_FULL=1` für den vollen Zufallssatz) | Lib in sim65: alle Funktionen, `VIEW` und `MOVE` bytegleich mit den Referenzen; Zyklen |
 | `test/vice_smoke.py` | Stub, Lib, Interrupts, Bank 0 `$1C00–$3FFF` unverändert, `RXV` (interpretiert und Blitz!) |
-| `test/vice_zp.py` | Zeropage-Block `$63–$72` unter Interrupts, danach rechnet BASIC richtig |
-| `test/vice_view.py` | 42 Szenen im echten x128, ganzes VRAM pixelgleich; Zyklen bei 1 MHz und 2 MHz (`--no-fast`, `--byte-edges`, `--check`, `--control`) |
+| `test/vice_zp.py` | Zeropage-Block `$63–$72` unter Interrupts, danach rechnet BASIC richtig; `--funcs`: Zeropage-Nutzung je Funktion (Stub rettet den Block nur für `VIEW`/`GEOMSET`) |
+| `test/vice_view.py` | 42 Szenen im echten x128, ganzes VRAM pixelgleich; Zyklen bei 1 MHz und 2 MHz (`--no-fast`, `--byte-edges`, `--check`, `--control`, `--fix`: feste Listenadresse) |
 | `test/vice_vclprof.py` | Zerlegung der VCL-Zeit (`--static` ohne VICE) |
 | `test/vice_blitzvars.py` | Wo legt ein Blitz!-Programm Variablen ab; wirkt `MEMSIZ $4000` |
 | `test/tools/test_crawlconv.py`, `test_crawl01.py` | Konverter und Offline-Vollvergleich: 19 136 Ansichten von Crawl 1.0f bytegleich (in `unittest discover`) |
@@ -76,4 +76,4 @@ VICE-Tests laufen ereignisgesteuert (Haltepunkte, Debug-Cartridge, keine festen 
 40 BLOAD"MAP.DMP",B1,U8:BLOAD"WALLS.DTS",B1,U8:BLOAD"VIEW.DVG",B1,U8:REM Ladeadressen stehen in den PRG-Köpfen
 ```
 
-Texturen, Tapete und Sprites kommen als VRL-Dateien (`BLOAD` nach Bank 0, `RXV` ins VRAM); danach `POOLSET`, `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `MAPINIT`, `BUFSET` (Reihenfolge und Parameter: `docs/specs/P6-engine.md` Abschnitt 3; Beispiel `test/vice/view.bas`). Aufruf einer Funktion: `SYS 3331,F,X,Y` mit dem Parameterblock bei `$0C00`.
+Texturen, Tapete und Sprites kommen als VRL-Dateien (`BLOAD` nach Bank 0, `RXV` ins VRAM); danach `POOLSET`, `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `MAPINIT`, `BUFSET` (Reihenfolge und Parameter: `docs/specs/P6-engine.md` Abschnitt 3; Beispiel `test/vice/view.bas`). Aufruf einer Funktion: `SYS 3331,F,X,Y` mit dem Parameterblock bei `$0C00`. Mit `BUFSET` X = 1 (feste Listenadresse, P6j) steht die Liste für `VCL` immer am Pufferanfang (`VCL 4864`, am schnellsten über eine Variable, die als erste angelegt wird); das braucht VDC-BASIC v3 mit VCL-Typ 10 (P2e).

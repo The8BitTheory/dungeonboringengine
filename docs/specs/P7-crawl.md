@@ -489,6 +489,19 @@ Szene „Geist nah, schräg“ (Position 67, Richtung 3, Geist Zelle 86, kompili
 
 Zum Vergleich die Messung mit der **alten Lib** (vor P6i, 11 057 Byte): VICE kompiliert 2 MHz 3,44 / 3,48 s (+1,2 %), 1 MHz 6,41 / 6,54 s (+2,0 %), interpretiert 2 MHz 21,87 / 22,43 s (+2,5 %), 1 MHz 44,38 / 45,61 s (+2,8 %); Z64K kompiliert 2 MHz 4,32 / 4,31 s, 1 MHz 7,70 / 7,76 s.
 
+**Nachtrag P6j (2026-11-26):** feste Listenadresse (`BUFSET` X = 1, VDC-BASIC v3 mit VCL-Typ 10 aus P2e; `crawl.bas` 21 `VB=4864` als erste Variable, 10052 `BUFSET`, 4620 `::VCL VB` statt `VA=PEEK(3072)+256*PEEK(3073)`) und Stub mit Zeropage nur für VIEW/GEOMSET (P6 „Ergebnis P6j“). Pixeltest gegen 1.0f weiter **PASS**. Neue Endwerte (VICE, Takte, je zwei identische Läufe; alte P6i-Lib / Zwischenstand Kopie nach B0 / **Sprung** / 1.0f):
+
+| Konfiguration | CPU | 1.1 P6i | Kopie (verworfen) | **1.1 P6j** | 1.0f | P6j gegen 1.0f |
+|---|---|---|---|---|---|---|
+| VICE, kompiliert | 2 MHz | 3 411 580 | 3 372 356 | **3 353 392** (3,40 s) | 3 385 841 (3,44 s) | −1,0 % |
+| VICE, kompiliert | 1 MHz | 6 438 389 | 6 346 449 | **6 337 353** (6,43 s) | 6 318 623 (6,41 s) | +0,3 % |
+| VICE, interpretiert | 2 MHz | 22 098 503 | 21 915 560 | **21 908 130** (22,24 s) | 21 550 022 (21,87 s) | +1,7 % |
+| VICE, interpretiert | 1 MHz | 44 925 517 | 44 566 024 | **44 549 257** (45,22 s) | 43 727 387 (44,38 s) | +1,9 % |
+| Z64K, kompiliert (Jiffies) | 2 MHz | 257 | – | **256** (4,26 s) | 260 (4,32 s) | −1,5 % |
+| Z64K, kompiliert (Jiffies) | 1 MHz | 466 | – | **459** (7,63 s) | 463 (7,70 s) | −0,9 % |
+
+Gegen P6i: VICE −1,7 / −1,6 / −0,9 / −0,8 %. Geist-Szene (kompiliert 2 MHz, Takte je Lauf, 3 Läufe) P6j: Richtung 0 223 654 / 221 080 / 221 607, 1: 217 207 / 250 665 / 251 056, 2: 251 181 / 220 673 / 222 463, 3: 218 445 / 219 807 / 221 615, ohne Geist 198 073 / 197 031 / 197 619 (Streuung durch die Geist-KI wie vorher). Release-Images `crawl128-110.d81`/`.d64` neu gebaut (`mkdisk.py`).
+
 ### 12.5 P7e: Demo (Engine)
 
 `demo/` (Beschreibung in `demo/README.md`), `test/vice_demo.py`: Tour mit 75 Tasten, ganzes VRAM an jedem Prompt gleich dem Modell, interpretiert und kompiliert. VRAM-Pool 36 735 Byte, belegt 36 291. Abweichungen von der Planung in 8.4: `max_kerns` höchstens 4 (nicht 16), der Goblin hat keinen Tag `IDLE` (die Phase kommt aus der Objektliste) und ist 2fach vergrößert (64 × 64). Review-Auflagen (Hinweis zur Tapete als Fernsicht in `docs/formats.md`, diese Korrekturen) sind umgesetzt.

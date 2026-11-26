@@ -1225,5 +1225,44 @@ vrl = "demo_sky.vrl"
             self.assertNotIn("Traceback", r.stderr)
 
 
+class TestFixedAddress(unittest.TestCase):
+    """P6j: feste Listenadresse (BUFSET X Bit 0): Sprung (VCL-Typ 10) bei B0 auf den Listenanfang, VMS-Listen ab B0 + 3,
+    Platz 3 Byte weniger; das Bild ist dasselbe wie ohne festen Modus."""
+
+    def test_fixed(self):
+        import copy
+        for k in range(12):
+            sc = dbeview.random_scene(700 + k, env().assets)
+            sc2 = copy.copy(sc)
+            sc2.buf_fix = True
+            r1, r2 = dbeview.view(sc), dbeview.view(sc2)
+            self.assertEqual((r2.p0, r2.vcllen, r2.vmslen, r2.x), (0x1300, len(r2.vcl), len(r2.vms), r1.x))
+            b0 = r2.bank0()
+            self.assertEqual(bytes(b0[0x1300:0x1303]), bytes((10, (0x1C00 - r2.vcllen) & 255, (0x1C00 - r2.vcllen) >> 8)))
+            ents = dbeview.decode_vcl(r2.buffer)
+            vptr = [e[3] for e in ents if e[0] == 12]
+            if vptr:
+                self.assertEqual(min(vptr), 0x1303)
+            if r1.a == 0 and r2.a == 0:
+                v1, v2 = bytearray(65536), bytearray(65536)
+                dbeview.run_vcl(r1.bank0(), v1, r1.p0, bank1=r1.bank1())
+                dbeview.run_vcl(r2.bank0(), v2, r2.p0, bank1=r2.bank1())
+                self.assertEqual(v1, v2)
+
+    def test_overflow_three_bytes(self):
+        """Genau passender Puffer: mit Sprung fehlen 3 Byte."""
+        import copy
+        sc = dbeview.make_scene(env().assets, env().demo)
+        r = dbeview.view(sc)
+        n = r.vcllen + r.vmslen
+        sc.buf = (0x1300, 0x1300 + n)
+        self.assertEqual(dbeview.view(sc).a, 0)
+        sc2 = copy.copy(sc)
+        sc2.buf_fix = True
+        self.assertNotEqual(dbeview.view(sc2).a, 0)
+        sc2.buf = (0x1300, 0x1300 + n + 3)
+        self.assertEqual(dbeview.view(sc2).a, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

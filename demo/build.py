@@ -198,6 +198,7 @@ def load_world(out=OUT):
     sc.bgfill = 0x33
     sc.ap = 0
     sc.buf = (0x1300, 0x1C00)
+    sc.buf_fix = True                       # BUFSET X = 1 (demo.bas 315, P6j): Sprung bei $1300
     sc.vms_bank1 = True
     sc.dts_addr = tuple(L['bank1'][n + '.dts'][0] for n in ('walls', 'floor', 'ceil'))
     sc.s2_addr = (L['bank1']['goblin.s2'][0], L['bank1']['gem.s2'][0]) + (0,) * 6

@@ -17,7 +17,7 @@ Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen i
 
 ### 2.1 Gemeinsames RAM und Stub
 
-- Der Stub schaltet während des Aufrufs `$D506` = (alt AND `$F0`) OR **`$06`** (8 KB unten gemeinsam; 0.1: `$05` = 4 KB) und `$FF00 = $7F` (Bank 1 ohne I/O, P6d-opt; vorher `$7E`). Interruptweiche `$FF05–$FFFF` in Bank 1. Zeropage: `$FA–$FD` und der Block **`$63–$72`** (FAC/ARG), den der Stub vor jedem Aufruf rettet und danach zurückschreibt (Nachweis `test/vice_zp.py`, Ergebnis P6d-opt).
+- Der Stub schaltet während des Aufrufs `$D506` = (alt AND `$F0`) OR **`$06`** (8 KB unten gemeinsam; 0.1: `$05` = 4 KB) und `$FF00 = $7F` (Bank 1 ohne I/O, P6d-opt; vorher `$7E`). Interruptweiche `$FF05–$FFFF` in Bank 1. Zeropage: `$FA–$FD` und der Block **`$63–$72`** (FAC/ARG), den der Stub vor den Aufrufen rettet, die ihn benutzen (`VIEW`, `GEOMSET`, Testfunktion 253; `dbe.inc` `ZPB_F*`), und danach zurückschreibt (Nachweis `test/vice_zp.py`, Ergebnis P6d-opt; Nutzung je Funktion `--funcs`, Ergebnis P6j).
 - Während des Aufrufs sieht die Lib unter `$2000` Bank 0. Folge: **keine Daten der Engine in Bank 1 unter `$2000`**. BASIC-Variablen in Bank 1 ab `$0400` sind davon nicht betroffen (sie werden nur außerhalb des Aufrufs benutzt; Korrektur zu P2a 4, review-notes G.16).
 - Bank 0 `$1C00–$1FFF` ist VDC-BASIC v3; die Lib schreibt dort nie (BUFSET prüft, 3.3).
 
@@ -40,7 +40,7 @@ Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen i
 | `$0C00–$0C07` | P0–P3 | Wörter, Ein- und Ausgabe der Funktionen |
 | `$0C08` | ITEMPH | Phase für Gegenstände aus der Inhaltsebene (Glitzern; Spiel setzt) |
 | `$0C09` | – | reserviert 0 |
-| `$0C0A–$0C0B` | VCLADR | `VIEW`: Adresse der VCL-Liste (= B1 − VCLLEN; P6d-opt, vorher Pufferanfang) |
+| `$0C0A–$0C0B` | VCLADR | `VIEW`: Adresse der VCL-Liste (= B1 − VCLLEN; P6d-opt, vorher Pufferanfang; mit fester Listenadresse = B0, dort ein Sprung auf B1 − VCLLEN, P6j) |
 | `$0C0C–$0C0D` | VCLLEN | `VIEW`: Länge der VCL-Liste inklusive Ende-Byte |
 | `$0C0E–$0C0F` | VMSLEN | `VIEW`: Bytes der VMS-Listen |
 | `$0C10–$0C11` | OBJVIS | `VIEW`: Bit i = Objekt i wurde (ganz oder teilweise) ausgegeben |
@@ -124,7 +124,7 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | 1 | `MAPINIT` | P0 = DMP, P1 = Arbeitskopie (0 = keine; sonst 2·W·H Byte für Kachel- und Inhaltsebene), X Bit 0 = Automap-Bit „gesehen“ in `VIEW` setzen (nur mit P6f, sonst ignoriert) | prüft Magic, Version, Offsets, Länge; Startzelle und -richtung übernommen (wie `SETPOS`); OBJN = 0; X = W, Y = H; P0 = Startzelle, P1 = Startrichtung. A = 1 Format; A = 6, wenn die Arbeitskopie [P1, P1 + 2·W·H) nicht ganz in `$4000` … `$AFFF` liegt (unter der Lib; Lib, BSS, DVG, I/O und MMU bleiben unberührt; darunter BASIC-Variablen und gemeinsames RAM) |
 | 2 | `SETPOS` | P0 = Zelle, X = Richtung | A = 0; 6, wenn Zelle ≥ W·H (Position unverändert) |
 | 3 | `MOVE` | X = Aktion (3.4) | P6f |
-| 4 | `VIEW` | P0 = Bildpuffer im VRAM (AP) | VCL-Liste [VCLADR, B1), VMS-Listen [B0, B0 + VMSLEN); A = 0, 2 (gekürzt) oder 3 (Ränder weggelassen); X = Einträge (höchstens 255), Y = 0; **P0 = VCLADR** (Spiel: `::VCL` mit diesem Wert); VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 ohne GEOMSET/MAPINIT |
+| 4 | `VIEW` | P0 = Bildpuffer im VRAM (AP) | VCL-Liste [B1 − VCLLEN, B1), VMS-Listen [B0, B0 + VMSLEN) (feste Listenadresse: Sprung bei B0, VMS-Listen [B0 + 3, B0 + 3 + VMSLEN)); A = 0, 2 (gekürzt) oder 3 (Ränder weggelassen); X = Einträge (höchstens 255), Y = 0; **P0 = VCLADR** (Spiel: `::VCL` mit diesem Wert); VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 ohne GEOMSET/MAPINIT |
 | 5 | `CELL` | P0 = Zelle | X = Kachelindex, Y = Inhaltsbyte, P1 = Kachel-Flags; außerhalb: A = 6, X = Außenkachel, Y = 0 |
 | 6 | `SETCELL` | P0 = Zelle, X = Kachelindex | A = 0; 6 bei Zelle außerhalb oder X ≥ NT |
 | 7 | – | – | A = 255 (`ENEMYSTEP` reserviert) |
@@ -135,7 +135,7 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = aus der DVG) | prüft Magic, Version, Elementlänge 16, Tiefeneintrag 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1, dazu die Elementtabelle (7, P6d-opt; Fehler dort: A = 1 und keine gültige Geometrie); Zeilentabelle, Zellentabelle; TEXSET/BGSET/SPRITESET mit anderer ID werden gelöscht (Bit je Satz in Y: Bit 0–2 DTS, Bit 3 DBG; X = Bits der S2-Sätze); A = 1 Format |
 | 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | prüft `"DT"`, Version 1, Art = X, ID, NE, D, Stride; A = 1, 4, 5, 6 (auch DTS unter `$4000`, VCL-Typ 9, 6a) |
 | 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | prüft `"DB"`, Version, VW, VH, ID; A = 1, 4, 5, 6 |
-| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv) | A = 0; 6, wenn Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer bleibt; Fenster `$1300–$1BFF`, P6d-opt) |
+| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv); X Bit 0 = feste Listenadresse (P6j) | A = 0; 6, wenn Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer und Modus bleiben; Fenster `$1300–$1BFF`, P6d-opt). Feste Listenadresse: 3.3, 5.11; `INIT` schaltet sie aus |
 | 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
 | ≥ 17 | – | – | A = 255 |
 
@@ -161,6 +161,8 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 ### 3.3 Puffer
 
 Der Puffer [B0, B1) liegt im gemeinsamen RAM (Bank 0, Fenster `$1300–$1BFF`). `VIEW` schreibt jeden angenommenen Eintrag sofort (Einpass, P6d-opt): VMS-Listen aufwärts ab B0, VCL-Einträge abwärts von B1 (Ende-Byte bei B1 − 1). VCLADR = Anfang der VCL-Liste. Größe Standard 2304 Byte.
+
+**Feste Listenadresse (P6j, `BUFSET` X Bit 0):** `VIEW` schreibt bei B0 einen VCL-Sprung (Typ 10, VDC-BASIC v3 P2e: `10, Adresse`) auf den Listenanfang B1 − nv; die VMS-Listen beginnen bei B0 + 3, BL ist 3 Byte kleiner. VCLADR = P0 = B0 bei jedem Aufruf, VCLLEN und VMSLEN ohne den Sprung. Ein Spiel ruft dann `::VCL` mit der Konstanten B0 (am schnellsten über eine einmal gesetzte, als erste angelegte Variable, Ergebnis P6j). Kosten: etwa 100 Zyklen in `VIEW`, etwa 215 in `VCL`.
 
 ### 3.4 MOVE (P6f)
 
@@ -321,6 +323,8 @@ add(item):
     else:                                      → A = 2, STOP
 ```
 
+Feste Listenadresse (P6j): BL = B1 − B0 − 3 (Sprung bei B0), sonst unverändert.
+
 - Abbruch verliert die **hinteren** Teile (der Durchlauf geht vorne → hinten). Bänder und Tapete einer Tiefe kommen nach deren Zellen; bricht es dort ab, bleiben Zeilen der Tiefe ungezeichnet (alter Bildinhalt). Das ist ein Fehlerzustand (A = 2), kein Normalfall; Spiele messen ihre Szenen (Bericht `dbeview budget`, 9.1).
 - A = 2 hat Vorrang vor A = 3.
 
@@ -330,7 +334,9 @@ add(item):
 
 Überlauf: Reicht beim Schreiben der freie Raum (VCL-Zeiger − VMS-Zeiger) nicht, wird der Eintrag zurückgenommen, im Zählmodus genau gemessen und nach 5.10 entschieden (annehmen, ohne Rand, verwerfen, STOP); die Regel und damit die Ergebnisse sind unverändert.
 
-Im Spiel: `SYS3331,4,...:RREG A:::VCL PEEK(3072)+256*PEEK(3073)` (P0 = VCLADR).
+Feste Listenadresse (P6j): VMS-Zeiger ab B0 + 3; bei B0 steht schon vor dem Durchlauf das Typ-Byte 10, am Ende kommt die Adresse B1 − nv dazu. VCLADR = P0 = B0.
+
+Im Spiel: `SYS3331,4,...:RREG A:::VCL PEEK(3072)+256*PEEK(3073)` (P0 = VCLADR); mit fester Listenadresse `::VCL VB` mit VB = B0 (Ergebnis P6j).
 
 ## 6. Ausgabe-VCL-Typen
 
@@ -918,3 +924,51 @@ Das Beschneiden am Rand von `cover` (Zählprobe und Kopie der VMS-Liste, `clipvm
 | Geist d = 1 seitlich | 123 → 121 | 7 045 → 7 237 (+192, +247) | +10 VMC-Zeilen, +5,6 VMS1, +15,5 VMS8 | +11 600 Zyklen (max +21 800) |
 
 Schätzung mit den P6g-Werten (Eintrag 670, VMC-Zeile 187 bzw. 281 mit srcstep, VMS-Typ 1 308, Typ 8 706 Zyklen); auf Z64K/Hardware kommen etwa 5–7 Zyklen je zusätzlichem Byte dazu (+192 Byte ≈ +1 200). Beim seitlichen Geist in Tiefe 1 übertrifft die Ersparnis in VIEW (≈ −13 800) die VCL-Mehrkosten (≈ +11 600): VIEW + VCL ≈ −2 200 im Mittel; über alle Ansichten mit Geist ≈ −1 000, ohne Geist ≈ −600 (Schätzung, VICE-Modell). Die Mehrkosten kommen fast ganz von den halben Randbytes (VMS-Typ 8) des Geistes, die jetzt hinter der Wand gemalt und übermalt werden.
+
+## Ergebnis P6j (2026-11-26): feste Listenadresse und Zeropage nur, wo nötig
+
+Anlass: Messung im Crawl-Rundgang (comp 2 MHz, 1.1 +34 800 Takte gegen 1.0f): etwa 15 600 Takte BASIC zwischen `VIEW` und `VCL` (Listenanfang aus P0 als Float-`PEEK`-Rechnung, `::VCL VA`) und etwa 11 200 im Stub (16 Byte Zeropage bei jedem Aufruf retten und zurückschreiben).
+
+### 1. Feste Listenadresse (`BUFSET` X Bit 0)
+
+**Warum die Adresse wandert:** `VIEW` läuft von vorne nach hinten durch die Sicht und schreibt jeden Eintrag sofort (Einpass); `VCL` muss von hinten nach vorne malen (seit P6i hängt auch die Verdeckung der Sprites davon ab). Die Liste wächst deshalb abwärts von B1, ihr Anfang B1 − nv ändert sich mit jedem Bild. Vorwärts ab B0 ginge nur mit zwei Durchläufen (0.1) oder mit Umkehren am Ende (30–60 Zyklen je Byte).
+
+**Lösung:** neuer VCL-Eintrag **Typ 10 „weiter bei Adresse“** in VDC-BASIC v3 (`10, Adresse`, 3 Byte; vdc-basic `docs/v3/P2e-vcl-jump.md`). Mit `BUFSET` X Bit 0 schreibt `VIEW` vor dem Durchlauf das Typ-Byte 10 nach B0 und am Ende die Adresse B1 − nv dahinter; die VMS-Listen beginnen bei B0 + 3 (BL 3 Byte kleiner, 5.10), sonst ist alles gleich (keine Einschränkung, beschnittene Ränder bleiben im Puffer). VCLADR = P0 = B0 bei jedem Aufruf, VCLLEN und VMSLEN ohne den Sprung. `INIT` schaltet den Modus aus; der Standard (X Bit 0 = 0) ist unverändert.
+
+Verworfen: (A, Zwischenstand) Liste nach B0 kopieren und VMS-Listen im festen Modus weglassen (Funktionsverlust am Fensterrand, Kopie 14–18 Zyklen je Byte, Crawl ≈ 1 150–1 330 je `VIEW`, 132 Byte Code); (B) Liste nach B0 kopieren, VMS-Listen verschieben oder drehen und die Typ-12-Adressen nachtragen (≈ 200–250 Byte Code, mit vielen VMS-Bytes 20 000–100 000 Zyklen); (C) VMS-Listen abwärts ab B1 mit verschiebbarem Listenstapel (Eingriff in Erzeugung und Rücknahme).
+
+**Kosten:** `VIEW` sim65 (Crawl, 9 568 Ansichten) mit festem Modus Mittel 16 888 / 18 978 (ohne / mit Geist), ohne 16 792 / 18 883: **≈ +100 Zyklen**. `VCL` +≈ 215 Zyklen für den Sprung (VDC-BASIC, VICE). Dagegen BASIC (VICE-Mikromessung je Aufruf, ohne die Liste; interpretiert / Blitz!): `V=PEEK(3072)+256*PEEK(3073):::VCL V` mit spät angelegtem V 25 500 / 5 700, `::VCL 4864` (Zahl, wird jedes Mal umgerechnet) 7 000 / 6 400, **`::VCL VB` mit VB = B0 als erster Variable 3 400 / 2 900**. Empfehlung für Spiele: `VB` als erste Variable nach `CLR` setzen.
+
+**Lib:** 10 982 → 11 065 Byte Code (`$B000–$DB38`), Reserve **282 → 199 Byte**; BSS +1 (`buf_fix`). Testbuild: `TESTHI` (Funktion 252) von `$DBC0` nach `$DBF0` verschoben (`lib-test.cfg`, Probe liest `$DBEF`), Reserve im Testbuild bis `$DBEF` 54 Byte.
+
+### 2. Zeropage nur, wo nötig (Stub)
+
+Nutzung je Funktion, gemessen mit `test/vice_zp.py --funcs` (Programm von `vice_view.py` plus CELL, SETCELL, SETITEM, BUFSET X = 1/0, F = 7, 8, 17; je Lib-Aufruf Watchpoints Lesen/Schreiben auf `$63–$72` und `$FA–$FD`, erster Treffer je Aufruf mit `$FF00`):
+
+| F | Funktion | ZPB `$63–$72` | `$FA–$FD` |
+|---|---|---|---|
+| 0 | INIT | – | ja |
+| 1 | MAPINIT | – | ja |
+| 2 | SETPOS | – | – |
+| 3 | MOVE | – | ja |
+| 4 | VIEW | **ja** | ja |
+| 5, 6 | CELL, SETCELL | – | ja |
+| 7, 8, ≥ 17 | (nicht umgesetzt) | – | – |
+| 9 | SPRITESET | – | ja |
+| 10, 11 | ITEMSET, POOLSET | – | – |
+| 12 | GEOMSET | **ja** | ja |
+| 13, 14 | TEXSET, BGSET | – | ja |
+| 15 | BUFSET | – | – |
+| 16 | SETITEM | – | ja |
+
+0 fremde Zugriffe (alle Treffer mit `$FF00 = $7F`); statisch dasselbe (ZPB-Symbole nur in `f_geomset`/`gcells`, `view.s` und `t_zp`; aus `view.s` ruft nur BGSET `bgoffs`, ohne ZPB).
+
+Der Stub rettet den Block nur noch für F = `ZPB_F1` (4), `ZPB_F2` (12) und `ZPB_FT` (253, Testbuild) (`dbe.inc`; eine neue Funktion mit ZPB muss dort eingetragen werden); Flag `sv_f` (Bit 7) für das Zurückschreiben. Retten und Zurückschreiben vierfach entrollt (9 statt 14 Zyklen je Byte). Ersparnis je Aufruf ohne ZPB ≈ 420 Zyklen (Vergleiche +≈ 20), je VIEW/GEOMSET ≈ 150. Stub 168 → 221 Byte (`$0D00–$0DDC`). Neue Marke `call_rts` (RTS am Stubende) in `build/stub.lbl`; `vice_view.stub_rts()` liest sie dort statt das Ende abzuzählen.
+
+### 3. Tests
+
+- `python3 -m unittest discover -s test/tools`: 285 Tests grün (neu `TestFixedAddress`: Sprung, VMS ab B0 + 3, gleiches Bild wie ohne festen Modus, 3 Byte weniger Platz).
+- `run_sim.py` grün: P6a mit BUFSET X = 1/3/2 (Modus, Fehler lässt ihn stehen); neue Sätze „feste Listenadresse“ in P6d (232 Ansichten, je Standard und `VMS_COPY`) und P6e (150), alle bytegleich (Harness `viewsim.c` folgt dem Sprung).
+- `run_crawl.py --dir test/tools/data` und `--fix`: je 19 136 Ansichten bytegleich, A = 0.
+- VICE: `vice_smoke`, `vice_zp` (interpretiert und Blitz!), `vice_zp --funcs`, `vice_view` (42 Szenen, interpretiert und Blitz!, 1 und 2 MHz), neu `vice_view --fix` (dasselbe mit BUFSET X = 1 und `VCL` mit der Konstanten B0), `vice_blitzvars`, `vice_demo --only i` (Demo jetzt im festen Modus: `demo.bas` 290, `vcl vb`; 75 Prompts gleich dem Modell).
+- Crawl (Spiel-Repo, VDC-BASIC v3 mit P2e, `BUFSET` X = 1, `::VCL VB`): Pixeltest gegen 1.0f **PASS**; Zeitmessung P7 12.4.

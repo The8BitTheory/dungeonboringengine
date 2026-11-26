@@ -9,7 +9,7 @@
 ;               P0 = Codeende, P1 = BSS-Ende
 ;  11 POOLSET   P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = keine Prüfung
 ;  15 BUFSET    P0 = Pufferanfang, P1 = Pufferende (exklusiv); A = 6 bei Anfang < $1300,
-;               Ende > $1C00 oder Länge < 64 (alter Puffer bleibt)
+;               Ende > $1C00 oder Länge < 64 (alter Puffer bleibt); X Bit 0 = feste Listenadresse (P6j)
 ; Stand P6c (Karte und Assets): MAPINIT, SETPOS, CELL, SETCELL, SETITEM, GEOMSET, TEXSET, BGSET,
 ; SPRITESET, ITEMSET (Prüfungen 3.2; Fehlerreihenfolge: E_STATE, E_RANGE (Nummer), E_FORMAT, E_GEOM, E_RANGE (Pool)).
 ; Festlegungen zu P6c: siehe docs/specs/P6-engine.md "Ergebnis P6c".
@@ -17,9 +17,10 @@
 ; Stand P6d: VIEW ohne Objekte (engine/view.s, docs/specs/P6-engine.md "Ergebnis P6d").
 ; Stand P6e: VIEW mit Objekten und Gegenständen (5.8; "Ergebnis P6e").
 ; Stand P6f: MOVE (3.4) und Automap-Bit 6 in VIEW (nur MAPINIT X Bit 0 mit Arbeitskopie; "Ergebnis P6f").
+; Stand P6j: BUFSET X Bit 0 = feste Listenadresse (VIEW kopiert die VCL-Liste nach B0; "Ergebnis P6j").
 ;
 ; Übersetzen mit -DDBE_TEST (nur Tests, nie im Spiel, mit lib-test.cfg): Funktionen 250 (MMU-/Common-RAM-Probe),
-; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DBC0) für den VICE-Rauchtest und 253
+; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DBF0) für den VICE-Rauchtest und 253
 ; (Zeropage-Block ZPB unter Interrupts, test/vice_zp.py).
 ; Übersetzen mit -DSIM: ohne LOADADDR (sim65-Harness, test/sim).
 
@@ -57,7 +58,7 @@ MAXPEND = 16            ; Wartebereich je Tiefe (deckende Seiten bzw. Fronten oh
 
         .export dbe_entry := entry
         .export bss_start, bss_end, code_end            ; für Tests (Labeldatei)
-        .export argx, buf_b0, buf_b1, pool_a, pool_b, pool_on
+        .export argx, buf_b0, buf_b1, buf_fix, pool_a, pool_b, pool_on
         .export t0, val, ptrs, recs, rows, itemtab, geom_ok, map_ok, map_w, map_h, map_wh, map_nt, map_ne, map_auto
         .export pos, vdir, px, py, map_out, dvg_vw, dvg_origin, dvg_id, dbg_ok, dbg_vram, dbg_base, dbg_p, bgfill
 
@@ -232,6 +233,9 @@ f_bufset:
         sta     buf_b1
         lda     P1+1
         sta     buf_b1+1
+        lda     argx            ; P6j: X Bit 0 = feste Listenadresse (VIEW legt die VCL-Liste nach B0)
+        lsr
+        ror     buf_fix         ; Bit 7
         jmp     ok
 
 ; ================================================================ P6c: Karte und Assets
@@ -1659,12 +1663,12 @@ t_zp:   ldx     #ZPBLEN-1
         lda     #1
 @r:     ldy     #0
         rts
-; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DBC0, Füllbyte $EA bis dahin): A = 0, X = $42,
-;      Y = Byte bei $DBBF (erwartet $EA: BLOAD hat über $D000 geladen und die Lib sieht RAM statt I/O)
+; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DBF0, Füllbyte $EA bis dahin): A = 0, X = $42,
+;      Y = Byte bei $DBEF (erwartet $EA: BLOAD hat über $D000 geladen und die Lib sieht RAM statt I/O)
         .segment "TESTHI"
 t_hi:   lda     #0
         ldx     #$42
-        ldy     $DBBF
+        ldy     $DBEF
         rts
         .segment LIBSEG
 .endif
@@ -1680,6 +1684,7 @@ argx:   .res 1
 argy:   .res 1
 buf_b0: .res 2                  ; Puffer (BUFSET): Anfang, Ende exklusiv
 buf_b1: .res 2
+buf_fix:.res 1                  ; Bit 7: feste Listenadresse (BUFSET X Bit 0, P6j)
 pool_a: .res 2                  ; Pool (POOLSET): Anfang, Ende exklusiv (0 = 65536)
 pool_b: .res 2
 pool_on:.res 1                  ; 0 = keine Prüfung

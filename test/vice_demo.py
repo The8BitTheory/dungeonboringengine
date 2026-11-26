@@ -336,7 +336,8 @@ def run_one(world, d64, boot_prg, port, tmo, segs, keys, shots=None, tag='', con
                 msg.append(f'VCLADR/VCLLEN/VMSLEN/OBJVIS VICE {[hex(w16(pb, j)) for j in (0x0A, 0x0C, 0x0E, 0x10)]} <> '
                            f'{[hex(rs.p0), hex(rs.vcllen), hex(rs.vmslen), hex(rs.objvis)]}')
             b0 = BUF[0]
-            if bytes(buf[rs.p0 - b0:rs.p0 - b0 + len(rs.vcl)]) != rs.vcl or bytes(buf[0:len(rs.vms)]) != rs.vms:
+            if bytes(buf[rs.l0 - b0:rs.l0 - b0 + len(rs.vcl)]) != rs.vcl or bytes(buf[rs.m0 - b0:rs.m0 - b0 + len(rs.vms)]) != rs.vms \
+                    or bytes(buf[0:len(rs.jump())]) != rs.jump():
                 msg.append('Puffer (VCL/VMS) weicht von der Referenz ab')
             model = fr['vram']
             if control and i == 5:

@@ -18,7 +18,8 @@
      "DBR1"
      je Aufruf:  'C' f a x y p0..p3(8) pb(10: $0C08-$0C11) buflen(2) puffer
                  buflen = VCLLEN + VMSLEN bei VIEW mit A = 0, 2 oder 3, sonst 0; puffer = VCLLEN Byte ab VCLADR,
-                 dann VMSLEN Byte ab Pufferanfang (VMS-Listen aufwärts ab B0, VCL-Liste abwärts bis B1)
+                 dann VMSLEN Byte ab Pufferanfang (VMS-Listen aufwärts ab B0, VCL-Liste abwärts bis B1);
+                 steht bei VCLADR ein Sprung (Typ 10, feste Listenadresse P6j), ab dessen Ziel bzw. ab B0 + 3
      je Auslesen: 'D' addr(2) len(2) daten
    Exitcode: 0 ok, 2 Dateifehler, 3 Segment unzulässig, 4 Satztyp unbekannt. */
 #include <stdio.h>
@@ -81,8 +82,13 @@ int main(int argc, char **argv)
             if (f == 4 && (dbe_a == 0 || dbe_a == 2 || dbe_a == 3)) bl = W(0x0C0C) + W(0x0C0E);
             fwrite(&bl, 1, 2, out);
             if (bl) {                       /* VCL ab VCLADR, dann VMS ab Pufferanfang (Einpass, P6d-opt) */
-                fwrite((void *)W(0x0C0A), 1, W(0x0C0C), out);
-                fwrite((void *)dbe_b0, 1, W(0x0C0E), out);
+                unsigned l0 = W(0x0C0A), m0 = dbe_b0;
+                if (*(unsigned char *)l0 == 10) {   /* P6j: Sprung bei B0 (feste Listenadresse), VMS ab B0 + 3 */
+                    l0 = W(l0 + 1);
+                    m0 += 3;
+                }
+                fwrite((void *)l0, 1, W(0x0C0C), out);
+                fwrite((void *)m0, 1, W(0x0C0E), out);
             }
             break;
         case 3:

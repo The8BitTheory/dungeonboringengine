@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """sim65-Messung und -Pruefung der Lib mit der Crawl-Szene (P7a, docs/specs/P7-crawl.md 6.2).
 
-Aufruf:  run_crawl.py (--d81 IMAGE.d81 | --dir DIR) [--quick] [--workers N] [--no-verify] [--no-cycles] [--json OUT]
+Aufruf:  run_crawl.py (--d81 IMAGE.d81 | --dir DIR) [--quick] [--workers N] [--no-verify] [--no-cycles] [--fix] [--json OUT]
+  --fix:   feste Listenadresse wie Crawl 1.1 ab P6j (BUFSET X = 1: VCL-Liste ab B0, VIEW kopiert sie dorthin)
   verify:  alle Ansichten (freie Zellen x 4 Richtungen x kein Geist/Geist in jeder Zelle (d, s) x 4 Richtungen) im
            Simulator ausfuehren und bytegenau mit dbeview.view vergleichen (A, X, VCL, VMS, OBJVIS)
   cycles:  Zyklen von VIEW wie run_sim.time_view (Lauf mit F = 4 minus Lauf mit F = 7), Mittel und Maximum
@@ -27,11 +28,13 @@ import run_sim  # noqa: E402
 
 TARGET = 28382
 ENV = None
+FIX = False
 
 
-def _init(files):
+def _init(files, fix=False):
     global ENV
     ENV = crawl01.Env(files)
+    ENV.sc.buf_fix = fix
 
 
 def configs(e, pos, v, quick=False, variants=(0, 1)):
@@ -114,9 +117,9 @@ def cycles(files, quick=False, workers=1):
 def _map(fn, jobs, files, workers):
     if workers > 1:
         import multiprocessing as mp
-        with mp.get_context("fork").Pool(workers, _init, (files,)) as pool:
+        with mp.get_context("fork").Pool(workers, _init, (files, FIX)) as pool:
             return list(pool.imap(fn, jobs, chunksize=2))
-    _init(files)
+    _init(files, FIX)
     return [fn(j) for j in jobs]
 
 
@@ -129,8 +132,11 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--no-verify", action="store_true")
     ap.add_argument("--no-cycles", action="store_true")
+    ap.add_argument("--fix", action="store_true", help="feste Listenadresse (BUFSET X = 1, P6j)")
     ap.add_argument("--json")
     a = ap.parse_args(argv)
+    global FIX
+    FIX = a.fix
     if not os.path.exists(run_sim.PRG):
         run_sim.build()
     if a.d81:

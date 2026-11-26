@@ -161,6 +161,9 @@ def test_p6a():
     s.call(15, p=(0x1400, 0x1400, 0, 0)).dump(bss, n)                       # Länge 0
     s.call(15, p=(0x0200, 0x0240, 0, 0)).dump(bss, n)                       # $0200: 6 (Kernal-Vektoren)
     s.call(15, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                       # ok, 256 Byte am Ende
+    s.call(15, 1, p=(0x1300, 0x1C00, 0, 0)).dump(bss, n)                    # P6j: X Bit 0 = feste Listenadresse
+    s.call(15, 3, p=(0x1400, 0x1C01, 0, 0)).dump(bss, n)                    # Fehler: Modus bleibt
+    s.call(15, 2, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                    # X Bit 0 = 0: aus (Bit 1 egal)
     s.call(11, p=(0, 0, 0, 0)).dump(bss, n)                                 # POOLSET aus
     s.call(11, p=(0x7000, 0x9000, 0, 0)).dump(bss, n)
     s.call(11, p=(0x9000, 0x7000, 0, 0)).dump(bss, n)                       # 6, unverändert
@@ -202,6 +205,13 @@ def test_p6a():
                             ('256 Byte am Ende', 0, (0x1B00, 0x1C00))):
         want = newbuf or cur
         bufcase(name, a, want)
+        cur = want
+    for name, a, want, fix in (('X = 1', 0, (0x1300, 0x1C00), 0x80), ('X = 3, Fehler', 6, (0x1300, 0x1C00), 0x80),
+                               ('X = 2', 0, (0x1B00, 0x1C00), 0)):
+        c = nxt(); d = nxt()[1]
+        check(f'BUFSET {name} A', c.a == a, f'{c.a} <> {a}')
+        check(f'BUFSET {name} Puffer', (var(d, 'buf_b0'), var(d, 'buf_b1')) == want)
+        check(f'BUFSET {name} buf_fix', var(d, 'buf_fix', 1) & 0x80 == fix, f'{var(d, "buf_fix", 1):02x}')
         cur = want
 
     def poolcase(name, want_a, want):
@@ -891,9 +901,9 @@ class ViewRunner:
         if st.get('pos') != (sc.pos, sc.dir):
             self._call(2, sc.dir, p=(sc.pos, 0, 0, 0), want=('setup', 0))
             st['pos'] = (sc.pos, sc.dir)
-        if st.get('buf') != sc.buf:
-            self._call(15, p=(sc.buf[0], sc.buf[1], 0, 0), want=('setup', 0))
-            st['buf'] = sc.buf
+        if st.get('buf') != (sc.buf, sc.buf_fix):
+            self._call(15, int(sc.buf_fix), p=(sc.buf[0], sc.buf[1], 0, 0), want=('setup', 0))
+            st['buf'] = (sc.buf, sc.buf_fix)
         # Sprite-Sätze (S2 an festen Adressen je Satzobjekt, P6e) und ITEMSET
         for k in range(8):
             ss = sc.s2[k]
@@ -1037,6 +1047,7 @@ def test_p6d(vcopy=False):
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails
+        return codes
 
     # demo: alle freien Zellen x 4 Richtungen, Bit 3 aus/an, ohne DBG, ap != 0, origin
     sc_demo = []
@@ -1099,6 +1110,15 @@ def test_p6d(vcopy=False):
             s2.buf = (0x1300, 0x1300 + size)
             scs.append((f'überlauf {n_} {size}', s2))
     go('überlauf', scs)
+    # P6j: feste Listenadresse (BUFSET X Bit 0): Sprung (VCL-Typ 10) bei B0, VMS-Listen ab B0 + 3
+    scs = []
+    for n_, sc in enumerate(ov[::2] + [dbeview.random_scene(k, A, nobj=0) for k in range(400, 430)]):
+        for size in (64, 256, 1024, 2304):
+            s2 = copy.copy(sc)
+            s2.buf, s2.buf_fix = (0x1300, 0x1300 + size), True
+            scs.append((f'fest {n_} {size}', s2))
+    codes = go('feste Listenadresse', scs)
+    ok = ok and codes.get(0, 0) > 0
     # Abbruch über die Eintragszahl (K4): Build mit MAXITEM = 8 gegen die Referenz mit MAXITEM = 8
     if not vcopy:
         orig = dbeview.MAXITEM
@@ -1230,6 +1250,7 @@ def test_p6e(vcopy=False):
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails
+        return codes
 
     def with_extra(sc):
         sc.s2 = [sc.s2[0], None] + list(sc.s2[2:4]) + extra     # Satz 1 frei (Platz); 4-7: hoch, links, rechts, gitter
@@ -1331,6 +1352,15 @@ def test_p6e(vcopy=False):
             s2.buf = (0x1300, 0x1300 + size)
             scs.append((f'überlauf {n_} {size}', s2))
     go('überlauf', scs)
+    # P6j: feste Listenadresse (BUFSET X Bit 0) mit Objekten (beschnittene Sprites: VMS-Listen ab B0 + 3)
+    scs = []
+    for n_, sc in enumerate(ov[::2] + [dbeview.random_scene(k, A, nobj=12) for k in range(400, 430)]):
+        for size in (128, 1024, 2304):
+            s2 = copy.copy(sc)
+            s2.buf, s2.buf_fix = (0x1300, 0x1300 + size), True
+            scs.append((f'fest {n_} {size}', s2))
+    codes = go('feste Listenadresse', scs)
+    ok = ok and codes.get(0, 0) > 0
     # MAXITEM = 8 mit Objekten (leere Sprite-Einträge zählen nicht)
     if not vcopy:
         scs = [(f'MAXITEM 8 {k}', dbeview.random_scene(500 + k, A, nobj=16, buf=BIGBUF)) for k in range(30)]

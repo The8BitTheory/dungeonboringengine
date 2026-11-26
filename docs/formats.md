@@ -39,7 +39,7 @@ Während des Aufrufs:
 
 - Der aktuelle `BANK` ist egal; der Stub schaltet selbst um und stellt danach `$FF00` und `$D506` wieder her. Interrupts bleiben an.
 - `$FF00 = $7F` (Bank 1 ohne I/O) und **8 KB gemeinsames RAM** unten (`$D506` = `$06`): Bank 1 unter `$2000` ist Bank 0. Daten der Engine liegen nie dort.
-- Zeropage: `$FA–$FD` und `$63–$72` (FAC/ARG); den Block rettet der Stub vor jedem Aufruf und stellt ihn danach wieder her.
+- Zeropage: `$FA–$FD` (alle Funktionen außer `SETPOS`, `ITEMSET`, `POOLSET`, `BUFSET`) und `$63–$72` (FAC/ARG; nur `VIEW` und `GEOMSET`). Den Block `$63–$72` rettet der Stub vor diesen beiden Funktionen und stellt ihn danach wieder her; die übrigen Aufrufe berühren ihn nicht (Nachweis `test/vice_zp.py --funcs`).
 - Bank 0 `$1C00–$3FFF` (VDC-BASIC v3) wird nie beschrieben.
 
 ### Parameterblock (Bank 0)
@@ -48,14 +48,14 @@ Während des Aufrufs:
 |---|---|---|
 | `$0C00`, `$0C02`, `$0C04`, `$0C06` | P0–P3 | Wörter (Low/High), Ein- und Ausgabe |
 | `$0C08` | ITEMPH | Phase für Gegenstände der Inhaltsebene (Glitzern; Spiel setzt) |
-| `$0C0A` | VCLADR | `VIEW`: Adresse der VCL-Liste (auch in P0) |
+| `$0C0A` | VCLADR | `VIEW`: Adresse der VCL-Liste (auch in P0); mit fester Listenadresse (`BUFSET` X Bit 0) immer der Pufferanfang (dort ein Sprung, VCL-Typ 10, auf den Listenanfang) |
 | `$0C0C` | VCLLEN | `VIEW`: Länge der VCL-Liste inklusive Ende-Byte |
 | `$0C0E` | VMSLEN | `VIEW`: Bytes der VMS-Listen |
 | `$0C10` | OBJVIS | `VIEW`: Bit i = Objekt i (ganz oder teilweise) ausgegeben |
 | `$0C50` | OBJN | Objektliste: Anzahl 0 … 16 |
 | `$0C51` | OBJL | 16 Objekte à 6 Byte (unten) |
 
-Puffer der Engine (VCL- und VMS-Listen) im gemeinsamen RAM `$1300–$1BFF` (Standard 2304 Byte, `BUFSET` verkleinert).
+Puffer der Engine (VCL- und VMS-Listen) im gemeinsamen RAM `$1300–$1BFF` (Standard 2304 Byte, `BUFSET` verkleinert). Die VCL-Liste liegt am Pufferende (Anfang = Ende − VCLLEN, ändert sich mit jedem Bild), die VMS-Listen ab dem Pufferanfang. Mit fester Listenadresse steht am Pufferanfang ein Sprung (3 Byte, VCL-Typ 10) auf den Listenanfang, die VMS-Listen beginnen 3 Byte später; VCLADR ist dann immer der Pufferanfang.
 
 ### Objektliste (je 6 Byte ab `$0C51 + 6·i`)
 
@@ -89,7 +89,7 @@ Karte und Richtung: 0 N, 1 O, 2 S, 3 W; Zelle = Zeile · W + Spalte.
 | 12 | `GEOMSET` | P0 = DVG, P1 = origin (Offset des Fensters im Bildpuffer: Ziel = P0 von `VIEW` + origin + y · stride + x; `$FFFF` = Wert aus der DVG) | A = 1 Format (Magic, Version, Längen, VW ≤ 80, VH ≤ 100, D ≤ 7, Elementtabelle). Texturen, Tapete und Sprite-Sätze mit anderer Geometrie-ID werden gelöscht |
 | 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Pool oder DTS unter `$4000` |
 | 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | A = 1, 4, 5, 6 wie `TEXSET` |
-| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv) | A = 0; 6 bei Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer bleibt) |
+| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv); X Bit 0 = **feste Listenadresse** | A = 0; 6 bei Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer und Modus bleiben). Feste Listenadresse: `VIEW` schreibt an den Pufferanfang einen VCL-Sprung (Typ 10, VDC-BASIC v3 ab P2e) auf den Listenanfang, VCLADR = P0 = Pufferanfang bei jedem Aufruf; VMS-Listen ab Anfang + 3 (3 Byte weniger Platz), sonst alles gleich. `INIT` schaltet den Modus aus |
 | 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
 | ≥ 17 | – | – | A = 255 |
 
@@ -112,6 +112,19 @@ Karte und Richtung: 0 N, 1 O, 2 S, 3 W; Zelle = Zeile · W + Spalte.
 POKE 3072,0:POKE 3073,0:SYS 3331,4,0,0:RREG A,X,Y   : REM VIEW, Bildpuffer = VRAM 0 (P0)
 V=PEEK(3072)+256*PEEK(3073):VCL V                    : REM P0 = VCLADR, ::VCL führt die Liste aus
 ```
+
+**Feste Listenadresse** (`BUFSET` mit X = 1, einmal nach `INIT`; braucht VDC-BASIC v3 mit VCL-Typ 10, P2e): `VCL` mit dem Pufferanfang führt über den Sprung zur Liste; das Spiel braucht P0 nicht zu lesen. Am schnellsten ist eine Variable, die einmal gesetzt und als **erste** Variable angelegt wird (der Interpreter sucht Variablen der Reihe nach; eine Zahl im Programmtext wird bei jedem Aufruf neu umgerechnet und ist langsamer als die Variable):
+
+```
+10 POKE 57,0:POKE 58,64:CLR:VB=4864                 : REM VB = $1300 (Pufferanfang), erste Variable
+...
+POKE 3072,0:POKE 3073,19:POKE 3074,0:POKE 3075,28:SYS 3331,15,1  : REM BUFSET $1300-$1BFF, feste Listenadresse
+...
+POKE 3072,0:POKE 3073,0:SYS 3331,4,0,0              : REM VIEW
+VCL VB                                              : REM Blitz!: ::VCL VB
+```
+
+Messung (VICE, je Bild, ohne die Liste selbst): `::VCL VB` mit VB als erster Variable 3 400 (interpretiert) bzw. 2 900 Takte (Blitz!), `::VCL 4864` 7 000 / 6 400, `V=PEEK(3072)+256*PEEK(3073):::VCL V` 25 500 / 5 700 (V spät angelegt). Der Sprung kostet in `VCL` etwa 215 Takte, in `VIEW` etwa 100.
 
 `VIEW` schreibt keine Pixel, sondern nur die Liste. Die Liste enthält VCL-Typ 12 (VMS im Puffer, beschnitten) und Typ 9 (VMS direkt aus Bank 1, unbeschnittene Bilder aus DTS und S2). Typ 9 liest VDC-BASIC aus Bank 1 `$4000–$CFFF` bzw. `$E000–$FBFF`; darum die Adressgrenze `$4000` bei `TEXSET`/`SPRITESET`. Vor jedem `VIEW` Objektliste und Position aktualisieren (`SETPOS`/`MOVE`, `OBJN`/`OBJL`).
 

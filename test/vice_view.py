@@ -10,6 +10,8 @@ Aufruf: test/vice_view.py [--port N] [--timeout S] [--only i|c] [--check] [--png
   --no-fast ohne den zweiten Lauf mit 2 MHz (FAST, VIC-Anzeige aus während VIEW und VCL); sonst je Lauf zwei VICE-Läufe,
             Zyklen beider Takte in der Tabelle (Spalten "2M", Stoppuhr in Takten zu 1 MHz, also in µs)
   --byte-edges  Demo-Geometrie mit view.toml-Schalter byte_edges (Kanten auf ganze Bytes) statt pixelgenau
+  --fix     P6j: feste Listenadresse (BUFSET X = 1, VCL-Typ 10 bei B0, braucht VDC-BASIC v3 mit P2e); das Programm
+            ruft ::VCL mit der Konstanten B0 statt P0, das Modell rechnet mit buf_fix
 
 Ablauf (test/vice/view.bas, interpretiert und als Blitz!-Kompilat mit Runtime-Image 2):
   BOOT (VDC-BASIC v3) -> POKE 57,0:POKE 58,64:CLR -> Stub und Lib laden, INIT -> Chunky-Modus wie Crawl (VDC-Register laut
@@ -356,6 +358,7 @@ def model_run(world, exp):
 def basic_listing(world, fast=False):
     """test/vice/view.bas mit den Platzhaltern @LOADS@ (Dateien laden) und @SETUP@ (Setz-Aufrufe)."""
     sc = world.sc0
+    fix = int(sc.buf_fix)
     B = world.bases
     loads = []
     for n, a, d in world.bank1:
@@ -374,12 +377,14 @@ def basic_listing(world, fast=False):
         if world.itemtab[g]:
             calls.append((10, g, world.itemtab[g], 0, 0))
     calls.append((1, 0, 0, world.addr['dmp'], 0))
-    calls.append((15, 0, 0, BUF[0], BUF[1]))
+    calls.append((15, fix, 0, BUF[0], BUF[1]))
     setup = []
     for i, (f, x, y, p0, p1) in enumerate(calls):
         setup.append(f'p0={p0}:p1={p1}:f={f}:x={x}:y={y}:gosub 9500:if a<>0 then r={20 + i}:goto 8995')
     text = open(os.path.join(HERE, 'vice', 'view.bas')).read().replace('@VERSION@', VERSION)
     text = text.replace('@FAST@', 'fast:' if fast else '').replace('@SLOW@', 'slow' if fast else 'rem')
+    if fix:                         # P6j: Liste immer ab B0, ::VCL mit der Konstanten
+        text = text.replace('2120 v=peek(3072)+256*peek(3073):', f'2120 v={BUF[0]}:')
     out, n = [], 0
     for line in text.split('\n'):
         if line.strip() in ('@LOADS@', '@SETUP@'):
@@ -421,12 +426,15 @@ def sim_cycles(world, exp):
 
 # ------------------------------------------------------------------ Disk und Lauf
 def stub_rts():
-    """Adresse des RTS am Ende des Stubs (Ausgang von SYS 3331): vor sv_a..sv_zp (5 + ZPBLEN Byte)."""
-    d = open(os.path.join(ROOT, 'build', STUBNAME), 'rb').read()
-    base, code = d[0] | d[1] << 8, d[2:]
-    i = len(code) - (5 + 16) - 1
-    assert code[i] == 0x60, 'RTS am Stubende nicht gefunden'
-    return base + i
+    """Adresse des RTS am Ende des Stubs (Ausgang von SYS 3331): Marke call_rts aus build/stub.lbl."""
+    for line in open(os.path.join(ROOT, 'build', 'stub.lbl')):
+        m = re.match(r'al ([0-9A-Fa-f]+) \.call_rts$', line.strip())
+        if m:
+            a = int(m.group(1), 16)
+            d = open(os.path.join(ROOT, 'build', STUBNAME), 'rb').read()
+            assert d[2 + a - (d[0] | d[1] << 8)] == 0x60, 'RTS bei call_rts nicht gefunden'
+            return a
+    raise SystemExit('call_rts fehlt in build/stub.lbl')
 
 
 def make_disk(world, d64, boot_prg, t_prg, workdir):
@@ -590,8 +598,10 @@ def compare(world, exp, model, got, sim=None):
             msg.append(f'MOVE VICE A/X/Y/P0 {tb[2]}/{tb[3]}/{tb[4]}/{w16(tb, 5)} <> {mv.a}/{mv.x}/{mv.y}/{mv.p0}')
         # Puffer: VCL-Liste [VCLADR, B1) und VMS-Listen [B0, B0 + VMSLEN) wie die Referenz
         buf, b0 = g['buf'], BUF[0]
-        vcl = bytes(buf[res.p0 - b0:res.p0 - b0 + len(res.vcl)])
-        vms = bytes(buf[0:len(res.vms)])
+        vcl = bytes(buf[res.l0 - b0:res.l0 - b0 + len(res.vcl)])
+        vms = bytes(buf[res.m0 - b0:res.m0 - b0 + len(res.vms)])
+        if res.fix and bytes(buf[0:3]) != res.jump():
+            msg.append(f'Sprung bei B0 {bytes(buf[0:3]).hex()} <> {res.jump().hex()}')
         if vcl != res.vcl or vms != res.vms:
             msg.append('Puffer (VCL/VMS) weicht von der Referenz ab')
         # VRAM: ganz (64 KB) gegen das Modell, Fenster gegen paint_reference
@@ -687,12 +697,14 @@ def main():
     ap.add_argument('--no-sim', action='store_true', help='keine sim65-Gegenmessung')
     ap.add_argument('--byte-edges', action='store_true', help='Demo-Geometrie mit byte_edges = true (Kanten auf ganze Bytes)')
     ap.add_argument('--no-fast', action='store_true', help='ohne den zweiten Lauf mit 2 MHz (FAST)')
+    ap.add_argument('--fix', action='store_true', help='P6j: feste Listenadresse (BUFSET X = 1, ::VCL B0)')
     a = ap.parse_args()
     vs.sh(['sh', os.path.join(ROOT, 'engine', 'build.sh')], stdout=subprocess.DEVNULL)
     if a.byte_edges:
         os.environ['DBE_BYTE_EDGES'] = '1'           # dbetexdemo.default_geom
     tmp = tempfile.TemporaryDirectory()
     world = World(tmp.name)
+    world.sc0.buf_fix = a.fix
     exp = world.expected()
     model = model_run(world, exp)
     if a.check or a.png:

@@ -4,7 +4,7 @@
 # Bank 1 (Speicherkarte P6 2.4): DMP $4000, Arbeitskopie $5000, S2 $6000/$6500, Wand-DTS $8000, DVG $E800, Boden $EE00,
 # Decke $F600, Tapete $FB80. VRAM: Attribute 0-9599, Pool 9600-46334, Bitmap ab 46335.
 # Die DATA-Zeilen 600-619 (Basen, Ladeadressen) prueft demo/build.py gegen die gebauten Dateien.
-1 poke 57,0:poke 58,64:clr:trap 9000
+1 poke 57,0:poke 58,64:clr:vb=4864:trap 9000
 2 if peek(dec("1c03"))<>dec("30") then print"needs vdc-basic v3 (run boot)":end
 3 fs=1:rem 1 = 2 mhz (fast) waehrend view und vcl, 0 = 1 mhz
 10 print"dungeon boring engine demo ...":bank 0
@@ -29,6 +29,8 @@
 260 bload"goblin.vrl",b0,u8:read bs:rxv 36869,bs
 270 bload"gem.vrl",b0,u8:read bs:rxv 36869,bs
 280 if ds<>0 then 9100
+# Puffer $1300-$1BFF mit fester Listenadresse (X = 1, P6j): VCL vb (= $1300, erste Variable) springt zur Liste
+290 f=15:x=1:y=0:p0=4864:p1=7168:gosub 9500:if a<>0 then 9100
 300 for i=1 to 10:read f,x,y,p0,p1:gosub 9500:if a<>0 then 9100
 310 next
 320 w=x:pc=peek(3072)+256*peek(3073):dr=peek(3074)
@@ -82,7 +84,7 @@
 # Bild: VIEW, VCL (mit FAST), Kompass unter dem Fenster (Zeilen 96-99, aktive Richtung hell)
 3200 if fs then fast
 3210 poke 3072,0:poke 3073,0:sys 3331,4,0,0:rreg a,x,y
-3220 v=peek(3072)+256*peek(3073):vcl v
+3220 vcl vb
 3230 if fs then slow
 3240 vdm 1,0,80
 3250 for d=0 to 3:c=1:if d=dr then c=15

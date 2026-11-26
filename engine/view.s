@@ -68,7 +68,17 @@ f_view:
         sta     mp
         lda     buf_b0+1
         sta     mp+1
-        lda     #$FF
+        bit     buf_fix         ; P6j: feste Listenadresse: bei B0 VCL-Typ 10 (Sprung, Adresse am Ende), VMS ab B0 + 3
+        bpl     @nfix
+        lda     #10
+        sta     (mp),y
+        lda     mp
+        clc
+        adc     #3
+        sta     mp
+        bcc     @nfix
+        inc     mp+1
+@nfix:  lda     #$FF
         sta     sp_n            ; Spannen ungültig
         ; Blickrichtung: Flächen, Achsen, Schritte
         lda     vdir
@@ -283,7 +293,10 @@ vfin:   lda     objv
         lda     mp+1
         sbc     buf_b0+1
         sta     VMSLEN+1
-        ldx     nent
+        bit     buf_fix         ; P6j: feste Listenadresse
+        bpl     @nf
+        jsr     vjump
+@nf:    ldx     nent
         ldy     #0
         lda     verr            ; A = 2 vor 3
         bne     @a
@@ -291,6 +304,30 @@ vfin:   lda     objv
         beq     @a
         lda     #E_PARTIAL
 @a:     rts
+
+; P6j (BUFSET X Bit 0): Sprung-Eintrag bei B0 auf den Listenanfang vp vervollständigen; VCLADR = P0 = B0;
+; VMSLEN ohne die 3 Byte des Sprungs (VMS-Listen ab B0 + 3)
+vjump:  lda     buf_b0
+        sta     op
+        sta     VCLADR
+        sta     P0
+        lda     buf_b0+1
+        sta     op+1
+        sta     VCLADR+1
+        sta     P0+1
+        ldy     #1
+        lda     vp
+        sta     (op),y
+        iny
+        lda     vp+1
+        sta     (op),y
+        lda     VMSLEN
+        sec
+        sbc     #3
+        sta     VMSLEN
+        bcs     @r
+        dec     VMSLEN+1
+@r:     rts
 
 fnegtab: .byte  1, 0, 0, 1      ; F zeigt nach -y (N) bzw. -x (W)
 anegtab: .byte  0, 0, 1, 1      ; R zeigt nach -x (S) bzw. -y (W)

@@ -36,7 +36,12 @@ BSS0     = $E000        ; Lib-Variablen $E000-$E7FF
 ZP0      = $FA          ; Zeiger (Wort)
 ZP1      = $FC          ; Zeiger (Wort)
 ZPB      = $63          ; Block $63-$72
-ZPBLEN   = 16
+ZPBLEN   = 16           ; durch 4 teilbar (Stub: vierfach entrollt)
+; Funktionen, die ZPB benutzen (nur für sie rettet der Stub den Block, P6j; Nachweis test/vice_zp.py --funcs).
+; Wer eine Funktion neu umsetzt, die ZPB braucht, muss sie hier und im Stub (stub.s, call) eintragen.
+ZPB_F1   = 4            ; VIEW
+ZPB_F2   = 12           ; GEOMSET
+ZPB_FT   = 253          ; Testfunktion 253 (nur Testbuild)
 
 ; MMU
 MMUCR    = $FF00

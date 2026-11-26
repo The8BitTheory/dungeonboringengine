@@ -215,6 +215,8 @@ class Scene:
     ap: int = 0
     automap: bool = False                         # P6f: Automap-Bit 6 in dmp.content setzen (view veraendert dmp!)
     buf: tuple = DEFAULT_BUF
+    buf_fix: bool = False                         # P6j: BUFSET X Bit 0 (feste Listenadresse: bei B0 VCL-Typ 10,
+                                                  # Sprung auf den Listenanfang; VMS-Listen ab B0 + 3)
     vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9, Standardbuild);
                                                   # False = Build VMS_COPY (Kopie in den Puffer, Typ 12)
     dts_addr: tuple = DEFAULT_DTS_ADDR            # Bank-1-Adressen der DTS (Inhaltsanfang), nur fuer vms_bank1
@@ -312,8 +314,11 @@ class Result:
     a: int = 0
     x: int = 0
     y: int = 0
-    p0: int = 0                 # VCLADR (VCL-Liste [p0, B1), VMS-Listen [b0, b0 + vmslen))
+    p0: int = 0                 # VCLADR = P0: VCL-Liste [p0, B1), VMS-Listen [b0, b0 + vmslen)
+                                # buf_fix (P6j): p0 = b0 mit Sprung (Typ 10) auf l0, VMS-Listen [b0 + 3, ...)
     b0: int = 0                 # Pufferanfang
+    b1: int = 0                 # Pufferende (exklusiv)
+    fix: bool = False           # feste Listenadresse (Sprung bei b0)
     vcl: bytes = b""
     vms: bytes = b""
     vcllen: int = 0
@@ -325,13 +330,28 @@ class Result:
 
     @property
     def buffer(self):
-        """VCL-Liste, dann VMS-Listen (so liefert sie der sim65-Harness)."""
+        """VCL-Liste (ab dem echten Anfang l0), dann VMS-Listen (so liefert sie der sim65-Harness)."""
         return self.vcl + self.vms
+
+    @property
+    def l0(self):
+        """Echter Anfang der VCL-Liste (= B1 - VCLLEN)."""
+        return self.b1 - len(self.vcl)
+
+    @property
+    def m0(self):
+        """Anfang der VMS-Listen."""
+        return self.b0 + (3 if self.fix else 0)
+
+    def jump(self):
+        """Sprung-Eintrag bei B0 (nur buf_fix)."""
+        return bytes((10, self.l0 & 255, self.l0 >> 8)) if self.fix else b""
 
     def bank0(self):
         b = bytearray(65536)
-        b[self.b0:self.b0 + len(self.vms)] = self.vms
-        b[self.p0:self.p0 + len(self.vcl)] = self.vcl
+        b[self.m0:self.m0 + len(self.vms)] = self.vms
+        b[self.l0:self.l0 + len(self.vcl)] = self.vcl
+        b[self.b0:self.b0 + len(self.jump())] = self.jump()
         return b
 
     def bank1(self):
@@ -668,7 +688,8 @@ class _View(_Ctx):
         self.err = 0
         self.partial = False
         self.objvis = 0
-        self.BL = sc.buf[1] - sc.buf[0]
+        self.fix = sc.buf_fix
+        self.BL = sc.buf[1] - sc.buf[0] - (3 if self.fix else 0)    # P6j: Sprung-Eintrag bei B0
         self.pend = []
         self.lue = {KIND_FLOOR: False, KIND_CEIL: False}
 
@@ -937,8 +958,11 @@ class _View(_Ctx):
     def output(self):
         """Eintraege in Erzeugungsreihenfolge (vorne -> hinten); jeder wird sofort geschrieben: VMS-Listen aufwaerts
         ab B0, VCL-Eintraege abwaerts ab B1 (Ende-Byte bei B1 - 1). Die VCL-Liste ab VCLADR ist damit die umgekehrte
-        Erzeugungsreihenfolge (hinten -> vorne, innerhalb eines Sichtlisteneintrags ebenfalls umgekehrt)."""
+        Erzeugungsreihenfolge (hinten -> vorne, innerhalb eines Sichtlisteneintrags ebenfalls umgekehrt).
+        Feste Listenadresse (buf_fix, P6j): bei B0 steht VCL-Typ 10 (Sprung auf den Listenanfang), VMS-Listen ab B0 + 3,
+        VCLADR = B0."""
         b0, b1 = self.sc.buf
+        m0 = b0 + (3 if self.fix else 0)
         parts, vms, lists1 = [], bytearray(), {}
         for item in self.items:
             for e in item.ents:
@@ -956,7 +980,7 @@ class _View(_Ctx):
                         parts.append(bytes((5,)) + struct.pack("<HHHHH", va, byte, cnt, reps, step))
                 elif e[0] == "vms":
                     _, src, dst, lst = e
-                    parts.append(bytes((12,)) + struct.pack("<HHH", src, dst, (b0 + len(vms)) & 0xFFFF))
+                    parts.append(bytes((12,)) + struct.pack("<HHH", src, dst, (m0 + len(vms)) & 0xFFFF))
                     vms += lst
                 else:
                     _, src, dst, addr, lst = e
@@ -966,7 +990,8 @@ class _View(_Ctx):
         if len(vcl) != self.nv or len(vms) != self.nm:
             raise ViewError("interner Fehler: Groessenrechnung %d/%d != %d/%d" % (self.nv, self.nm, len(vcl), len(vms)))
         a = E_TOOMANY if self.err else (E_PARTIAL if self.partial else E_OK)
-        return Result(a=a, x=min(len(parts), 255), y=0, p0=b1 - len(vcl), b0=b0, vcl=vcl, vms=bytes(vms),
+        p0 = b0 if self.fix else b1 - len(vcl)          # P6j: feste Listenadresse (Sprung bei B0)
+        return Result(a=a, x=min(len(parts), 255), y=0, p0=p0, b0=b0, b1=b1, fix=self.fix, vcl=vcl, vms=bytes(vms),
                       vcllen=len(vcl), vmslen=len(vms), objvis=self.objvis, partial=self.partial,
                       items=len(self.items), lists1=lists1)
 
@@ -1101,7 +1126,7 @@ def rxv(bank0, vram, src, dst):
 def run_vcl(bank0, vram, addr, rowstep=80, bank1=None):
     """Fuehrt die VCL-Liste bei addr in bank0 aus (vcl-format.md); veraendert vram. Rueckgabe: Anzahl Eintraege.
     Typ 13 (SYN) tut nichts. Typ 2 in VMS nutzt rowstep statt VDC-Register 1. Typ 9 (Vorschlag P6d-opt, VDC-BASIC):
-    wie 12, die Liste liegt in bank1."""
+    wie 12, die Liste liegt in bank1. Typ 10 (VDC-BASIC v3 P2e): weiter bei der Adresse."""
     p = addr
     count = 0
 
@@ -1146,6 +1171,9 @@ def run_vcl(bank0, vram, addr, rowstep=80, bank1=None):
             p += 7
         elif t == 13:
             p += 3 + 4 * (w(1) & 255)
+        elif t == 10:                   # VDC-BASIC v3 P2e: weiter bei Adresse (zählt nicht als Eintrag)
+            count -= 1
+            p = w(1)
         else:
             raise ViewError(f"INVALID VCL type {t} bei {p:#06x}")
 
@@ -1854,6 +1882,7 @@ def load_scene(path):
     sc.bgfill = s.get("bgfill", 0)
     sc.ap = s.get("ap", 0)
     sc.buf = tuple(s.get("buf", DEFAULT_BUF))
+    sc.buf_fix = bool(s.get("buf_fix", False))
     if "pos" in s:
         sc.pos = s["pos"][1] * m.width + s["pos"][0]
     else:
