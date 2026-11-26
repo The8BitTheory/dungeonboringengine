@@ -227,7 +227,7 @@ class TestConv(unittest.TestCase):
 
     def test_ranges_and_vram_sum(self):
         i = self.r.info
-        self.assertEqual((i["DA"], i["u_walls"]), (19200 + 1732, 22354))
+        self.assertEqual((i["DA"], i["u_walls"]), (19200 + 1730, 22354))
         self.assertEqual(i["MA"] + 2 * 20 * 11, i["vram_end"])
         self.assertLessEqual(i["vram_end"], 46335)
         self.assertEqual(i["GA0"], i["DA"] + 22354)

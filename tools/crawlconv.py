@@ -17,7 +17,7 @@ Ausgabe in OUT_DIR:
   crawlconv.md       Bericht;  crawlconv.json mit --json
 
 Aufruf:
-  crawlconv.py --d81 crawl128-100f.d81 OUT_DIR [--max-part N] [--font-bytes 1732] [--json]
+  crawlconv.py --d81 crawl128-100f.d81 OUT_DIR [--max-part N] [--font-bytes N] [--json]
   crawlconv.py --dir DIR_MIT_DEN_DATEIEN OUT_DIR [...]
 Als Modul: build(files, ...) -> Result, write(result, out_dir), read_dir(dir), read_d81(image, work_dir).
 Exitcode 0 ok, 1 Fehler, 2 Aufruf.
@@ -326,8 +326,11 @@ class Result:
     nparts: int = 1
 
 
-def build(files, max_part=0, font_bytes=1732):
-    """files: Eingabedateien (read_dir/read_d81). ConvError bei Fehlern."""
+def build(files, max_part=0, font_bytes=None):
+    """files: Eingabedateien (read_dir/read_d81). ConvError bei Fehlern.
+    font_bytes: Laenge des Zeichensatzes im VRAM; Standard = Dateilaenge von font3o.vdc ohne die 2 Byte Ladeadresse."""
+    if font_bytes is None:
+        font_bytes = len(files["font3o.vdc"]) - 2
     walls, wvram = parse_walls(files["walls.vdc"])
     # Gegenprobe gegen walls.wsm (Lage, Flaechen, Spalten): die Datei der 1.0f-Disk muss zu walls.vdc passen
     wsm_ents = [(e[1], e[2], e[3], e[4], e[5], e[6], e[7]) for e in wsm_entries(files["walls.wsm"]) if not e[3] & 0x80]
@@ -466,7 +469,7 @@ def main(argv=None):
     g.add_argument("--d81", metavar="IMAGE.d81")
     g.add_argument("--dir", metavar="DIR")
     ap.add_argument("--max-part", type=int, default=0, metavar="N", help="VRL-Teile hoechstens N Byte (0 = ungeteilt)")
-    ap.add_argument("--font-bytes", type=int, default=1732)
+    ap.add_argument("--font-bytes", type=int, default=None, help="Standard: Laenge von font3o.vdc ohne Ladeadresse")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     try:
