@@ -533,7 +533,11 @@ vdepth: lda     cd
         sta     bsyk+1
         lda     cd
         sta     bsyk+2
-        jsr     vcells
+        cmp     dvg_d           ; Fernsicht (5.7a): Entscheidungen der Zellen der Tiefe D (vcells)
+        bne     @nf
+        lda     ffon
+        sta     fon
+@nf:    jsr     vcells
         jsr     vauto
         lda     #1
         jsr     vband           ; Boden
@@ -562,7 +566,45 @@ vdepth: lda     cd
         ldx     pi
 @pn:    inx
         bne     @p
-@pe:    rts
+; Fernsicht (5.7a): Horizontband der Tiefe D nach dem Wartebereich (bcov deckt damit alles ab, was ihn verdeckt);
+; je Folge von rechts nach links Läufe gleicher Entscheidung (hs, fdec) von rechts nach links: Füllbyte bzw. Tapete
+@pe:    lda     fany
+        beq     @x
+        lda     dvg_y0
+        cmp     dvg_y1
+        bcs     @x
+        sta     g_a
+        lda     dvg_y1
+        sta     g_b
+        jsr     spans
+        ldx     sp_n
+@sl:    dex
+        bmi     @x
+        stx     bsi
+        lda     sp_c0,x
+        sta     fc0
+        ldy     sp_c1,x
+@run:   sty     g_c1            ; Lauf [g_c0, g_c1) mit der Entscheidung der Spalte g_c1 - 1
+        ldx     hs-1,y
+        lda     fdec,x
+        sta     bgsel
+@cl:    dey
+        cpy     fc0
+        beq     @em
+        ldx     hs-1,y          ; Entscheidung der Spalte Y - 1
+        lda     fdec,x
+        cmp     bgsel
+        beq     @cl
+@em:    sty     g_c0
+        lda     #IT_BG
+        sta     g_type
+        jsr     itemadd
+        ldy     g_c0
+        cpy     fc0
+        bne     @run
+        ldx     bsi
+        bpl     @sl
+@x:     rts
 
 ; ---------------------------------------------------------------- Zellen einer Tiefe (Zellentabelle aus GEOMSET)
 ; je Zelle: Kachel (tp), Boden/Decke/blocked für vband (gr_*), Wände in DVG-Reihenfolge bzw. bei INHALT mit Flächen
@@ -600,7 +642,20 @@ vcells: ldx     cd
         sta     tp+1
         lda     tsm,y
         sta     tsum
-        ldy     kj              ; Boden/Decke einordnen (5.6 Schritt 1): $FF egal/kein Element, $FE Lücke, sonst Stil
+        lda     fon             ; Fernsicht (5.7a): Deckenstil <> 0 -> Füllung, Flag FERN (Bit 6) kehrt um
+        beq     @nfd
+        ldy     #5
+        lda     (tp),y
+        beq     @fz
+        lda     #$40
+@fz:    ldy     #6
+        eor     (tp),y
+        and     #$40
+        ldy     ksi
+        sta     fdec,y
+        ora     fany
+        sta     fany
+@nfd:   ldy     kj              ; Boden/Decke einordnen (5.6 Schritt 1): $FF egal/kein Element, $FE Lücke, sonst Stil
         lda     #$FF
         sta     gr_fc,y
         sta     gr_cc,y
@@ -1462,6 +1517,8 @@ vtap:   lda     #0
         jsr     addrng
 @t1:    lda     cd
         cmp     dvg_d
+        bne     @t2
+        lda     fany            ; Fernsicht: Horizont erst nach dem Wartebereich (vdepth)
         bne     @t2
         lda     dvg_y0
         ldx     dvg_y1
@@ -2535,10 +2592,14 @@ gbg:    sec
         sbc     g_c0
         sta     e_cnt
         sta     bgn
-        lda     dbg_ok
+        lda     bgsel           ; Fernsicht-Füllung (5.7a): Typ 4/5 mit dem Füllbyte
+        beq     @t
+        lda     ffill
+        bcs     @fb             ; C = 1 (c1 > c0)
+@t:     lda     dbg_ok
         bne     @dbg
         lda     bgfill          ; ohne DBG: ein Typ 4/5
-        sta     e_b
+@fb:    sta     e_b
         sec
         lda     g_b
         sbc     g_a
@@ -3580,7 +3641,11 @@ bc_n:   .res 1
 nent:   .res 1
 cd:     .res 1
 objv:   .res 2                  ; OBJVIS
+fon:    .res 1                  ; Fernsicht (5.7a): Tiefe D und an
+fany:   .res 1                  ; Fernsicht: eine Zelle der Tiefe D mit Füllung (dann vfar statt Horizont in vtap)
+bgsel:  .res 1                  ; gbg: <> 0 Fernsicht-Füllbyte statt Tapete
 vz_end:
+fc0:    .res 1                  ; Fernsicht: Anfang der Folge
 cv_s:   .res MAXIV
 cv_e:   .res MAXIV
 bc_s:   .res MAXIV
@@ -3768,6 +3833,7 @@ ofull:  .res 1                  ; 1 = unbeschnitten, 2 = nur Zeilen beschnitten
 cl_w:   .res 1                  ; Bildbreite (clipvms_e)
 g_oi:   .res 1
         .segment "LIBTAB"       ; Arbeitstabellen von VIEW (INIT löscht sie nicht)
+fdec:   .res 31                 ; Fernsicht: Entscheidung je s + 15 der Tiefe D ($40 Füllung, 0 Tapete)
 cp:     .res MAXOBJ+1           ; Kandidaten: p, Satz, Richtung, Phase, Objektindex ($FF Gegenstand)
 cset:   .res MAXOBJ+1
 cdir:   .res MAXOBJ+1

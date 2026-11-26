@@ -495,6 +495,95 @@ def abgrund_map():
     return mk_map(rows, t, legend, outside=1, start=5 * 11 + 5)
 
 
+def fern_map():
+    """Karte fuer die Fernsicht (P6 5.7a): langer Gang mit Decke und Fenster nach draussen, Fenster mitten im Gang (Wand
+    dahinter), langer Gang ohne Decke, Gitter, Kacheln mit Flag FERN (mit Decke -> Tapete, ohne Decke -> Fuellung),
+    gemischte Reihe (Decke und Himmel nebeneinander)."""
+    FERN = dbeview.T_FERN
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0),                      # 0 gang
+         T((1, 1, 1, 1), 0, 0, WEG | DECK, 0),             # 1 wand
+         T((0, 0, 0, 0), 1, 0, 0, 0),                      # 2 hof (Himmel)
+         T((3, 3, 3, 3), 1, 1, WEG, 0),                    # 3 Fenster (nicht deckend)
+         T((2, 2, 2, 2), 1, 1, WEG | INH, 0),              # 4 Gitter
+         T((0, 0, 0, 0), 1, 1, FERN, 0),                   # 5 Decke, FERN: Tapete
+         T((0, 0, 0, 0), 1, 0, FERN, 0),                   # 6 Himmel, FERN: Fuellung
+         T((0, 0, 0, 0), 0, 0, 0, 0)]                      # 7 draussen
+    rows = ["################",
+            "#......F.......F",
+            "#.####.#.####.##",
+            "#,,,,,,,,,,,,,,#",
+            "#.####+#.####.##",
+            "#.uuuu.#.oooo..#",
+            "#.#F##.#.##F#..#",
+            "#.....,,,,.....#",
+            "################"]
+    legend = {".": 0, "#": 1, ",": 2, "F": 3, "+": 4, "u": 5, "o": 6}
+    return mk_map(rows, t, legend, outside=7, start=1 * 16 + 1)
+
+
+class TestFernsicht(unittest.TestCase):
+    """P6 5.7a: Fuellung der Fernsicht (Horizontband der Tiefe D) nach der Kachel der Tiefe D."""
+
+    def views(self, m):
+        return [(i, v) for i, c in enumerate(m.cells) if not m.tiles[c].flags & WEG for v in range(4)]
+
+    def test_pixels_and_runs(self):
+        e = env()
+        stats = {"fill": 0, "split": 0, "same": 0}
+        k = 0
+        for m in (fern_map(), dbemap.load_toml(os.path.join(ROOT, "demo", "demo.toml")), e.demo):
+            for i, v in self.views(m):
+                k += 1
+                bc, (ff, dbg) = bool(k & 1), ((0x00, True), (0x96, False))[(k >> 1) & 1]
+                sc = dbeview.make_scene(e.assets, m, i, v, band_cover=bc, buf=BIG, farfill=ff, dbg=dbg, bgfill=0x5A)
+                res = check_pixels(self, sc, k, f"{m.name} {i}/{v} bc {bc} ff {ff:#x}")
+                ref = dbeview.view(dbeview.make_scene(e.assets, m, i, v, band_cover=bc, buf=BIG, dbg=dbg,
+                                                      bgfill=0x5A))
+                g = sc.dvg
+                ents = dbeview.decode_vcl(res.buffer)
+                fill = any(en[0] == 5 and en[2] == ff and en[4] == g.hy1 - g.hy0
+                           and 0 <= en[1] - g.row(g.hy0) < g.vw for en in ents)
+                stats["fill"] += fill
+                stats["same"] += res.buffer == ref.buffer
+                stats["split"] += fill and dbg and any(en[0] == 3 and 0 <= en[2] - g.row(g.hy0) < g.vw for en in ents)
+        self.assertGreater(stats["fill"], 150, stats)
+        self.assertGreater(stats["same"], 150, stats)
+        self.assertGreater(stats["split"], 10, stats)
+
+    def test_flag_and_columns(self):
+        e = env()
+        m = fern_map()
+        sc = dbeview.make_scene(e.assets, m, 5 * 16 + 1, 1, farfill=0)       # (1, 5) nach Osten: Reihe u (FERN, Decke)
+        ctx = dbeview._Ctx(sc)
+        cols = ctx.far_cols()
+        self.assertEqual(cols, sorted(cols))                                   # Zellgrenzen von links nach rechts
+        self.assertEqual(len(cols), sc.dvg.vw)
+        self.assertIn(0, cols)
+        dec = ctx.far_dec()
+        self.assertFalse(dec[0])                                               # u: Decke, FERN -> Tapete
+        sc2 = dbeview.make_scene(e.assets, m, 5 * 16 + 8, 1, farfill=0)       # (8, 5) nach Osten: Reihe o
+        self.assertTrue(dbeview._Ctx(sc2).far_dec()[0])                        # o: Himmel, FERN -> Fuellung
+
+    def test_off_unchanged(self):
+        e = env()
+        m = fern_map()
+        for i, v in self.views(m)[::5]:
+            a = dbeview.view(dbeview.make_scene(e.assets, m, i, v))
+            b = dbeview.view(dbeview.make_scene(e.assets, m, i, v, farfill=None))
+            self.assertEqual(a.buffer, b.buffer)
+
+    def test_random(self):
+        e = env()
+        n = 0
+        for k in range(120 if not FULL else 1000):
+            sc = dbeview.far_variant(dbeview.random_scene(k, e.assets, buf=BIG), k)
+            if dbeview.view(sc).a == 2:
+                continue
+            check_pixels(self, sc, k, f"Zufallsszene {k} Fernsicht")
+            n += 1
+        self.assertGreater(n, 100)
+
+
 class TestAbgrund(unittest.TestCase):
     def test_all_views(self):
         m = abgrund_map()

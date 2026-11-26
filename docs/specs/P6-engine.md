@@ -61,7 +61,7 @@ Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für We
 | `$4000–$5FFF` | 8 KB | DMP (W·H ≤ etwa 4000), optional Arbeitskopie bei kleinen Karten | `dbemap`, `crawlmap` `$4000` |
 | `$6000–$7FFF` | 8 KB | Sprite-Sätze S2 (mehrere hintereinander) | `dbespr` `$6000` |
 | `$8000–$AFFF` | 12 KB | DTS Wand | `dbetex` wall `$8000` |
-| `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (RAM unter I/O, `$FF00 = $7F`); Reserve nach P6h 207 Byte | – |
+| `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (RAM unter I/O, `$FF00 = $7F`); Reserve nach P6l 14 Byte (Testbuild 3) | – |
 | `$DC00–$DFFF` | 1 KB | Lib-Tabellen (LIBTAB: Zellentabelle von GEOMSET, Kachelzusammenfassung), nicht in der Datei | – |
 | `$E000–$E7FF` | 2 KB | Lib-Variablen (BSS) | – |
 | `$E800–$EDFF` | 1,5 KB | DVG | `dbegeom` `$E800` |
@@ -134,7 +134,7 @@ Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adres
 | 11 | `POOLSET` | P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = keine Prüfung | A = 0; TEXSET/BGSET/SPRITESET prüfen danach Basis … Basis + U ⊆ Pool |
 | 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = aus der DVG) | prüft Magic, Version, Elementlänge 16, Tiefeneintrag 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1, dazu die Elementtabelle (7, P6d-opt; Fehler dort: A = 1 und keine gültige Geometrie); Zeilentabelle, Zellentabelle; TEXSET/BGSET/SPRITESET mit anderer ID werden gelöscht (Bit je Satz in Y: Bit 0–2 DTS, Bit 3 DBG; X = Bits der S2-Sätze); A = 1 Format |
 | 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | prüft `"DT"`, Version 1, Art = X, ID, NE, D, Stride; A = 1, 4, 5, 6 (auch DTS unter `$4000`, VCL-Typ 9, 6a) |
-| 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | prüft `"DB"`, Version, VW, VH, ID; A = 1, 4, 5, 6 |
+| 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG; **Y ≠ 0: Fernsicht-Füllung an, P2 Low = Füllbyte** (5.7a, P6l; Y = 0 aus) | prüft `"DB"`, Version, VW, VH, ID; A = 1, 4, 5, 6. Y und P2 werden immer übernommen (auch bei Fehler nach der Übernahme von X, wie X) |
 | 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv); X Bit 0 = feste Listenadresse (P6j) | A = 0; 6, wenn Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer und Modus bleiben; Fenster `$1300–$1BFF`, P6d-opt). Feste Listenadresse: 3.3, 5.11; `INIT` schaltet sie aus |
 | 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
 | ≥ 17 | – | – | A = 255 |
@@ -182,7 +182,8 @@ Drehen: Richtung ändern, X = 0, Y = Kachel der Position (P6f). Schritt: Zielzel
 | Position | pos (Zellindex), px, py (bei SETPOS/MOVE per fortgesetzter Subtraktion berechnet), v |
 | DVG | Adresse, VW, VH, D, S, NE, stride, origin, ID, Horizont y0/y1, Adressen Tiefentabelle und Elementtabelle; Zeilentabelle `row[y] = origin + y · stride` (y < VH) |
 | DTS[3] | gültig, VRAM-Basis, NS, NST, Adressen Slotkarte, Stiltabelle, Verzeichnis |
-| DBG | gültig, VRAM-Basis, P, y0, h, Flags, o_v (für die aktuelle Richtung in VIEW gewählt), Adresse der Füllbytes; Füllbyte ohne DBG |
+| DBG | gültig, VRAM-Basis, P, y0, h, Flags, o_v (für die aktuelle Richtung in VIEW gewählt), Adresse der Füllbytes; Füllbyte ohne DBG; Fernsicht an (`ffon`) und Fernsicht-Füllbyte (`ffill`), P6l |
+| Fernsicht | `hs[VW]`: s + 15 der Zelle der Tiefe D je Spalte des Horizontbandes (GEOMSET, 5.7a) |
 | S2[8] | gültig, VRAM-Basis, NA, NP, D, Adressen Indextabelle, Verzeichnis, Kerntabelle; angle_map |
 | `itemtab[64]` | Satz + 1 |
 | Pool, Puffer | Grenzen |
@@ -231,8 +232,9 @@ for d in 0 .. D:
         elif e.art == OBJ and d >= 1 and (not faces(t) or t.flags INHALT):
             objekte(d, e, c)                    # 5.8, STOP möglich
     baender(d, BODEN); baender(d, DECKE)        # 5.6, STOP möglich
-    tapete(d)                                   # 5.7, STOP möglich
+    tapete(d)                                   # 5.7, STOP möglich (Horizont bei Fernsicht-Füllung erst unten)
     for (c0, c1, ziel) in pend: mark(bcov, c0, c1); if ziel == beide: mark(cover, c0, c1)
+    if fern: fernsicht()                        # 5.7a, nur d = D mit Fernsicht-Füllung, STOP möglich
     if ncov == VW: break                        # ncov zählt belegte Spalten in cover
 ```
 
@@ -271,7 +273,7 @@ Band-Zeilen [y0, y1) = Bodenband bzw. Deckenband der Tiefe d; leer → zurück. 
 
 ### 5.7 Tapete: `tapete(d)`
 
-Zeilenbereiche (oben nach unten): Deckenband d, falls `lueckeDECKE`; Horizont [hy0, hy1), falls d = D; Bodenband d, falls `lueckeBODEN`. Leere Bereiche entfallen, aneinandergrenzende werden verbunden. Folgen = `spans(bcov)`. Anhängen: Bereiche **von unten nach oben**, je Bereich die Folgen **von rechts nach links**, je Paar `add(BG(r0, r1, c0, c1))`.
+Zeilenbereiche (oben nach unten): Deckenband d, falls `lueckeDECKE`; Horizont [hy0, hy1), falls d = D und nicht `fern` (5.7a); Bodenband d, falls `lueckeBODEN`. Leere Bereiche entfallen, aneinandergrenzende werden verbunden. Folgen = `spans(bcov)`. Anhängen: Bereiche **von unten nach oben**, je Bereich die Folgen **von rechts nach links**, je Paar `add(BG(r0, r1, c0, c1))`.
 
 `BG(r0, r1, c0, c1)` (P5 6.2):
 - **Ohne DBG:** Füllbyte f aus `BGSET`: ein Eintrag Typ 4 (r1 − r0 = 1) bzw. Typ 5 (`AP + row[r0] + c0`, f, c1 − c0, reps r1 − r0, step stride).
@@ -281,6 +283,18 @@ Zeilenbereiche (oben nach unten): Deckenband d, falls `lueckeDECKE`; Horizont [h
   3. Reihenfolge der Einträge: über, Panorama (Teil 1, Teil 2), unter.
 
 Reihenfolge der Bereiche und Teile im Bild ist gleichgültig (sie überdecken sich nicht), für den Listenvergleich aber festgelegt.
+
+### 5.7a Fernsicht: `fernsicht()` (P6l, Nutzerentscheidung 2026-11-26)
+
+Ohne Füllung ist die Tapete auch die Fernsicht: Sichtlinien länger als D enden im Horizontband [hy0, hy1) der Tiefe D in der Tapete. In Innenräumen mit Landschafts-Tapete sieht man dann z. B. durch ein Gitter in einer überdachten Kammer Berge. Mit **Fernsicht-Füllung** (`BGSET` Y ≠ 0, Füllbyte f = P2 Low) entscheidet je Spalte die Kachel, durch die man in die Ferne blickt, ob dort Tapete oder das Füllbyte erscheint. Ohne Füllung (Y = 0, Standard nach `INIT`) ist alles wie bisher.
+
+- **Zelle je Spalte:** Das Horizontband ist das Bild der Ebene P_{D+1}, der fernen Kante der Zellen der Tiefe D. Spalte c gehört zur Zelle (D, s(c)), aus der ihr Sichtstrahl über P_{D+1} hinaus austritt. Die Grenzen sind die fernen Kanten der **Seitenflächen** der Tiefe D (Rechteck in der DVG, P3 4.4): eine Seite mit s < 0 endet rechts bei x + w, eine mit s > 0 beginnt links bei x. Daraus `s(c) = − #{Seiten s < 0 mit c < x + w} + #{Seiten s > 0 mit c ≥ x}` (alle Seiten der Tiefe D, unabhängig von Bild und Flags). `GEOMSET` legt die Tabelle `hs[c] = s(c) + 15` an. Voraussetzung (von `dbegeom` erfüllt): höchstens eine Seite je Zelle und für jedes vorkommende s(c) eine Zelle (D, s(c)) mit Elementen; sonst ist die Entscheidung dieser Spalten unbestimmt (die Referenz meldet einen Fehler).
+- **Entscheidung je Zelle** (Kachel t der Zelle (D, s), auch die Außenkachel; blockierte Zellen wie alle anderen): **Füllung**, wenn Deckenstil t.ceil ≠ 0, **Tapete**, wenn t.ceil = 0 (Himmel). Kachel-Flag **FERN** (DMP Bit 6, P4 2.4) kehrt die Regel um: überdachte Kachel mit Blick ins Freie (Arkade, Veranda) → Tapete; Kachel ohne Decke, hinter der es dunkel sein soll (Höhle ohne Deckentextur) → Füllung.
+- **`fern`** = Füllung an und d = D und mindestens eine Zelle der Tiefe D (Zellentabelle) mit Entscheidung Füllung. Sonst bleibt der Horizont in `tapete(D)` wie bisher (Bilder ins Freie sind damit auch in der Liste unverändert).
+- **Ablauf mit `fern`:** `tapete(D)` lässt den Horizont weg (Decken- und Bodenband mit Lücke bleiben Tapete über `spans(bcov)`). Nach dem Wartebereich der Tiefe D (dann deckt `bcov` alle Spalten ab, in denen eine deckende Front oder Seite der Tiefen 0 … D die Zeilen von P_{D+1} = Horizont ganz verdeckt; nur in den übrigen Spalten kann hinter der letzten Tiefe noch etwas sichtbar sein) für jede Folge aus `spans(bcov)` **von rechts nach links** die Läufe [a, b) gleicher Entscheidung **von rechts nach links**: Füllung → `add` eines Eintrags Typ 4/5 (`AP + row[hy0] + a`, f, b − a, reps hy1 − hy0, step stride) wie BG ohne DBG; Tapete → `add(BG(hy0, hy1, a, b))` (5.7, mit oder ohne DBG). Leerer Horizont (hy0 ≥ hy1): nichts.
+- **Malreihenfolge:** Die Einträge sind die letzten der Sichtliste, werden also zuerst gemalt (ganz hinten, vor allem anderen, auch vor Decken-/Bodenband D und den Wänden der Tiefe D). In den Spalten mit Füllung wird keine Tapete ausgegeben (nur das Füllbyte, ein Typ 4/5 statt Typ 3 je Lauf). Fenster, Gitter und Bögen decken nicht ab (5.4): dahinterliegende Wände werden normal gezeichnet; die Füllung liegt nur in den danach freien Spalten und unter allem, was davor gemalt wird.
+- **Größe und Überlauf:** wie jeder BG-Eintrag (5.10); `STOP` in `fernsicht()` verliert nur Horizont-Einträge.
+- `paint_reference` malt den Horizont voll breit wie bisher und überschreibt danach die Spalten mit Entscheidung Füllung mit f (unabhängig von `fern`, Abdeckung und Spannen).
 
 ### 5.8 Objekte: `objekte(d, e, c)`
 
@@ -406,7 +420,7 @@ Verfehlte Ziele sind ein Befund mit Messwerten, kein Abnahmehindernis für P6d/P
 Unabhängig von der 6502-Fassung geschrieben (P6b, vor P6d), aus dieser Spezifikation:
 
 ```python
-class Scene: dvg, dmp, dts[3], dbg, bgfill, s2[8], vram_bases, itemtab, objects, itemph, pos, dir, ap, buf=(0x1300, 0x1C00)
+class Scene: dvg, dmp, dts[3], dbg, bgfill, farfill (P6l), s2[8], vram_bases, itemtab, objects, itemph, pos, dir, ap, buf=(0x1300, 0x1C00)
 def view(scene) -> Result            # a, x, vcl (bytes ab B0), vms (bytes), vcllen, vmslen, objvis – bytegenau nach Abschnitt 5
 def run_vcl(bank0, vram, addr)        # VCL-Interpreter: Typen 1–8, 12, 13 (13 = nichts), VMS 1, 2, 3, 8; RXV über vrl.decode
 def paint_reference(scene, vram)      # unabhängiger Maler ohne Abdeckung und Spannen
@@ -972,3 +986,37 @@ Der Stub rettet den Block nur noch für F = `ZPB_F1` (4), `ZPB_F2` (12) und `ZPB
 - `run_crawl.py --dir test/tools/data` und `--fix`: je 19 136 Ansichten bytegleich, A = 0.
 - VICE: `vice_smoke`, `vice_zp` (interpretiert und Blitz!), `vice_zp --funcs`, `vice_view` (42 Szenen, interpretiert und Blitz!, 1 und 2 MHz), neu `vice_view --fix` (dasselbe mit BUFSET X = 1 und `VCL` mit der Konstanten B0), `vice_blitzvars`, `vice_demo --only i` (Demo jetzt im festen Modus: `demo.bas` 290, `vcl vb`; 75 Prompts gleich dem Modell).
 - Crawl (Spiel-Repo, VDC-BASIC v3 mit P2e, `BUFSET` X = 1, `::VCL VB`): Pixeltest gegen 1.0f **PASS**; Zeitmessung P7 12.4.
+
+## Ergebnis P6l (2026-11-26): Fernsicht-Füllung
+
+Nutzerentscheidung: Die Tapete darf nicht mehr ungewollt die Fernsicht sein (Demo: durch das Gitter in der überdachten Kammer sah man Berge). Regeln und Ablauf: 5.7a; Aufruf: `BGSET` Y ≠ 0 = an, P2 Low = Füllbyte (Y = 0 aus, Standard nach `INIT`; Crawl ruft `SYS3331,14,0` ohne Y auf, Y kommt dann aus dem vorigen `SYS` (`TEXSET` endet mit Y = 0); ohne Decken wäre die Füllung dort ohnehin wirkungslos). Kachel-Flag FERN (DMP Bit 6, `dbemap` `"fern"`) kehrt die Deckenregel um. Ohne Füllung ist die Liste unverändert, ebenso mit Füllung, solange keine Zelle der Tiefe D überdacht ist.
+
+### Umsetzung
+
+- **Spalte → Zelle:** `GEOMSET` legt `hs[c] = s(c) + 15` an (80 Byte BSS): Startwert 15, jede Seite der Tiefe D verschiebt die Grenze an ihrer fernen Kante (s < 0: `hs − 1` für c < x + w; s > 0: `hs + 1` für c ≥ x). Damit fallen die Grenzen Füllung/Tapete genau unter die fernen Ecken der Decken der Tiefe D (Ebene P_{D+1}), nicht auf die nahen Kanten der Fronten (P_D, bis zu 4 Spalten daneben).
+- **Entscheidung je Zelle:** `vcells` schreibt in der Tiefe D (nur mit Füllung) je Zelle `fdec[s + 15]` = ((Deckenstil ≠ 0) XOR Flag FERN) als `$40`/0 (31 Byte LIBTAB) und sammelt `fany`.
+- **Ausgabe:** `vtap` lässt mit `fany` den Horizont weg; nach dem Wartebereich der Tiefe D (dann sind auch deckende Seiten und Fronten ohne Bit 3 der Tiefe D in `bcov`, deren Spaltenbereich die Horizontzeilen nach P3 4.4 ganz deckt) läuft `vfar` über `spans(bcov)` und die Läufe gleicher Entscheidung (rechts → links): Füllung als BG-Eintrag mit `bgsel` (`gbg` nimmt dann das Füllbyte wie ohne DBG, Typ 4/5), Tapete als normaler BG-Eintrag. Die Einträge sind die letzten der Liste und werden zuerst gemalt.
+- **GEOMSET:** Die Zellentabelle wurde immer mit A = 1 angelegt (Prüfen und Anlegen in einem Durchlauf); die toten Abfragen `gbld` (A = 0 „nur prüfen“) sind entfernt (−43 Byte), damit die Fernsicht in die Lib passt.
+- **Referenz:** `dbeview` `Scene.farfill`, `_Ctx.far_cols`/`far_dec`, `_View.fern`, Maler (Horizont je Spalte), `far_variant` (Zufallsszenen mit Füllung und FERN), TOML-Schlüssel `farfill`. Fehlt für eine Spalte die Zelle (D, s(c)) in der DVG (nur bei fremden DVGs möglich), meldet die Referenz einen Fehler; die Lib liest dann einen alten Wert.
+
+### Größen
+
+- Lib-Code **11 065 → 11 250 Byte** (`$B000–$DBF1`), Reserve **199 → 14 Byte** (Fernsicht ≈ +228, tote `gbld`-Abfragen −43). BSS 1 923 → 2 009 Byte (`hs` 80, `ffon`, `ffill`, `fon`, `fany`, `bgsel`, `fc0`), LIBTAB 945 → 976 (`fdec`).
+- **Testbuild:** Die Testfunktionen 250–253 und ihr Verteiler liegen jetzt in `TESTLO` vor der Lib (`$AF00–$AF7E`, Datei ab `$AF00`), in der Lib bleibt ein Sprung (`cmp #NFUNC` → `t_disp`). `TESTHI` (Funktion 252) von `$DBF0` nach `$DBF8`; die Probe liest das eigene erste Byte (`$A9`, `smoke.bas` 160 prüft Y = 169). Reserve im Testbuild bis `$DBF7`: 3 Byte.
+- **`VMS_COPY` passt nicht mehr in die 11 KB** (11 343 Byte); der Schalter bleibt für sim65 (`test/sim/simc.cfg`: Lib-Code bis `$DCFF`, LIBTAB bei `$FC00`). Auf dem C128 ist nur der Standardbuild (Typ 9) möglich.
+
+### Zyklen
+
+- `VIEW` (sim65, Demo-Karte `demo/demo.toml` mit den Demo-Assets der Tests, 504 Ansichten ohne Objekte): ohne Füllung Mittel 30 085 / max 55 839, **mit Füllung 30 780 / 59 609** (+695 im Mittel: Entscheidung je Zelle der Tiefe D, Lauf je Spalte ≈ 23 Zyklen, Horizont als eigene Einträge).
+- Grundlast ohne Füllung (Abfrage je Zelle, 3 Byte mehr löschen): Crawl `run_crawl.py --fix` Mittel **17 024 / 19 117** (ohne / mit Geist) gegen 16 888 / 18 978 (P6j): +≈ 135 (0,8 %).
+- `VCL` (VICE-Kostenmodell P6g: Eintrag 670, Zeile Typ 2/3/5 187/281/237; Demo-Welt, 504 Ansichten ohne Goblins): 228 Ansichten ändern sich, Δ Mittel **−1 650 Zyklen**, Median −1 010, min −14 270, max +7 460, VCL-Liste +9 Byte im Mittel. Ersparnis: Füllen statt Panorama-Kopie (Typ 5 statt Typ 3 je Zeile) und keine Tapete in den Spalten deckender Seiten der Tiefe D; Mehrkosten: eigene Einträge für den Horizont, wo er vorher mit Decken- oder Bodenlücken der Tiefe D in einem Eintrag lag, und mehrere Läufe bei gemischten Reihen. Gitter d = 1 (17, 5, S): +330 (2 Einträge mehr, Abgrund in der Tiefe D); Gang Ost (4, 14): −5 790.
+- VICE (`vice_demo.py --only i`, Tour 74 Tasten, neue Fassung, Lib `2757b277`): interpretiert 1 MHz VIEW Mittel 48 255, VCL 161 765; 2 MHz VIEW 22 975, VCL 98 761. Gitter d = 1 (Bild 70, 1 MHz): VIEW 54 060, VCL 292 778.
+
+### Tests
+
+- `python3 -m unittest discover -s test/tools`: neu `TestFernsicht` (Pixel gegen `paint_reference` für `fern_map` – langer Gang mit Decke und Fenster nach draußen, Fenster mitten im Gang mit Wand dahinter, langer Gang ohne Decke, Gitter, FERN-Kacheln, gemischte Reihe –, `demo/demo.toml` und die Beispielkarte, mit/ohne DBG; Spaltenzuordnung; aus = unverändert; 120 Zufallsszenen mit Füllung und FERN), `test_dbemap` (Flag `fern`, Bit 7 reserviert).
+- `run_sim.py`: P6c prüft `hs` nach jedem `GEOMSET` und `ffon`/`ffill` nach `BGSET`; neuer Satz **P6l** 2 488 Ansichten bytegleich (fern_map, `demo/demo.toml`, Beispielkarte, je Standard und `VMS_COPY`, zufällig mit Objekten, zwei Fronten, Überlauf 64 … 1 024 Byte mit und ohne feste Listenadresse); alle älteren Sätze unverändert bytegleich.
+- `run_crawl.py --no-cycles`: 19 136 Ansichten bytegleich (Crawl ohne Füllung unverändert).
+- VICE: `vice_demo.py --only i` (Demo mit Füllung `$11`, 75 Prompts gleich dem Modell, 1 und 2 MHz); `vice_smoke` und `vice_zp` (Testbuild verschoben), interpretiert und Blitz!.
+- Befund Demo: In der Kammer mit Abgrund zeigt die Bodenlücke der Tiefe D unter der Füllung einen Streifen Landschaft (Panoramazeilen unter dem Horizont, `bg.toml`); das ist die Tapete im Abgrund, nicht die Fernsicht, und bleibt nach Regel 4 so.
+

@@ -72,7 +72,8 @@ Flags:
 | 3 | TÜR | Tür (Spiellogik; `VIEW` behandelt sie wie jede Kachel mit Flächen) |
 | 4 | AUTOMAP | auf der Automap als Wand zeichnen (sonst als Boden) |
 | 5 | INHALT | „Inhalt zeichnen“ (Nutzerentscheidung 4, Plan 9): `VIEW` zeichnet in einer Zelle mit Flächen zusätzlich ihre Objekte (Gegenstand der Inhaltsebene und Objektliste, P6 5.8); Malreihenfolge Seitenfläche, Objekte nach Unterposition, Front. Für Tür, Gitter, Bogen. Ohne Flächen (alle Wandstile 0) ohne Wirkung (`dbemap` warnt). Das Flag ändert nicht, ob die Flächen abdecken (DECKEND) |
-| 6–7 | – | 0 (reserviert; `dbemap` lehnt gesetzte Bits ab) |
+| 6 | FERN | Fernsicht (P6 5.7a, P6l): kehrt die Deckenregel der Fernsicht-Füllung um. Ohne Flag zeigt das Horizontband hinter einer Kachel der Tiefe D mit Deckenstil ≠ 0 das Füllbyte, mit Deckenstil 0 die Tapete; mit Flag umgekehrt (überdachte Arkade mit Blick ins Freie, Höhle ohne Deckentextur). Ohne Fernsicht-Füllung (`BGSET` Y = 0) ohne Wirkung. `dbemap`: `flags = ["fern"]` |
+| 7 | – | 0 (reserviert; `dbemap` lehnt ein gesetztes Bit ab) |
 
 Regeln für `VIEW` (P6):
 
@@ -185,7 +186,7 @@ at = [1, 1]
 
 Regeln:
 
-- Kachelschlüssel: `walls` (Zahl oder Liste mit 4 Zahlen, 0 … 255, Standard 0), `floor`, `ceiling` (0 … 255, Standard 0), `flags` (Liste aus `weg`, `sicht`, `deckend`, `tuer`, `automap`), `automap_char` (0 … 255), `index` (optional: feste Nummer; dann müssen alle Kacheln `index` haben, Lücken werden mit Nullkacheln gefüllt, NT = höchster Index + 1).
+- Kachelschlüssel: `walls` (Zahl oder Liste mit 4 Zahlen, 0 … 255, Standard 0), `floor`, `ceiling` (0 … 255, Standard 0), `flags` (Liste aus `weg`, `sicht`, `deckend`, `tuer`, `automap`, `inhalt`, `fern`), `automap_char` (0 … 255), `index` (optional: feste Nummer; dann müssen alle Kacheln `index` haben, Lücken werden mit Nullkacheln gefüllt, NT = höchster Index + 1).
 - Legende: Schlüssel genau ein Zeichen (kein Leerzeichen); Wert ist ein Kachelname oder eine Tabelle mit `tile` (Pflicht), `item` (0 … 63), `events` (Liste aus Tabellen mit `type`, `param`).
 - `layers.tiles`: Zeilen gleicher Länge = W, Anzahl = H. Eine leere erste/letzte Zeile (durch `"""`) wird ignoriert; Leerzeichen am Zeilenende sind ein Fehler (unsichtbar, meist Versehen).
 - `[[marks]]`: `at` (Pflicht), `mark` (Standard `true`: Bit 7), `seen` (Standard `false`: Bit 6).

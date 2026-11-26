@@ -18,14 +18,16 @@ Kompass (4 Rechtecke, Zeilen 96–99) die Blickrichtung. Drei Goblins gehen fest
 | Abgrund | Bodenstil 0 mit Flag WEG (Kammer): Lücke im Boden, darunter Tapete mit `below = 0` |
 | Fenster mit Landschaft | Wandstil `fenster` (nicht DECKEND) in der Außenwand, dahinter die Außenkachel `draussen` (nur Tapete) |
 | Tapete „Landschaft“ | `mkbg.py`: Bäume und Wasser aus `art/tree*.bmp`, `art/water*.bmp`, Himmel = `above`; 280 × 36 Pixel, zyklisch, je Blickrichtung ein Viertel versetzt |
+| Fernsicht-Füllung | `BGSET` Y = 1, P2 = `$11` (dunkelgrau; `demo.bas` 615, `build.py` `FARFILL`): Sichtlinien über die Tiefe 3 hinaus enden unter Decken (Gänge, Kammer hinter dem Gitter) im Dunkeln, unter freiem Himmel (Hof, Fenster nach draußen) in der Landschaft (`docs/specs/P6-engine.md` 5.7a) |
 | Goblins | `goblin.toml`: 4 Phasen (Bilder 0, 2, 4, 6 von `goblin1.bmp`, 2fach vergrößert), Tiefen 2 und 3 per `derive = "nearest"`; 3 Goblins mit Routen in `demo.bas` |
 | Gitter mit INHALT | Wandstil `gitter`, Flags WEG und INHALT, dahinter in der Zelle ein Edelstein |
 | Tür mit INHALT | Wandstil `bogen`, Flag INHALT ohne WEG: durchgehbar, ein Goblin geht hindurch |
 | Edelsteine | `gem.toml` (Beispiel `docs/specs/examples/spr/gem.png`), 4 Stück, `ITEMPH` lässt sie glitzern |
 | Karte | `demo.toml`, 20 × 16, Start im Zimmer im Südwesten (Fenster nach Westen und Süden) |
 
-Sichtlinien über 3 Zellen hinaus zeigen die Tapete (das Fenster reicht nur bis zur Tiefe 3): Der Hof ist darum
-draußen gedacht, lange Gänge öffnen den Blick auf die Landschaft.
+Sichtlinien über 3 Zellen hinaus zeigen hinter überdachten Zellen das Füllbyte (lange Gänge, durch das Gitter in die
+Kammer), hinter Zellen ohne Decke die Tapete (Hof, Fenster nach draußen). Screenshots: `media/tour_70.png` (Gitter in die
+Kammer), `media/tour_01.png` (Fenster nach Westen), `media/tour_26.png` (Kammer mit Abgrund).
 
 ## Dateien
 

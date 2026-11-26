@@ -88,7 +88,7 @@ Karte und Richtung: 0 N, 1 O, 2 S, 3 W; Zelle = Zeile · W + Spalte.
 | 11 | `POOLSET` | P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = aus | A = 0; `TEXSET`, `BGSET`, `SPRITESET` prüfen danach, dass VRAM-Basis … Basis + Länge im Pool liegen (A = 6) |
 | 12 | `GEOMSET` | P0 = DVG, P1 = origin (Offset des Fensters im Bildpuffer: Ziel = P0 von `VIEW` + origin + y · stride + x; `$FFFF` = Wert aus der DVG) | A = 1 Format (Magic, Version, Längen, VW ≤ 80, VH ≤ 100, D ≤ 7, Elementtabelle). Texturen, Tapete und Sprite-Sätze mit anderer Geometrie-ID werden gelöscht |
 | 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Pool oder DTS unter `$4000` |
-| 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG | A = 1, 4, 5, 6 wie `TEXSET` |
+| 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG, Y = **Fernsicht-Füllung** (0 aus, ≠ 0 an; Y immer angeben), P2 Low = Füllbyte der Fernsicht | A = 1, 4, 5, 6 wie `TEXSET`. Fernsicht: Abschnitt „DBG v1“ |
 | 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv); X Bit 0 = **feste Listenadresse** | A = 0; 6 bei Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer und Modus bleiben). Feste Listenadresse: `VIEW` schreibt an den Pufferanfang einen VCL-Sprung (Typ 10, VDC-BASIC v3 ab P2e) auf den Listenanfang, VCLADR = P0 = Pufferanfang bei jedem Aufruf; VMS-Listen ab Anfang + 3 (3 Byte weniger Platz), sonst alles gleich. `INIT` schaltet den Modus aus |
 | 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
 | ≥ 17 | – | – | A = 255 |
@@ -360,7 +360,8 @@ Zeilenweise, ein Byte je Zelle: Kachelindex < NT.
 | 3 | TÜR | Tür (Spiellogik) |
 | 4 | AUTOMAP | auf der Automap als Wand zeichnen |
 | 5 | INHALT | „Inhalt zeichnen“: eine Zelle mit Flächen zeichnet zusätzlich ihre Objekte (Gegenstand der Inhaltsebene und Objektliste), Reihenfolge Seitenfläche, Objekte, Front (Tür, Gitter, Bogen); ohne Flächen ohne Wirkung |
-| 6–7 | – | 0 |
+| 6 | FERN | kehrt die Regel der Fernsicht-Füllung um (Abschnitt „DBG v1“): mit Decke Tapete, ohne Decke Füllung; ohne Fernsicht-Füllung ohne Wirkung |
+| 7 | – | 0 |
 
 Eine Zelle hat Flächen, wenn mindestens ein Wandstil ≠ 0 ist. Gezeigte Kachelfläche je Lage (d, s) und Blickrichtung v: Front (v + 2) AND 3; Seite links (s < 0) (v + 1) AND 3; Seite rechts (s > 0) (v + 3) AND 3. Boden und Decke werden auch in Zellen mit Flächen gezeichnet; bei DECKEND und vier Wandstilen ≠ 0 sind sie unsichtbar und zählen bei der Lückenprüfung der Bänder nicht als Lücke. Zellen außerhalb der Karte verhalten sich wie die Kachel aus Kopf-Byte 11.
 
@@ -403,7 +404,12 @@ Kopf (32 Byte): `"DT"`, Version 1, Art (0 Wand, 1 Boden, 2 Decke), Geometrie-ID 
 
 PRG-Datei (Standard `$FB80`, Bank 1, Bereich bis `$FBFF`), Inhalt: `"DB"`, Version 1, VW, VH, Geometrie-ID (Wort), P (Panoramabreite in Byte, Wort), y0, h, Flags (Bit 0 WRAP), 4 Versatzwörter o_v (N, O, S, W), U = P · h (Wort), CRC der VRAM-Daten (Wort), dann VH Füllbytes (Farbe · 17 für Zeilen außerhalb [y0, y0 + h), sonst 0). Das Panorama liegt zeilenweise (P Byte je Zeile) in der zugehörigen VRL. Details und Zeichenregel: `docs/specs/P5-textures.md` 6.
 
-**Hinweis für Autoren:** Die Tapete ist auch die Fernsicht: Sichtlinien, die länger als die Sichttiefe D sind, enden im Horizontband in der Tapete. Innenräume mit Landschafts-Tapete brauchen Sichtlinien ≤ D, sonst eine neutrale Tapete.
+**Fernsicht und Füllung:** Sichtlinien, die länger als die Sichttiefe D sind, enden im Horizontband (DVG-Kopf 14/15) der Tiefe D. Ohne Fernsicht-Füllung steht dort die Tapete, auch in Innenräumen (durch ein Gitter in einer überdachten Kammer sieht man dann die Landschaft). Mit Fernsicht-Füllung (`BGSET` Y ≠ 0, Füllbyte in P2 Low; chunky: 2 Pixel je Byte, z. B. `$11` dunkelgrau) entscheidet je Spalte des Horizontbandes die Kachel der Tiefe D, durch die der Sichtstrahl in die Ferne geht:
+
+- Kachel **mit Decke** (Deckenstil ≠ 0): **Füllbyte**; Kachel **ohne Decke** (Himmel, Deckenstil 0, auch die Außenkachel ohne Decke): **Tapete**. Das Kachel-Flag FERN (Bit 6) kehrt das um (überdachte Arkade mit Blick ins Freie → Tapete; Höhle ohne Deckentextur → Füllung).
+- Gefüllt wird nur, wo hinter der letzten Tiefe noch etwas zu sehen ist: Spalten, die eine deckende Wand (Flag DECKEND und deckendes Bild) einer Tiefe 0 … D abdeckt, bleiben aus. Fenster, Gitter und Bögen decken nicht ab; Wände dahinter werden normal gezeichnet, die Füllung liegt ganz hinten.
+- In den Spalten mit Füllung gibt `VIEW` keine Tapete aus (ein Füll-Eintrag VCL-Typ 5 statt der Panorama-Kopie); Decken- und Bodenlücken der Tiefe D zeigen weiter die Tapete.
+- Die Spalten der Zellen ergeben sich aus den fernen Kanten der Seitenflächen der Tiefe D (`GEOMSET`, `docs/specs/P6-engine.md` 5.7a). Gibt es in der Tiefe D keine überdachte Zelle, ist die Liste gleich der ohne Füllung.
 
 ## S2 v1 (Sprite-Satz, von `tools/dbespr.py`)
 

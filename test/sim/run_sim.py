@@ -53,9 +53,10 @@ class Scene:
 def build():
     os.makedirs(OUT, exist_ok=True)
     src = [os.path.join(HERE, 'viewsim.c'), os.path.join(HERE, 'glue.s'), os.path.join(ROOT, 'engine', 'lib.s')]
-    for prg, lbl, defs in ((PRG, LBL, []), (PRGC, os.path.join(OUT, 'viewsimc.lbl'), ['--asm-define', 'VMS_COPY']),
-                           (PRGM, os.path.join(OUT, 'viewsimm.lbl'), ['--asm-define', 'MAXITEM_T=8'])):
-        subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, 'sim.cfg'), '-O', '--asm-define', 'SIM']
+    for prg, lbl, defs, cfg in ((PRG, LBL, [], 'sim.cfg'),
+                                (PRGC, os.path.join(OUT, 'viewsimc.lbl'), ['--asm-define', 'VMS_COPY'], 'simc.cfg'),
+                                (PRGM, os.path.join(OUT, 'viewsimm.lbl'), ['--asm-define', 'MAXITEM_T=8'], 'sim.cfg')):
+        subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, cfg), '-O', '--asm-define', 'SIM']
                        + defs + ['--asm-include-dir', os.path.join(ROOT, 'engine'), '-Ln', lbl,
                                  '-m', os.path.splitext(prg)[0] + '.map', '-o', prg] + src, check=True, cwd=OUT)
     for s in src:                       # ältere cl65-Versionen lassen Objekte neben den Quellen liegen
@@ -562,6 +563,13 @@ def test_p6c():
             rows = b''.join(st.pack('<H', (org + y * stride) & 0xFFFF) for y in range(vh))
             if b.raw('rows', 200) != rows + bytes(200 - len(rows)):
                 out.append('Zeilentabelle')
+            dt = u16(src, 18) + 8 * D                       # Fernsicht (5.7a): s + 15 je Horizontspalte aus den
+            first, n = src[dt + 4], src[dt + 5]             # Seiten der Tiefe D (wie dbeview far_cols)
+            sides = [src[u16(src, 20) + 16 * j:][:8] for j in range(first, first + n)]
+            sides = [(e[2] - 256 if e[2] > 127 else e[2], e[4], e[6]) for e in sides if e[0] == 1]
+            hs = bytes(15 + sum(-(c < x + w) if s_ < 0 else (c >= x) for s_, x, w in sides) for c in range(vw))
+            if b.raw('hs', vw) != hs:
+                out.append(f'hs {b.raw("hs", vw).hex()} <> {hs.hex()}')
             return out
         return chk
 
@@ -624,6 +632,9 @@ def test_p6c():
             return [] if got == want else [f'DBG {got} <> {want}']
         return chk
     S.call('BGSET', 14, 0x77, p=(DB, 0x6000, 0, 0), a=0, rx=0, ry=0, check=bg_check(0x6000, 0x77))
+    for y_, p2, want in ((2, 0x1234, (2, 0x34)), (0, 0x5678, (0, 0x78))):     # Fernsicht (5.7a): Y, P2 Low
+        S.call(f'BGSET Fernsicht Y = {y_}', 14, 0x77, y_, p=(DB, 0x6000, p2, 0), a=0,
+               check=lambda b, w=want: [] if (b.b('ffon'), b.b('ffill')) == w else [f'ffon/ffill <> {w}'])
     for nm, e, a in (('Magic', (1, ord('X')), 1), ('Version', (2, 9), 1), ('P 0', (7, 0, 2), 1), ('VW', (3, dbg[3] + 1), 4),
                      ('VH', (4, dbg[4] - 1), 4), ('ID', (5, u16(dbg, 5) ^ 1), 4)):
         S.call(f'BGSET {nm}', 14, 0x11, p=(HDR, 0x7000, 0, 0), pre=[(HDR, patched(dbg, e, n=32))], a=a,
@@ -884,13 +895,15 @@ class ViewRunner:
                     self._call(13, k, p=(P6D_ADDR['dts'][k], sc.vram_bases['dts'][k], 0, 0), want=('setup', 0))
                 st[('dts', k)] = key
         st['dts'] = True
-        bg = (sc.dbg is not None, sc.bgfill, sc.vram_bases['dbg'])
+        bg = (sc.dbg is not None, sc.bgfill, sc.vram_bases['dbg'], sc.farfill)
         if st.get('bg') != bg:
             if sc.dbg is not None and not st.get('dbgdata'):
                 self.scene.seg(P6D_ADDR['dbg'], self.dbg_bytes)
                 st['dbgdata'] = True
-            self._call(14, sc.bgfill, p=(P6D_ADDR['dbg'] if sc.dbg is not None else 0, sc.vram_bases['dbg'], 0, 0),
-                       want=('setup', 0))
+            ff = sc.farfill                 # Fernsicht (P6 5.7a): Y <> 0 = an, P2 Low = Füllbyte
+            self._call(14, sc.bgfill, 0 if ff is None else 1 + (ff & 1),
+                       p=(P6D_ADDR['dbg'] if sc.dbg is not None else 0, sc.vram_bases['dbg'],
+                          0x5A00 if ff is None else ff | 0xA500, 0), want=('setup', 0))
             st['bg'] = bg
         dmp = self.dv.dbemap.to_dmp(sc.dmp)[2:]
         if st.get('dmp') != dmp:
@@ -1729,6 +1742,75 @@ def test_p6f_cycles():
     return True
 
 
+# ------------------------------------------------------------------ P6l: Fernsicht-Füllung (5.7a)
+def test_p6l():
+    sys.path.insert(0, TOOLS)
+    sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
+    import copy
+    import dbemap, dbetex, dbeview
+    dbeview.dbemap = dbemap
+    from test_dbeview import fern_map
+    tmp = tempfile.TemporaryDirectory()
+    A = dbeview.build_demo_assets(tmp.name)
+    A2 = dbeview.double_fronts(A)
+    dbg_prg, _, _ = dbetex.build_background(dbetex.load_bg_conf(os.path.join(tmp.name, 'bg.toml')))
+    maps = [fern_map(), dbemap.load_toml(os.path.join(ROOT, 'demo', 'demo.toml')), dbemap.load_toml(DEMO_MAP)]
+    names = ['fern_map', 'demo/demo.toml', 'Beispielkarte']
+    ok, total = True, 0
+
+    def free(m):
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+
+    def go(label, scenes, vcopy=False, objs=False):
+        nonlocal ok, total
+        R = ViewRunner(dbeview, dbetex, vcopy)
+        R.dbg_bytes = dbg_prg[2:]
+        for name, sc in scenes:
+            R.add(name, sc, objs=objs)
+        n, fails, codes, _ = R.run()
+        total += n
+        print(f'P6l sim{" (VMS_COPY)" if vcopy else ""} {label}: {n} Ansichten, {len(fails)} Abweichungen, '
+              f'A-Codes {dict(sorted(codes.items()))}')
+        for f in fails[:10]:
+            print('FAIL', f)
+        ok = ok and not fails
+
+    for vcopy in (False, True):
+        for m, mname in zip(maps, names):
+            scs, k = [], 0
+            for i in free(m):
+                for v in range(4):
+                    k += 1
+                    ff, dbg = ((0x00, True), (0x96, False), (0x3C, True))[k % 3]
+                    scs.append((f'{mname} {i}/{v}', dbeview.make_scene(A, m, i, v, band_cover=bool(k & 4), farfill=ff,
+                                                                     dbg=dbg, bgfill=0x5A)))
+            go(mname, scs, vcopy)
+        go('zufall', [(f'zufall {k}', dbeview.far_variant(dbeview.random_scene(k, A), k)) for k in range(120)],
+           vcopy, objs=True)
+    go('zwei Fronten', [(f'2F {k}', dbeview.far_variant(dbeview.random_scene(2000 + k, A2, nobj=0), k))
+                        for k in range(60)])
+    ov = [dbeview.make_scene(A, maps[0], i, v, farfill=0) for i in free(maps[0])[::3] for v in range(4)]
+    ov += [dbeview.far_variant(dbeview.random_scene(k, A, nobj=0), k) for k in range(500, 520)]
+    scs = []
+    for n_, sc in enumerate(ov):
+        for size in (64, 128, 256, 512, 1024):
+            s2 = copy.copy(sc)
+            s2.buf, s2.buf_fix = (0x1300, 0x1300 + size), bool(n_ & 1)
+            scs.append((f'überlauf {n_} {size}', s2))
+    go('überlauf', scs)
+    print(f'P6l sim: {total} Ansichten bytegleich verglichen -> {"ok" if ok else "FEHLER"}')
+    if os.environ.get('DBE_NOCYCLES'):
+        return ok
+    # Zyklen VIEW: Demo-Karte (demo/demo.toml) mit Demo-Assets, alle freien Zellen x 4 Richtungen, ohne/mit Füllung
+    R = ViewRunner(dbeview, dbetex)
+    R.dbg_bytes = dbg_prg[2:]
+    m = maps[1]
+    for label, ff in (('ohne Füllung', None), ('mit Füllung', 0)):
+        cy = [time_view(R, dbeview.make_scene(A, m, i, v, farfill=ff)) for i in free(m) for v in range(4)]
+        print(f'P6l Zyklen demo/demo.toml {label}: n = {len(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+    return ok
+
+
 def main():
     build()
     if '--build' in sys.argv:
@@ -1742,6 +1824,7 @@ def main():
     ok = test_p6e(vcopy=True) and ok
     ok = test_p6f_move() and ok
     ok = test_p6f_auto() and ok
+    ok = test_p6l() and ok
     if not os.environ.get('DBE_NOCYCLES'):
         ok = test_p6f_cycles() and ok
     return 0 if ok else 1

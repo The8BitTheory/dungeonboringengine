@@ -20,7 +20,7 @@
 ; Stand P6j: BUFSET X Bit 0 = feste Listenadresse (VIEW kopiert die VCL-Liste nach B0; "Ergebnis P6j").
 ;
 ; Übersetzen mit -DDBE_TEST (nur Tests, nie im Spiel, mit lib-test.cfg): Funktionen 250 (MMU-/Common-RAM-Probe),
-; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DBF0) für den VICE-Rauchtest und 253
+; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DBF8) für den VICE-Rauchtest und 253
 ; (Zeropage-Block ZPB unter Interrupts, test/vice_zp.py).
 ; Übersetzen mit -DSIM: ohne LOADADDR (sim65-Harness, test/sim).
 
@@ -53,7 +53,11 @@ MAXPEND = 16            ; Wartebereich je Tiefe (deckende Seiten bzw. Fronten oh
 
 .ifndef SIM
         .segment "LOADADDR"
+.ifdef DBE_TEST
+        .word   LIB-$100        ; Testbuild: Testfunktionen davor ($AF00, TESTLO in lib-test.cfg)
+.else
         .word   LIB
+.endif
 .endif
 
         .export dbe_entry := entry
@@ -61,6 +65,7 @@ MAXPEND = 16            ; Wartebereich je Tiefe (deckende Seiten bzw. Fronten oh
         .export argx, buf_b0, buf_b1, buf_fix, pool_a, pool_b, pool_on
         .export t0, val, ptrs, recs, rows, itemtab, geom_ok, map_ok, map_w, map_h, map_wh, map_nt, map_ne, map_auto
         .export pos, vdir, px, py, map_out, dvg_vw, dvg_origin, dvg_id, dbg_ok, dbg_vram, dbg_base, dbg_p, bgfill
+        .export ffon, ffill, hs
 
         .segment "LIBBSS"
 bss_start:                      ; erster Teil von LIBBSS (view.s legt weitere Variablen an)
@@ -71,24 +76,14 @@ entry:  jmp     dispatch
 dispatch:
         stx     argx
         sty     argy
-.ifdef DBE_TEST
-        cmp     #250
-        bcc     @norm
-        bne     @t1
-        jmp     t_probe
-@t1:    cmp     #251
-        bne     @t2
-        jmp     t_wait
-@t2:    cmp     #252
-        bne     @t3
-        jmp     t_hi
-@t3:    cmp     #253
-        bne     @norm
-        jmp     t_zp
-@norm:
-.endif
         cmp     #NFUNC
+.ifdef DBE_TEST
+        bcc     @norm
+        jmp     t_disp          ; F >= NFUNC: Testfunktionen 250-253 (TESTLO), sonst notimpl
+@norm:
+.else
         bcs     notimpl
+.endif
         asl
         tax
         lda     functab+1,x
@@ -967,8 +962,7 @@ f_geomset:
         iny                     ; NE >= 1
         lda     (ZP0),y
         jeq     e_format
-        lda     #1              ; Elementtabelle prüfen und Zellentabelle anlegen; Fehler: keine gültige Geometrie
-        jsr     gcells
+        jsr     gcells          ; Elementtabelle prüfen und Zellentabelle anlegen; Fehler: keine gültige Geometrie
         bcc     @ge
         lda     #0
         sta     geom_ok
@@ -1104,11 +1098,15 @@ f_geomset:
 
 
 ; ---------------------------------------------------------------- Zellentabelle (GEOMSET)
-; A = 0: nur prüfen, A = 1: Tabelle anlegen. ZP0 = DVG (Inhalt). C = 1: Formatfehler (P6-engine.md 7):
+; Prüft und legt dabei an (ein Durchlauf; bei Fehler ist die Geometrie ungültig). ZP0 = DVG (Inhalt). C = 1: Formatfehler (P6-engine.md 7):
 ; first + n <= NE je Tiefe, Art <= 4, |s| <= S, Elemente einer Zelle zusammenhängend (P3 5.3), höchstens 16 Elemente,
 ; ein Boden- und ein Deckenelement je Zelle; Art 0-3: x + w <= VW, y + h <= VH; Wände: c0 <= c1 <= VW;
 ; Wartebereich (deckende Seiten, deckende Fronten ohne Bit 3) <= MAXPEND je Tiefe; <= MAXCELL Zellen, <= MAXWALL Wände.
-gcells: sta     gbld
+gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der Tiefe D verschieben (ghs)
+        lda     #15
+@hi:    sta     hs,x
+        dex
+        bpl     @hi
         ldy     #3              ; VW, VH, S, NE in den Zeropage-Block (vp, vp+1, mp, mp+1)
         lda     (ZP0),y
         sta     vp
@@ -1157,11 +1155,9 @@ gcells: sta     gbld
         lda     #$80
         sta     gcs             ; aktuelles s: keins
         ldx     gd
-        lda     gbld
-        beq     @nb0
         lda     gkc
         sta     d_k0,x
-@nb0:   lda     gei             ; op = Elementtabelle + 16 first
+        lda     gei             ; op = Elementtabelle + 16 first
         sta     op
         lda     #0
         asl     op
@@ -1234,8 +1230,6 @@ gcells: sta     gbld
         sta     gce
         inc     gcn
         inc     gkc
-        lda     gbld
-        beq     @chk
         ldx     gkc
         dex
         lda     gsi
@@ -1265,9 +1259,7 @@ gcells: sta     gbld
 @chk:   lda     gart
         cmp     #4
         bne     @nob
-        lda     gbld            ; Objektplatz: erster und letzter in der Zelle (P6e)
-        jeq     @next
-        ldx     gkc
+        ldx     gkc             ; Objektplatz: erster und letzter in der Zelle (P6e)
         lda     gj
         sta     k_oe-1,x
         lda     k_ob-1,x
@@ -1314,13 +1306,12 @@ gcells: sta     gbld
         cmp     #MAXWALL
         bcs     @bad
         inc     gwc
-        lda     gbld
-        beq     @pd
         ldx     gkc
         inc     k_wn-1,x
         ldx     gwc
         lda     gj
         sta     wl-1,x
+        jsr     ghs
 @pd:    ldy     #3              ; Wartebereich: Bit 0 und (Seite oder ohne Bit 3)
         lda     (op),y
         lsr
@@ -1340,16 +1331,12 @@ gcells: sta     gbld
         lda     gfl
         bne     @bad2
         inc     gfl
-        lda     gbld
-        beq     @next
         lda     gj
         sta     k_fl-1,x
         bcc     @next
 @bce:   lda     gce
         bne     @bad2
         inc     gce
-        lda     gbld
-        beq     @next
         lda     gj
         sta     k_ce-1,x
 @next:  clc                     ; nächstes Element
@@ -1363,12 +1350,10 @@ gcells: sta     gbld
         jmp     @el
 @bad2:  sec
         rts
-@dend:  lda     gbld
-        beq     @dn
-        ldx     gd
+@dend:  ldx     gd
         lda     gcn
         sta     d_kn,x
-@dn:    clc                     ; nächste Tiefe
+        clc                     ; nächste Tiefe
         lda     tp
         adc     #8
         sta     tp
@@ -1461,10 +1446,44 @@ f_texset:
         bne     @st
         jmp     ok
 
+; Fernsicht (5.7a): eine Seite (op) der Tiefe D verschiebt die Zellgrenzen im Horizontband (ferne Kante, P_{D+1}):
+; s < 0: hs[c] - 1 für c < x + w; s > 0: hs[c] + 1 für c >= x (gcells, nur beim Anlegen)
+ghs:    lda     gart
+        beq     @r              ; Front
+        ldy     #5
+        lda     (ZP0),y         ; D
+        cmp     gd
+        bne     @r
+        ldy     #4
+        lda     (op),y          ; x
+        tax
+        ldy     #2
+        lda     (op),y          ; s
+        bpl     @p
+        txa
+        ldy     #6
+        clc
+        adc     (op),y          ; x + w (<= VW geprüft)
+        tax
+@m:     dex
+        bmi     @r
+        dec     hs,x
+        bpl     @m              ; hs >= 15 - S >= 0
+@p:     cpx     vp              ; VW
+        bcs     @r
+        inc     hs,x
+        inx
+        bne     @p
+@r:     rts
+
 ; ---------------------------------------------------------------- 14 BGSET
 f_bgset:
         lda     argx
         sta     bgfill
+        lda     argy            ; Fernsicht (5.7a): Y <> 0 = an, P2 Low = Füllbyte
+        sta     ffon
+        lda     P2
+        sta     ffill
         lda     P0
         ora     P0+1
         bne     @set
@@ -1604,7 +1623,20 @@ gt_dbg: .byte   3,0, 4,1, 5,9, 6,10, $FF                        ; VW, VH, ID
 gt_s2:  .byte   6,2, 34,5, 35,6, $FF                            ; D, stride (ID getrennt)
 
 .ifdef DBE_TEST
-; ---------------------------------------------------------------- 250 / 251 (nur Test)
+; ---------------------------------------------------------------- 250-253 (nur Test; TESTLO vor der Lib, $AF00)
+        .segment "TESTLO"
+t_disp: cmp     #250
+        bne     @t1
+        jmp     t_probe
+@t1:    cmp     #251
+        bne     @t2
+        jmp     t_wait
+@t2:    cmp     #252
+        bne     @t3
+        jmp     t_hi
+@t3:    cmp     #253
+        jne     notimpl
+        jmp     t_zp
 ; 250: A = $D506 AND $0F (erwartet $06), X = $FF00 beim Aufruf (erwartet $7F), Y = Byte, das die Lib bei
 ;      $1300 sieht; schreibt $A5 nach $1301 (BASIC liest es in Bank 0: gemeinsames RAM bis $1FFF).
 ;      $D506 ist nur mit I/O lesbar: kurz $FF00 = $7E (einzige I/O-Stelle der Lib, nur im Testbuild)
@@ -1663,12 +1695,12 @@ t_zp:   ldx     #ZPBLEN-1
         lda     #1
 @r:     ldy     #0
         rts
-; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DBF0, Füllbyte $EA bis dahin): A = 0, X = $42,
-;      Y = Byte bei $DBEF (erwartet $EA: BLOAD hat über $D000 geladen und die Lib sieht RAM statt I/O)
+; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DBF8, das Ende der Datei): A = 0, X = $42,
+;      Y = eigenes erstes Byte bei $DBF8 (erwartet $A9: BLOAD hat bis $DBFF geladen, die Lib sieht RAM statt I/O)
         .segment "TESTHI"
 t_hi:   lda     #0
         ldx     #$42
-        ldy     $DBEF
+        ldy     t_hi
         rts
         .segment LIBSEG
 .endif
@@ -1746,6 +1778,9 @@ dbg_h:  .res 1
 dbg_flags: .res 1
 bgfill: .res 1
 bgomt:  .res 8                  ; o_v mod P je Richtung (BGSET)
+ffon:   .res 1                  ; Fernsicht-Füllung an (BGSET Y <> 0, P6 5.7a)
+ffill:  .res 1                  ; Fernsicht-Füllbyte (BGSET P2 Low)
+hs:     .res 80                 ; Fernsicht: s + 15 der Zelle der Tiefe D je Horizontspalte (GEOMSET, gcells)
 itemtab:.res 64                 ; Gegenstand -> Satz + 1
 itemn:  .res 1                  ; Einträge <> 0 in itemtab
 sty_lo: .res 96                 ; TEXSET: Adresse der Stilzeile [Art * 32 + st]
@@ -1770,7 +1805,6 @@ d_k0:   .res 8                  ; je Tiefe: erste Zelle, Anzahl Zellen
 d_kn:   .res 8
 wl:     .res MAXWALL            ; Wände: 16 * Platz in der Zelle (DVG-Reihenfolge)
 tsm:    .res 256                ; Kachelzusammenfassung (MAPINIT, mtiles)
-gbld:   .res 1                  ; gcells
 gkc:    .res 1
 gwc:    .res 1
 gd:     .res 1

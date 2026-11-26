@@ -28,6 +28,7 @@ dbeview.dbemap = dbemap
 VERSION = open(os.path.join(ROOT, 'VERSION')).read().strip()
 VDC = os.environ.get('VDCBASIC_DIR', os.path.expanduser('~/git/vdc-basic'))
 OUT = os.path.join(ROOT, 'build', 'demo')
+FARFILL = 0x11                  # Fernsicht-Füllbyte (BGSET Y = 1, P2; P6 5.7a): dunkelgrau, 2 Pixel Farbe 1
 POOL = (9600, 46335)            # VRAM-Pool: hinter dem Attribut-RAM (Puffer 0 und Textzeilen) bis vor das Bildschirm-RAM
 VRL_BUF = 0x9000                # Ladepuffer der VRL-Dateien in Bank 0 (vrl_load in den TOMLs), RXV-Quelle ab +5
 BAS_LIMIT = VRL_BUF             # das Programm (interpretiert oder Kompilat) muss darunter enden
@@ -150,11 +151,12 @@ def expected_data(L):
     v = L['vram']
     b1 = L['bank1']
     ex = {600: ','.join(str(v[n][0]) for n in VRL_NAMES)}
-    calls = [(11, 0, 0, POOL[0], POOL[1]), (12, 0, 0, b1['demo.dvg'][0], 65535),
-             (13, 0, 0, b1['walls.dts'][0], v['walls'][0]), (13, 1, 0, b1['floor.dts'][0], v['floor'][0]),
-             (13, 2, 0, b1['ceil.dts'][0], v['ceil'][0]), (14, 0x33, 0, b1['land.dbg'][0], v['land'][0]),
-             (9, 0, 0, b1['goblin.s2'][0], v['goblin'][0]), (9, 1, 0, b1['gem.s2'][0], v['gem'][0]),
-             (10, 1, 2, 0, 0), (1, 1, 0, b1['demo.dmp'][0], ADDR['work'])]
+    calls = [(11, 0, 0, POOL[0], POOL[1], 0), (12, 0, 0, b1['demo.dvg'][0], 65535, 0),
+             (13, 0, 0, b1['walls.dts'][0], v['walls'][0], 0), (13, 1, 0, b1['floor.dts'][0], v['floor'][0], 0),
+             (13, 2, 0, b1['ceil.dts'][0], v['ceil'][0], 0),
+             (14, 0x33, 1, b1['land.dbg'][0], v['land'][0], FARFILL),       # Y = 1, P2 = Fernsicht-Füllbyte
+             (9, 0, 0, b1['goblin.s2'][0], v['goblin'][0], 0), (9, 1, 0, b1['gem.s2'][0], v['gem'][0], 0),
+             (10, 1, 2, 0, 0, 0), (1, 1, 0, b1['demo.dmp'][0], ADDR['work'], 0)]
     for i, c in enumerate(calls):
         ex[610 + i] = ','.join(map(str, c))
     return ex
@@ -196,6 +198,7 @@ def load_world(out=OUT):
         sc.vram_bases['s2'][i] = L['vram'][n][0]
     sc.itemtab[1] = 2                       # Gegenstand 1 -> Satz 1 (gem)
     sc.bgfill = 0x33
+    sc.farfill = FARFILL                    # BGSET Y = 1, P2 = $11 (P6 5.7a): Fernsicht unter Decken dunkelgrau
     sc.ap = 0
     sc.buf = (0x1300, 0x1C00)
     sc.buf_fix = True                       # BUFSET X = 1 (demo.bas 315, P6j): Sprung bei $1300

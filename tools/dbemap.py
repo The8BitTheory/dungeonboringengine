@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dbemem  # noqa: E402
 
-FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32}
+FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32, "fern": 64}
 EVENT_TYPES = {"gegner": 1, "teleport": 2, "ausgang": 3, "text": 4}
 SUBPOS_VIEW = [[0, 1, 3, 4, 2], [3, 0, 4, 1, 2], [4, 3, 1, 0, 2], [1, 4, 0, 3, 2]]  # [v][q] -> p (2.6)
 DIRS = "NOSW"
@@ -89,8 +89,8 @@ def validate(m):
     for i, t in enumerate(m.tiles):
         if len(t.walls) != 4 or any(not 0 <= v <= 255 for v in tuple(t.walls) + (t.floor, t.ceiling, t.automap_char)):
             raise ValueError(f"Kachel {i}: Stil oder Zeichen ausserhalb 0 ... 255")
-        if not 0 <= t.flags <= 63:
-            raise ValueError(f"Kachel {i}: ungueltige Flags {t.flags} (Bits 6 und 7 sind reserviert)")
+        if not 0 <= t.flags <= 127:
+            raise ValueError(f"Kachel {i}: ungueltige Flags {t.flags} (Bit 7 ist reserviert)")
     for i, c in enumerate(m.cells):
         if not 0 <= c < nt:
             raise ValueError(f"Zelle {i}: Kachelindex {c} >= NT {nt}")
@@ -189,8 +189,8 @@ def from_dmp(data):
     tiles = []
     for i in range(nt):
         r = b[o_tiles + 8 * i:o_tiles + 8 * i + 8]
-        if r[6] & 0xC0:
-            raise ValueError(f"Kachel {i}: reservierte Flag-Bits 6/7 gesetzt ({r[6]:#04x})")
+        if r[6] & 0x80:
+            raise ValueError(f"Kachel {i}: reserviertes Flag-Bit 7 gesetzt ({r[6]:#04x})")
         tiles.append(Tile(tuple(r[0:4]), r[4], r[5], r[6], r[7], f"k{i}"))
     events = []
     for i in range(ne):

@@ -17,7 +17,7 @@
 130 poke 3074,1:poke 3075,28:sys 3331,15,0,0:rreg a,x,y:if a<>6 then r=16:goto 8995
 140 sys 3331,200,0,0:rreg a,x,y:if a<>255 then r=17:goto 8995
 150 s2=0:for i=7168 to 16383:s2=s2+peek(i):next:if s2<>s then r=18:goto 8995
-160 sys 3331,252,0,0:rreg a,x,y:if a<>0 or x<>66 or y<>234 then r=19:goto 8995
+160 sys 3331,252,0,0:rreg a,x,y:if a<>0 or x<>66 or y<>169 then r=19:goto 8995
 200 a0=dec("a000"):bank 0
 210 for i=0 to 15:read b:poke a0+i,b:next
 220 data 3,17,34,51, 129,68, 254,2,0, 1,85, 255,44,1,102, 0

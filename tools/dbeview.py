@@ -40,6 +40,7 @@ KIND_WALL, KIND_FLOOR, KIND_CEIL = 0, 1, 2
 F_DECKEND, F_AUSSCHNITT, F_ZEILEN, F_RAND = dbetex.F_DECKEND, dbetex.F_AUSSCHNITT, dbetex.F_ZEILEN, dbetex.F_RAND
 DVG_COVER, DVG_BANDCOVER = 1, 8
 T_WEG, T_DECKEND, T_INHALT = dbemap.FLAGS["weg"], dbemap.FLAGS["deckend"], dbemap.FLAGS["inhalt"]
+T_FERN = dbemap.FLAGS["fern"]                   # P6 5.7a: kehrt die Deckenregel der Fernsicht um
 MAXITEM = 96
 MAX_SPANS = 4
 DEFAULT_BUF = (0x1300, 0x1C00)
@@ -205,6 +206,7 @@ class Scene:
     dbg: dict = None                              # dbetex.from_dbg
     dbg_vram: bytes = b""
     bgfill: int = 0                               # Fuellbyte ohne DBG (BGSET)
+    farfill: int = None                           # Fernsicht-Fuellbyte (BGSET Y Bit 0, P2 Low; P6 5.7a), None = aus
     s2: list = field(default_factory=lambda: [None] * 8)              # SpriteSet (dbespr) je Satz
     vram_bases: dict = field(default_factory=lambda: {"dts": [0, 0, 0], "dbg": 0, "s2": [0] * 8})
     itemtab: list = field(default_factory=lambda: [0] * 64)           # Satz + 1
@@ -543,6 +545,32 @@ class _Ctx:
                     + [e for e in ce if e.art == ART_SIDE] + [e for e in ce if e.art in (ART_FLOOR, ART_CEIL)])
         return ce
 
+    def far_cols(self):
+        """Fernsicht (P6 5.7a): Zelle s der Tiefe D je Spalte des Horizontbandes. Die Grenzen sind die fernen Kanten
+        der Seitenflaechen der Tiefe D (Ebene P_{D+1}): Seite mit s < 0 rechts bei x + w, mit s > 0 links bei x;
+        s(c) = - #{Seiten s < 0 mit c < x + w} + #{Seiten s >= 0 mit c >= x}."""
+        dt = self.g.depth[self.D]
+        sides = [e for e in self.g.elems[dt.first:dt.first + dt.n] if e.art == ART_SIDE]
+        out = []
+        for c in range(self.VW):
+            s = 0
+            for e in sides:
+                if e.s < 0:
+                    s -= c < e.x + e.w
+                else:
+                    s += c >= e.x
+            out.append(s)
+        return out
+
+    def far_dec(self):
+        """Fernsicht (P6 5.7a): {s: True = Fuellung} fuer die Zellen der Tiefe D (Zellentabelle).
+        Deckenstil != 0 -> Fuellung, Deckenstil 0 -> Tapete; Kachel-Flag FERN (Bit 6) kehrt das um."""
+        out = {}
+        for s, _ in self.cells_of(self.D):
+            t = self.tile(self.cell(self.D, s))
+            out[s] = (t.ceiling != 0) != bool(t.flags & T_FERN)
+        return out
+
     def band_plan(self, d, kind):
         """Entscheidung fuer Boden- bzw. Deckenband und -kacheln der Tiefe d (P6 5.6, Schritte 1-4).
 
@@ -692,6 +720,7 @@ class _View(_Ctx):
         self.BL = sc.buf[1] - sc.buf[0] - (3 if self.fix else 0)    # P6j: Sprung-Eintrag bei B0
         self.pend = []
         self.lue = {KIND_FLOOR: False, KIND_CEIL: False}
+        self.far = False
 
     # ---- Masken
     def mark(self, m, c0, c1):
@@ -837,6 +866,8 @@ class _View(_Ctx):
                     self.mark(self.bcov, c0, c1)
                     if ziel == "both":
                         self.mark(self.cover, c0, c1)
+                if self.far:
+                    self.fern()
                 if self.ncov == self.VW:
                     break
         except _Stop:
@@ -937,7 +968,10 @@ class _View(_Ctx):
         rows = []
         if self.lue[KIND_CEIL]:
             rows.append((g.cy0, g.cy1))
-        if d == self.D:
+        if d == self.D and self.sc.farfill is not None:
+            self.fdec = self.far_dec()
+            self.far = any(self.fdec.values())          # sonst wie ohne Fernsicht-Fuellung
+        if d == self.D and not self.far:
             rows.append((self.g.hy0, self.g.hy1))
         if self.lue[KIND_FLOOR]:
             rows.append((g.fy0, g.fy1))
@@ -953,6 +987,29 @@ class _View(_Ctx):
         for r0, r1 in reversed(merged):
             for c0, c1 in reversed(sp):
                 self.add(self.bg_item(r0, r1, c0, c1))
+
+    def fern(self):
+        """Fernsicht (P6 5.7a): Horizontband der Tiefe D nach dem Wartebereich (bcov = alles, was ihn abdeckt), je
+        Folge von rechts nach links Laeufe gleicher Entscheidung von rechts nach links: Fuellbyte bzw. Tapete."""
+        r0, r1 = self.g.hy0, self.g.hy1
+        if r1 <= r0:
+            return
+        cols = self.far_cols()
+        if any(s not in self.fdec for s in cols):
+            raise ViewError("DVG: Fernsicht-Spalte ohne Zelle der Tiefe D (P6 5.7a: eine Seite je Zelle, Zellen lueckenlos)")
+        f = [self.fdec[s] for s in cols]
+        for c0, c1 in reversed(self.spans(self.bcov)):
+            c = c1
+            while c > c0:
+                a = c - 1
+                while a > c0 and f[a - 1] == f[c - 1]:
+                    a -= 1
+                if f[c - 1]:
+                    self.add(_Item([("vmf", (self.sc.ap + self.row(r0) + a) & 0xFFFF, self.sc.farfill, c - a, r1 - r0,
+                                     self.stride)]))
+                else:
+                    self.add(self.bg_item(r0, r1, a, c))
+                c = a
 
     # ---- Ausgabe (Einpass, P6d-opt)
     def output(self):
@@ -1327,6 +1384,12 @@ class _Painter(_Ctx):
                 rows.append((dt.fy0, dt.fy1))
             for r0, r1 in rows:
                 self.row_fill(r0, r1)
+            if d == self.D and self.sc.farfill is not None:      # Fernsicht (5.7a): je Spalte Fuellung statt Tapete
+                dec = self.far_dec()
+                for x, s in enumerate(self.far_cols()):
+                    if dec.get(s, False):
+                        for r in range(self.g.hy0, self.g.hy1):
+                            self.vram[(self.sc.ap + self.row(r) + x) & 0xFFFF] = self.sc.farfill
             self.band(d, KIND_CEIL)
             self.band(d, KIND_FLOOR)
             for s, ce in reversed(self.cells_of(d)):
@@ -1722,12 +1785,13 @@ def double_fronts(assets, objs=False):
 
 
 def make_scene(assets, dmp, pos=None, direction=None, objects=(), itemtab=None, itemph=0, ap=0, dbg=True,
-               bgfill=0x33, band_cover=False, buf=DEFAULT_BUF, sprites=True, start=None):
+               bgfill=0x33, band_cover=False, buf=DEFAULT_BUF, sprites=True, start=None, farfill=None):
     sc = Scene(with_band_cover(assets.dvg) if band_cover else without_band_cover(assets.dvg), dmp)
     sc.dts = [assets.walls, assets.floor, assets.ceil]
     if dbg:
         sc.dbg, sc.dbg_vram = assets.dbg, assets.dbg_vram
     sc.bgfill = bgfill
+    sc.farfill = farfill
     if sprites:
         sc.s2 = list(assets.sprites)
     sc.itemtab = list(itemtab) if itemtab else [0] * 64
@@ -1830,6 +1894,19 @@ def random_scene(seed, assets, w=None, h=None, nobj=None, band_cover=None, dbg=N
                       band_cover=rnd.random() < 0.5 if band_cover is None else band_cover, buf=buf, start=start)
 
 
+def far_variant(sc, seed, farfill=None, p_fern=0.3):
+    """Fernsicht-Variante einer Szene (P6 5.7a): Fuellbyte (zufaellig, falls None) und in einem Teil der Kacheln das
+    Flag FERN umgeschaltet (Kopie der Karte)."""
+    rnd = random.Random(seed ^ 0x5F5F)
+    s2 = copy.copy(sc)
+    s2.dmp = copy.deepcopy(sc.dmp)
+    for t in s2.dmp.tiles:
+        if rnd.random() < p_fern:
+            t.flags ^= T_FERN
+    s2.farfill = rnd.choice([0x00, 0x11, 0xF0]) if farfill is None else farfill
+    return s2
+
+
 # ---------------------------------------------------------------- Szenendatei
 
 def _dir(v):
@@ -1839,7 +1916,7 @@ def _dir(v):
 
 
 def load_scene(path):
-    """Szene aus TOML: [scene] dvg, map, pos, dir, ap, buf, itemph, bgfill; [walls]/[floor]/[ceil] dts, vrl (+ base);
+    """Szene aus TOML: [scene] dvg, map, pos, dir, ap, buf, itemph, bgfill, farfill (Fernsicht, P6 5.7a); [walls]/[floor]/[ceil] dts, vrl (+ base);
     [background] dbg, vrl; [[sprites]] set, s2, vrl; [items] "<Nr>" = Satz; [[object]] at/cell, set, dir, phase, sub,
     hidden, noblock. Pfade relativ zur Datei; fehlende Basen werden dicht nach dem Sichtfenster vergeben."""
     with open(path, "rb") as f:
@@ -1880,6 +1957,7 @@ def load_scene(path):
                               o.get("hidden", False), o.get("noblock", False)))
     sc.itemph = s.get("itemph", 0)
     sc.bgfill = s.get("bgfill", 0)
+    sc.farfill = s.get("farfill")
     sc.ap = s.get("ap", 0)
     sc.buf = tuple(s.get("buf", DEFAULT_BUF))
     sc.buf_fix = bool(s.get("buf_fix", False))

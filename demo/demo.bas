@@ -30,8 +30,8 @@
 270 bload"gem.vrl",b0,u8:read bs:rxv 36869,bs
 280 if ds<>0 then 9100
 # Puffer $1300-$1BFF mit fester Listenadresse (X = 1, P6j): VCL vb (= $1300, erste Variable) springt zur Liste
-290 f=15:x=1:y=0:p0=4864:p1=7168:gosub 9500:if a<>0 then 9100
-300 for i=1 to 10:read f,x,y,p0,p1:gosub 9500:if a<>0 then 9100
+290 f=15:x=1:y=0:p0=4864:p1=7168:p2=0:gosub 9500:if a<>0 then 9100
+300 for i=1 to 10:read f,x,y,p0,p1,p2:gosub 9500:if a<>0 then 9100
 310 next
 320 w=x:pc=peek(3072)+256*peek(3073):dr=peek(3074)
 # Goblin-Routen (DATA 620-640): je Goblin Anzahl der Zellen, dann x,y der Zellen (geschlossener Weg)
@@ -40,17 +40,17 @@
 500 fc=0:gosub 3100:gosub 3200
 # VRL-Basen im VRAM-Pool (Reihenfolge walls, floor, ceil, land, goblin, gem)
 600 data 9600,33151,36791,39905,44945,46014
-# Setz-Aufrufe F, X, Y, P0, P1
-610 data 11,0,0,9600,46335
-611 data 12,0,0,59392,65535
-612 data 13,0,0,32768,9600
-613 data 13,1,0,60928,33151
-614 data 13,2,0,62976,36791
-615 data 14,51,0,64384,39905
-616 data 9,0,0,24576,44945
-617 data 9,1,0,25856,46014
-618 data 10,1,2,0,0
-619 data 1,1,0,16384,20480
+# Setz-Aufrufe F, X, Y, P0, P1, P2 (BGSET: Y = 1, P2 = 17 = $11: Fernsicht-Füllung dunkelgrau, P6 5.7a)
+610 data 11,0,0,9600,46335,0
+611 data 12,0,0,59392,65535,0
+612 data 13,0,0,32768,9600,0
+613 data 13,1,0,60928,33151,0
+614 data 13,2,0,62976,36791,0
+615 data 14,51,1,64384,39905,17
+616 data 9,0,0,24576,44945,0
+617 data 9,1,0,25856,46014,0
+618 data 10,1,2,0,0,0
+619 data 1,1,0,16384,20480,0
 # Routen
 620 data 10, 13,2, 13,3, 13,4, 13,5, 13,6, 13,7, 13,6, 13,5, 13,4, 13,3
 630 data 6, 15,5, 16,5, 17,5, 18,5, 17,5, 16,5
@@ -94,4 +94,5 @@
 9000 trap:slow:print"?error";er;"in line";el:end
 9100 trap:slow:print"load or setup error, ds=";ds;" a=";a:end
 9500 poke 3072,p0-256*int(p0/256):poke 3073,int(p0/256):poke 3074,p1-256*int(p1/256):poke 3075,int(p1/256)
+9505 poke 3076,p2-256*int(p2/256):poke 3077,int(p2/256)
 9510 sys 3331,f,x,y:rreg a,x,y:return

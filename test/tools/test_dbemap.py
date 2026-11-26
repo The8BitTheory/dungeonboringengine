@@ -191,14 +191,22 @@ class TestErrors(unittest.TestCase):
 
     def test_reserved_flag_bits(self):
         m = load(BASE)
-        m.tiles[0].flags = 64
+        m.tiles[0].flags = 128
         with self.assertRaisesRegex(ValueError, "Flags"):
             dbemap.validate(m)
         m.tiles[0].flags = 1
         d = bytearray(dbemap.to_dmp(m))
-        d[2 + 24 + 2 * 9 + 6] = 0x40          # Flags der Kachel 0 (nach Kachel- und Inhaltsebene)
-        with self.assertRaisesRegex(ValueError, "Flag-Bits"):
+        d[2 + 24 + 2 * 9 + 6] = 0x80          # Flags der Kachel 0 (nach Kachel- und Inhaltsebene)
+        with self.assertRaisesRegex(ValueError, "Flag-Bit 7"):
             dbemap.from_dmp(bytes(d))
+
+    def test_flag_fern(self):                  # Bit 6 (P6 5.7a): TOML-Rundlauf und DMP
+        m = load(BASE.replace("floor = 1", 'floor = 1\nflags = ["fern"]'))
+        self.assertEqual([t.flags for t in m.tiles if t.name == "g"], [0x40])
+        dbemap.validate(m)
+        m2 = dbemap.from_dmp(dbemap.to_dmp(m))
+        self.assertEqual([t.flags for t in m2.tiles], [t.flags for t in m.tiles])
+        self.assertIn('"fern"', dbemap.to_toml(m))
 
     def test_unknown_event_type(self):
         self.fails(BASE.replace('"." = "g"', '"." = { tile = "g", events = [{ type = "xyz" }] }'),
