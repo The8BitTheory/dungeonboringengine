@@ -193,3 +193,17 @@ Westwood-Demo: nicht gemessen (Abschnitt 6). Demo-Karte der Spezifikation (56 An
 - Regressionskoeffizienten gelten für die Crawl-Karte (400 Ansichten, gleiche Stile, ein Wandelement je Zelle/Fläche mit einem Kern); die Demo-Zahlen haben nur 56 Ansichten und keine Objekte.
 - Westwood-140-Szene (`demo/view.toml`, `docs/specs/examples/view-west140.toml`) wurde nicht profiliert: Der Auftrag nannte Crawl als Schwerpunkt; die Demo-Karte der Spezifikation ist ein Ersatz für die Größenordnung.
 - Alle Ersparnisse sind Schätzungen aus Befehlszählung, kein Prototyp.
+
+## Nachtrag 2026-11-26: M1 und M2 umgesetzt, gemessen und verworfen
+
+M1 (cover/bcov als Segment-Bitmasken) und M2 (Automap-Markierung ohne Bodenzeilen überspringen) wurden vollständig umgesetzt (bytegleich, alle Tests grün) und auf Nutzerentscheidung **verworfen** – nicht erneut versuchen, ohne die Gründe zu klären:
+
+| | Prognose oben | gemessen |
+|---|---|---|
+| je Wand | −410 Zyklen | −183 |
+| Crawl `VIEW` je Bild | −10,6 % | −3,5 % (ohne Geist) / −2,7 % (mit Geist) |
+| Demo-Karte | −7,4 % | ≈ 0; mit Automap +329, kachelreiche Zufallsszenen +830 |
+| Lib-Reserve | +200 … +300 Byte | 14 → 12 Byte, BSS voll |
+| Crawl gesamt (VICE comp 2/1 MHz) | – | −0,1 % / −0,5 % |
+
+Ursache der Fehlprognose: Die Schätzung nahm ≤ 16 Segmente (2-Byte-Masken) an; die Testgeometrie `double_fronts` hat 24 Segmente, also 3-Byte-Masken (jede Maskenoperation ⅓ teurer), dazu GEOMSET-Code (127 Byte) und Tabellen. Der entfernte Intervall-Code (484 Byte, 220 Byte BSS) wurde vom neuen Code fast vollständig aufgezehrt. Lehre: vor einer Umsetzung erst einen kleinen Prototyp in sim65 messen (`AGENTS.md`).
