@@ -84,7 +84,7 @@ Commands: `cd tools/js && node --test` (all), `node --test test/vrl.test.js` (on
 |---|---|---|
 | 0 | Node, structure, `io/*`, `vrl`, golden generation, test framework, CLI skeleton | VRL parity and ported `test_vrl.py`; PNG/BMP decoder equals Pillow on all repo images |
 | 1 | read DVG/DTS/S2/DBG, `map` (DMP build), `view` (port of dbeview), `mem`, `move`; **map editor** | parity of DMP and of all VIEW references used by the tests; map editor (6.1). **Done 2026-11-27**: 150 tests (test_dbemap, test_dbeview, test_dbemove, test_dbemem ported; parity goldens `mkgolden_view.py`), `smoke.sh` ok. Known deviations: section 7 |
-| 2 | `geom`, `tex` + `persp`, `spr`; **geometry, texture and sprite editors** | parity DVG/DTS/DBG/VRL/S2; editors (6.2–6.4) |
+| 2 | `geom`, `tex` + `persp`, `spr`; **geometry, texture and sprite editors** | parity DVG/DTS/DBG/VRL/S2; editors (6.2–6.4). **Done 2026-11-27**: 526 tests (test_dbegeom, test_dbetex, test_dbepersp, test_dbespr ported; goldens `mkgolden_geom.py`, `mkgolden_tex.py`), demo generators and `buildDemoAssets` in JS, `smoke.sh` checks all four editors |
 | 3 | `bake`/`pack` (new, JS only); **bake/pack view** | visibility check (vda notes 8.2, steps 1–2), then baking and packing (steps 3–4) |
 | 4 | Crawl converters and demo scripts; remove the Python core; harnesses on the JS CLI | all goldens, all tests on JS; no Python tool module left |
 
@@ -100,15 +100,17 @@ Live view: a dbeview scene TOML names the built assets (`demo/preview.toml`: the
 - **Live VIEW** from any cell and direction (`core/view.js`, the same image the reference renderer produces), walking with the arrow keys; automap.
 - Save as TOML (the `dbemap` text format) and build the DMP.
 
-### 6.2 Geometry (phase 2)
+### 6.2 Geometry (phase 2, done)
 
 Edit `view.toml`; preview of planes, elements, masks and the band layout; export of the atlas template and the budget.
 
-### 6.3 Textures (phase 2)
+### 6.3 Textures (phase 2, done)
+
+The builders read files through a synchronous resolver; the app fetches what a build misses and runs it again (`tools/web/js/resolve.js`). Rebuild on every change (walls of the demo: about 60 ms in the browser). Form fields of `[texset]` / `[sprite]` are edited in place (`core/io/tomledit.js`, comments stay); `[[style]]` and `[[image]]` tables are edited in the TOML for now. "Reload images" picks up images repainted in Aseprite.
 
 Styles of a `tex.toml`; import per style from PNG atlas or Aseprite; slot grid with the byte states (full/half/empty), cores and warnings; test scene rendered with `view.js`; VRAM budget.
 
-### 6.4 Sprites (phase 2)
+### 6.4 Sprites (phase 2, done)
 
 Sprite sets: phases, angles, foot point; preview per distance and sub-position in a test scene.
 
@@ -123,3 +125,5 @@ Special and animated elements of a map; visibility as an overlay on the map (cel
 3. Text of TOML syntax errors comes from smol-toml.
 4. Python `KeyError`/`IndexError`/`struct.error` paths: thrown as `ViewError` with the key name, or masked (out-of-range writes).
 5. CLI errors print `dbe.js: <message>` (Python: `Error: <message>`).
+6. Phase 2: error texts of JSON parsing (geom JSON, Aseprite), image decoding and OS errors other than a missing file come from JS; the tex/spr CLIs print absolute paths; Python crashes with `IndexError` in `build_dvg` for custom planes that leave a depth without elements, JS throws a `RangeError`.
+7. The level-9 zlib of `dbegeom`'s .aseprite output is reproduced by a port of zlib 1.3.1 deflate (`core/io/asewrite.js`), checked against Python on inputs up to 800 KB.

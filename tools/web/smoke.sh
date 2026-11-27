@@ -1,7 +1,7 @@
 #!/bin/sh
 # Headless smoke test of the editor app (docs/specs/P8-js-tools.md 4.5): serves the repo read-only over HTTP,
 # opens the demo scene in Chrome (headless) and checks that the map and the live view were rendered.
-# usage: tools/web/smoke.sh [MAP.png [GEOM.png]]     needs: python3, chrome (Chrome for Testing in ~/.local/bin is fine)
+# usage: tools/web/smoke.sh [MAP.png [GEOM.png]]   (SHOTDIR=dir: screenshots of the texture/sprite editors)     needs: python3, chrome (Chrome for Testing in ~/.local/bin is fine)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CHROME=${CHROME:-$(command -v chrome || command -v google-chrome || command -v chromium)}
@@ -23,4 +23,10 @@ URL2="http://127.0.0.1:$PORT/tools/web/?http=/&open=demo/view.toml"
 DOM2=$(timeout 120 "$CHROME" $OPTS --dump-dom "$URL2" 2>/dev/null)
 [ $# -ge 2 ] && timeout 120 "$CHROME" $OPTS --screenshot="$2" "$URL2" >/dev/null 2>&1
 echo "$DOM2" | grep -qE 'DVG [0-9]+ bytes, [0-9]+ elements' || { echo "FAIL: geometry editor"; exit 1; }
+# texture and sprite editors
+for F in demo/walls.toml demo/goblin.toml; do
+  D=$(timeout 120 "$CHROME" $OPTS --dump-dom "http://127.0.0.1:$PORT/tools/web/?http=/&open=$F" 2>/dev/null)
+  [ -n "${SHOTDIR:-}" ] && timeout 120 "$CHROME" $OPTS --screenshot="$SHOTDIR/$(basename $F .toml).png" "http://127.0.0.1:$PORT/tools/web/?http=/&open=$F" >/dev/null 2>&1
+  echo "$D" | grep -qE "$F: built in [0-9]+ ms" || { echo "FAIL: editor for $F"; echo "$D" | grep -o 'id="status"[^<]*'; exit 1; }
+done
 echo "smoke ok"

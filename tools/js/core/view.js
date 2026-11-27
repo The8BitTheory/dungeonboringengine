@@ -11,7 +11,7 @@
 //   renderView(scene, vram)            view + runVcl into a VRAM image
 //   decodeVcl(buf, off)                VCL list as arrays (for error messages when comparing lists)
 //   loadScene(toml, resolve) / randomScene(seed, assets, ...) / budget(scenes)
-// The demo asset builder (build_demo_assets, make_s2, make_sprite_set) needs the texture builder (phase 2);
+//   buildDemoAssets({geomJson, dvg}) / makeS2 / makeSpriteSet / spritePixels   demo assets (P8 phase 2)
 // assetsFromFiles() builds the same assets object from the DVG/DTS/DBG/S2 files.
 import { PyRandom } from './pyrandom.js';
 import { FLAGS, SUBPOS_VIEW, Map as DbeMap, Tile, validate as validateMap, loadsToml, fromDmp } from './map.js';
@@ -19,6 +19,8 @@ import * as tex from './tex.js';
 import { fromS2 } from './spr.js';
 import * as vrl from './vrl.js';
 import { parseToml } from './io/toml.js';
+import { encodePng } from './io/png.js';
+import * as texdemo from './demo/texdemo.js';
 
 export const ART_FRONT = 0, ART_SIDE = 1, ART_FLOOR = 2, ART_CEIL = 3, ART_OBJ = 4;
 export const KIND_WALL = 0, KIND_FLOOR = 1, KIND_CEIL = 2;
@@ -916,8 +918,7 @@ const vofsCache = new WeakMap();
 export function vmsOffsets(ts) {
   let cache = vofsCache.get(ts);
   if (!cache) {
-    if (!ts.dtsPrg) throw new ViewError('DTS file bytes missing (ts.dtsPrg; to_dts follows in phase 2)');
-    const c = ts.dtsPrg.subarray(2);
+    const c = (ts.dtsPrg || tex.toDts(ts)).subarray(2);
     const oDir = c[16] | (c[17] << 8);
     cache = new globalThis.Map(ts.entries.map((e, b) => [e, c[oDir + 16 * b + 10] | (c[oDir + 16 * b + 11] << 8)]));
     vofsCache.set(ts, cache);
@@ -1600,4 +1601,214 @@ export function budget(scenes) {
     }
   });
   return rep;
+}
+
+// ---------------------------------------------------------------- Sprite sets (minimal S2 writer for tests)
+
+/** dbespr default angle map for NA view angles. */
+export function dbesprDefaultMap(na) {
+  return { 1: [0, 0, 0, 0], 2: [0, 0, 1, 0], 3: [0, 1, 2, 1], 4: [0, 1, 2, 3] }[na];
+}
+
+const cmpTuple = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+
+/** Minimal S2 writer per P5b 4 (dbeview.make_s2; dbespr is the actual importer).
+ *  images: Map or array of [[phase, ai, d], [rows, fx, fy]] (rows = pixel rows, palette index 0-15 or null, even
+ *  width). Missing images: phase 0 -> $FE, phase >= 1 -> $FF. Identical images are merged. Returns [S2 PRG, VRAM data]. */
+export function makeS2(images, D, NA, NP, stride, { angleMap = null, gid = 0, flags = 0, maxCores = 4, coreMin = 16, load = 0x6000 } = {}) {
+  const amap = angleMap || dbesprDefaultMap(NA);
+  const order = [...images].sort((a, b) => cmpTuple(a[0], b[0]));
+  const ents = [], keys = new globalThis.Map(), vram = [];
+  const index = new Array(NP * NA * D).fill(0xFE);
+  for (const [[f, ai, d], [rows, fx, fy]] of order) {
+    const key = JSON.stringify([rows, fx, fy]);
+    if (!keys.has(key)) {
+      const pix = rows.map((r) => r.slice());
+      const states = tex.classify(pix);
+      tex.resolveAlphaConflict(pix, states);
+      const cores = tex.chooseCores(states, maxCores, coreMin);
+      const [, edge, vmsList] = tex.packImage(pix, states, cores, stride);
+      const e = { w: rows[0].length >> 1, h: rows.length, fx, fy, cores: [], vms: vmsList, edgeOfs: 0, edgeLen: edge.length };
+      for (const k of cores) {
+        e.cores.push([vram.length, ...k]);
+        for (const b of tex.coreBytes(pix, [k])) vram.push(b);
+      }
+      e.edgeOfs = edge.length ? vram.length : 0;
+      for (const b of edge) vram.push(b);
+      keys.set(key, ents.length);
+      ents.push(e);
+    }
+    index[(f * NA + ai) * D + d - 1] = keys.get(key);
+  }
+  for (let f = 1; f < NP; f++) {
+    for (let ai = 0; ai < NA; ai++) {
+      for (let d = 1; d <= D; d++) {
+        const i = (f * NA + ai) * D + d - 1;
+        if (index[i] === 0xFE) index[i] = 0xFF;
+      }
+    }
+  }
+  const ni = ents.length;
+  const nk = ents.reduce((a, e) => a + e.cores.length, 0);
+  const oIdx = 40, oDir = oIdx + index.length, oCore = oDir + 16 * ni, oTag = oCore + 8 * nk, oData = oTag;
+  const dirs = new tex.Bytes(), cores = new tex.Bytes(), data = [];
+  let kpos = oCore;
+  for (const e of ents) {
+    let kofs = 0;
+    if (e.cores.length) {
+      kofs = kpos;
+      for (const [src, kx, ky, kw, kh] of e.cores) cores.u16(src).u8(kx, ky, kw, kh).u16(0);
+      kpos += 8 * e.cores.length;
+    }
+    let vofs = 0, vlen = 0;
+    if (e.vms.length) { vofs = oData + data.length; vlen = e.vms.length; data.push(...e.vms); }
+    dirs.u8(e.edgeLen ? 8 : 0, e.w, e.h, e.fx, e.fy, e.cores.length).u16(kofs, e.edgeOfs, e.edgeLen, vofs, vlen);
+  }
+  const total = oData + data.length;
+  const v = Uint8Array.from(vram);
+  const out = new tex.Bytes().u16(load).u8(0x53, 0x32, 1, flags).u16(gid).u8(D, NA, NP, ni).u16(nk).u8(...amap)
+    .u16(oIdx, oDir, oCore, oTag).u8(0, 0).u16(oData, total, v.length, tex.crcHqx(v, 0xFFFF), stride).u8(0, 0, 0, 0);
+  out.raw(index).raw(dirs.a).raw(cores.a).raw(data);
+  if (out.length !== 2 + total) throw new ViewError('make_s2: length');
+  return [out.bytes(), v];
+}
+
+/** S2 PRG + VRAM data -> SpriteSet (dbespr.from_s2, P5b 6.3). */
+export function readS2(prg, vram) { return fromS2(prg, vram); }
+
+// ---------------------------------------------------------------- Demo assets
+
+/** Pixel image (rows with palette index or null) for test sprites; image angle ai and phase f change the pattern. */
+export function spritePixels(kind, wPx, h, ai, f) {
+  const pix = Array.from({ length: h }, () => new Array(wPx).fill(null));
+  for (let r = 0; r < h; r++) {
+    // outline: ellipse (enemy) or rhombus (item)
+    const t = (r + 0.5) / h;
+    let half;
+    if (kind === 'gem') half = (0.5 - Math.abs(t - 0.5)) * wPx * (1.1 + 0.15 * (f & 1));
+    else {
+      const q = 2 * t - 1;
+      half = 0 < t && t < 1 ? wPx / 2 * Math.sqrt(1 - q * q) : 0;
+    }
+    for (let x = 0; x < wPx; x++) {
+      if (Math.abs(x + 0.5 - wPx / 2) <= half) pix[r][x] = kind !== 'gem' ? [9, 13, 5, 3][ai & 3] : [11, 7][f & 1];
+    }
+  }
+  if (kind !== 'gem') {
+    // eyes (hole) and stripes depending on the image angle
+    const ey = Math.max(1, Math.floor(h / 4));
+    const ex = Math.floor(wPx / 2) + [-1, 0, 1, 0][ai & 3] * Math.max(1, Math.floor(wPx / 5));
+    for (const dx of [-1, 0]) {
+      for (let dy = 0; dy < Math.max(1, Math.floor(h / 8)); dy++) {
+        const x = ex + dx - (ai & 1 ? 1 : 0), y = ey + dy;
+        if (y >= 0 && y < h && x >= 0 && x < wPx && pix[y][x] !== null && ai !== 2) pix[y][x] = f === 0 ? null : 15;
+      }
+    }
+    const sy = Math.floor(h * 2 / 3);
+    for (let x = 0; x < wPx; x++) if (pix[sy][x] !== null && (x + f) % 4 < 2) pix[sy][x] = 0;
+    for (let x = 0; x < wPx; x += 5) if (pix[h >> 1][x] !== null) pix[h >> 1][x] = null;   // single pixels: half bytes
+  }
+  return pix;
+}
+
+/** Images per (phase, angle, depth), scaled to the cell width; height at most wall height of the depth (5.4).
+ *  phasesDepths: null or array of [f, d]. Returns [SpriteSet, VRAM data, PRG]. */
+export function makeSpriteSet(dvg, { name = 'blob', NA = 4, NP = 2, phasesDepths = null, wide = 1.0, height = 0.8, kind = 'blob', odd = 0 } = {}) {
+  const D = dvg.D, stride = dvg.stride;
+  const images = [];
+  const pd = phasesDepths ? new Set(phasesDepths.map(([f, d]) => `${f},${d}`)) : null;
+  for (let d = 1; d <= D; d++) {
+    const dt = dvg.depth[d];
+    const fw = dt.fw;
+    const hmax = dt.fy0 - dt.cy0 + 1;
+    const wB = Math.max(2, Math.trunc(fw * 0.4 * wide));
+    const wPx = 2 * wB;
+    const h = Math.max(3, Math.min(hmax, Math.trunc((dt.fy1 - dt.cy0) * height)));
+    for (let f = 0; f < NP; f++) {
+      for (let ai = 0; ai < NA; ai++) {
+        if (pd !== null && !pd.has(`${f},${d}`) && f > 0) continue;
+        let pix = spritePixels(kind, wPx, h, ai, f);
+        if (odd) pix = pix.map((r) => [null, ...r.slice(0, -1)]);    // image starts on an odd pixel column
+        images.push([[f, ai, d], [pix, wB >> 1, h - 1]]);
+      }
+    }
+  }
+  void name;
+  const [prg, vram] = makeS2(images, D, NA, NP, stride, { flags: kind === 'gem' ? 1 : 0 });
+  return [readS2(prg, vram), vram, prg];
+}
+
+export const GEN_FLOOR_TOML = `format  = "dbetex"
+version = 1
+
+[texset]
+name = "{name}"
+kind = "{kind}"
+geom = "west140.geom.json"
+out  = "build"
+load = {load}
+max_cores = 4
+
+{styles}`;
+
+/** Additional floor and ceiling styles: textured band gradient (no ROWS), puddle with holes, without bands.
+ *  Returns {name: RGBA image}. */
+export function atlasStyles(geom) {
+  const make = (arts, fnBand, fnTile) => {
+    const im = texdemo.newImage(...geom.atlas_size);
+    for (const [name, d, rect, mask, [ax, ay]] of texdemo.boxes(geom, arts)) {
+      texdemo.paint(im, ax, ay, rect, mask, name.includes('band') ? fnBand : fnTile(d));
+    }
+    return im;
+  };
+  return {
+    'grass_atlas.png': make(['floor', 'floorband'], (px, r) => (((px / 3 | 0) + r) % 5 ? 4 : 5), () => (px, r) => ((px + r) % 4 ? 4 : 5)),
+    'puddle_atlas.png': make(['floor', 'floorband'], () => 3, () => (px, r) => (((px >> 1) + (r >> 1)) % 3 === 0 ? null : 3)),
+    'hole_atlas.png': make(['ceil', 'ceilband'], () => 10, () => (px, r) => (((px >> 2) + (r / 3 | 0)) % 2 === 0 ? null : 10)),
+  };
+}
+
+/** dbeview.build_demo_assets without a file system: geomJson/dvg = default geometry (Westwood 140 x 96, the bytes of
+ *  docs/specs/examples/tex/west140.geom.json + .dvg; dbegeom builds them in Python). Generates DVG, wall DTS
+ *  (4 styles), floor DTS (3 styles), ceiling DTS (3 styles), DBG and sprite sets and returns the assets
+ *  (as assetsFromFiles) plus assets.files: {name: bytes | string} of the generated project (virtual directory dir). */
+export function buildDemoAssets({ geomJson, dvg, dir = '/demo' }) {
+  const gen = texdemo.generate({ geomJson, dvg });
+  const files = { ...gen.files };
+  const P = (n) => tex.pjoin(dir, n);
+  const resolve = (p) => {
+    const n = p.startsWith(dir + '/') ? p.slice(dir.length + 1) : null;
+    const v = n !== null ? files[n] : undefined;
+    return v === undefined ? null : typeof v === 'string' ? new TextEncoder().encode(v) : v;
+  };
+  const geom = tex.loadGeom(resolve, P('west140.geom.json'), P('west140.dvg'));
+  const dvgPrg = Uint8Array.from(files['west140.dvg']);
+  const g = parseDvg(dvgPrg);
+  for (const [n, im] of Object.entries(atlasStyles(geom))) files[n] = encodePng(im);
+  const fmt = (t, v) => t.replace(/\{(\w+)\}/g, (_, k) => v[k]);
+  const range = (n) => Array.from({ length: n }, (_, i) => i);
+  const emptyF = range(g.D + 1).map((d) => `"floorband_d${d}"`).join(', ');
+  const emptyC = range(g.D + 1).map((d) => `"ceilband_d${d}"`).join(', ');
+  files['floor3.toml'] = fmt(GEN_FLOOR_TOML, { name: 'demo_floor3', kind: 'floor', load: '0xEE00', styles:
+    '[[style]]\nname = "stone"\npng = "stone_atlas.png"\n\n[[style]]\nname = "grass"\npng = "grass_atlas.png"\n\n'
+    + `[[style]]\nname = "puddle"\npng = "puddle_atlas.png"\nempty = [${emptyF}]\n` });
+  files['ceil3.toml'] = fmt(GEN_FLOOR_TOML, { name: 'demo_ceil3', kind: 'ceiling', load: '0xF600', styles:
+    '[[style]]\nname = "wood"\npng = "wood_atlas.png"\n\n'
+    + `[[style]]\nname = "hole"\npng = "hole_atlas.png"\nempty = [${emptyC}]\n` });
+  const build = (n) => {
+    const { ts } = tex.buildTexset(tex.loadTexConf(files[n], { path: P(n) }), resolve);
+    ts.dtsPrg = tex.toDts(ts);
+    return ts;
+  };
+  const walls = build('walls.toml'), floor = build('floor3.toml'), ceil = build('ceil3.toml');
+  const bgr = tex.buildBackground(tex.loadBgConf(files['bg.toml'], { path: P('bg.toml') }), resolve);
+  const sprites = new Array(8).fill(null);
+  sprites[0] = makeSpriteSet(g, { name: 'blob', NA: 4, NP: 2, wide: 0.4, height: 0.4 })[0];
+  sprites[1] = makeSpriteSet(g, { name: 'gem', NA: 1, NP: 2, kind: 'gem', wide: 0.5, height: 0.3 })[0];
+  sprites[2] = makeSpriteSet(g, { name: 'guard', NA: 2, NP: 1, wide: 0.35, height: 0.6, odd: 1 })[0];
+  sprites[3] = makeSpriteSet(g, { name: 'wide', NA: 2, NP: 2, wide: 1.8, height: 0.2, phasesDepths: [[1, 1]] })[0];
+  return {
+    dvg: g, geom, walls, floor, ceil, dbg: tex.fromDbg(bgr.dbg), dbgVram: bgr.vram, sprites, dir, dvgPrg,
+    dbgPrg: bgr.dbg, files,
+  };
 }

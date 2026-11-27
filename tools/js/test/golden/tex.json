@@ -1,0 +1,1686 @@
+{
+ "projects": [
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "<ROOT>/docs/specs/examples/tex/walls.toml",
+   "files": {
+    "demo_walls.dts": "5cb902b90c6c1559c3d0eab2193a9326289659cfc168cf9a4565eb483860ff65",
+    "demo_walls.tex.json": "4ea45f26c806f40890008b9871f2475844ef04b7dfd0cefbc3c131179fc782f9",
+    "demo_walls.tex.md": "74306a48f3b6222c8b7f5b34525f0a7019d268632fe69c0c8d1a546800405ca9",
+    "demo_walls.vrl": "1a4fb617ad696dcf7757d94a409d1ee9aa05a543475f84d2bc3f45185e8d1ef3"
+   },
+   "previews": {
+    "demo_walls_arch_preview.png": [
+     560,
+     384,
+     "3a3977087f50870e1dc0f5288321382c089dbefa7a29d81d0d0f13ea94114a8b"
+    ],
+    "demo_walls_brick_preview.png": [
+     560,
+     384,
+     "5eecf27b6be00dae2d3750efb3435f7d09d2b7d891998336b156e375b46612b7"
+    ],
+    "demo_walls_grating_preview.png": [
+     560,
+     384,
+     "e32baf4d7c83a15c9d8ecd587c176705e41e8046e0e9c5feb1aa66d62e744ae4"
+    ],
+    "demo_walls_window_preview.png": [
+     560,
+     384,
+     "be765e39c3af3f70b3dcb005bbdccbe3afbeb4527af697e0dd437154b7df524f"
+    ]
+   },
+   "stdout": "demo_walls: 4 styles, 58 images, VRAM 23 551 bytes, VRL 11 317 bytes, VMS bound 5 151/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "<ROOT>/docs/specs/examples/tex/floor.toml",
+   "files": {
+    "demo_floor.dts": "9ddf80a959ed086aa241073ce3c025c403c6a5b72a297d4146d59ce116d0d7f3",
+    "demo_floor.tex.json": "66f522b98955381e4ce08e892ad3a8e08d4c4d0662d9679ede074a78c3e7132e",
+    "demo_floor.tex.md": "cd3067739a4dc35a15740124ea69048fe75d31b6007c45678feffafa39e6a59f",
+    "demo_floor.vrl": "831ab1afdb7b226564e5ac38584a9f64449c06ac0ba95d03811f91c5d64a64f9"
+   },
+   "previews": {
+    "demo_floor_stone_preview.png": [
+     560,
+     384,
+     "f84fd8d737015f897cf1862a47f62bea437ec4a339140dc542f2289d592f3f48"
+    ]
+   },
+   "stdout": "demo_floor: 1 styles, 22 images, VRAM 3 640 bytes, VRL 1 784 bytes, VMS bound 1 132/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "<ROOT>/docs/specs/examples/tex/ceil.toml",
+   "files": {
+    "demo_ceil.dts": "8e24cd18fd4c6f1139bb48fed60dff2a936d8bc5fb06874d1ef1d2b652811e36",
+    "demo_ceil.tex.json": "69cb950e6658c7429e7ee1119f50a6d6906191dd5d433b58bd53c16e44a39a76",
+    "demo_ceil.tex.md": "25766d41f4cb869a76d5fce3382de08012b1d81fe48a6b635fad8794b1e829d3",
+    "demo_ceil.vrl": "fcafd0669d2521a360f5b03e63ad280aeb461b58a1653bb89d9ce26b523fb8b7"
+   },
+   "previews": {
+    "demo_ceil_wood_preview.png": [
+     560,
+     384,
+     "e465d29ee738d63fd65642cbabe2ed9691e4aa9b9baba66e08fecf94019c1b9e"
+    ]
+   },
+   "stdout": "demo_ceil: 1 styles, 22 images, VRAM 3 114 bytes, VRL 2 136 bytes, VMS bound 610/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "bg",
+   "tool": "tex",
+   "toml": "<ROOT>/docs/specs/examples/tex/bg.toml",
+   "files": {
+    "demo_sky.dbg": "13c7479256a9cdfd1b6a2554cb22e70efc2167406a06c60bc43b1d93204d4608",
+    "demo_sky.vrl": "a03fcb54aaf454e4aef5f2f0a001c46244699fc219ec52f19fe841a51d2c9482"
+   },
+   "previews": {},
+   "stdout": "demo_sky: wallpaper, VRAM 8120 bytes, VRL 795 bytes\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "<ROOT>/docs/specs/examples/spr/blob.toml",
+   "files": {
+    "blob.s2": "9ba6d66c05b561a754595e18b9359dc3d62e3e87df5f2d17e7eced026d961730",
+    "blob.spr.json": "a39e5af819b29d3d0b34880452b993c509bd11e652432752338c9a7b479020f8",
+    "blob.spr.md": "62019b112c29857e0af502a3c1bce18eb0e13d5c57d103c6c78367ba6fe40335",
+    "blob.vrl": "be6efb2e28f3831664ab9af042252470b4e66ee4393c659206769b87b3388b37"
+   },
+   "previews": {
+    "blob_preview.png": [
+     560,
+     384,
+     "c0ddff2f3f82e350bfb9f135053c844c292987f53dea3b39b61faa0eacc2c4e6"
+    ]
+   },
+   "stdout": "blob: 4 angles, 2 phases, 20 images, S2 6276 bytes, VRAM 6574 bytes, VRL 2754 bytes, VMS max 433\n",
+   "stderr": "Warning: S2 content 6276 bytes >= 4096 (more than half of the 8 KB sprite area, P6 2.4)\n"
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "<ROOT>/docs/specs/examples/spr/blob_m.toml",
+   "files": {
+    "blob_m.s2": "d000a81a8a781cbb4b72c2cc00065bf3a146cf8f253c20741380421dc23306ec",
+    "blob_m.spr.json": "6bab0734a7ecc15cca596323a08aa348b2440a14ea3a193b462b38261f840bf4",
+    "blob_m.spr.md": "9c4f3e219b7ee29489ebd8c231c8a621c9c5f9dc2ce838e9a0338c057bb547a9",
+    "blob_m.vrl": "c5028031b1d06547117f28cb27dc40e50f7a566750323aa94d27ef2ea44ceeee"
+   },
+   "previews": {
+    "blob_m_preview.png": [
+     560,
+     384,
+     "c0ddff2f3f82e350bfb9f135053c844c292987f53dea3b39b61faa0eacc2c4e6"
+    ]
+   },
+   "stdout": "blob_m: 4 angles, 2 phases, 20 images, S2 6364 bytes, VRAM 6574 bytes, VRL 2678 bytes, VMS max 433\n",
+   "stderr": "Warning: S2 content 6364 bytes >= 4096 (more than half of the 8 KB sprite area, P6 2.4)\n"
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "<ROOT>/docs/specs/examples/spr/gem.toml",
+   "files": {
+    "gem.s2": "cf68eb27e01e12e39ba5f2c1d24a38f90d644912b34779869fc27cb49552acf2",
+    "gem.spr.json": "15e8d3dfb5fd0fb4ad333b6fd4a3aaa694b06899a57c491affba9f487a776113",
+    "gem.spr.md": "81668207e57540d54db1b3a982157ed363473aa70a83ae6304926fbc77df6f61",
+    "gem.vrl": "c36bd3eb7a65c6ca1ba76eb28b3cae648ec32b8162c2891f0a18fb23eba972f8"
+   },
+   "previews": {
+    "gem_preview.png": [
+     560,
+     384,
+     "3875557bdb3add0ae4c587d79cdf9d15963ea4028ec5be99d87ad755343740b2"
+    ]
+   },
+   "stdout": "gem: 1 angles, 2 phases, 6 images, S2 426 bytes, VRAM 125 bytes, VRL 123 bytes, VMS max 62\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "/T/demo/walls.toml",
+   "files": {
+    "walls.dts": "5cb902b90c6c1559c3d0eab2193a9326289659cfc168cf9a4565eb483860ff65",
+    "walls.tex.json": "4e11f50a606ba4e1a47088502e29b665b52551b4f4c5fe08ca7f59d5733b6b38",
+    "walls.tex.md": "2f25770b0536f97c9a42db91798d203654a6604e8d0c0a89e8a1b3a0e0a5574c",
+    "walls.vrl": "640208a29006ee3b5e9dcece3e0552be610054277abcdbb1ac30735aa277cc43"
+   },
+   "previews": {
+    "walls_arch_preview.png": [
+     560,
+     384,
+     "3a3977087f50870e1dc0f5288321382c089dbefa7a29d81d0d0f13ea94114a8b"
+    ],
+    "walls_brick_preview.png": [
+     560,
+     384,
+     "5eecf27b6be00dae2d3750efb3435f7d09d2b7d891998336b156e375b46612b7"
+    ],
+    "walls_grating_preview.png": [
+     560,
+     384,
+     "e32baf4d7c83a15c9d8ecd587c176705e41e8046e0e9c5feb1aa66d62e744ae4"
+    ],
+    "walls_window_preview.png": [
+     560,
+     384,
+     "be765e39c3af3f70b3dcb005bbdccbe3afbeb4527af697e0dd437154b7df524f"
+    ]
+   },
+   "stdout": "walls: 4 styles, 58 images, VRAM 23 551 bytes, VRL 11 317 bytes, VMS bound 5 151/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "/T/demo/floor.toml",
+   "files": {
+    "floor.dts": "9ddf80a959ed086aa241073ce3c025c403c6a5b72a297d4146d59ce116d0d7f3",
+    "floor.tex.json": "de3c28ced34dc1df842a561d6586be360910f81fbde70f06ff7f2326fedab92d",
+    "floor.tex.md": "54a556cd595c710c2aa819be88b92ab361029e9e5c85c221b3f808753eeb5dda",
+    "floor.vrl": "68ee3933d899a2254c95cdd65913d8329f55734a1e3fa44b419c35c84791e14a"
+   },
+   "previews": {
+    "floor_stone_preview.png": [
+     560,
+     384,
+     "f84fd8d737015f897cf1862a47f62bea437ec4a339140dc542f2289d592f3f48"
+    ]
+   },
+   "stdout": "floor: 1 styles, 22 images, VRAM 3 640 bytes, VRL 1 784 bytes, VMS bound 1 132/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "/T/demo/ceil.toml",
+   "files": {
+    "ceil.dts": "8e24cd18fd4c6f1139bb48fed60dff2a936d8bc5fb06874d1ef1d2b652811e36",
+    "ceil.tex.json": "f0d1ba739eb4a607f7fc5566189135bd6dee868459c5b21993be3719ea6ce73d",
+    "ceil.tex.md": "6cb371ae256523012ff6f5477854b6d6b3d921a7eb0f879b991f385da119809c",
+    "ceil.vrl": "b75858513993b0ea09555dbccc36a2b0ac711a27c6ace763180b4a1d92f3b2fd"
+   },
+   "previews": {
+    "ceil_wood_preview.png": [
+     560,
+     384,
+     "e465d29ee738d63fd65642cbabe2ed9691e4aa9b9baba66e08fecf94019c1b9e"
+    ]
+   },
+   "stdout": "ceil: 1 styles, 22 images, VRAM 3 114 bytes, VRL 2 136 bytes, VMS bound 610/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "bg",
+   "tool": "tex",
+   "toml": "/T/demo/bg.toml",
+   "files": {
+    "land.dbg": "da499fbd4276e71704e94d75902ecb391f9d127cf67ee08f11c00c90b376c826",
+    "land.vrl": "2667627bc694cc46b2b4cdb7adb1a88b2b67e5eb0df87e8d65a347d40fa9dc86"
+   },
+   "previews": {},
+   "stdout": "land: wallpaper, VRAM 5040 bytes, VRL 2699 bytes\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "/T/demo/goblin.toml",
+   "files": {
+    "goblin.s2": "88cb444d67cf2aaa47b9f7dcaa66be76b66335886a5c2a410585c82ebadd044a",
+    "goblin.spr.json": "658f4018bbec376a27127a0292c35986e413de32d320d910b659a0daa2bedb70",
+    "goblin.spr.md": "b9250d0a087ca9dfe4bf87271bdf852ec1fe39dbe51ca293169ea0434f6776d2",
+    "goblin.vrl": "0b7137a71547eeaf9050e9edaeb1a7d9d625bf6a0b0bfce43c7dc79e5aaed8b0"
+   },
+   "previews": {
+    "goblin_preview.png": [
+     560,
+     384,
+     "b8bffa32c4a270411f7ea7e81d85d4f807e9cfc3794d760b91c316fc4f8d7745"
+    ]
+   },
+   "stdout": "goblin: 1 angles, 4 phases, 5 images, S2 1230 bytes, VRAM 1069 bytes, VRL 787 bytes, VMS max 259\n",
+   "stderr": "Warning: v0_d2#0: depth 2 derived from depth 1\nWarning: v0_d3#0: depth 3 derived from depth 1\n"
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "/T/demo/gem.toml",
+   "files": {
+    "gem.s2": "15092394462f893561e33758ccdcfcb8b974f9b477159461ee651d649b9ce9ab",
+    "gem.spr.json": "15e8d3dfb5fd0fb4ad333b6fd4a3aaa694b06899a57c491affba9f487a776113",
+    "gem.spr.md": "81668207e57540d54db1b3a982157ed363473aa70a83ae6304926fbc77df6f61",
+    "gem.vrl": "332f1f36630d61fa603def1787b6736168b0e53ab8ce3f4231718141d8858577"
+   },
+   "previews": {
+    "gem_preview.png": [
+     560,
+     384,
+     "92611c36afce7acf357f9adb7b7a3cc253675c6aefa10e47beedf51c31bbf1cb"
+    ]
+   },
+   "stdout": "gem: 1 angles, 2 phases, 6 images, S2 426 bytes, VRAM 125 bytes, VRL 123 bytes, VMS max 62\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "/T/tex/walls.toml",
+   "files": {
+    "demo_walls.dts": "5cb902b90c6c1559c3d0eab2193a9326289659cfc168cf9a4565eb483860ff65",
+    "demo_walls.tex.json": "4ea45f26c806f40890008b9871f2475844ef04b7dfd0cefbc3c131179fc782f9",
+    "demo_walls.tex.md": "74306a48f3b6222c8b7f5b34525f0a7019d268632fe69c0c8d1a546800405ca9",
+    "demo_walls.vrl": "1a4fb617ad696dcf7757d94a409d1ee9aa05a543475f84d2bc3f45185e8d1ef3"
+   },
+   "previews": {
+    "demo_walls_arch_preview.png": [
+     560,
+     384,
+     "3a3977087f50870e1dc0f5288321382c089dbefa7a29d81d0d0f13ea94114a8b"
+    ],
+    "demo_walls_brick_preview.png": [
+     560,
+     384,
+     "5eecf27b6be00dae2d3750efb3435f7d09d2b7d891998336b156e375b46612b7"
+    ],
+    "demo_walls_grating_preview.png": [
+     560,
+     384,
+     "e32baf4d7c83a15c9d8ecd587c176705e41e8046e0e9c5feb1aa66d62e744ae4"
+    ],
+    "demo_walls_window_preview.png": [
+     560,
+     384,
+     "be765e39c3af3f70b3dcb005bbdccbe3afbeb4527af697e0dd437154b7df524f"
+    ]
+   },
+   "stdout": "demo_walls: 4 styles, 58 images, VRAM 23 551 bytes, VRL 11 317 bytes, VMS bound 5 151/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "/T/tex/floor.toml",
+   "files": {
+    "demo_floor.dts": "9ddf80a959ed086aa241073ce3c025c403c6a5b72a297d4146d59ce116d0d7f3",
+    "demo_floor.tex.json": "66f522b98955381e4ce08e892ad3a8e08d4c4d0662d9679ede074a78c3e7132e",
+    "demo_floor.tex.md": "cd3067739a4dc35a15740124ea69048fe75d31b6007c45678feffafa39e6a59f",
+    "demo_floor.vrl": "831ab1afdb7b226564e5ac38584a9f64449c06ac0ba95d03811f91c5d64a64f9"
+   },
+   "previews": {
+    "demo_floor_stone_preview.png": [
+     560,
+     384,
+     "f84fd8d737015f897cf1862a47f62bea437ec4a339140dc542f2289d592f3f48"
+    ]
+   },
+   "stdout": "demo_floor: 1 styles, 22 images, VRAM 3 640 bytes, VRL 1 784 bytes, VMS bound 1 132/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "tex",
+   "toml": "/T/tex/ceil.toml",
+   "files": {
+    "demo_ceil.dts": "8e24cd18fd4c6f1139bb48fed60dff2a936d8bc5fb06874d1ef1d2b652811e36",
+    "demo_ceil.tex.json": "69cb950e6658c7429e7ee1119f50a6d6906191dd5d433b58bd53c16e44a39a76",
+    "demo_ceil.tex.md": "25766d41f4cb869a76d5fce3382de08012b1d81fe48a6b635fad8794b1e829d3",
+    "demo_ceil.vrl": "fcafd0669d2521a360f5b03e63ad280aeb461b58a1653bb89d9ce26b523fb8b7"
+   },
+   "previews": {
+    "demo_ceil_wood_preview.png": [
+     560,
+     384,
+     "e465d29ee738d63fd65642cbabe2ed9691e4aa9b9baba66e08fecf94019c1b9e"
+    ]
+   },
+   "stdout": "demo_ceil: 1 styles, 22 images, VRAM 3 114 bytes, VRL 2 136 bytes, VMS bound 610/1300\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "bg",
+   "tool": "tex",
+   "toml": "/T/tex/bg.toml",
+   "files": {
+    "demo_sky.dbg": "13c7479256a9cdfd1b6a2554cb22e70efc2167406a06c60bc43b1d93204d4608",
+    "demo_sky.vrl": "a03fcb54aaf454e4aef5f2f0a001c46244699fc219ec52f19fe841a51d2c9482"
+   },
+   "previews": {},
+   "stdout": "demo_sky: wallpaper, VRAM 8120 bytes, VRL 795 bytes\n",
+   "stderr": ""
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "/T/spr/blob.toml",
+   "files": {
+    "blob.s2": "9ba6d66c05b561a754595e18b9359dc3d62e3e87df5f2d17e7eced026d961730",
+    "blob.spr.json": "a39e5af819b29d3d0b34880452b993c509bd11e652432752338c9a7b479020f8",
+    "blob.spr.md": "62019b112c29857e0af502a3c1bce18eb0e13d5c57d103c6c78367ba6fe40335",
+    "blob.vrl": "be6efb2e28f3831664ab9af042252470b4e66ee4393c659206769b87b3388b37"
+   },
+   "previews": {
+    "blob_preview.png": [
+     560,
+     384,
+     "c0ddff2f3f82e350bfb9f135053c844c292987f53dea3b39b61faa0eacc2c4e6"
+    ]
+   },
+   "stdout": "blob: 4 angles, 2 phases, 20 images, S2 6276 bytes, VRAM 6574 bytes, VRL 2754 bytes, VMS max 433\n",
+   "stderr": "Warning: S2 content 6276 bytes >= 4096 (more than half of the 8 KB sprite area, P6 2.4)\n"
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "/T/spr/blob_m.toml",
+   "files": {
+    "blob_m.s2": "d000a81a8a781cbb4b72c2cc00065bf3a146cf8f253c20741380421dc23306ec",
+    "blob_m.spr.json": "6bab0734a7ecc15cca596323a08aa348b2440a14ea3a193b462b38261f840bf4",
+    "blob_m.spr.md": "9c4f3e219b7ee29489ebd8c231c8a621c9c5f9dc2ce838e9a0338c057bb547a9",
+    "blob_m.vrl": "c5028031b1d06547117f28cb27dc40e50f7a566750323aa94d27ef2ea44ceeee"
+   },
+   "previews": {
+    "blob_m_preview.png": [
+     560,
+     384,
+     "c0ddff2f3f82e350bfb9f135053c844c292987f53dea3b39b61faa0eacc2c4e6"
+    ]
+   },
+   "stdout": "blob_m: 4 angles, 2 phases, 20 images, S2 6364 bytes, VRAM 6574 bytes, VRL 2678 bytes, VMS max 433\n",
+   "stderr": "Warning: S2 content 6364 bytes >= 4096 (more than half of the 8 KB sprite area, P6 2.4)\n"
+  },
+  {
+   "cmd": "build",
+   "tool": "spr",
+   "toml": "/T/spr/gem.toml",
+   "files": {
+    "gem.s2": "cf68eb27e01e12e39ba5f2c1d24a38f90d644912b34779869fc27cb49552acf2",
+    "gem.spr.json": "15e8d3dfb5fd0fb4ad333b6fd4a3aaa694b06899a57c491affba9f487a776113",
+    "gem.spr.md": "81668207e57540d54db1b3a982157ed363473aa70a83ae6304926fbc77df6f61",
+    "gem.vrl": "c36bd3eb7a65c6ca1ba76eb28b3cae648ec32b8162c2891f0a18fb23eba972f8"
+   },
+   "previews": {
+    "gem_preview.png": [
+     560,
+     384,
+     "3875557bdb3add0ae4c587d79cdf9d15963ea4028ec5be99d87ad755343740b2"
+    ]
+   },
+   "stdout": "gem: 1 angles, 2 phases, 6 images, S2 426 bytes, VRAM 125 bytes, VRL 123 bytes, VMS max 62\n",
+   "stderr": ""
+  }
+ ],
+ "texdemo": {
+  "bg.toml": {
+   "sha": "7f94937b986c3534c25cd111fcfea47a44f081989b4e291538fd3553f91913fb"
+  },
+  "brick_atlas.png": {
+   "rgba": [
+    580,
+    494,
+    "2e932ee1fac429bd536842bbd22b29d3d2c06559d84d6a2e3d8ba8ebfbe9709e"
+   ]
+  },
+  "ceil.toml": {
+   "sha": "94d8cd0fee476c85d022133a81d1e17d4a5ac28c9e4d8e605e23f84b14b0f605"
+  },
+  "floor.toml": {
+   "sha": "70e43c030b2948f1e09b3bc19c05c368875f149ee067c2d1062019f43bf10622"
+  },
+  "grating_atlas.png": {
+   "rgba": [
+    580,
+    494,
+    "0ea42b6d79a5e6b7f19f3ed096820b462f2138c267dac9c1783afdc86c3d9d9d"
+   ]
+  },
+  "sky.png": {
+   "rgba": [
+    560,
+    29,
+    "c19c4430ec0a3719f29e680e2ce618c267c07f119ac5284c0d3df5962bf605aa"
+   ]
+  },
+  "stone_atlas.png": {
+   "rgba": [
+    580,
+    494,
+    "9f525188be68b6ec13c12536d89ccdb6111feb3f2fc81ecbf219ab4995dfcdca"
+   ]
+  },
+  "walls.toml": {
+   "sha": "f9bb27d339f69b5a1a4b4a071ff4d670647f81cb04ceb25e3227cf36c28199ba"
+  },
+  "west140.dvg": {
+   "sha": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff"
+  },
+  "west140.geom.json": {
+   "sha": "63245ebe48d4440971c140f6297c08c9cb833ff08f6f9c7f916255e60be52217"
+  },
+  "window.json": {
+   "sha": "c8cb203672713535f46c2ed1cd7ac94482c01479e9ce0a92b2d17445ebb3dcd4"
+  },
+  "window.png": {
+   "rgba": [
+    352,
+    121,
+    "ac8c5243ff7b5de0718d89ab66990bd6f799d57473dbc3be626ea54535eea3a6"
+   ]
+  },
+  "wood_atlas.png": {
+   "rgba": [
+    580,
+    494,
+    "027c7fe980fd8a4f15bbef3c1f14d965fd1da09d33a5f2895971c3d61b2f344b"
+   ]
+  }
+ },
+ "sprdemo": {
+  "blob.json": {
+   "sha": "d7f983fd4c0ff6aea437b13d6fd9f02afb25b09b9a8e677e3ea90ab9437664c6"
+  },
+  "blob.png": {
+   "rgba": [
+    288,
+    320,
+    "9135a5b400e92bb54a58beff4d4d0af7532a2ba863016df85b564723b4712679"
+   ]
+  },
+  "blob.toml": {
+   "sha": "7fef5682002a5bc4fd69a9318697e38c8b4a44767eeda9f8e8b5e8c9e697e165"
+  },
+  "blob_m.json": {
+   "sha": "f92744facca9236562192bbc9128d4322225ea60e6743bc9e0be3c25f8b3a589"
+  },
+  "blob_m.toml": {
+   "sha": "e974c62f2826249dc104a5ba0c7b82d6abeda8f675428e6ed13346e80cd4972a"
+  },
+  "gem.png": {
+   "rgba": [
+    64,
+    32,
+    "8e2ce41e78fbb85d08f38b542bfec7dc6361c4041dd8413ed57c81a49b9dc633"
+   ]
+  },
+  "gem.toml": {
+   "sha": "dbe59ced94b1132ab6e903f45d013ef4ba72c22f670228ce5b55109492fffc53"
+  },
+  "west140.dvg": {
+   "sha": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff"
+  },
+  "west140.geom.json": {
+   "sha": "63245ebe48d4440971c140f6297c08c9cb833ff08f6f9c7f916255e60be52217"
+  }
+ },
+ "texdemo136": {
+  "geom_ref": "../../../home/martin/git/dungeonboringengine/tools/js/test/golden/tex/w136.geom.json",
+  "files": {
+   "bg.toml": {
+    "sha": "ba32b988b4c27a7e94bd1079c05a86282cb4113d992aca93e2abc647fcca1b63"
+   },
+   "brick_atlas.png": {
+    "rgba": [
+     564,
+     479,
+     "357ec99b9aaa74800002e1ec84016060e77d52a9d21cdabf056873e7e6e2435f"
+    ]
+   },
+   "ceil.toml": {
+    "sha": "416a9b83884af9e0b38baa0481569dc66119277778b51ee2483183fca35db8e5"
+   },
+   "floor.toml": {
+    "sha": "6c9fd61da664953b01d4ac8535150e0bd96a62998154d3448264859dc15befda"
+   },
+   "grating_atlas.png": {
+    "rgba": [
+     564,
+     479,
+     "49834172c1fd4633fe4404aa5508fc9a36ed3bc6c9b6d55a61e0e69aaaa64e8c"
+    ]
+   },
+   "sky.png": {
+    "rgba": [
+     544,
+     28,
+     "9f120705cd3167aab12b8185b3230f67a140342aae9e0e69eaab0f7178c834b1"
+    ]
+   },
+   "stone_atlas.png": {
+    "rgba": [
+     564,
+     479,
+     "5f9eaab248e060d8000ce3890f8124b80b83298fdd3925a9c28f4e9716395c6c"
+    ]
+   },
+   "walls.toml": {
+    "sha": "961e7f90643be295378d2edbf92ca85736e9492addf1ac94913741d5d03492ea"
+   },
+   "window.json": {
+    "sha": "227cecacd1b4945b1ed2f150e5786308600b31d7d186cc270e28907d2ded424b"
+   },
+   "window.png": {
+    "rgba": [
+     344,
+     117,
+     "918b155c7cd36c2bba9ce9252361383545979ed7f22db0ef7ebcafbfea03a2e2"
+    ]
+   },
+   "wood_atlas.png": {
+    "rgba": [
+     564,
+     479,
+     "ad67ce27407c4d49ec31c8d57b7b8cdbb6aeb1d5b3843d4b431b26a6077fe90f"
+    ]
+   }
+  }
+ },
+ "sprdemo136": {
+  "geom_ref": "../../../home/martin/git/dungeonboringengine/tools/js/test/golden/tex/w136.geom.json",
+  "files": {
+   "blob.json": {
+    "sha": "d7f983fd4c0ff6aea437b13d6fd9f02afb25b09b9a8e677e3ea90ab9437664c6"
+   },
+   "blob.png": {
+    "rgba": [
+     288,
+     320,
+     "9135a5b400e92bb54a58beff4d4d0af7532a2ba863016df85b564723b4712679"
+    ]
+   },
+   "blob.toml": {
+    "sha": "2198e5e5a54505097398546ca25c50448227e7ae328eaed4090d348c29fe3557"
+   },
+   "blob_m.json": {
+    "sha": "f92744facca9236562192bbc9128d4322225ea60e6743bc9e0be3c25f8b3a589"
+   },
+   "blob_m.toml": {
+    "sha": "f483d7dbccdb113e91bd5d2b76d9c37fdd3ef6f20bef8f60d5bc6ea3a1d023e2"
+   },
+   "gem.png": {
+    "rgba": [
+     64,
+     32,
+     "8e2ce41e78fbb85d08f38b542bfec7dc6361c4041dd8413ed57c81a49b9dc633"
+    ]
+   },
+   "gem.toml": {
+    "sha": "ef6fb9d379d7fc76ffd472b3975c6e9784f060f46d1cdd78104901db871d196c"
+   }
+  }
+ },
+ "errors": [
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "kind       = \"wall\"",
+    "kind       = \"door\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [texset] kind: wall, floor or ceiling expected\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "[texset]\n",
+    "[texset]\nfoo = 1\n"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [texset]: unknown key 'foo'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "png  = \"brick_atlas.png\"",
+    "png  = \"brick_atlas.png\"\naseprite = \"window.json\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [[style]] 0: exactly one source (png or aseprite) expected\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "name = \"grating\"",
+    "name = \"brick\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [[style]] 1: name 'brick' duplicated\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "load       = 0x8000",
+    "load       = 0x10000"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: load: integer 0 ... 65535 expected, found 65536\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "load       = 0x8000",
+    "load       = 0xA000"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: wall: $A000..$C22F (8752 bytes) extends beyond the area end $AFFF (area $8000..$AFFF, 12288 bytes)\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "pool_bytes = 26624",
+    "pool_bytes = 26624\nmax_cores = 5"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: max_cores: integer 0 ... 4 expected, found 5\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "tag      = \"arch\"",
+    "tag      = \"nope\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/window.json: tag 'nope' not found\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "format  = \"dbetex\"",
+    "format  = \"dbetx\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml: format = \"dbetex\" and version = 1 expected\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "geom       = \"west140.geom.json\"",
+    "geom       = \"missing.json\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/missing.json: [Errno 2] No such file or directory: '/T/tex/missing.json'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "png  = \"brick_atlas.png\"",
+    "png  = \"missing.png\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/missing.png: [Errno 2] No such file or directory: '/T/tex/missing.png'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "png  = \"brick_atlas.png\"",
+    "png  = \"brick_atlas.png\"\nempty = [\"nothing\"]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: Style brick: empty: 'nothing' is not a drawing slot of kind wall\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "png  = \"brick_atlas.png\"",
+    "png  = \"sky.png\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/sky.png: atlas 560x29 smaller than 580x494\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "name       = \"demo_walls\"\n",
+    ""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [texset]: name missing\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "kind       = \"wall\"",
+    "kind       = \"floor\""
+   ],
+   "code": 0,
+   "stdout": "demo_walls: 4 styles, 0 images, VRAM 0 bytes, VRL 1 bytes, VMS bound 0/1300\n",
+   "stderr": "Warning: Style 0 without image for floor_d0_s+0\nWarning: Style 0 without image for floor_d0_s-1\nWarning: Style 0 without image for floor_d0_s+1\nWarning: Style 0 without image for floor_d1_s+0\nWarning: Style 0 without image for floor_d1_s-1\nWarning: Style 0 without image for floor_d1_s+1\nWarning: Style 0 without image for floor_d2_s+0\nWarning: Style 0 without image for floor_d2_s-1\nWarning: Style 0 without image for floor_d2_s+1\nWarning: Style 0 without image for floor_d2_s-2\nWarning: Style 0 without image for floor_d2_s+2\nWarning: Style 0 without image for floor_d3_s+0\nWarning: Style 0 without image for floor_d3_s-1\nWarning: Style 0 without image for floor_d3_s+1\nWarning: Style 0 without image for floor_d3_s-2\nWarning: Style 0 without image for floor_d3_s+2\nWarning: Style 0 without image for floor_d3_s-3\nWarning: Style 0 without image for floor_d3_s+3\nWarning: Style 0 without image for floorband_d0\nWarning: Style 0 without image for floorband_d1\nWarning: Style 0 without image for floorband_d2\nWarning: Style 0 without image for floorband_d3\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "png  = \"grating_atlas.png\"",
+    "png  = \"grating_atlas.png\"\nfoo = 2"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [[style]] 1: unknown key 'foo'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "vrl_load   = 0x4000",
+    "vrl_load   = \"x\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: vrl_load: integer 0 ... 65535 expected, found 'x'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "walls.toml",
+   "cmd": "build",
+   "replace": [
+    "tag      = \"arch\"",
+    "frame    = 7"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/window.json: frame 7 does not exist\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "floor.toml",
+   "cmd": "build",
+   "replace": [
+    "load = 0xEE00",
+    "load = 0xF500"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: floor: $F500..$FC7B (1916 bytes) extends beyond the area end $F5FF (area $EE00..$F5FF, 2048 bytes)\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "floor.toml",
+   "cmd": "build",
+   "replace": [
+    "load = 0xEE00",
+    "load = 0xEE00\nkey = \"zz\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: key: invalid color 'zz'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "floor.toml",
+   "cmd": "build",
+   "replace": [
+    "load = 0xEE00",
+    "load = 0xEE00\nalpha_threshold = 300"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: alpha_threshold: integer 0 ... 255 expected, found 300\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "offsets = \"auto\"",
+    "offsets = [0, 1, 2]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: offsets: 4 values 0 ... 279 expected\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "y0      = \"horizon\"",
+    "y0      = 90"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: y0 90 + h 29 does not lie within the viewport (0 ... 96)\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "y0      = \"horizon\"",
+    "y0      = \"top\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: y0: integer -1000 ... 1000 expected, found 'top'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "above   = 3",
+    "above   = 16"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: above: color 0 ... 15 or list of 19 colors expected\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "wrap    = true",
+    "wrap    = false\n"
+   ],
+   "code": 0,
+   "stdout": "demo_sky: wallpaper, VRAM 8120 bytes, VRL 795 bytes\n",
+   "stderr": ""
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "offsets = \"auto\"",
+    "offsets = [0, 70, 140, 270]\n"
+   ],
+   "code": 0,
+   "stdout": "demo_sky: wallpaper, VRAM 8120 bytes, VRL 795 bytes\n",
+   "stderr": ""
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "wrap    = true",
+    "wrap    = false\nlevel = 1"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/case.toml [background]: unknown key 'level'\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "png     = \"sky.png\"",
+    "png     = \"brick_atlas.png\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/brick_atlas.png: panorama has transparent pixels\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "png     = \"sky.png\"",
+    "png     = \"window.png\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex/window.png: panorama has transparent pixels\n"
+  },
+  {
+   "gen": "tex",
+   "toml": "bg.toml",
+   "cmd": "bg",
+   "replace": [
+    "load    = 0xFB80",
+    "load    = 0xFBF0"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: dbg: $FBF0..$FC67 (120 bytes) extends beyond the area end $FBFF (area $FB80..$FBFF, 128 bytes)\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "angles    = 4",
+    "angles    = 5"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: angles: integer 1 ... 4 expected, found 5\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "angles    = 4",
+    "angles    = 4\nangle_map = [0, 1, 2, 4]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml: angle_map needs 4 values < angles (4)\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "angles    = 4",
+    "angles    = 4\nmirror = { 1 = 1 }"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml: mirror 1 = 1: only between different existing view angles < 4\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "angles    = 4",
+    "angles    = 4\nmirror = { x = 1 }"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml: mirror: key 'x' is not a number\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "angles    = 4",
+    "angles    = 4\nderive = \"x\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml: derive = \"none\" or \"nearest\" expected\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "phases    = 2",
+    "phases    = 33"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: phases: integer 1 ... 32 expected, found 33\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "phases    = 2",
+    "phases    = 1"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: image in phase 1 >= phases 1\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "phases    = 2",
+    "phases    = 2\nbogus = 1"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml [sprite]: unknown key 'bogus'\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "aseprite = \"blob.json\"",
+    "aseprite = \"blob.json\"\npng = \"gem.png\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml [source]: exactly one source (aseprite or png) expected\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "aseprite = \"blob.json\"",
+    "aseprite = \"missing.json\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/missing.json: [Errno 2] No such file or directory: '/T/spr/missing.json'\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "angles    = 4",
+    "angles    = 2"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/blob.json: layer v2_d1: view angle 2 >= angles 2\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "load      = 0x6000",
+    "load      = 0x7800"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: s2: $7800..$9083 (6276 bytes) extends beyond the area end $7FFF (area $6000..$7FFF, 8192 bytes)\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "blob.toml",
+   "cmd": "build",
+   "replace": [
+    "format  = \"dbespr\"",
+    "format  = \"dbetex\""
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml: format = \"dbespr\" and version = 1 expected\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "box   = [1, 1, 12, 10]",
+    "box   = [1, 1, 12]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml [[image]] 0: box = [x, y, w, h] expected\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "depth = 1",
+    "depth = 4"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: image 0 (f0, ai0, d4): depth outside 1 ... 3\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "foot  = [6, 9]",
+    "foot  = [60, 9]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: v0_d1#0: foot point (30, 9) outside the image 7 x 10\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "foot  = [6, 9]",
+    "foot  = [6]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml [[image]] 0: foot = [x, y] expected\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "phase = 1",
+    "phase = 0"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: image 3 (f0, ai0, d1): (phase, view angle, depth) duplicated\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "angle = 0",
+    "angle = 1"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: image 0 (f0, ai1, d1): view angle >= angles 1\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "angle = 0",
+    "angle = 9"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: angle: integer 0 ... 3 expected, found 9\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "box   = [1, 1, 12, 10]",
+    "box   = [60, 1, 12, 10]"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: Region (60, 1, 12x10) lies outside the image 64x32\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "box   = [1, 1, 12, 10]",
+    "box   = [1, 20, 12, 10]"
+   ],
+   "code": 0,
+   "stdout": "gem: 1 angles, 2 phases, 5 images, S2 343 bytes, VRAM 91 bytes, VRL 92 bytes, VMS max 62\n",
+   "stderr": "Warning: image 0 (f0, ai0, d1): empty, no image\nWarning: phase 0 without image for v0_d1\n"
+  },
+  {
+   "gen": "spr",
+   "toml": "gem.toml",
+   "cmd": "build",
+   "replace": [
+    "[source]\npng = \"gem.png\"\n",
+    "[source]\npng = \"gem.png\"\n[[image]]\nbox = [0, 0, 1, 1]\nphase = 0\nangle = 0\n"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr/case.toml [[image]] 0: depth missing\n"
+  }
+ ],
+ "cli": [
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_walls.dts",
+    "--vrl",
+    "/T/tex_out/demo_walls.vrl"
+   ],
+   "code": 0,
+   "stdout": "DTS wall ID 47585 NE 79 D 3 NS 25 NST 4 NI 58 NK 137 U 23551 CRC E560 stride 80 length 8752\nSlot map: [255, 255, 255, 0, 255, 255, 255, 1, 255, 255, 255, 2, 255, 255, 255, 3, 4, 255, 255, 255, 5, 6, 255, 255, 255, 7, 255, 255, 255, 8, 9, 255, 255, 255, 10, 11, 255, 255, 255, 12, 255, 255, 255, 13, 255, 255, 255, 14, 255, 255, 255, 15, 16, 255, 255, 255, 17, 18, 255, 255, 255, 19, 20, 255, 255, 255, 21, 22, 255, 255, 255, 23, 255, 255, 255, 24, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]\nStyle 0: 00 01 02 11 03 12 04 05 13 06 14 07 08 09 0A 15 0B 16 0C 17 0D 18 0E 0F 10\nStyle 1: 00 01 19 1C 03 1D 04 1A 1E 06 1F 07 08 09 1B 20 0B 21 0C 22 0D 23 0E 0F 10\nStyle 2: FF FF 24 27 FF 28 FF 25 29 FF 2A FF FF FF 26 2B FF 2C FF 2D FF 2E FF FF FF\nStyle 3: FF FF 2F 32 FF 33 FF 30 34 FF 35 FF FF FF 31 36 FF 37 FF 38 FF 39 FF FF FF\nImage 0: slot 0  flags 9 h 96 cores 3 edge 50 vms 90\nImage 1: slot 1  flags 9 h 96 cores 3 edge 50 vms 90\nImage 2: slot 2  flags 1 h 77 cores 1 edge 0 vms 0\nImage 3: slot 4  flags 9 h 76 cores 3 edge 56 vms 115\nImage 4: slot 6  flags 9 h 76 cores 3 edge 56 vms 115\nImage 5: slot 7  flags 1 h 51 cores 1 edge 0 vms 0\nImage 6: slot 9  flags 9 h 50 cores 2 edge 39 vms 91\nImage 7: slot 11  flags 9 h 50 cores 2 edge 39 vms 91\nImage 8: slot 12  flags 9 h 37 cores 1 edge 15 vms 31\nImage 9: slot 13  flags 9 h 37 cores 1 edge 15 vms 31\nImage 10: slot 14  flags 1 h 32 cores 1 edge 0 vms 0\nImage 11: slot 16  flags 9 h 32 cores 1 edge 21 vms 49\nImage 12: slot 18  flags 9 h 32 cores 1 edge 21 vms 49\nImage 13: slot 20  flags 9 h 32 cores 2 edge 33 vms 35\nImage 14: slot 22  flags 9 h 32 cores 2 edge 33 vms 35\nImage 15: slot 23  flags 9 h 25 cores 1 edge 6 vms 17\nImage 16: slot 24  flags 9 h 25 cores 1 edge 6 vms 17\nImage 17: slot 3  flags 3 h 77 cores 1 edge 0 vms 0\nImage 18: slot 5  flags 3 h 77 cores 1 edge 0 vms 0\nImage 19: slot 8  flags 3 h 51 cores 1 edge 0 vms 0\nImage 20: slot 10  flags 3 h 51 cores 1 edge 0 vms 0\nImage 21: slot 15  flags 3 h 32 cores 1 edge 0 vms 0\nImage 22: slot 17  flags 3 h 32 cores 1 edge 0 vms 0\nImage 23: slot 19  flags 3 h 32 cores 1 edge 0 vms 0\nImage 24: slot 21  flags 3 h 32 cores 1 edge 0 vms 0\nImage 25: slot 2  flags 8 h 77 cores 4 edge 366 vms 1467\nImage 26: slot 7  flags 8 h 51 cores 4 edge 154 vms 435\nImage 27: slot 14  flags 8 h 32 cores 4 edge 122 vms 403\nImage 28: slot 3  flags A h 77 cores 2 edge 73 vms 295\nImage 29: slot 5  flags A h 77 cores 3 edge 37 vms 151\nImage 30: slot 8  flags A h 51 cores 1 edge 134 vms 411\nImage 31: slot 10  flags A h 51 cores 4 edge 30 vms 43\nImage 32: slot 15  flags A h 32 cores 4 edge 122 vms 403\nImage 33: slot 17  flags A h 32 cores 4 edge 122 vms 403\nImage 34: slot 19  flags A h 32 cores 0 edge 70 vms 251\nImage 35: slot 21  flags A h 32 cores 2 edge 6 vms 19\nImage 36: slot 2  flags 8 h 77 cores 4 edge 54 vms 165\nImage 37: slot 7  flags 8 h 51 cores 4 edge 36 vms 111\nImage 38: slot 14  flags 8 h 32 cores 4 edge 22 vms 69\nImage 39: slot 3  flags 3 h 77 cores 3 edge 0 vms 0\nImage 40: slot 5  flags 3 h 77 cores 3 edge 0 vms 0\nImage 41: slot 8  flags A h 51 cores 3 edge 18 vms 57\nImage 42: slot 10  flags A h 51 cores 3 edge 18 vms 57\nImage 43: slot 15  flags A h 32 cores 4 edge 22 vms 69\nImage 44: slot 17  flags A h 32 cores 4 edge 22 vms 69\nImage 45: slot 19  flags 3 h 32 cores 3 edge 0 vms 0\nImage 46: slot 21  flags 3 h 32 cores 3 edge 0 vms 0\nImage 47: slot 2  flags 8 h 77 cores 4 edge 76 vms 145\nImage 48: slot 7  flags 8 h 51 cores 4 edge 40 vms 95\nImage 49: slot 14  flags 8 h 32 cores 4 edge 46 vms 143\nImage 50: slot 3  flags 3 h 77 cores 1 edge 0 vms 0\nImage 51: slot 5  flags 3 h 77 cores 1 edge 0 vms 0\nImage 52: slot 8  flags A h 51 cores 3 edge 21 vms 53\nImage 53: slot 10  flags A h 51 cores 3 edge 21 vms 53\nImage 54: slot 15  flags A h 32 cores 4 edge 46 vms 143\nImage 55: slot 17  flags A h 32 cores 4 edge 46 vms 143\nImage 56: slot 19  flags 3 h 32 cores 1 edge 0 vms 0\nImage 57: slot 21  flags 3 h 32 cores 1 edge 0 vms 0\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_walls.dts",
+    "--vrl",
+    "/T/tex_out/demo_walls.vrl",
+    "--json"
+   ],
+   "code": 0,
+   "stdout": "{\n \"kind\": \"wall\",\n \"geometry_id\": 47585,\n \"ne\": 79,\n \"depth\": 3,\n \"ns\": 25,\n \"nst\": 4,\n \"ni\": 58,\n \"nk\": 137,\n \"u\": 23551,\n \"crc\": 58720,\n \"stride\": 80,\n \"length\": 8752,\n \"slot_map\": [\n  255,\n  255,\n  255,\n  0,\n  255,\n  255,\n  255,\n  1,\n  255,\n  255,\n  255,\n  2,\n  255,\n  255,\n  255,\n  3,\n  4,\n  255,\n  255,\n  255,\n  5,\n  6,\n  255,\n  255,\n  255,\n  7,\n  255,\n  255,\n  255,\n  8,\n  9,\n  255,\n  255,\n  255,\n  10,\n  11,\n  255,\n  255,\n  255,\n  12,\n  255,\n  255,\n  255,\n  13,\n  255,\n  255,\n  255,\n  14,\n  255,\n  255,\n  255,\n  15,\n  16,\n  255,\n  255,\n  255,\n  17,\n  18,\n  255,\n  255,\n  255,\n  19,\n  20,\n  255,\n  255,\n  255,\n  21,\n  22,\n  255,\n  255,\n  255,\n  23,\n  255,\n  255,\n  255,\n  24,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255\n ],\n \"styles\": [\n  [\n   0,\n   1,\n   2,\n   17,\n   3,\n   18,\n   4,\n   5,\n   19,\n   6,\n   20,\n   7,\n   8,\n   9,\n   10,\n   21,\n   11,\n   22,\n   12,\n   23,\n   13,\n   24,\n   14,\n   15,\n   16\n  ],\n  [\n   0,\n   1,\n   25,\n   28,\n   3,\n   29,\n   4,\n   26,\n   30,\n   6,\n   31,\n   7,\n   8,\n   9,\n   27,\n   32,\n   11,\n   33,\n   12,\n   34,\n   13,\n   35,\n   14,\n   15,\n   16\n  ],\n  [\n   255,\n   255,\n   36,\n   39,\n   255,\n   40,\n   255,\n   37,\n   41,\n   255,\n   42,\n   255,\n   255,\n   255,\n   38,\n   43,\n   255,\n   44,\n   255,\n   45,\n   255,\n   46,\n   255,\n   255,\n   255\n  ],\n  [\n   255,\n   255,\n   47,\n   50,\n   255,\n   51,\n   255,\n   48,\n   52,\n   255,\n   53,\n   255,\n   255,\n   255,\n   49,\n   54,\n   255,\n   55,\n   255,\n   56,\n   255,\n   57,\n   255,\n   255,\n   255\n  ]\n ],\n \"entries\": [\n  {\n   \"index\": 0,\n   \"slot\": 0,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 96,\n   \"source\": 0,\n   \"edge_ofs\": 860,\n   \"edge_len\": 50,\n   \"vms_len\": 90,\n   \"cores\": [\n    {\n     \"src\": 0,\n     \"dx\": 0,\n     \"dy\": 6,\n     \"w\": 10,\n     \"h\": 78,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 780,\n     \"dx\": 0,\n     \"dy\": 84,\n     \"w\": 5,\n     \"h\": 10,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 830,\n     \"dx\": 0,\n     \"dy\": 1,\n     \"w\": 6,\n     \"h\": 5,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 1,\n   \"slot\": 1,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 96,\n   \"source\": 1,\n   \"edge_ofs\": 1770,\n   \"edge_len\": 50,\n   \"vms_len\": 90,\n   \"cores\": [\n    {\n     \"src\": 910,\n     \"dx\": 0,\n     \"dy\": 6,\n     \"w\": 10,\n     \"h\": 78,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1690,\n     \"dx\": 5,\n     \"dy\": 84,\n     \"w\": 5,\n     \"h\": 10,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1740,\n     \"dx\": 4,\n     \"dy\": 1,\n     \"w\": 6,\n     \"h\": 5,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 2,\n   \"slot\": 2,\n   \"name\": null,\n   \"flags\": 1,\n   \"h\": 77,\n   \"source\": 2,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 1820,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 50,\n     \"h\": 77,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 3,\n   \"slot\": 4,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 76,\n   \"source\": 3,\n   \"edge_ofs\": 6196,\n   \"edge_len\": 56,\n   \"vms_len\": 115,\n   \"cores\": [\n    {\n     \"src\": 5670,\n     \"dx\": 0,\n     \"dy\": 7,\n     \"w\": 9,\n     \"h\": 52,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6138,\n     \"dx\": 0,\n     \"dy\": 59,\n     \"w\": 5,\n     \"h\": 8,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6178,\n     \"dx\": 0,\n     \"dy\": 4,\n     \"w\": 6,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 4,\n   \"slot\": 6,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 76,\n   \"source\": 4,\n   \"edge_ofs\": 6778,\n   \"edge_len\": 56,\n   \"vms_len\": 115,\n   \"cores\": [\n    {\n     \"src\": 6252,\n     \"dx\": 0,\n     \"dy\": 7,\n     \"w\": 9,\n     \"h\": 52,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6720,\n     \"dx\": 4,\n     \"dy\": 59,\n     \"w\": 5,\n     \"h\": 8,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6760,\n     \"dx\": 3,\n     \"dy\": 4,\n     \"w\": 6,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 5,\n   \"slot\": 7,\n   \"name\": null,\n   \"flags\": 1,\n   \"h\": 51,\n   \"source\": 5,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 6834,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 32,\n     \"h\": 51,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 6,\n   \"slot\": 9,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 50,\n   \"source\": 6,\n   \"edge_ofs\": 8682,\n   \"edge_len\": 39,\n   \"vms_len\": 91,\n   \"cores\": [\n    {\n     \"src\": 8466,\n     \"dx\": 0,\n     \"dy\": 6,\n     \"w\": 6,\n     \"h\": 33,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 8664,\n     \"dx\": 0,\n     \"dy\": 39,\n     \"w\": 3,\n     \"h\": 6,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 7,\n   \"slot\": 11,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 50,\n   \"source\": 7,\n   \"edge_ofs\": 8937,\n   \"edge_len\": 39,\n   \"vms_len\": 91,\n   \"cores\": [\n    {\n     \"src\": 8721,\n     \"dx\": 0,\n     \"dy\": 6,\n     \"w\": 6,\n     \"h\": 33,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 8919,\n     \"dx\": 3,\n     \"dy\": 39,\n     \"w\": 3,\n     \"h\": 6,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 8,\n   \"slot\": 12,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 37,\n   \"source\": 8,\n   \"edge_ofs\": 9136,\n   \"edge_len\": 15,\n   \"vms_len\": 31,\n   \"cores\": [\n    {\n     \"src\": 8976,\n     \"dx\": 0,\n     \"dy\": 2,\n     \"w\": 5,\n     \"h\": 32,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 9,\n   \"slot\": 13,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 37,\n   \"source\": 9,\n   \"edge_ofs\": 9311,\n   \"edge_len\": 15,\n   \"vms_len\": 31,\n   \"cores\": [\n    {\n     \"src\": 9151,\n     \"dx\": 0,\n     \"dy\": 2,\n     \"w\": 5,\n     \"h\": 32,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 10,\n   \"slot\": 14,\n   \"name\": null,\n   \"flags\": 1,\n   \"h\": 32,\n   \"source\": 10,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 9326,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 32,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 11,\n   \"slot\": 16,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 32,\n   \"source\": 11,\n   \"edge_ofs\": 10058,\n   \"edge_len\": 21,\n   \"vms_len\": 49,\n   \"cores\": [\n    {\n     \"src\": 9966,\n     \"dx\": 0,\n     \"dy\": 3,\n     \"w\": 4,\n     \"h\": 23,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 12,\n   \"slot\": 18,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 32,\n   \"source\": 12,\n   \"edge_ofs\": 10171,\n   \"edge_len\": 21,\n   \"vms_len\": 49,\n   \"cores\": [\n    {\n     \"src\": 10079,\n     \"dx\": 0,\n     \"dy\": 3,\n     \"w\": 4,\n     \"h\": 23,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 13,\n   \"slot\": 20,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 32,\n   \"source\": 13,\n   \"edge_ofs\": 10489,\n   \"edge_len\": 33,\n   \"vms_len\": 35,\n   \"cores\": [\n    {\n     \"src\": 10192,\n     \"dx\": 0,\n     \"dy\": 3,\n     \"w\": 12,\n     \"h\": 23,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 10468,\n     \"dx\": 0,\n     \"dy\": 26,\n     \"w\": 7,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 14,\n   \"slot\": 22,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 32,\n   \"source\": 14,\n   \"edge_ofs\": 10819,\n   \"edge_len\": 33,\n   \"vms_len\": 35,\n   \"cores\": [\n    {\n     \"src\": 10522,\n     \"dx\": 0,\n     \"dy\": 3,\n     \"w\": 12,\n     \"h\": 23,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 10798,\n     \"dx\": 5,\n     \"dy\": 26,\n     \"w\": 7,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 15,\n   \"slot\": 23,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 25,\n   \"source\": 15,\n   \"edge_ofs\": 10967,\n   \"edge_len\": 6,\n   \"vms_len\": 17,\n   \"cores\": [\n    {\n     \"src\": 10852,\n     \"dx\": 0,\n     \"dy\": 1,\n     \"w\": 5,\n     \"h\": 23,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 16,\n   \"slot\": 24,\n   \"name\": null,\n   \"flags\": 9,\n   \"h\": 25,\n   \"source\": 16,\n   \"edge_ofs\": 11088,\n   \"edge_len\": 6,\n   \"vms_len\": 17,\n   \"cores\": [\n    {\n     \"src\": 10973,\n     \"dx\": 0,\n     \"dy\": 1,\n     \"w\": 5,\n     \"h\": 23,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 17,\n   \"slot\": 3,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 77,\n   \"source\": 2,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 1860,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 77,\n     \"srcstep\": 50\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 18,\n   \"slot\": 5,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 77,\n   \"source\": 2,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 1820,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 77,\n     \"srcstep\": 50\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 19,\n   \"slot\": 8,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 51,\n   \"source\": 5,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 6847,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 19,\n     \"h\": 51,\n     \"srcstep\": 32\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 20,\n   \"slot\": 10,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 51,\n   \"source\": 5,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 6834,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 19,\n     \"h\": 51,\n     \"srcstep\": 32\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 21,\n   \"slot\": 15,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 10,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 9326,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 32,\n     \"srcstep\": 20\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 22,\n   \"slot\": 17,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 10,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 9326,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 32,\n     \"srcstep\": 20\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 23,\n   \"slot\": 19,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 10,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 9341,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 32,\n     \"srcstep\": 20\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 24,\n   \"slot\": 21,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 10,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 9326,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 32,\n     \"srcstep\": 20\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 25,\n   \"slot\": 2,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 77,\n   \"source\": 25,\n   \"edge_ofs\": 11366,\n   \"edge_len\": 366,\n   \"vms_len\": 1467,\n   \"cores\": [\n    {\n     \"src\": 11094,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 50,\n     \"h\": 2,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 11194,\n     \"dx\": 0,\n     \"dy\": 57,\n     \"w\": 50,\n     \"h\": 2,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 11294,\n     \"dx\": 4,\n     \"dy\": 21,\n     \"w\": 1,\n     \"h\": 36,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 11330,\n     \"dx\": 12,\n     \"dy\": 21,\n     \"w\": 1,\n     \"h\": 36,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 26,\n   \"slot\": 7,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 51,\n   \"source\": 26,\n   \"edge_ofs\": 11936,\n   \"edge_len\": 154,\n   \"vms_len\": 435,\n   \"cores\": [\n    {\n     \"src\": 11732,\n     \"dx\": 2,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 11783,\n     \"dx\": 7,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 11834,\n     \"dx\": 12,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 11885,\n     \"dx\": 17,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 27,\n   \"slot\": 14,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 32,\n   \"source\": 27,\n   \"edge_ofs\": 12218,\n   \"edge_len\": 122,\n   \"vms_len\": 403,\n   \"cores\": [\n    {\n     \"src\": 12090,\n     \"dx\": 1,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 12122,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 12154,\n     \"dx\": 7,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 12186,\n     \"dx\": 10,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 28,\n   \"slot\": 3,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 77,\n   \"source\": 25,\n   \"edge_ofs\": 12340,\n   \"edge_len\": 73,\n   \"vms_len\": 295,\n   \"cores\": [\n    {\n     \"src\": 11134,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 10,\n     \"h\": 2,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 11234,\n     \"dx\": 0,\n     \"dy\": 57,\n     \"w\": 10,\n     \"h\": 2,\n     \"srcstep\": 50\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 29,\n   \"slot\": 5,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 77,\n   \"source\": 25,\n   \"edge_ofs\": 12413,\n   \"edge_len\": 37,\n   \"vms_len\": 151,\n   \"cores\": [\n    {\n     \"src\": 11094,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 10,\n     \"h\": 2,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 11194,\n     \"dx\": 0,\n     \"dy\": 57,\n     \"w\": 10,\n     \"h\": 2,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 11294,\n     \"dx\": 4,\n     \"dy\": 21,\n     \"w\": 1,\n     \"h\": 36,\n     \"srcstep\": 1\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 30,\n   \"slot\": 8,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 51,\n   \"source\": 26,\n   \"edge_ofs\": 12450,\n   \"edge_len\": 134,\n   \"vms_len\": 411,\n   \"cores\": [\n    {\n     \"src\": 11885,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 1\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 31,\n   \"slot\": 10,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 51,\n   \"source\": 26,\n   \"edge_ofs\": 12584,\n   \"edge_len\": 30,\n   \"vms_len\": 43,\n   \"cores\": [\n    {\n     \"src\": 11732,\n     \"dx\": 2,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 11783,\n     \"dx\": 7,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 11834,\n     \"dx\": 12,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 11885,\n     \"dx\": 17,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 51,\n     \"srcstep\": 1\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 32,\n   \"slot\": 15,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 27,\n   \"edge_ofs\": 12614,\n   \"edge_len\": 122,\n   \"vms_len\": 403,\n   \"cores\": [\n    {\n     \"src\": 12090,\n     \"dx\": 1,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12122,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12154,\n     \"dx\": 7,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12186,\n     \"dx\": 10,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 33,\n   \"slot\": 17,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 27,\n   \"edge_ofs\": 12736,\n   \"edge_len\": 122,\n   \"vms_len\": 403,\n   \"cores\": [\n    {\n     \"src\": 12090,\n     \"dx\": 1,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12122,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12154,\n     \"dx\": 7,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12186,\n     \"dx\": 10,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 34,\n   \"slot\": 19,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 27,\n   \"edge_ofs\": 12858,\n   \"edge_len\": 70,\n   \"vms_len\": 251,\n   \"cores\": [],\n   \"fill\": []\n  },\n  {\n   \"index\": 35,\n   \"slot\": 21,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 27,\n   \"edge_ofs\": 12928,\n   \"edge_len\": 6,\n   \"vms_len\": 19,\n   \"cores\": [\n    {\n     \"src\": 12090,\n     \"dx\": 1,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    },\n    {\n     \"src\": 12122,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 1,\n     \"h\": 32,\n     \"srcstep\": 1\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 36,\n   \"slot\": 2,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 77,\n   \"source\": 36,\n   \"edge_ofs\": 16352,\n   \"edge_len\": 54,\n   \"vms_len\": 165,\n   \"cores\": [\n    {\n     \"src\": 12934,\n     \"dx\": 0,\n     \"dy\": 46,\n     \"w\": 50,\n     \"h\": 31,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 14484,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 50,\n     \"h\": 19,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 15434,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 17,\n     \"h\": 27,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 15893,\n     \"dx\": 33,\n     \"dy\": 19,\n     \"w\": 17,\n     \"h\": 27,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 37,\n   \"slot\": 7,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 51,\n   \"source\": 37,\n   \"edge_ofs\": 17858,\n   \"edge_len\": 36,\n   \"vms_len\": 111,\n   \"cores\": [\n    {\n     \"src\": 16406,\n     \"dx\": 0,\n     \"dy\": 30,\n     \"w\": 32,\n     \"h\": 21,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 17078,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 32,\n     \"h\": 12,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 17462,\n     \"dx\": 0,\n     \"dy\": 12,\n     \"w\": 11,\n     \"h\": 18,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 17660,\n     \"dx\": 21,\n     \"dy\": 12,\n     \"w\": 11,\n     \"h\": 18,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 38,\n   \"slot\": 14,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 32,\n   \"source\": 38,\n   \"edge_ofs\": 18457,\n   \"edge_len\": 22,\n   \"vms_len\": 69,\n   \"cores\": [\n    {\n     \"src\": 17894,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 20,\n     \"h\": 13,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 18154,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 8,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 18314,\n     \"dx\": 0,\n     \"dy\": 8,\n     \"w\": 7,\n     \"h\": 11,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 18391,\n     \"dx\": 14,\n     \"dy\": 8,\n     \"w\": 6,\n     \"h\": 11,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 39,\n   \"slot\": 3,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 77,\n   \"source\": 36,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 12974,\n     \"dx\": 0,\n     \"dy\": 46,\n     \"w\": 10,\n     \"h\": 31,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 14524,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 19,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 15900,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 10,\n     \"h\": 27,\n     \"srcstep\": 17\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 40,\n   \"slot\": 5,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 77,\n   \"source\": 36,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 12934,\n     \"dx\": 0,\n     \"dy\": 46,\n     \"w\": 10,\n     \"h\": 31,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 14484,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 19,\n     \"srcstep\": 50\n    },\n    {\n     \"src\": 15434,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 10,\n     \"h\": 27,\n     \"srcstep\": 17\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 41,\n   \"slot\": 8,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 51,\n   \"source\": 37,\n   \"edge_ofs\": 18479,\n   \"edge_len\": 18,\n   \"vms_len\": 57,\n   \"cores\": [\n    {\n     \"src\": 16419,\n     \"dx\": 0,\n     \"dy\": 30,\n     \"w\": 19,\n     \"h\": 21,\n     \"srcstep\": 32\n    },\n    {\n     \"src\": 17091,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 19,\n     \"h\": 12,\n     \"srcstep\": 32\n    },\n    {\n     \"src\": 17660,\n     \"dx\": 8,\n     \"dy\": 12,\n     \"w\": 11,\n     \"h\": 18,\n     \"srcstep\": 11\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 42,\n   \"slot\": 10,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 51,\n   \"source\": 37,\n   \"edge_ofs\": 18497,\n   \"edge_len\": 18,\n   \"vms_len\": 57,\n   \"cores\": [\n    {\n     \"src\": 16406,\n     \"dx\": 0,\n     \"dy\": 30,\n     \"w\": 19,\n     \"h\": 21,\n     \"srcstep\": 32\n    },\n    {\n     \"src\": 17078,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 19,\n     \"h\": 12,\n     \"srcstep\": 32\n    },\n    {\n     \"src\": 17462,\n     \"dx\": 0,\n     \"dy\": 12,\n     \"w\": 11,\n     \"h\": 18,\n     \"srcstep\": 11\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 43,\n   \"slot\": 15,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 38,\n   \"edge_ofs\": 18515,\n   \"edge_len\": 22,\n   \"vms_len\": 69,\n   \"cores\": [\n    {\n     \"src\": 17894,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 20,\n     \"h\": 13,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18154,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 8,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18314,\n     \"dx\": 0,\n     \"dy\": 8,\n     \"w\": 7,\n     \"h\": 11,\n     \"srcstep\": 7\n    },\n    {\n     \"src\": 18391,\n     \"dx\": 14,\n     \"dy\": 8,\n     \"w\": 6,\n     \"h\": 11,\n     \"srcstep\": 6\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 44,\n   \"slot\": 17,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 38,\n   \"edge_ofs\": 18537,\n   \"edge_len\": 22,\n   \"vms_len\": 69,\n   \"cores\": [\n    {\n     \"src\": 17894,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 20,\n     \"h\": 13,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18154,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 8,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18314,\n     \"dx\": 0,\n     \"dy\": 8,\n     \"w\": 7,\n     \"h\": 11,\n     \"srcstep\": 7\n    },\n    {\n     \"src\": 18391,\n     \"dx\": 14,\n     \"dy\": 8,\n     \"w\": 6,\n     \"h\": 11,\n     \"srcstep\": 6\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 45,\n   \"slot\": 19,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 38,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 17909,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 5,\n     \"h\": 13,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18169,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 8,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18392,\n     \"dx\": 0,\n     \"dy\": 8,\n     \"w\": 5,\n     \"h\": 11,\n     \"srcstep\": 6\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 46,\n   \"slot\": 21,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 38,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 17894,\n     \"dx\": 0,\n     \"dy\": 19,\n     \"w\": 5,\n     \"h\": 13,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18154,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 8,\n     \"srcstep\": 20\n    },\n    {\n     \"src\": 18314,\n     \"dx\": 0,\n     \"dy\": 8,\n     \"w\": 5,\n     \"h\": 11,\n     \"srcstep\": 7\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 47,\n   \"slot\": 2,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 77,\n   \"source\": 47,\n   \"edge_ofs\": 21527,\n   \"edge_len\": 76,\n   \"vms_len\": 145,\n   \"cores\": [\n    {\n     \"src\": 18559,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 16,\n     \"h\": 77,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 19791,\n     \"dx\": 34,\n     \"dy\": 0,\n     \"w\": 16,\n     \"h\": 77,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 21023,\n     \"dx\": 16,\n     \"dy\": 62,\n     \"w\": 18,\n     \"h\": 15,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 21293,\n     \"dx\": 16,\n     \"dy\": 0,\n     \"w\": 18,\n     \"h\": 13,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 48,\n   \"slot\": 7,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 51,\n   \"source\": 48,\n   \"edge_ofs\": 22851,\n   \"edge_len\": 40,\n   \"vms_len\": 95,\n   \"cores\": [\n    {\n     \"src\": 21603,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 51,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 22113,\n     \"dx\": 22,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 51,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 22623,\n     \"dx\": 10,\n     \"dy\": 41,\n     \"w\": 12,\n     \"h\": 10,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 22743,\n     \"dx\": 10,\n     \"dy\": 0,\n     \"w\": 12,\n     \"h\": 9,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 49,\n   \"slot\": 14,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 32,\n   \"source\": 49,\n   \"edge_ofs\": 23371,\n   \"edge_len\": 46,\n   \"vms_len\": 143,\n   \"cores\": [\n    {\n     \"src\": 22891,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 6,\n     \"h\": 32,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 23083,\n     \"dx\": 14,\n     \"dy\": 0,\n     \"w\": 6,\n     \"h\": 32,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 23275,\n     \"dx\": 6,\n     \"dy\": 0,\n     \"w\": 8,\n     \"h\": 6,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 23323,\n     \"dx\": 6,\n     \"dy\": 26,\n     \"w\": 8,\n     \"h\": 6,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 50,\n   \"slot\": 3,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 77,\n   \"source\": 47,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 19797,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 77,\n     \"srcstep\": 16\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 51,\n   \"slot\": 5,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 77,\n   \"source\": 47,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 18559,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 77,\n     \"srcstep\": 16\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 52,\n   \"slot\": 8,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 51,\n   \"source\": 48,\n   \"edge_ofs\": 23417,\n   \"edge_len\": 21,\n   \"vms_len\": 53,\n   \"cores\": [\n    {\n     \"src\": 22113,\n     \"dx\": 9,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 51,\n     \"srcstep\": 10\n    },\n    {\n     \"src\": 22626,\n     \"dx\": 0,\n     \"dy\": 41,\n     \"w\": 9,\n     \"h\": 10,\n     \"srcstep\": 12\n    },\n    {\n     \"src\": 22746,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 9,\n     \"h\": 9,\n     \"srcstep\": 12\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 53,\n   \"slot\": 10,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 51,\n   \"source\": 48,\n   \"edge_ofs\": 23438,\n   \"edge_len\": 21,\n   \"vms_len\": 53,\n   \"cores\": [\n    {\n     \"src\": 21603,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 51,\n     \"srcstep\": 10\n    },\n    {\n     \"src\": 22623,\n     \"dx\": 10,\n     \"dy\": 41,\n     \"w\": 9,\n     \"h\": 10,\n     \"srcstep\": 12\n    },\n    {\n     \"src\": 22743,\n     \"dx\": 10,\n     \"dy\": 0,\n     \"w\": 9,\n     \"h\": 9,\n     \"srcstep\": 12\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 54,\n   \"slot\": 15,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 49,\n   \"edge_ofs\": 23459,\n   \"edge_len\": 46,\n   \"vms_len\": 143,\n   \"cores\": [\n    {\n     \"src\": 22891,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 6,\n     \"h\": 32,\n     \"srcstep\": 6\n    },\n    {\n     \"src\": 23083,\n     \"dx\": 14,\n     \"dy\": 0,\n     \"w\": 6,\n     \"h\": 32,\n     \"srcstep\": 6\n    },\n    {\n     \"src\": 23275,\n     \"dx\": 6,\n     \"dy\": 0,\n     \"w\": 8,\n     \"h\": 6,\n     \"srcstep\": 8\n    },\n    {\n     \"src\": 23323,\n     \"dx\": 6,\n     \"dy\": 26,\n     \"w\": 8,\n     \"h\": 6,\n     \"srcstep\": 8\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 55,\n   \"slot\": 17,\n   \"name\": null,\n   \"flags\": 10,\n   \"h\": 32,\n   \"source\": 49,\n   \"edge_ofs\": 23505,\n   \"edge_len\": 46,\n   \"vms_len\": 143,\n   \"cores\": [\n    {\n     \"src\": 22891,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 6,\n     \"h\": 32,\n     \"srcstep\": 6\n    },\n    {\n     \"src\": 23083,\n     \"dx\": 14,\n     \"dy\": 0,\n     \"w\": 6,\n     \"h\": 32,\n     \"srcstep\": 6\n    },\n    {\n     \"src\": 23275,\n     \"dx\": 6,\n     \"dy\": 0,\n     \"w\": 8,\n     \"h\": 6,\n     \"srcstep\": 8\n    },\n    {\n     \"src\": 23323,\n     \"dx\": 6,\n     \"dy\": 26,\n     \"w\": 8,\n     \"h\": 6,\n     \"srcstep\": 8\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 56,\n   \"slot\": 19,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 49,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 23084,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 32,\n     \"srcstep\": 6\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 57,\n   \"slot\": 21,\n   \"name\": null,\n   \"flags\": 3,\n   \"h\": 32,\n   \"source\": 49,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [\n    {\n     \"src\": 22891,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 32,\n     \"srcstep\": 6\n    }\n   ],\n   \"fill\": []\n  }\n ]\n}\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_walls.dts"
+   ],
+   "code": 0,
+   "stdout": "DTS wall ID 47585 NE 79 D 3 NS 25 NST 4 NI 58 NK 137 U 23551 CRC E560 stride 80 length 8752\nSlot map: [255, 255, 255, 0, 255, 255, 255, 1, 255, 255, 255, 2, 255, 255, 255, 3, 4, 255, 255, 255, 5, 6, 255, 255, 255, 7, 255, 255, 255, 8, 9, 255, 255, 255, 10, 11, 255, 255, 255, 12, 255, 255, 255, 13, 255, 255, 255, 14, 255, 255, 255, 15, 16, 255, 255, 255, 17, 18, 255, 255, 255, 19, 20, 255, 255, 255, 21, 22, 255, 255, 255, 23, 255, 255, 255, 24, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]\nStyle 0: 00 01 02 11 03 12 04 05 13 06 14 07 08 09 0A 15 0B 16 0C 17 0D 18 0E 0F 10\nStyle 1: 00 01 19 1C 03 1D 04 1A 1E 06 1F 07 08 09 1B 20 0B 21 0C 22 0D 23 0E 0F 10\nStyle 2: FF FF 24 27 FF 28 FF 25 29 FF 2A FF FF FF 26 2B FF 2C FF 2D FF 2E FF FF FF\nStyle 3: FF FF 2F 32 FF 33 FF 30 34 FF 35 FF FF FF 31 36 FF 37 FF 38 FF 39 FF FF FF\nImage 0: slot 0  flags 9 h 96 cores 3 edge 50 vms 90\nImage 1: slot 1  flags 9 h 96 cores 3 edge 50 vms 90\nImage 2: slot 2  flags 1 h 77 cores 1 edge 0 vms 0\nImage 3: slot 4  flags 9 h 76 cores 3 edge 56 vms 115\nImage 4: slot 6  flags 9 h 76 cores 3 edge 56 vms 115\nImage 5: slot 7  flags 1 h 51 cores 1 edge 0 vms 0\nImage 6: slot 9  flags 9 h 50 cores 2 edge 39 vms 91\nImage 7: slot 11  flags 9 h 50 cores 2 edge 39 vms 91\nImage 8: slot 12  flags 9 h 37 cores 1 edge 15 vms 31\nImage 9: slot 13  flags 9 h 37 cores 1 edge 15 vms 31\nImage 10: slot 14  flags 1 h 32 cores 1 edge 0 vms 0\nImage 11: slot 16  flags 9 h 32 cores 1 edge 21 vms 49\nImage 12: slot 18  flags 9 h 32 cores 1 edge 21 vms 49\nImage 13: slot 20  flags 9 h 32 cores 2 edge 33 vms 35\nImage 14: slot 22  flags 9 h 32 cores 2 edge 33 vms 35\nImage 15: slot 23  flags 9 h 25 cores 1 edge 6 vms 17\nImage 16: slot 24  flags 9 h 25 cores 1 edge 6 vms 17\nImage 17: slot 3  flags 3 h 77 cores 1 edge 0 vms 0\nImage 18: slot 5  flags 3 h 77 cores 1 edge 0 vms 0\nImage 19: slot 8  flags 3 h 51 cores 1 edge 0 vms 0\nImage 20: slot 10  flags 3 h 51 cores 1 edge 0 vms 0\nImage 21: slot 15  flags 3 h 32 cores 1 edge 0 vms 0\nImage 22: slot 17  flags 3 h 32 cores 1 edge 0 vms 0\nImage 23: slot 19  flags 3 h 32 cores 1 edge 0 vms 0\nImage 24: slot 21  flags 3 h 32 cores 1 edge 0 vms 0\nImage 25: slot 2  flags 8 h 77 cores 4 edge 366 vms 1467\nImage 26: slot 7  flags 8 h 51 cores 4 edge 154 vms 435\nImage 27: slot 14  flags 8 h 32 cores 4 edge 122 vms 403\nImage 28: slot 3  flags A h 77 cores 2 edge 73 vms 295\nImage 29: slot 5  flags A h 77 cores 3 edge 37 vms 151\nImage 30: slot 8  flags A h 51 cores 1 edge 134 vms 411\nImage 31: slot 10  flags A h 51 cores 4 edge 30 vms 43\nImage 32: slot 15  flags A h 32 cores 4 edge 122 vms 403\nImage 33: slot 17  flags A h 32 cores 4 edge 122 vms 403\nImage 34: slot 19  flags A h 32 cores 0 edge 70 vms 251\nImage 35: slot 21  flags A h 32 cores 2 edge 6 vms 19\nImage 36: slot 2  flags 8 h 77 cores 4 edge 54 vms 165\nImage 37: slot 7  flags 8 h 51 cores 4 edge 36 vms 111\nImage 38: slot 14  flags 8 h 32 cores 4 edge 22 vms 69\nImage 39: slot 3  flags 3 h 77 cores 3 edge 0 vms 0\nImage 40: slot 5  flags 3 h 77 cores 3 edge 0 vms 0\nImage 41: slot 8  flags A h 51 cores 3 edge 18 vms 57\nImage 42: slot 10  flags A h 51 cores 3 edge 18 vms 57\nImage 43: slot 15  flags A h 32 cores 4 edge 22 vms 69\nImage 44: slot 17  flags A h 32 cores 4 edge 22 vms 69\nImage 45: slot 19  flags 3 h 32 cores 3 edge 0 vms 0\nImage 46: slot 21  flags 3 h 32 cores 3 edge 0 vms 0\nImage 47: slot 2  flags 8 h 77 cores 4 edge 76 vms 145\nImage 48: slot 7  flags 8 h 51 cores 4 edge 40 vms 95\nImage 49: slot 14  flags 8 h 32 cores 4 edge 46 vms 143\nImage 50: slot 3  flags 3 h 77 cores 1 edge 0 vms 0\nImage 51: slot 5  flags 3 h 77 cores 1 edge 0 vms 0\nImage 52: slot 8  flags A h 51 cores 3 edge 21 vms 53\nImage 53: slot 10  flags A h 51 cores 3 edge 21 vms 53\nImage 54: slot 15  flags A h 32 cores 4 edge 46 vms 143\nImage 55: slot 17  flags A h 32 cores 4 edge 46 vms 143\nImage 56: slot 19  flags 3 h 32 cores 1 edge 0 vms 0\nImage 57: slot 21  flags 3 h 32 cores 1 edge 0 vms 0\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_floor.dts",
+    "--json"
+   ],
+   "code": 0,
+   "stdout": "{\n \"kind\": \"floor\",\n \"geometry_id\": 47585,\n \"ne\": 79,\n \"depth\": 3,\n \"ns\": 22,\n \"nst\": 1,\n \"ni\": 22,\n \"nk\": 30,\n \"u\": 3640,\n \"crc\": 20960,\n \"stride\": 80,\n \"length\": 1916,\n \"slot_map\": [\n  0,\n  255,\n  255,\n  255,\n  1,\n  255,\n  255,\n  255,\n  2,\n  255,\n  255,\n  255,\n  3,\n  255,\n  255,\n  255,\n  255,\n  4,\n  255,\n  255,\n  255,\n  255,\n  5,\n  255,\n  255,\n  255,\n  6,\n  255,\n  255,\n  255,\n  255,\n  7,\n  255,\n  255,\n  255,\n  255,\n  8,\n  255,\n  255,\n  255,\n  9,\n  255,\n  255,\n  255,\n  10,\n  255,\n  255,\n  255,\n  11,\n  255,\n  255,\n  255,\n  255,\n  12,\n  255,\n  255,\n  255,\n  255,\n  13,\n  255,\n  255,\n  255,\n  255,\n  14,\n  255,\n  255,\n  255,\n  255,\n  15,\n  255,\n  255,\n  255,\n  16,\n  255,\n  255,\n  255,\n  17,\n  255,\n  255,\n  255,\n  255,\n  255,\n  255,\n  18,\n  19,\n  20,\n  21\n ],\n \"styles\": [\n  [\n   0,\n   1,\n   2,\n   3,\n   4,\n   5,\n   6,\n   7,\n   8,\n   9,\n   10,\n   11,\n   12,\n   13,\n   14,\n   15,\n   16,\n   17,\n   18,\n   19,\n   20,\n   21\n  ]\n ],\n \"entries\": [\n  {\n   \"index\": 0,\n   \"slot\": 0,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 13,\n   \"source\": 0,\n   \"edge_ofs\": 698,\n   \"edge_len\": 50,\n   \"vms_len\": 125,\n   \"cores\": [\n    {\n     \"src\": 0,\n     \"dx\": 7,\n     \"dy\": 0,\n     \"w\": 50,\n     \"h\": 13,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 650,\n     \"dx\": 3,\n     \"dy\": 7,\n     \"w\": 4,\n     \"h\": 6,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 674,\n     \"dx\": 57,\n     \"dy\": 7,\n     \"w\": 4,\n     \"h\": 6,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 1,\n   \"slot\": 1,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 13,\n   \"source\": 1,\n   \"edge_ofs\": 803,\n   \"edge_len\": 39,\n   \"vms_len\": 65,\n   \"cores\": [\n    {\n     \"src\": 748,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 11,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 2,\n   \"slot\": 2,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 13,\n   \"source\": 2,\n   \"edge_ofs\": 897,\n   \"edge_len\": 39,\n   \"vms_len\": 65,\n   \"cores\": [\n    {\n     \"src\": 842,\n     \"dx\": 5,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 11,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 3,\n   \"slot\": 3,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 19,\n   \"source\": 3,\n   \"edge_ofs\": 1634,\n   \"edge_len\": 90,\n   \"vms_len\": 177,\n   \"cores\": [\n    {\n     \"src\": 936,\n     \"dx\": 9,\n     \"dy\": 0,\n     \"w\": 32,\n     \"h\": 19,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1544,\n     \"dx\": 4,\n     \"dy\": 10,\n     \"w\": 5,\n     \"h\": 9,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1589,\n     \"dx\": 41,\n     \"dy\": 10,\n     \"w\": 5,\n     \"h\": 9,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 4,\n   \"slot\": 4,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 19,\n   \"source\": 4,\n   \"edge_ofs\": 1959,\n   \"edge_len\": 45,\n   \"vms_len\": 90,\n   \"cores\": [\n    {\n     \"src\": 1724,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 19,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1914,\n     \"dx\": 10,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 9,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 5,\n   \"slot\": 5,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 19,\n   \"source\": 5,\n   \"edge_ofs\": 2239,\n   \"edge_len\": 45,\n   \"vms_len\": 90,\n   \"cores\": [\n    {\n     \"src\": 2004,\n     \"dx\": 9,\n     \"dy\": 0,\n     \"w\": 10,\n     \"h\": 19,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2194,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 5,\n     \"h\": 9,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 6,\n   \"slot\": 6,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 13,\n   \"source\": 6,\n   \"edge_ofs\": 2586,\n   \"edge_len\": 42,\n   \"vms_len\": 111,\n   \"cores\": [\n    {\n     \"src\": 2284,\n     \"dx\": 6,\n     \"dy\": 0,\n     \"w\": 20,\n     \"h\": 13,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2544,\n     \"dx\": 3,\n     \"dy\": 6,\n     \"w\": 3,\n     \"h\": 7,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2565,\n     \"dx\": 26,\n     \"dy\": 6,\n     \"w\": 3,\n     \"h\": 7,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 7,\n   \"slot\": 7,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 13,\n   \"source\": 7,\n   \"edge_ofs\": 2871,\n   \"edge_len\": 38,\n   \"vms_len\": 71,\n   \"cores\": [\n    {\n     \"src\": 2628,\n     \"dx\": 3,\n     \"dy\": 1,\n     \"w\": 16,\n     \"h\": 12,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2820,\n     \"dx\": 0,\n     \"dy\": 3,\n     \"w\": 3,\n     \"h\": 10,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2850,\n     \"dx\": 19,\n     \"dy\": 0,\n     \"w\": 3,\n     \"h\": 7,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 8,\n   \"slot\": 8,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 13,\n   \"source\": 8,\n   \"edge_ofs\": 3152,\n   \"edge_len\": 38,\n   \"vms_len\": 71,\n   \"cores\": [\n    {\n     \"src\": 2909,\n     \"dx\": 6,\n     \"dy\": 1,\n     \"w\": 16,\n     \"h\": 12,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 3101,\n     \"dx\": 22,\n     \"dy\": 3,\n     \"w\": 3,\n     \"h\": 10,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 3131,\n     \"dx\": 3,\n     \"dy\": 0,\n     \"w\": 3,\n     \"h\": 7,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 9,\n   \"slot\": 9,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 3,\n   \"source\": 9,\n   \"edge_ofs\": 3196,\n   \"edge_len\": 4,\n   \"vms_len\": 17,\n   \"cores\": [\n    {\n     \"src\": 3190,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 3,\n     \"h\": 2,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 10,\n   \"slot\": 10,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 3,\n   \"source\": 10,\n   \"edge_ofs\": 3206,\n   \"edge_len\": 4,\n   \"vms_len\": 17,\n   \"cores\": [\n    {\n     \"src\": 3200,\n     \"dx\": 2,\n     \"dy\": 0,\n     \"w\": 3,\n     \"h\": 2,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 11,\n   \"slot\": 11,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 6,\n   \"source\": 11,\n   \"edge_ofs\": 3282,\n   \"edge_len\": 28,\n   \"vms_len\": 67,\n   \"cores\": [\n    {\n     \"src\": 3210,\n     \"dx\": 4,\n     \"dy\": 0,\n     \"w\": 12,\n     \"h\": 6,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 12,\n   \"slot\": 12,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 6,\n   \"source\": 12,\n   \"edge_ofs\": 3365,\n   \"edge_len\": 43,\n   \"vms_len\": 51,\n   \"cores\": [\n    {\n     \"src\": 3310,\n     \"dx\": 8,\n     \"dy\": 1,\n     \"w\": 11,\n     \"h\": 5,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 13,\n   \"slot\": 13,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 6,\n   \"source\": 13,\n   \"edge_ofs\": 3463,\n   \"edge_len\": 43,\n   \"vms_len\": 51,\n   \"cores\": [\n    {\n     \"src\": 3408,\n     \"dx\": 4,\n     \"dy\": 1,\n     \"w\": 11,\n     \"h\": 5,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 14,\n   \"slot\": 14,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 6,\n   \"source\": 14,\n   \"edge_ofs\": 3538,\n   \"edge_len\": 31,\n   \"vms_len\": 26,\n   \"cores\": [\n    {\n     \"src\": 3506,\n     \"dx\": 0,\n     \"dy\": 1,\n     \"w\": 8,\n     \"h\": 4,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 15,\n   \"slot\": 15,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 6,\n   \"source\": 15,\n   \"edge_ofs\": 3601,\n   \"edge_len\": 31,\n   \"vms_len\": 26,\n   \"cores\": [\n    {\n     \"src\": 3569,\n     \"dx\": 8,\n     \"dy\": 1,\n     \"w\": 8,\n     \"h\": 4,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 16,\n   \"slot\": 16,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 1,\n   \"source\": 16,\n   \"edge_ofs\": 3635,\n   \"edge_len\": 1,\n   \"vms_len\": 6,\n   \"cores\": [\n    {\n     \"src\": 3632,\n     \"dx\": 0,\n     \"dy\": 0,\n     \"w\": 3,\n     \"h\": 1,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 17,\n   \"slot\": 17,\n   \"name\": null,\n   \"flags\": 8,\n   \"h\": 1,\n   \"source\": 17,\n   \"edge_ofs\": 3639,\n   \"edge_len\": 1,\n   \"vms_len\": 6,\n   \"cores\": [\n    {\n     \"src\": 3636,\n     \"dx\": 1,\n     \"dy\": 0,\n     \"w\": 3,\n     \"h\": 1,\n     \"srcstep\": 0\n    }\n   ],\n   \"fill\": []\n  },\n  {\n   \"index\": 18,\n   \"slot\": 18,\n   \"name\": null,\n   \"flags\": 4,\n   \"h\": 13,\n   \"source\": 18,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [],\n   \"fill\": [\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    0,\n    0,\n    0,\n    0,\n    0,\n    0\n   ]\n  },\n  {\n   \"index\": 19,\n   \"slot\": 19,\n   \"name\": null,\n   \"flags\": 4,\n   \"h\": 19,\n   \"source\": 19,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [],\n   \"fill\": [\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    0,\n    0,\n    0,\n    0,\n    0,\n    0,\n    0,\n    0,\n    0\n   ]\n  },\n  {\n   \"index\": 20,\n   \"slot\": 20,\n   \"name\": null,\n   \"flags\": 4,\n   \"h\": 13,\n   \"source\": 20,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [],\n   \"fill\": [\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    17,\n    0,\n    0,\n    0,\n    0,\n    0,\n    0\n   ]\n  },\n  {\n   \"index\": 21,\n   \"slot\": 21,\n   \"name\": null,\n   \"flags\": 4,\n   \"h\": 6,\n   \"source\": 21,\n   \"edge_ofs\": 0,\n   \"edge_len\": 0,\n   \"vms_len\": 0,\n   \"cores\": [],\n   \"fill\": [\n    17,\n    17,\n    17,\n    0,\n    0,\n    0\n   ]\n  }\n ]\n}\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_sky.dbg"
+   ],
+   "code": 0,
+   "stdout": "vw: 70\nvh: 96\ngeometry_id: 47585\nP: 280\ny0: 19\nh: 29\nwrap: True\noffsets: [0, 70, 140, 210]\nu: 8120\ncrc: 8343\nfill: [51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17]\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_sky.dbg",
+    "--vrl",
+    "/T/tex_out/demo_sky.vrl",
+    "--json"
+   ],
+   "code": 0,
+   "stdout": "{\n \"vw\": 70,\n \"vh\": 96,\n \"geometry_id\": 47585,\n \"P\": 280,\n \"y0\": 19,\n \"h\": 29,\n \"wrap\": true,\n \"offsets\": [\n  0,\n  70,\n  140,\n  210\n ],\n \"u\": 8120,\n \"crc\": 8343,\n \"fill\": [\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  51,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  0,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17,\n  17\n ],\n \"vrl_check\": {\n  \"u_ok\": true,\n  \"crc_ok\": true\n }\n}\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_walls.dts",
+    "--vrl",
+    "/T/tex_out/demo_floor.vrl"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: VRL does not match the DTS: U 3640 / 23551, CRC 51E0 / E560\n"
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "dump",
+    "/T/spr_out/blob.s2"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/spr_out/blob.s2: sprite set - use dbespr.py dump\n"
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "budget",
+    "/T/tex_out/demo_walls.dts",
+    "/T/tex_out/demo_floor.dts",
+    "/T/tex_out/demo_ceil.dts",
+    "/T/tex_out/demo_sky.dbg",
+    "/T/spr_out/blob.s2",
+    "--pool",
+    "30000",
+    "--pool-start",
+    "$2000"
+   ],
+   "code": 1,
+   "stdout": "/T/tex_out/demo_walls.dts: wall, U 23551, 78.5 % of the pool  base 2000\n/T/tex_out/demo_floor.dts: floor, U 3640, 12.1 % of the pool  base 7BFF\n/T/tex_out/demo_ceil.dts: ceiling, U 3114, 10.4 % of the pool  base 8A37\n/T/tex_out/demo_sky.dbg: background, U 8120, 27.1 % of the pool  base 9661\n/T/spr_out/blob.s2: sprite, U 6574, 21.9 % of the pool  base B619\nSum 44999 / Pool 30000, free for sprites: 0\nVMS bound 6893 / 1300 - warning: buffer too small\n",
+   "stderr": "Pool exceeded by 14999 bytes\n"
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "budget",
+    "/T/tex_out/demo_walls.dts",
+    "/T/tex_out/demo_floor.dts",
+    "--pool",
+    "20000",
+    "--json",
+    "--pool-start",
+    "0x100",
+    "--vms-buffer",
+    "100"
+   ],
+   "code": 1,
+   "stdout": "{\n \"files\": [\n  {\n   \"file\": \"/T/tex_out/demo_walls.dts\",\n   \"kind\": \"wall\",\n   \"u\": 23551,\n   \"vms_bound\": 5151,\n   \"vms_bound_bands\": 0,\n   \"share\": 1.17755,\n   \"base\": 256\n  },\n  {\n   \"file\": \"/T/tex_out/demo_floor.dts\",\n   \"kind\": \"floor\",\n   \"u\": 3640,\n   \"vms_bound\": 1132,\n   \"vms_bound_bands\": 0,\n   \"share\": 0.182,\n   \"base\": 23807\n  }\n ],\n \"sum\": 27191,\n \"pool\": 20000,\n \"over\": 7191,\n \"free\": 0,\n \"vms_sum\": 6283,\n \"vms_buffer\": 100,\n \"vms_over\": true\n}\n",
+   "stderr": "Pool exceeded by 7191 bytes\n"
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "budget",
+    "/T/tex_out/demo_walls.dts",
+    "--pool",
+    "100"
+   ],
+   "code": 1,
+   "stdout": "/T/tex_out/demo_walls.dts: wall, U 23551, 23551.0 % of the pool\nSum 23551 / Pool 100, free for sprites: 0\nVMS bound 5151 / 1300 - warning: buffer too small\n",
+   "stderr": "Pool exceeded by 23451 bytes\n"
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "check",
+    "<ROOT>/docs/specs/examples/demo.toml",
+    "--walls",
+    "/T/tex_out/demo_walls.dts",
+    "--floors",
+    "/T/tex_out/demo_floor.dts",
+    "--ceils",
+    "/T/tex_out/demo_ceil.dts",
+    "--dvg",
+    "/T/tex/west140.dvg"
+   ],
+   "code": 0,
+   "stdout": "check: ok (4 tiles checked)\n",
+   "stderr": ""
+  },
+  {
+   "tool": "tex",
+   "args": [
+    "check",
+    "<ROOT>/docs/specs/examples/demo.toml",
+    "--walls",
+    "/T/tex_out/demo_floor.dts",
+    "--floors",
+    "/T/tex_out/demo_floor.dts"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: /T/tex_out/demo_floor.dts: kind floor, expected wall\n"
+  },
+  {
+   "tool": "spr",
+   "args": [
+    "dump",
+    "/T/spr_out/blob.s2",
+    "--vrl",
+    "/T/spr_out/blob.vrl"
+   ],
+   "code": 0,
+   "stdout": "S2 ID 47585 D 3 NA 4 NP 2 NI 20 NK 49 NT 2 U 6574 CRC CC66 stride 80 length 6276 angle_map [0, 1, 2, 3]\nPhase 0 angle 0: 00 01 02\nPhase 0 angle 1: 03 04 05\nPhase 0 angle 2: 06 07 08\nPhase 0 angle 3: 09 0A 0B\nPhase 1 angle 0: 0C 0D FF\nPhase 1 angle 1: 0E 0F 10\nPhase 1 angle 2: 06 07 08\nPhase 1 angle 3: 11 12 13\nImage 0: 16x54 foot [7, 52] cores 4 edge 172 vms 417\nImage 1: 10x34 foot [4, 33] cores 2 edge 100 vms 297\nImage 2: 6x21 foot [2, 20] cores 1 edge 50 vms 142\nImage 3: 16x54 foot [7, 52] cores 4 edge 163 vms 433\nImage 4: 10x34 foot [4, 33] cores 2 edge 90 vms 275\nImage 5: 6x21 foot [2, 20] cores 1 edge 50 vms 136\nImage 6: 16x54 foot [7, 52] cores 4 edge 134 vms 341\nImage 7: 10x34 foot [4, 33] cores 3 edge 65 vms 209\nImage 8: 6x21 foot [2, 20] cores 1 edge 50 vms 130\nImage 9: 16x54 foot [7, 52] cores 4 edge 173 vms 405\nImage 10: 10x34 foot [4, 33] cores 2 edge 93 vms 263\nImage 11: 6x21 foot [2, 20] cores 1 edge 50 vms 136\nImage 12: 16x54 foot [7, 52] cores 4 edge 165 vms 401\nImage 13: 10x34 foot [4, 33] cores 2 edge 98 vms 259\nImage 14: 16x54 foot [7, 52] cores 4 edge 163 vms 431\nImage 15: 10x34 foot [4, 33] cores 2 edge 90 vms 276\nImage 16: 6x21 foot [2, 20] cores 1 edge 50 vms 133\nImage 17: 16x54 foot [7, 52] cores 4 edge 173 vms 399\nImage 18: 10x34 foot [4, 33] cores 2 edge 93 vms 260\nImage 19: 6x21 foot [2, 20] cores 1 edge 50 vms 133\nTag IDLE: Phase 0 x1 forward 9 jiffies\nTag WALK: Phase 0 x2 pingpong 9 jiffies\n",
+   "stderr": ""
+  },
+  {
+   "tool": "spr",
+   "args": [
+    "dump",
+    "/T/spr_out/blob.s2",
+    "--vrl",
+    "/T/spr_out/blob.vrl",
+    "--json"
+   ],
+   "code": 0,
+   "stdout": "{\n \"geometry_id\": 47585,\n \"d\": 3,\n \"na\": 4,\n \"np\": 2,\n \"ni\": 20,\n \"nk\": 49,\n \"nt\": 2,\n \"flags\": 0,\n \"angle_map\": [\n  0,\n  1,\n  2,\n  3\n ],\n \"u\": 6574,\n \"crc\": 52326,\n \"stride\": 80,\n \"length\": 6276,\n \"index\": [\n  0,\n  1,\n  2,\n  3,\n  4,\n  5,\n  6,\n  7,\n  8,\n  9,\n  10,\n  11,\n  12,\n  13,\n  255,\n  14,\n  15,\n  16,\n  6,\n  7,\n  8,\n  17,\n  18,\n  19\n ],\n \"images\": [\n  {\n   \"index\": 0,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 0,\n     \"dx\": 3,\n     \"dy\": 21,\n     \"w\": 11,\n     \"h\": 28,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 308,\n     \"dx\": 5,\n     \"dy\": 12,\n     \"w\": 7,\n     \"h\": 9,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 371,\n     \"dx\": 5,\n     \"dy\": 3,\n     \"w\": 6,\n     \"h\": 7,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 413,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 2,\n     \"h\": 16,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 445,\n   \"edge_len\": 172,\n   \"vms_len\": 417\n  },\n  {\n   \"index\": 1,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 617,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 7,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 736,\n     \"dx\": 4,\n     \"dy\": 1,\n     \"w\": 2,\n     \"h\": 13,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 762,\n   \"edge_len\": 100,\n   \"vms_len\": 297\n  },\n  {\n   \"index\": 2,\n   \"w\": 6,\n   \"h\": 21,\n   \"foot\": [\n    2,\n    20\n   ],\n   \"cores\": [\n    {\n     \"src\": 862,\n     \"dx\": 1,\n     \"dy\": 9,\n     \"w\": 4,\n     \"h\": 10,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 902,\n   \"edge_len\": 50,\n   \"vms_len\": 142\n  },\n  {\n   \"index\": 3,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 952,\n     \"dx\": 3,\n     \"dy\": 21,\n     \"w\": 11,\n     \"h\": 28,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1260,\n     \"dx\": 5,\n     \"dy\": 3,\n     \"w\": 5,\n     \"h\": 18,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1350,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 2,\n     \"h\": 16,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1382,\n     \"dx\": 4,\n     \"dy\": 49,\n     \"w\": 8,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 1406,\n   \"edge_len\": 163,\n   \"vms_len\": 433\n  },\n  {\n   \"index\": 4,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 1569,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 7,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 1688,\n     \"dx\": 3,\n     \"dy\": 2,\n     \"w\": 3,\n     \"h\": 12,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 1724,\n   \"edge_len\": 90,\n   \"vms_len\": 275\n  },\n  {\n   \"index\": 5,\n   \"w\": 6,\n   \"h\": 21,\n   \"foot\": [\n    2,\n    20\n   ],\n   \"cores\": [\n    {\n     \"src\": 1814,\n     \"dx\": 1,\n     \"dy\": 9,\n     \"w\": 4,\n     \"h\": 10,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 1854,\n   \"edge_len\": 50,\n   \"vms_len\": 136\n  },\n  {\n   \"index\": 6,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 1904,\n     \"dx\": 5,\n     \"dy\": 5,\n     \"w\": 7,\n     \"h\": 47,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2233,\n     \"dx\": 2,\n     \"dy\": 23,\n     \"w\": 3,\n     \"h\": 24,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2305,\n     \"dx\": 12,\n     \"dy\": 24,\n     \"w\": 3,\n     \"h\": 22,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2371,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 1,\n     \"h\": 16,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 2387,\n   \"edge_len\": 134,\n   \"vms_len\": 341\n  },\n  {\n   \"index\": 7,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 2521,\n     \"dx\": 3,\n     \"dy\": 3,\n     \"w\": 4,\n     \"h\": 30,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2641,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 2,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 2675,\n     \"dx\": 7,\n     \"dy\": 16,\n     \"w\": 2,\n     \"h\": 13,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 2701,\n   \"edge_len\": 65,\n   \"vms_len\": 209\n  },\n  {\n   \"index\": 8,\n   \"w\": 6,\n   \"h\": 21,\n   \"foot\": [\n    2,\n    20\n   ],\n   \"cores\": [\n    {\n     \"src\": 2766,\n     \"dx\": 1,\n     \"dy\": 9,\n     \"w\": 4,\n     \"h\": 10,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 2806,\n   \"edge_len\": 50,\n   \"vms_len\": 130\n  },\n  {\n   \"index\": 9,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 2856,\n     \"dx\": 3,\n     \"dy\": 21,\n     \"w\": 11,\n     \"h\": 28,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 3164,\n     \"dx\": 7,\n     \"dy\": 5,\n     \"w\": 5,\n     \"h\": 16,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 3244,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 2,\n     \"h\": 16,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 3276,\n     \"dx\": 4,\n     \"dy\": 49,\n     \"w\": 8,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 3300,\n   \"edge_len\": 173,\n   \"vms_len\": 405\n  },\n  {\n   \"index\": 10,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 3473,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 7,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 3592,\n     \"dx\": 4,\n     \"dy\": 3,\n     \"w\": 3,\n     \"h\": 11,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 3625,\n   \"edge_len\": 93,\n   \"vms_len\": 263\n  },\n  {\n   \"index\": 11,\n   \"w\": 6,\n   \"h\": 21,\n   \"foot\": [\n    2,\n    20\n   ],\n   \"cores\": [\n    {\n     \"src\": 3718,\n     \"dx\": 1,\n     \"dy\": 9,\n     \"w\": 4,\n     \"h\": 10,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 3758,\n   \"edge_len\": 50,\n   \"vms_len\": 136\n  },\n  {\n   \"index\": 12,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 3808,\n     \"dx\": 3,\n     \"dy\": 21,\n     \"w\": 11,\n     \"h\": 28,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 4116,\n     \"dx\": 5,\n     \"dy\": 11,\n     \"w\": 7,\n     \"h\": 10,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 4186,\n     \"dx\": 5,\n     \"dy\": 3,\n     \"w\": 6,\n     \"h\": 7,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 4228,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 2,\n     \"h\": 16,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 4260,\n   \"edge_len\": 165,\n   \"vms_len\": 401\n  },\n  {\n   \"index\": 13,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 4425,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 7,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 4544,\n     \"dx\": 3,\n     \"dy\": 7,\n     \"w\": 4,\n     \"h\": 7,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 4572,\n   \"edge_len\": 98,\n   \"vms_len\": 259\n  },\n  {\n   \"index\": 14,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 4670,\n     \"dx\": 3,\n     \"dy\": 21,\n     \"w\": 11,\n     \"h\": 28,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 4978,\n     \"dx\": 5,\n     \"dy\": 3,\n     \"w\": 5,\n     \"h\": 18,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 5068,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 2,\n     \"h\": 16,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 5100,\n     \"dx\": 4,\n     \"dy\": 49,\n     \"w\": 8,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 5124,\n   \"edge_len\": 163,\n   \"vms_len\": 431\n  },\n  {\n   \"index\": 15,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 5287,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 7,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 5406,\n     \"dx\": 3,\n     \"dy\": 2,\n     \"w\": 3,\n     \"h\": 12,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 5442,\n   \"edge_len\": 90,\n   \"vms_len\": 276\n  },\n  {\n   \"index\": 16,\n   \"w\": 6,\n   \"h\": 21,\n   \"foot\": [\n    2,\n    20\n   ],\n   \"cores\": [\n    {\n     \"src\": 5532,\n     \"dx\": 1,\n     \"dy\": 9,\n     \"w\": 4,\n     \"h\": 10,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 5572,\n   \"edge_len\": 50,\n   \"vms_len\": 133\n  },\n  {\n   \"index\": 17,\n   \"w\": 16,\n   \"h\": 54,\n   \"foot\": [\n    7,\n    52\n   ],\n   \"cores\": [\n    {\n     \"src\": 5622,\n     \"dx\": 3,\n     \"dy\": 21,\n     \"w\": 11,\n     \"h\": 28,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 5930,\n     \"dx\": 7,\n     \"dy\": 5,\n     \"w\": 5,\n     \"h\": 16,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6010,\n     \"dx\": 1,\n     \"dy\": 27,\n     \"w\": 2,\n     \"h\": 16,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6042,\n     \"dx\": 4,\n     \"dy\": 49,\n     \"w\": 8,\n     \"h\": 3,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 6066,\n   \"edge_len\": 173,\n   \"vms_len\": 399\n  },\n  {\n   \"index\": 18,\n   \"w\": 10,\n   \"h\": 34,\n   \"foot\": [\n    4,\n    33\n   ],\n   \"cores\": [\n    {\n     \"src\": 6239,\n     \"dx\": 1,\n     \"dy\": 14,\n     \"w\": 7,\n     \"h\": 17,\n     \"srcstep\": 0\n    },\n    {\n     \"src\": 6358,\n     \"dx\": 4,\n     \"dy\": 3,\n     \"w\": 3,\n     \"h\": 11,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 6391,\n   \"edge_len\": 93,\n   \"vms_len\": 260\n  },\n  {\n   \"index\": 19,\n   \"w\": 6,\n   \"h\": 21,\n   \"foot\": [\n    2,\n    20\n   ],\n   \"cores\": [\n    {\n     \"src\": 6484,\n     \"dx\": 1,\n     \"dy\": 9,\n     \"w\": 4,\n     \"h\": 10,\n     \"srcstep\": 0\n    }\n   ],\n   \"edge_ofs\": 6524,\n   \"edge_len\": 50,\n   \"vms_len\": 133\n  }\n ],\n \"tags\": [\n  {\n   \"name\": \"IDLE\",\n   \"first\": 0,\n   \"count\": 1,\n   \"mode\": \"forward\",\n   \"dur\": 9\n  },\n  {\n   \"name\": \"WALK\",\n   \"first\": 0,\n   \"count\": 2,\n   \"mode\": \"pingpong\",\n   \"dur\": 9\n  }\n ]\n}\n",
+   "stderr": ""
+  },
+  {
+   "tool": "spr",
+   "args": [
+    "dump",
+    "/T/spr_out/gem.s2"
+   ],
+   "code": 0,
+   "stdout": "S2 ID 47585 D 3 NA 1 NP 2 NI 6 NK 6 NT 0 U 125 CRC 0F9B stride 80 length 426 angle_map [0, 0, 0, 0]\nPhase 0 angle 0: 00 01 02\nPhase 1 angle 0: 03 04 05\nImage 0: 7x10 foot [3, 9] cores 1 edge 16 vms 59\nImage 1: 5x7 foot [2, 6] cores 1 edge 10 vms 37\nImage 2: 3x5 foot [1, 4] cores 1 edge 6 vms 22\nImage 3: 7x10 foot [3, 9] cores 1 edge 17 vms 62\nImage 4: 5x7 foot [2, 6] cores 1 edge 10 vms 34\nImage 5: 3x5 foot [1, 4] cores 1 edge 6 vms 22\n",
+   "stderr": ""
+  },
+  {
+   "tool": "spr",
+   "args": [
+    "budget",
+    "/T/spr_out/blob.s2",
+    "/T/spr_out/gem.s2",
+    "--pool",
+    "10000"
+   ],
+   "code": 0,
+   "stdout": "/T/spr_out/blob.s2: sprite, U 6574, 65.7 % of the pool\n/T/spr_out/gem.s2: sprite, U 125, 1.2 % of the pool\nSum 6699 / Pool 10000, free for sprites: 3301\nVMS bound 0 / 1300\n",
+   "stderr": ""
+  },
+  {
+   "tool": "spr",
+   "args": [
+    "dump",
+    "/T/spr_out/blob.s2",
+    "--vrl",
+    "/T/spr_out/gem.vrl"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: S2: VRL does not match (U 125 / 6574, CRC)\n"
+  },
+  {
+   "tool": "spr",
+   "args": [
+    "dump",
+    "/T/tex_out/demo_walls.dts"
+   ],
+   "code": 1,
+   "stdout": "",
+   "stderr": "Error: S2: wrong magic (expected 'S2')\n"
+  }
+ ],
+ "spr_preview": [
+  {
+   "args": [
+    1,
+    0,
+    0
+   ],
+   "code": 0,
+   "stdout": "Preview: /T/p100.png\n",
+   "image": [
+    560,
+    384,
+    "c0ddff2f3f82e350bfb9f135053c844c292987f53dea3b39b61faa0eacc2c4e6"
+   ]
+  },
+  {
+   "args": [
+    2,
+    1,
+    1
+   ],
+   "code": 0,
+   "stdout": "Preview: /T/p211.png\n",
+   "image": [
+    560,
+    384,
+    "b5e48264af401713ea0e0e03320d8304b0ddcdce7f5b0764d965f860dadf0245"
+   ]
+  },
+  {
+   "args": [
+    3,
+    0,
+    2
+   ],
+   "code": 0,
+   "stdout": "Preview: /T/p302.png\n",
+   "image": [
+    560,
+    384,
+    "fe08cef01ec0894f2ef79d4eeac7e7be3f65eb7eefae9a4ded06e3aa17186c29"
+   ]
+  },
+  {
+   "args": [
+    1,
+    1,
+    3
+   ],
+   "code": 0,
+   "stdout": "Preview: /T/p113.png\n",
+   "image": [
+    560,
+    384,
+    "0399b23328507c421b125e639120d3565dad96241460372f027914016ca469b6"
+   ]
+  }
+ ],
+ "demo_assets": {
+  "dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+  "dbg": "13c7479256a9cdfd1b6a2554cb22e70efc2167406a06c60bc43b1d93204d4608",
+  "dbg_vram": "1123630d5cfca5fc587592e95ad4c6525822198f5f9d7fb549ff51d7d02fcacf",
+  "walls": "5cb902b90c6c1559c3d0eab2193a9326289659cfc168cf9a4565eb483860ff65",
+  "walls_vram": "92c3a52971c2cc70a95e1656d79194d36a2a76b7887bd2bdf22cf4ed7ac1e4ce",
+  "floor": "89bf18c76ad25c0ac23041f18d94a39f58dde46b5efa5c7a303ee5c2c1e2a28e",
+  "floor_vram": "5486c4cd7678dad1fae53b3ccafb4e7c4d3e3f28eec5963034f533c998f4d51f",
+  "ceil": "d2a91a7c5bd8a2c866e24e37d87c81df31b03f8c9a1c07cc412380c7ba3e8318",
+  "ceil_vram": "ace19cd37ab64a7c3d8d6dc463704389fccb93727ab4e57615111b507318152b",
+  "sprites": [
+   [
+    "18e6e27f0d3d5f4a058caaa8d559dfb65427d9fa407fe8ed73ca877f15a92b86",
+    "4543b45136f6443a99e8fb552629b8077a6c97f054d55f9196b81b27135877b8"
+   ],
+   [
+    "0fa9b536d1c99ba5495870bbbbb43075f09a970800e8e6b1245fd4fe708b61ef",
+    "45b625e48dd585591ee0d947b3400f3fa2397826e9e638b3a671d572781c0803"
+   ],
+   [
+    "69d12b53fc2e1c98a2ab80fe0507e28e5c468ecd25a3c5b4dad7f998d69db676",
+    "18e0f0391828efa2a9e6fa208a90d8fda7a087502623e38deb89bbfc43d89f5e"
+   ],
+   [
+    "6a1712792eef0b3fceb3309b13e9e18eecdf02ed280893d9c3571cf931f28136",
+    "072d04870efc3eb636c61c99e8d9eea31e342ca322eb2f9733362f672a2e3796"
+   ],
+   null,
+   null,
+   null,
+   null
+  ],
+  "files": {
+   "grass_atlas.png": {
+    "rgba": [
+     580,
+     494,
+     "704b3eb497f550da850a2e11c9e3c528dd961795ce3fab778d9acd66717117f6"
+    ]
+   },
+   "puddle_atlas.png": {
+    "rgba": [
+     580,
+     494,
+     "0a0ec7ea16e6d9067f427979cd121daef71a85fbd7b039e3d47b41489902d449"
+    ]
+   },
+   "hole_atlas.png": {
+    "rgba": [
+     580,
+     494,
+     "d426ee210ddce85310217a15d6f55d5f831b81e1e1595afcd63f2aac66917538"
+    ]
+   },
+   "floor3.toml": {
+    "sha": "13c6ac746fdc855071e68b4bce4434465e836b5ad39870cf9eadf4dfb0f344f5"
+   },
+   "ceil3.toml": {
+    "sha": "1d07807187cc3a68674c2195f62b91bdf27b2604f7728632995817a93a30b3a2"
+   }
+  },
+  "sprite_pixels": {
+   "blob_8_6_0_0": "508c30b9dd9bb2891efcfb78b6837a8e56c2301fdc88b7f23c2ccce9a6765537",
+   "blob_8_6_0_1": "b53c43be211269e1404719feb45ba4e1d365471cf1f012bb33d28a7b0aaaa3b5",
+   "blob_8_6_1_0": "f78076793fd13b46b5ffed9741d4957008dbc4d228203f3bfcf790e8a9f6e1cd",
+   "blob_8_6_1_1": "70276529cee09071b1dc3d821d32070739702efcfa719beb5d0331eb44cf2eff",
+   "blob_8_6_2_0": "8363d11a471a58d19289b0ddcd63f28d1c87e9678ee903f6bca972a8a4b24fcb",
+   "blob_8_6_2_1": "804a7b8737a961ea5225aa3eeaeaf6d9beff7e1496ef13599678f18630e9ee68",
+   "blob_8_6_3_0": "07828a7fdb008052a1349b2292d71c5cae8a7349e9dc9bebf46819cc195e647a",
+   "blob_8_6_3_1": "af85f739240399e7dc4e15ab31488c521e333e0b10f28ca536c1b59e9849d503",
+   "blob_14_20_0_0": "b3bbf648e7c64efd453dcb1853d82c49edad79951afe6acf800cb33391dbc955",
+   "blob_14_20_0_1": "c72662795252cda551adee4f5940eda7f9140d1fcbfaa8bc81c370103333446c",
+   "blob_14_20_1_0": "4f71a97c283648dedb08e2d7d7cabe27300c96af3fce640724153f8164e10a85",
+   "blob_14_20_1_1": "5bb8362ddcfd084c3322d64949bbd564dfe9de4cba2bd3c099a10d1d5873bc6e",
+   "blob_14_20_2_0": "843a80f75f95cada576c922f70902c08c39b083baf8c0a9c1f932c1851dd1861",
+   "blob_14_20_2_1": "4b6642c415bd322f7cf1eff9de409c8969f83d5955cb52d48de5786652f069d1",
+   "blob_14_20_3_0": "7e5ffd18254d45dfce0d261626f99449735567f69be9f083ab2dd0be97c5326f",
+   "blob_14_20_3_1": "699ced03119ff584d3d2de1da7727c63bdc15b02929ff3a478e2762b0f0bf334",
+   "blob_40_31_0_0": "ecf0cd08d8338fd3f54ec77bedaa5d1b4fb9014cbc7b08dc244b27edfd34acdd",
+   "blob_40_31_0_1": "17d31daaac71e24bd0fc0a7164839aa13ba7d2a77b8faf3e3b38297070beb465",
+   "blob_40_31_1_0": "bbc4709333f84085ae8509e400be91affcb3a4f404652c4f49a14171ee5ddec1",
+   "blob_40_31_1_1": "0f9a4a6d547f5a5b7320ec8298050b42e60d68f77b4d10885eb51908ec8d8ed4",
+   "blob_40_31_2_0": "73517cdddbcb1e4e897c475fe63a072cb08324098213808c11c99502cd41252b",
+   "blob_40_31_2_1": "8c572a0c89fd989ba9a176375819e5edd3373818564126a9518f4a5ff97d4a91",
+   "blob_40_31_3_0": "44fee12daa585914dd8dcf027749910e4e5f8e628e9435e141e98ebd0b010686",
+   "blob_40_31_3_1": "616b9f516426c982e7a3f8bdad5ad60c8dc210f386252a771c57fcff4e0d6d7f",
+   "gem_8_6_0_0": "b44be257895a572065e9437805ecbf5f48b13a19dbe8b1ad8202c4fdaf3de085",
+   "gem_8_6_0_1": "40005fb391236e461ee7357b866be0589ecfa6f57f6170a6eaee2b56daf423c4",
+   "gem_8_6_1_0": "b44be257895a572065e9437805ecbf5f48b13a19dbe8b1ad8202c4fdaf3de085",
+   "gem_8_6_1_1": "40005fb391236e461ee7357b866be0589ecfa6f57f6170a6eaee2b56daf423c4",
+   "gem_8_6_2_0": "b44be257895a572065e9437805ecbf5f48b13a19dbe8b1ad8202c4fdaf3de085",
+   "gem_8_6_2_1": "40005fb391236e461ee7357b866be0589ecfa6f57f6170a6eaee2b56daf423c4",
+   "gem_8_6_3_0": "b44be257895a572065e9437805ecbf5f48b13a19dbe8b1ad8202c4fdaf3de085",
+   "gem_8_6_3_1": "40005fb391236e461ee7357b866be0589ecfa6f57f6170a6eaee2b56daf423c4",
+   "gem_14_20_0_0": "eebe928c1f687a8d6af835144aa1013e3249d7c67a4227a67726661cc96c84e9",
+   "gem_14_20_0_1": "ecc9a26641ddf0a868310aed386a7c8d5012060e3bcbfead3e38888f1771e066",
+   "gem_14_20_1_0": "eebe928c1f687a8d6af835144aa1013e3249d7c67a4227a67726661cc96c84e9",
+   "gem_14_20_1_1": "ecc9a26641ddf0a868310aed386a7c8d5012060e3bcbfead3e38888f1771e066",
+   "gem_14_20_2_0": "eebe928c1f687a8d6af835144aa1013e3249d7c67a4227a67726661cc96c84e9",
+   "gem_14_20_2_1": "ecc9a26641ddf0a868310aed386a7c8d5012060e3bcbfead3e38888f1771e066",
+   "gem_14_20_3_0": "eebe928c1f687a8d6af835144aa1013e3249d7c67a4227a67726661cc96c84e9",
+   "gem_14_20_3_1": "ecc9a26641ddf0a868310aed386a7c8d5012060e3bcbfead3e38888f1771e066",
+   "gem_40_31_0_0": "7e7035c278c47fdc14ec55f6c87dcb7411da81f913fde7925fda2b779d78c6e0",
+   "gem_40_31_0_1": "1ece4ec51a6683d2e695f25bb8bb1889811b1029285852e53cbf819f7cde5c56",
+   "gem_40_31_1_0": "7e7035c278c47fdc14ec55f6c87dcb7411da81f913fde7925fda2b779d78c6e0",
+   "gem_40_31_1_1": "1ece4ec51a6683d2e695f25bb8bb1889811b1029285852e53cbf819f7cde5c56",
+   "gem_40_31_2_0": "7e7035c278c47fdc14ec55f6c87dcb7411da81f913fde7925fda2b779d78c6e0",
+   "gem_40_31_2_1": "1ece4ec51a6683d2e695f25bb8bb1889811b1029285852e53cbf819f7cde5c56",
+   "gem_40_31_3_0": "7e7035c278c47fdc14ec55f6c87dcb7411da81f913fde7925fda2b779d78c6e0",
+   "gem_40_31_3_1": "1ece4ec51a6683d2e695f25bb8bb1889811b1029285852e53cbf819f7cde5c56"
+  }
+ }
+}
