@@ -28,6 +28,8 @@ python3 -m http.server             # any static web server in the repository roo
 
 Open `http://localhost:8000/tools/web/`, click **Open project folder**, choose the repository folder. The left column lists the project files by kind (`dbemap`, `dbeview`, `dbegeom`, `dbetex`, `dbespr`, `dbebake`); a click opens the matching editor. The browser remembers the folder; next time **Reopen …** asks once for permission.
 
+Online (GitHub Pages, demo project, read-only): https://the8bittheory.github.io/dungeonboringengine/ — published by `tools/web/publish.sh` (branch `gh-pages`; **Open project folder** works there too, for your own folder in Chrome/Edge).
+
 Quick look without the folder picker (read-only, saving downloads files): `http://localhost:8000/tools/web/?http=/` and, to open a file at once, `&open=demo/view.toml`.
 
 ## 3. Workflow for a zone

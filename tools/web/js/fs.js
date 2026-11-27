@@ -161,6 +161,12 @@ export class HttpProject extends Project {
   write(path, data) { return FileListProject.prototype.write.call(this, path, data); }
 
   async list(filter = () => true, dir = '', out = [], depth = 0) {
+    if (depth === 0) {                         // static hosting (GitHub Pages) has no directory pages: files.json
+      try {
+        const r = await fetch(`${this.base}files.json`);
+        if (r.ok) return (await r.json()).filter(filter).sort();
+      } catch { /* no manifest: parse directory pages */ }
+    }
     if (depth > 6) return out;
     const r = await fetch(this.base + dir);
     if (!r.ok) return out;
