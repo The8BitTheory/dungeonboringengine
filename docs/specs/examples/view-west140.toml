@@ -1,4 +1,4 @@
-# Standard: 140 x 96 (1 Textzeile frei), Westwood-Preset
+# Default: 140 x 96 (1 text row free), Westwood preset
 [viewport]
 preset   = "westwood"
 width_px = 140
@@ -6,7 +6,7 @@ height   = 96
 origin   = 0
 stride   = 80
 depth    = 3
-# byte_edges = true     # Kanten auf ganze Bytes (2-Pixel-Stufen, keine halben Bytes: schneller, gröber); Standard false
+# byte_edges = true     # edges on whole bytes (2-pixel steps, no half bytes: faster, coarser); default false
 
 [output]
 name       = "west140"

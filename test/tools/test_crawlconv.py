@@ -1,4 +1,4 @@
-"""Tests fuer tools/crawlconv.py (unittest, ohne Emulator)."""
+"""Tests for tools/crawlconv.py (unittest, no emulator)."""
 import io
 import os
 import shutil
@@ -46,7 +46,7 @@ class TestConv(unittest.TestCase):
         self.assertLessEqual(len(r.files["crawl.dvg"]) + 0xE800 - 2, 0xEE00)
         for dt in g.depth:
             self.assertEqual((dt.cy0, dt.cy1, dt.fy0, dt.fy1), (0, 0, 0, 0))
-        # Reihenfolge: je Tiefe s = 0, -1, +1; je Zelle Fronten, Seiten, Objektplatz (nicht in Tiefe 0)
+        # order: per depth s = 0, -1, +1; per cell fronts, sides, object slot (not at depth 0)
         got = [(e.d, e.s, e.art) for e in g.elems]
         want = [(0, -1, 1), (0, 1, 1),
                 (1, 0, 0), (1, 0, 4), (1, -1, 0), (1, -1, 1), (1, -1, 4), (1, 1, 0), (1, 1, 1), (1, 1, 4),
@@ -55,7 +55,7 @@ class TestConv(unittest.TestCase):
         self.assertEqual(got, want)
         self.assertEqual([dt.n for dt in g.depth], [2, 8, 10, 8])
         self.assertEqual(sum(dt.n for dt in g.depth), 28)
-        # Fronten (d, 0): Breite und Spalte in der Tiefentabelle
+        # fronts (d, 0): width and column in the depth table
         for d in (1, 2, 3):
             f = [e for e in g.elems if (e.d, e.s, e.art) == (d, 0, 0)][0]
             self.assertEqual((g.depth[d].fw, g.depth[d].fx), (f.w, f.x))
@@ -71,7 +71,7 @@ class TestConv(unittest.TestCase):
                 continue
             n += 1
             self.assertEqual((e.x, e.y, e.kx, e.ky, e.kw, e.kh), (e.x, 0, 0, 0, e.w, e.h))
-            self.assertEqual(e.flags & 4, 0)                      # nicht beschnitten
+            self.assertEqual(e.flags & 4, 0)                      # not clipped
             if e.h == 96:
                 self.assertEqual(e.flags & 1, 1)
                 self.assertEqual((e.c0, e.c1), (e.x, e.x + e.w))
@@ -79,7 +79,7 @@ class TestConv(unittest.TestCase):
             else:
                 self.assertEqual((e.flags, e.c0, e.c1), (0, 0, 0))
         self.assertEqual(n, 19)
-        # genau ein Bild ist nicht deckend: Slot 9 (85 Zeilen)
+        # exactly one image is not covering: slot 9 (85 rows)
         self.assertEqual([e.h for e in g.elems if e.art != 4 and e.h != 96], [85])
         self.assertEqual(len(by), 28)
 
@@ -97,7 +97,7 @@ class TestConv(unittest.TestCase):
             self.assertEqual(e.anchors[0], e.anchors[2])
             self.assertEqual(e.anchors[1], e.anchors[2])
             self.assertEqual(e.anchors[4], e.anchors[2])
-        # Beispielwerte aus crawlsprites: Geist (1, 0) Zeile 53 Spalte 36
+        # example values from crawlsprites: ghost (1, 0) row 53 column 36
         a = [e for e in g.elems if (e.d, e.s, e.art) == (1, 0, 4)][0].anchors
         self.assertEqual(a[3], (30, 48))
         self.assertEqual(a[2], (34, 75))
@@ -121,28 +121,28 @@ class TestConv(unittest.TestCase):
         self.assertEqual(r.wall_vram, vram)
         self.assertEqual(ts.u, 22354)
         self.assertEqual(len(r.wall_vram), 22354)
-        deck = 0
+        occl = 0
         for e in ts.entries:
-            self.assertEqual(len(e.kerns), 1)
-            self.assertEqual(e.rand_len, 0)
+            self.assertEqual(len(e.cores), 1)
+            self.assertEqual(e.edge_len, 0)
             self.assertEqual(e.vms, b"")
-            self.assertEqual(e.flags & ~dbetex.F_DECKEND, 0)
-            k = e.kerns[0]
+            self.assertEqual(e.flags & ~dbetex.F_OCCLUDING, 0)
+            k = e.cores[0]
             self.assertEqual((k.dx, k.dy), (0, 0))
-            deck += bool(e.flags & dbetex.F_DECKEND)
-            self.assertEqual(bool(e.flags & dbetex.F_DECKEND), k.h == 96)
-        self.assertEqual(deck, 18)
-        # Kern = Bild aus walls.vdc (Quelle, Breite, Hoehe)
+            occl += bool(e.flags & dbetex.F_OCCLUDING)
+            self.assertEqual(bool(e.flags & dbetex.F_OCCLUDING), k.h == 96)
+        self.assertEqual(occl, 18)
+        # core = image from walls.vdc (source, width, height)
         src = sorted((s, w, h) for _sl, s, w, h, _sz, _c in walls)
-        self.assertEqual(sorted((e.kerns[0].src, e.kerns[0].w, e.kerns[0].h) for e in ts.entries), src)
-        # Slotkarte: Wandelemente -> Slots in Elementreihenfolge, Rest $FF; Stil 0 -> Bild des Slots
+        self.assertEqual(sorted((e.cores[0].src, e.cores[0].w, e.cores[0].h) for e in ts.entries), src)
+        # slot map: wall elements -> slots in element order, rest $FF; style 0 -> image of the slot
         wall_idx = [i for i, e in enumerate(r.dvg.elems) if e.art != 4]
         self.assertEqual([ts.slot_map[i] for i in wall_idx], list(range(19)))
         self.assertEqual(ts.styles[0], list(range(19)))
         self.assertEqual(len(r.files["walls.dts"]) - 2 + 0x8000 < 0xB000, True)
 
     def test_ghost_mask(self):
-        """Bild auf zwei Hintergruende gerendert = sim_vms des 0.1-Teils (3.4)."""
+        """Image rendered on two backgrounds = sim_vms of the 0.1 part (3.4)."""
         r = self.r
         ss = r.ghost
         parts = crawlconv.parse_spr(self.files["ghost.spr"])
@@ -164,14 +164,14 @@ class TestConv(unittest.TestCase):
                 self.assertEqual(f1, f2, (p["d"], p["angle"], bg))
             n += 1
         self.assertEqual(n, 8)
-        self.assertIsNone(dbespr.lookup(ss, 0, 0, 3))                      # Tiefe 3: $FE
+        self.assertIsNone(dbespr.lookup(ss, 0, 0, 3))                      # depth 3: $FE
         for a in range(4):
             self.assertIsNone(dbespr.lookup(ss, 0, a, 3))
         self.assertLessEqual(len(r.files["ghost.s2"]) - 2, 0x1000)
         self.assertEqual(ss.u, len(r.ghost_vram))
 
     def test_ghost_black_eyes_opaque(self):
-        """Schwarze Pixel in der Figur (Augen) bleiben deckend; die Maske ist nicht leer und nicht voll."""
+        """Black pixels in the figure (eyes) stay opaque; the mask is neither empty nor full."""
         rows = self.r.ghost_rows[(1, 0)]
         flat = [v for row in rows for v in row]
         self.assertIn(None, flat)
@@ -218,9 +218,9 @@ class TestConv(unittest.TestCase):
                 toks = vrl.decode_tokens(stream)
                 if n != "walls1.vrl":
                     self.assertEqual(toks[0].kind, "skip", n)
-                out = vrl.decode(stream, base=out)           # RXV schreibt an dasselbe Ziel, Skips lassen es stehen
+                out = vrl.decode(stream, base=out)           # RXV writes to the same target, skips leave it in place
             self.assertEqual(bytes(out), r.wall_vram)
-        # ohne Teilung bzw. wenn alles passt: eine Datei
+        # without splitting or if everything fits: one file
         r = crawlconv.build(self.files, max_part=100000)
         self.assertIn("walls.vrl", r.files)
         self.assertEqual(r.nparts, 1)
@@ -234,7 +234,7 @@ class TestConv(unittest.TestCase):
         self.assertEqual(i["GA1"], i["GA0"] + len(self.r.ghost_vram))
         self.assertEqual(i["MA"], i["GA1"] + len(self.r.gem_vram))
         with self.assertRaises(crawlconv.ConvError):
-            crawlconv.build(self.files, font_bytes=3000)           # Summe ueber der Grenze
+            crawlconv.build(self.files, font_bytes=3000)           # total above the limit
         for n, load in (("crawl.dvg", 0xE800), ("walls.dts", 0x8000), ("ghost.s2", 0x6000), ("gem.s2", 0x7000),
                         ("crawl.dmp", 0x4000)):
             self.assertEqual(struct.unpack_from("<H", self.r.files[n], 0)[0], load, n)
@@ -247,19 +247,19 @@ class TestConv(unittest.TestCase):
     def test_errors(self):
         f = dict(self.files)
         bad = bytearray(f["walls.wsm"])
-        bad[2 + 10 + 5] ^= 1                                       # Breite des ersten Eintrags
+        bad[2 + 10 + 5] ^= 1                                       # width of the first entry
         f["walls.wsm"] = bytes(bad)
         with self.assertRaises(crawlconv.ConvError):
             crawlconv.build(f)
-        # Geistteil der Seite weicht von der Mitte ab
+        # ghost part of the side differs from the center
         f = dict(self.files)
         spr = bytearray(f["ghost.spr"])
-        # Teil 1 = (1, -1, 0): Quelle auf die des naechsten Winkels setzen
+        # part 1 = (1, -1, 0): set the source to that of the next angle
         struct.pack_into("<H", spr, 2 + 6 + 15 * 1 + 6, 355)
         f["ghost.spr"] = bytes(spr)
         with self.assertRaises(crawlconv.ConvError):
             crawlconv.build(f)
-        # Edelstein: zweites Zeichen nicht 3 Byte rechts
+        # gem: second character not 3 bytes to the right
         f = dict(self.files)
         spr = bytearray(f["gem.spr"])
         struct.pack_into("<H", spr, 2 + 6 + 15 * 1 + 8, 5000)
@@ -267,7 +267,7 @@ class TestConv(unittest.TestCase):
         with self.assertRaises(crawlconv.ConvError):
             crawlconv.build(f)
         with self.assertRaises(crawlconv.ConvError):
-            crawlconv.read_dir(os.path.join(HERE, "nicht-da"))
+            crawlconv.read_dir(os.path.join(HERE, "not-there"))
 
     def test_cli(self):
         with tempfile.TemporaryDirectory(dir=os.path.join(ROOT, "build") if os.path.isdir(os.path.join(ROOT, "build"))
@@ -280,16 +280,16 @@ class TestConv(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(td, n)), n)
             with open(os.path.join(td, "crawlconv.md"), encoding="utf-8") as f:
                 md = f.read()
-            self.assertIn("Reserve", md)
-            self.assertIn("Geometrie-ID", md)
+            self.assertIn("reserve", md)
+            self.assertIn("geometry ID", md)
             with open(os.path.join(td, "crawl.dvg"), "rb") as f:
                 self.assertEqual(f.read(), self.r.files["crawl.dvg"])
             err = io.StringIO()
             with redirect_stderr(err):
                 self.assertEqual(crawlconv.main(["--dir", os.path.join(td, "x"), td]), 1)
-            self.assertIn("Fehler", err.getvalue())
+            self.assertIn("Error", err.getvalue())
 
-    @unittest.skipUnless(os.path.exists(D81) and shutil.which("c1541"), "kein c1541 oder d81")
+    @unittest.skipUnless(os.path.exists(D81) and shutil.which("c1541"), "no c1541 or d81")
     def test_d81_equals_dir(self):
         with tempfile.TemporaryDirectory(dir=os.path.join(ROOT, "build") if os.path.isdir(os.path.join(ROOT, "build"))
                                          else None) as td:

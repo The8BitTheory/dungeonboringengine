@@ -20,7 +20,7 @@ index   = 1
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k2]
@@ -36,7 +36,7 @@ index   = 3
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k4]
@@ -52,7 +52,7 @@ index   = 5
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k6]
@@ -68,7 +68,7 @@ index   = 7
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k8]
@@ -84,7 +84,7 @@ index   = 9
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k10]
@@ -100,7 +100,7 @@ index   = 11
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k12]
@@ -116,7 +116,7 @@ index   = 13
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k14]
@@ -132,7 +132,7 @@ index   = 15
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k16]
@@ -148,7 +148,7 @@ index   = 17
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k18]
@@ -164,7 +164,7 @@ index   = 19
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k20]
@@ -180,7 +180,7 @@ index   = 21
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k22]
@@ -196,7 +196,7 @@ index   = 23
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k24]
@@ -212,7 +212,7 @@ index   = 25
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k26]
@@ -228,7 +228,7 @@ index   = 27
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k28]
@@ -244,7 +244,7 @@ index   = 29
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k30]
@@ -260,7 +260,7 @@ index   = 31
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k32]
@@ -276,7 +276,7 @@ index   = 33
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k34]
@@ -292,7 +292,7 @@ index   = 35
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k36]
@@ -308,7 +308,7 @@ index   = 37
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k38]
@@ -324,7 +324,7 @@ index   = 39
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k40]
@@ -340,7 +340,7 @@ index   = 41
 walls   = [1, 1, 1, 1]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 automap_char = 0
 
 [tiles.k42]
@@ -377,10 +377,10 @@ tiles = """
 
 [[events]]
 at    = [9, 1]
-type  = "ausgang"
+type  = "exit"
 param = 0
 
 [[events]]
 at    = [8, 3]
-type  = "gegner"
+type  = "enemy"
 param = 1

@@ -1,41 +1,41 @@
-; dungeonboringengine 0.2 – VIEW (P6d: ohne Objekte; P6d-opt: Einpass; P6e: Objekte), eingebunden von lib.s
+; dungeonboringengine 0.2 – VIEW (P6d: without objects; P6d-opt: fit pass; P6e: objects), included by lib.s
 ;
-; docs/specs/P6-engine.md Abschnitt 5 (5.1-5.7, 5.9 Bänder mit Rand, 5.10, 5.11); die Liste ist bytegleich mit
-; tools/dbeview.py view(). Ablauf (P6d-opt):
-;   Sichtdurchlauf vorne -> hinten über die Zellentabelle aus GEOMSET (vdepth je Tiefe: Zellen mit Wänden und
-;   Einordnung von Boden/Decke, Bänder, Tapete, Wartebereich). Jeder angenommene Eintrag wird sofort geschrieben
-;   (itemadd/gen): VCL-Einträge abwärts von B1, VMS-Listen aufwärts ab B0; reicht der Platz nicht, wird er
-;   zurückgenommen (iovf), im Zählmodus gemessen und nach 5.10 entschieden.
-;   Spaltenmasken cover/bcov als Intervalllisten. Unbeschnittene VMS-Listen als VCL-Typ 9 (Bank 1); Build-Schalter VMS_COPY: Kopie in den Puffer (Typ 12).
-; Zeropage: ZP0 = erstes Element der Zelle, ZP1 = Hilfszeiger (Slotkarte, Kerne, Listen); Block ZPB (lib.s):
-; vp, mp, tp, dp, op und kk, kj, eo, wmode, kwi, kwn (clipvms_e: kwi/kwn als cyl/cq, dp gerettet als k).
-; Bank 0 $0B00-$0BFF (Reserve der Engine): Abfall der Zählprobe von clipvms_e.
+; docs/specs/P6-engine.md section 5 (5.1-5.7, 5.9 bands with border, 5.10, 5.11); the list is byte-identical to
+; tools/dbeview.py view(). Flow (P6d-opt):
+;   Visibility pass front -> back over the cell table from GEOMSET (vdepth per depth: cells with walls and
+;   classification of floor/ceiling, bands, wallpaper, waiting area). Each accepted entry is written immediately
+;   (itemadd/gen): VCL entries downward from B1, VMS lists upward from B0; if there is not enough space, it is
+;   rolled back (iovf), measured in count mode and decided according to 5.10.
+;   Column masks cover/bcov as interval lists. Uncropped VMS lists as VCL type 9 (bank 1); build switch VMS_COPY: copy into the buffer (type 12).
+; Zero page: ZP0 = first element of the cell, ZP1 = helper pointer (slot map, cores, lists); block ZPB (lib.s):
+; vp, mp, tp, dp, op and kk, kj, eo, wmode, kwi, kwn (clipvms_e: kwi/kwn as cyl/cq, dp saved as k).
+; Bank 0 $0B00-$0BFF (engine reserve): scratch output of the count probe of clipvms_e.
 
 .ifdef MAXITEM_T
-MAXITEM  = MAXITEM_T    ; nur Test (run_sim.py: Grenze klein, um den Abbruch zu prüfen)
+MAXITEM  = MAXITEM_T    ; test only (run_sim.py: small limit, to check the abort)
 .else
-MAXITEM  = 96           ; Einträge je VIEW (7)
+MAXITEM  = 96           ; entries per VIEW (7)
 .endif
-; heiße Einzelwerte im Zeropage-Block (zt, lib.s)
-kk       = zt+0         ; Zelle (Zellentabelle)
-kj       = zt+1         ; Zelle in der Tiefe
-eo       = zt+2         ; 16 * Platz der Wand in der Zelle
-wmode    = zt+3         ; Erzeuger: Bit 7 schreiben, Bit 6 Größe bekannt
-kwi      = zt+4         ; Wand in wl
+; hot single values in the zero-page block (zt, lib.s)
+kk       = zt+0         ; cell (cell table)
+kj       = zt+1         ; cell at the depth
+eo       = zt+2         ; 16 * slot of the wall in the cell
+wmode    = zt+3         ; generator: bit 7 write, bit 6 size known
+kwi      = zt+4         ; wall in wl
 kwn      = zt+5
-MAXGRP   = 31           ; Zellen je Tiefe (|s| <= S <= 15, GEOMSET prüft)
-WM_W     = $80          ; wmode: schreiben
-WM_X     = $40          ; wmode: Größe bekannt (nach iovf), keine Platzprüfung für beschnittene VMS-Listen
-IT_STRIP = $80          ; Eintragstyp Bit 7: Rand weggelassen (5.10)
-IT_WALL  = 0            ; Wand- oder Kachelbild: g_kind, ex/ey/ew = Element, dp = Verzeichniseintrag
-IT_BAND  = 1            ; Bandbild: g_kind, dp, g_a = y0, g_b = Zeilen, g_c0/g_c1 = Spalten
-IT_BG    = 2            ; Tapete: g_a = r0, g_b = r1, g_c0/g_c1
-IT_SPR   = 3            ; Sprite (5.8): orx = Satz in recs, dp = Bildeintrag, cl_* = Lage und Ausschnitt, ofull, g_oi
-TF_DECK  = $04          ; Kachel-Flags (DMP)
-TF_INH   = $20
-EF_DECK  = $01          ; Bild-Flags (DTS)
-EF_ZEIL  = $04
-EF_RAND  = $08
+MAXGRP   = 31           ; cells per depth (|s| <= S <= 15, checked by GEOMSET)
+WM_W     = $80          ; wmode: write
+WM_X     = $40          ; wmode: size known (after iovf), no space check for cropped VMS lists
+IT_STRIP = $80          ; entry type bit 7: border omitted (5.10)
+IT_WALL  = 0            ; wall or tile image: g_kind, ex/ey/ew = element, dp = directory entry
+IT_BAND  = 1            ; band image: g_kind, dp, g_a = y0, g_b = rows, g_c0/g_c1 = columns
+IT_BG    = 2            ; wallpaper: g_a = r0, g_b = r1, g_c0/g_c1
+IT_SPR   = 3            ; sprite (5.8): orx = set in recs, dp = image entry, cl_* = position and clip window, ofull, g_oi
+TF_OCCL  = $04          ; tile flags (DMP)
+TF_CONT   = $20
+EF_OCCL  = $01          ; image flags (DTS)
+EF_ROWS  = $04
+EF_EDGE  = $08
 
 ; ---------------------------------------------------------------- 4 VIEW
 f_view:
@@ -54,7 +54,7 @@ f_view:
 @z:     sta     vz_start,x
         dex
         bpl     @z
-        sec                     ; Ende-Byte bei B1 - 1; VCL abwärts davor, VMS aufwärts ab B0
+        sec                     ; end byte at B1 - 1; VCL downward before it, VMS upward from B0
         lda     buf_b1
         sbc     #1
         sta     vp
@@ -68,7 +68,7 @@ f_view:
         sta     mp
         lda     buf_b0+1
         sta     mp+1
-        bit     buf_fix         ; P6j: feste Listenadresse: bei B0 VCL-Typ 10 (Sprung, Adresse am Ende), VMS ab B0 + 3
+        bit     buf_fix         ; P6j: fixed list address: at B0 VCL type 10 (jump, address at the end), VMS from B0 + 3
         bpl     @nfix
         lda     #10
         sta     (mp),y
@@ -79,8 +79,8 @@ f_view:
         bcc     @nfix
         inc     mp+1
 @nfix:  lda     #$FF
-        sta     sp_n            ; Spannen ungültig
-        ; Blickrichtung: Flächen, Achsen, Schritte
+        sta     sp_n            ; spans invalid
+        ; viewing direction: faces, axes, steps
         lda     vdir
         tax
         clc
@@ -104,7 +104,7 @@ f_view:
         txa
         lsr
         bcs     @odd
-        lda     py              ; N/S: feste Achse y, Seitenachse x
+        lda     py              ; N/S: fixed axis y, side axis x
         sta     fc
         lda     map_h
         sta     flim
@@ -118,7 +118,7 @@ f_view:
         sta     fstep+1
         sta     rmw
         beq     @neg
-@odd:   lda     px              ; O/W: feste Achse x, Seitenachse y
+@odd:   lda     px              ; E/W: fixed axis x, side axis y
         sta     fc
         lda     map_w
         sta     flim
@@ -145,7 +145,7 @@ f_view:
         lda     pos+1
         sta     idxd+1
         jsr     rtab
-        lda     recs+16         ; Boden/Decke: NST, falls DTS gültig (sonst 0)
+        lda     recs+16         ; floor/ceiling: NST, if DTS valid (else 0)
         beq     @n1
         lda     recs+16+4
 @n1:    sta     bnstk+1
@@ -153,15 +153,15 @@ f_view:
         beq     @n2
         lda     recs+32+4
 @n2:    sta     bnstk+2
-        lda     vdir            ; Tapete: o_v mod P (BGSET)
+        lda     vdir            ; wallpaper: o_v mod P (BGSET)
         asl
         tax
         lda     bgomt,x
         sta     bgom
         lda     bgomt+1,x
         sta     bgom+1
-        ; Objektliste (5.8): sichtbare Objekte (Bit 6 = 0) der ersten min(OBJN, 16) mit Zellindex, Index, Offset;
-        ; obm = Bitfeld der Low-Bytes ihrer Zellindizes (Vorfilter je Zelle; erst die Bits des vorigen VIEW löschen)
+        ; object list (5.8): visible objects (bit 6 = 0) of the first min(OBJN, 16) with cell index, index, offset;
+        ; obm = bit field of the low bytes of their cell indices (pre-filter per cell; first clear the bits of the previous VIEW)
         ldy     nol
         beq     @oc
 @oz:    lda     ol_lo-1,y
@@ -219,21 +219,21 @@ f_view:
         dec     tmp
         bne     @ol
 @oe:    sty     nol
-        tya                     ; objon: 0 keine Objekte und Gegenstände, Bit 7 Gegenstände möglich, sonst 1
+        tya                     ; objon: 0 no objects and items, bit 7 items possible, else 1
         beq     @o1
         lda     #1
 @o1:    ldx     itemn
         beq     @o2
         ora     #$80
 @o2:    sta     objon
-        lda     vdir            ; SUBPOS[v] (P4 2.6): Tabellenanfang 5 v
+        lda     vdir            ; SUBPOS[v] (P4 2.6): table start 5 v
         asl
         asl
         adc     vdir            ; C = 0
         sta     spbase
-; ---- Tiefen 0 ... D
+; ---- depths 0 ... D
 @dl:    jsr     vdepth
-        lda     cv_n            ; cover ganz belegt: ein Intervall [0, VW)
+        lda     cv_n            ; cover completely occupied: one interval [0, VW)
         cmp     #1
         bne     @cn
         lda     cv_s
@@ -265,10 +265,10 @@ f_view:
         sta     idxd+1
         jmp     @dl
 
-; STOP (5.10): Sichtliste voll oder Puffer überschritten; alles bisher Angenommene steht schon im Puffer
+; STOP (5.10): view list full or buffer exceeded; everything accepted so far is already in the buffer
 vstop:  ldx     savesp
         txs
-; ---------------------------------------------------------------- Ende (5.11, Einpass)
+; ---------------------------------------------------------------- end (5.11, fit pass)
 vfin:   lda     objv
         sta     OBJVIS
         lda     objv+1
@@ -293,20 +293,20 @@ vfin:   lda     objv
         lda     mp+1
         sbc     buf_b0+1
         sta     VMSLEN+1
-        bit     buf_fix         ; P6j: feste Listenadresse
+        bit     buf_fix         ; P6j: fixed list address
         bpl     @nf
         jsr     vjump
 @nf:    ldx     nent
         ldy     #0
-        lda     verr            ; A = 2 vor 3
+        lda     verr            ; A = 2 before 3
         bne     @a
         lda     vpart
         beq     @a
         lda     #E_PARTIAL
 @a:     rts
 
-; P6j (BUFSET X Bit 0): Sprung-Eintrag bei B0 auf den Listenanfang vp vervollständigen; VCLADR = P0 = B0;
-; VMSLEN ohne die 3 Byte des Sprungs (VMS-Listen ab B0 + 3)
+; P6j (BUFSET X bit 0): complete the jump entry at B0 to the list start vp; VCLADR = P0 = B0;
+; VMSLEN without the 3 bytes of the jump (VMS lists from B0 + 3)
 vjump:  lda     buf_b0
         sta     op
         sta     VCLADR
@@ -329,10 +329,10 @@ vjump:  lda     buf_b0
         dec     VMSLEN+1
 @r:     rts
 
-fnegtab: .byte  1, 0, 0, 1      ; F zeigt nach -y (N) bzw. -x (W)
-anegtab: .byte  0, 0, 1, 1      ; R zeigt nach -x (S) bzw. -y (W)
+fnegtab: .byte  1, 0, 0, 1      ; F points to -y (N) or -x (W)
+anegtab: .byte  0, 0, 1, 1      ; R points to -x (S) or -y (W)
 
-; BGSET: bgomt[2 v] = o_v mod P für alle vier Richtungen (16 Bit, Rest der Division; P >= 1 geprüft)
+; BGSET: bgomt[2 v] = o_v mod P for all four directions (16 bit, remainder of the division; P >= 1 checked)
 bgoffs: ldx     #6
 @v:     txa
         clc
@@ -371,8 +371,8 @@ bgoffs: ldx     #6
         bpl     @v
         rts
 
-; Zellversatz je s (Index s + 15, |s| <= S): r_lo/r_hi = s * R (16 Bit), r_ok = Seitenkoordinate in der Karte
-rtab:   lda     #1              ; du = +-1 bzw. +-W (in Richtung von s)
+; cell offset per s (index s + 15, |s| <= S): r_lo/r_hi = s * R (16 bit), r_ok = side coordinate within the map
+rtab:   lda     #1              ; du = +-1 or +-W (in the direction of s)
         ldx     rmw
         beq     @u
         lda     map_w
@@ -416,7 +416,7 @@ rtab:   lda     #1              ; du = +-1 bzw. +-W (in Richtung von s)
         dex
         dey
         bne     @dl
-@ok:    lda     aneg            ; gültige s + 15 in [rlo, rhi): 0 <= a0 +- s < alim
+@ok:    lda     aneg            ; valid s + 15 in [rlo, rhi): 0 <= a0 +- s < alim
         bne     @n
         lda     #15             ; aneg = 0: [15 - a0, 15 + alim - a0)
         jsr     @sub
@@ -451,14 +451,14 @@ rtab:   lda     #1              ; du = +-1 bzw. +-W (in Richtung von s)
         jsr     @clamp
         sta     rhi
         rts
-@sub:   ldy     #0              ; (A - a0) als 16 Bit, begrenzt auf 0 ... 31
+@sub:   ldy     #0              ; (A - a0) as 16 bit, clamped to 0 ... 31
 @sub1:  sec
         sbc     a0
         tax
         tya
         sbc     #0
         jmp     @clamp
-@sub2:  ldy     #0              ; A = 15 + alim (Übertrag in C)
+@sub2:  ldy     #0              ; A = 15 + alim (carry in C)
         bcc     @sub1
         iny
         bcs     @sub1
@@ -472,7 +472,7 @@ rtab:   lda     #1              ; du = +-1 bzw. +-W (in Richtung von s)
 @c0:    lda     #0
         rts
 
-; ---------------------------------------------------------------- eine Tiefe (5.2)
+; ---------------------------------------------------------------- one depth (5.2)
 vdepth: lda     cd
         asl
         asl
@@ -489,10 +489,10 @@ vdepth: lda     cd
         dey
         bpl     @r
         lda     #0
-        sta     lue+1
-        sta     lue+2
+        sta     gap+1
+        sta     gap+2
         sta     npend
-        ldx     #1              ; dout: feste Koordinate außerhalb der Karte
+        ldx     #1              ; dout: fixed coordinate outside the map
         lda     fc+1
         bne     @o
         lda     fc
@@ -500,14 +500,14 @@ vdepth: lda     cd
         bcs     @o
         dex
 @o:     stx     dout
-        clc                     ; cbase = Kachelebene + pos + d * F
+        clc                     ; cbase = tile plane + pos + d * F
         lda     map_cells
         adc     idxd
         sta     cbase
         lda     map_cells+1
         adc     idxd+1
         sta     cbase+1
-        ldx     #2              ; Bänder der Tiefe: aktiv (Zeilen nicht leer), NST (0 ohne DTS), Bandslot
+        ldx     #2              ; bands of the depth: active (rows not empty), NST (0 without DTS), band slot
 @bi:    lda     #0
         sta     blive,x
         sta     bgap,x
@@ -527,24 +527,24 @@ vdepth: lda     cd
         cmp     dcy1
         bcs     @bc
         inc     bact+2
-@bc:    sec                     ; Bandslot: Boden NE + D + 1 + d, Decke NE + d
+@bc:    sec                     ; band slot: floor NE + D + 1 + d, ceiling NE + d
         lda     cd
         adc     dvg_d
         sta     bsyk+1
         lda     cd
         sta     bsyk+2
-        cmp     dvg_d           ; Fernsicht (5.7a): Entscheidungen der Zellen der Tiefe D (vcells)
+        cmp     dvg_d           ; distant view (5.7a): decisions of the cells of depth D (vcells)
         bne     @nf
         lda     ffon
         sta     fon
 @nf:    jsr     vcells
         jsr     vauto
         lda     #1
-        jsr     vband           ; Boden
+        jsr     vband           ; floor
         lda     #2
-        jsr     vband           ; Decke
+        jsr     vband           ; ceiling
         jsr     vtap
-        ldx     #0              ; Wartebereich eintragen
+        ldx     #0              ; enter waiting area
 @p:     cpx     npend
         bcs     @pe
         stx     pi
@@ -566,8 +566,8 @@ vdepth: lda     cd
         ldx     pi
 @pn:    inx
         bne     @p
-; Fernsicht (5.7a): Horizontband der Tiefe D nach dem Wartebereich (bcov deckt damit alles ab, was ihn verdeckt);
-; je Folge von rechts nach links Läufe gleicher Entscheidung (hs, fdec) von rechts nach links: Füllbyte bzw. Tapete
+; distant view (5.7a): horizon band of depth D after the waiting area (bcov thus covers everything that occludes it);
+; per sequence from right to left, runs of the same decision (hs, fdec) from right to left: fill byte or wallpaper
 @pe:    lda     fany
         beq     @x
         lda     dvg_y0
@@ -584,14 +584,14 @@ vdepth: lda     cd
         lda     sp_c0,x
         sta     fc0
         ldy     sp_c1,x
-@run:   sty     g_c1            ; Lauf [g_c0, g_c1) mit der Entscheidung der Spalte g_c1 - 1
+@run:   sty     g_c1            ; run [g_c0, g_c1) with the decision of column g_c1 - 1
         ldx     hs-1,y
         lda     fdec,x
         sta     bgsel
 @cl:    dey
         cpy     fc0
         beq     @em
-        ldx     hs-1,y          ; Entscheidung der Spalte Y - 1
+        ldx     hs-1,y          ; decision of column Y - 1
         lda     fdec,x
         cmp     bgsel
         beq     @cl
@@ -606,15 +606,15 @@ vdepth: lda     cd
         bpl     @sl
 @x:     rts
 
-; ---------------------------------------------------------------- Zellen einer Tiefe (Zellentabelle aus GEOMSET)
-; je Zelle: Kachel (tp), Boden/Decke/blocked für vband (gr_*), Wände in DVG-Reihenfolge bzw. bei INHALT mit Flächen
-; erst die Fronten, dann die Seiten (5.2a; Objektplätze: P6e)
+; ---------------------------------------------------------------- cells of a depth (cell table from GEOMSET)
+; per cell: tile (tp), floor/ceiling/blocked for vband (gr_*), walls in DVG order or, with CONTENT, with faces
+; fronts first, then the sides (5.2a; object slots: P6e)
 vcells: ldx     cd
         lda     d_kn,x
         bne     @go
         rts
 @go:    sta     kn
-        lda     #0              ; objd: Objekte in dieser Tiefe möglich (d >= 1)
+        lda     #0              ; objd: objects possible at this depth (d >= 1)
         cpx     #0
         beq     @od
         lda     objon
@@ -624,25 +624,25 @@ vcells: ldx     cd
         lda     #0
         sta     kj
         beq     @cell
-@out:   ldy     map_out         ; Zelle außerhalb der Karte: Außenkachel
+@out:   ldy     map_out         ; cell outside the map: outer tile
         jmp     @t
 @cell:  ldx     kk
-        lda     k_elo,x         ; ZP0 = erstes Element der Zelle
+        lda     k_elo,x         ; ZP0 = first element of the cell
         sta     ZP0
         lda     k_ehi,x
         sta     ZP0+1
-        jsr     cellptr         ; ZP1 = Kachel der Zelle, C = 1: außerhalb
+        jsr     cellptr         ; ZP1 = tile of the cell, C = 1: outside
         bcs     @out
         ldy     #0
         lda     (ZP1),y
         tay
-@t:     lda     tpl,y           ; tp, tsum (Bit 7 Flächen, Bit 6 blocked, Kachel-Flags)
+@t:     lda     tpl,y           ; tp, tsum (bit 7 faces, bit 6 blocked, tile flags)
         sta     tp
         lda     tph,y
         sta     tp+1
         lda     tsm,y
         sta     tsum
-        lda     fon             ; Fernsicht (5.7a): Deckenstil <> 0 -> Füllung, Flag FERN (Bit 6) kehrt um
+        lda     fon             ; distant view (5.7a): ceiling style <> 0 -> fill, flag DISTANT (bit 6) inverts
         beq     @nfd
         ldy     #5
         lda     (tp),y
@@ -655,11 +655,11 @@ vcells: ldx     cd
         sta     fdec,y
         ora     fany
         sta     fany
-@nfd:   ldy     kj              ; Boden/Decke einordnen (5.6 Schritt 1): $FF egal/kein Element, $FE Lücke, sonst Stil
+@nfd:   ldy     kj              ; classify floor/ceiling (5.6 step 1): $FF don't care/no element, $FE gap, else style
         lda     #$FF
         sta     gr_fc,y
         sta     gr_cc,y
-        bit     tsum            ; blocked: egal
+        bit     tsum            ; blocked: don't care
         bvs     @cls
         ldx     kk
         lda     k_fl,x
@@ -685,10 +685,10 @@ vcells: ldx     cd
         jsr     bclass
         ldy     kj
         sta     gr_cc,y
-@cls:   bit     tsum            ; Flächen: Wände; keine Flächen: Objekte (5.2)
+@cls:   bit     tsum            ; faces: walls; no faces: objects (5.2)
         bpl     @obj
-        lda     tsum            ; Durchlauf 0: alle Wände in DVG-Reihenfolge; INHALT (5.2a): Durchlauf 1 Fronten,
-        and     #TF_INH         ; Objekte, Durchlauf 2 Seiten
+        lda     tsum            ; pass 0: all walls in DVG order; CONTENT (5.2a): pass 1 fronts,
+        and     #TF_CONT         ; objects, pass 2 sides
         beq     @p0
         lda     #1
 @p0:    sta     pass
@@ -705,7 +705,7 @@ vcells: ldx     cd
         inc     kwi
         dec     kwn
         bne     @wl
-@pe:    lda     pass            ; nach Durchlauf 1: Objekte, Durchlauf 2
+@pe:    lda     pass            ; after pass 1: objects, pass 2
         lsr
         bcs     @i1
 @nx:    inc     kk
@@ -718,11 +718,11 @@ vcells: ldx     cd
         jsr     vobjc
 @i2:    lda     #2
         bne     @p0
-@obj:   lda     objd            ; Objekte oder Gegenstände möglich (und d >= 1)
+@obj:   lda     objd            ; objects or items possible (and d >= 1)
         beq     @nx
-        bmi     @oc             ; Gegenstände möglich: jede Zelle prüfen
-        ldy     ksi             ; sonst Zellmarke: Low-Byte des Zellindex in obm (Zellen außerhalb der Karte
-        clc                     ; verwirft vobjc)
+        bmi     @oc             ; items possible: check every cell
+        ldy     ksi             ; else cell marker: low byte of the cell index in obm (cells outside the map
+        clc                     ; are discarded by vobjc)
         lda     idxd
         adc     r_lo,y
         tax
@@ -739,7 +739,7 @@ vcells: ldx     cd
 @oc:    jsr     vobjc
         jmp     @nx
 
-; Zelle kk der Tiefe: ksi = s + 15; ZP1 = cellp = Zelle = cbase + s * R in der Kachelebene, C = 1 außerhalb der Karte
+; cell kk of the depth: ksi = s + 15; ZP1 = cellp = cell = cbase + s * R in the tile plane, C = 1 outside the map
 ; (cellp + 1 = 0)
 cellptr:
         ldx     kk
@@ -759,14 +759,14 @@ cellptr:
         adc     r_hi,y
         sta     ZP1+1
         sta     cellp+1
-        clc                     ; (negative Schritte erzeugen einen Übertrag)
+        clc                     ; (negative steps produce a carry)
         rts
 @o:     lda     #0
         sta     cellp+1
         sec
         rts
 
-; Automap (P6f): Bit 6 der Inhaltsebene der Zelle cellp setzen (nur mit map_auto, nicht außerhalb der Karte)
+; automap (P6f): set bit 6 of the content plane of the cell cellp (only with map_auto, not outside the map)
 mark_seen:
         lda     map_auto
         beq     @r
@@ -785,8 +785,8 @@ mark_seen:
         sta     (ZP1),y
 @r:     rts
 
-; Automap Boden: je Zelle der Tiefe mit Bodenelement (gr_fc <> $FF: nicht blockiert, Bodenzeilen sichtbar) in der
-; Karte und nicht ganz verdecktem Element (bcov, vor vband) als gesehen markieren
+; automap floor: per cell of the depth with a floor element (gr_fc <> $FF: not blocked, floor rows visible) within the
+; map and an element not completely occluded (bcov, before vband), mark as seen
 vauto:  lda     map_auto
         beq     @r
         ldx     cd
@@ -807,7 +807,7 @@ vauto:  lda     map_auto
         sta     ZP0
         lda     k_ehi,x
         sta     ZP0+1
-        lda     k_fl,x          ; Platz des Bodenelements (16 * Platz): x bei +4, w bei +6
+        lda     k_fl,x          ; slot of the floor element (16 * slot): x at +4, w at +6
         ora     #4
         tay
         lda     (ZP0),y
@@ -825,9 +825,9 @@ vauto:  lda     map_auto
         bne     @l
 @r:     rts
 
-; Wand eo der Zelle (ZP0, tp, ksi) im Sichtdurchlauf: allcov vor resolve
+; wall eo of the cell (ZP0, tp, ksi) in the visibility pass: allcov before resolve
 vwall:  ldy     eo
-        lda     (ZP0),y         ; Art 0 Front, 1 Seite
+        lda     (ZP0),y         ; kind 0 front, 1 side
         ldx     pass
         beq     @all
         cmp     passart-1,x
@@ -848,19 +848,19 @@ vwall:  ldy     eo
         bne     @side
         lda     facef
         bpl     @f
-@side:  lda     ksi             ; s < 0 (ksi < 15): links
+@side:  lda     ksi             ; s < 0 (ksi < 15): left
         cmp     #15
         lda     facel
         bcc     @f
         lda     facer
 @f:     tay
-        lda     (tp),y          ; n = walls[Fläche]
+        lda     (tp),y          ; n = walls[face]
         pha
-        lda     recs+10         ; Slotkarte Wand
+        lda     recs+10         ; slot map wall
         sta     ZP1
         lda     recs+11
         sta     ZP1+1
-        lda     eo              ; Slot = erster Elementindex der Zelle + Platz
+        lda     eo              ; slot = first element index of the cell + slot
         lsr
         lsr
         lsr
@@ -877,7 +877,7 @@ vwall:  ldy     eo
         lda     #IT_WALL
         sta     g_type
         sta     g_kind
-        ldy     eo              ; ex, ey, ew = Element
+        ldy     eo              ; ex, ey, ew = element
         iny
         iny
         iny
@@ -890,22 +890,22 @@ vwall:  ldy     eo
         iny
         lda     (ZP0),y
         sta     ew
-        ldy     #0              ; deck(e, t, ent)
+        ldy     #0              ; occl(e, t, ent)
         lda     (dp),y
-        and     #EF_DECK
+        and     #EF_OCCL
         beq     @nd
         lda     tsum
-        and     #TF_DECK
+        and     #TF_OCCL
         beq     @nd
         lda     eo
         ora     #3
         tay
         lda     (ZP0),y
         and     #1
-@nd:    sta     wdeck
+@nd:    sta     wocc
         jsr     mark_seen
-        jsr     itemadd         ; STOP möglich; auch ein verworfener Eintrag (nur Rand) deckt danach ab (Referenz)
-        lda     wdeck
+        jsr     itemadd         ; STOP possible; even a discarded entry (border only) occludes afterwards (reference)
+        lda     wocc
         beq     @r
         lda     eo
         ora     #13
@@ -916,8 +916,8 @@ vwall:  ldy     eo
         lda     (ZP0),y
         sta     wc0
         lda     eart
-        bne     @ps             ; Seite: Wartebereich, beide Masken
-        ldx     wc0             ; Front: cover sofort
+        bne     @ps             ; side: waiting area, both masks
+        ldx     wc0             ; front: cover immediately
         lda     wc1
         jsr     mark_c
         lda     eo
@@ -926,14 +926,14 @@ vwall:  ldy     eo
         lda     (ZP0),y
         and     #8
         beq     @pb
-        ldx     wc0             ; DVG-Bit 3: bcov sofort
+        ldx     wc0             ; DVG bit 3: bcov immediately
         lda     wc1
         jmp     mark_b
 @r:     rts
 @pb:    lda     #0
         beq     @pa
 @ps:    lda     #1
-@pa:    ldx     npend           ; GEOMSET garantiert npend < MAXPEND
+@pa:    ldx     npend           ; GEOMSET guarantees npend < MAXPEND
         sta     pd_both,x
         lda     wc0
         sta     pd_c0,x
@@ -942,13 +942,13 @@ vwall:  ldy     eo
         inc     npend
         rts
 
-passart: .byte  0, 1            ; Durchlauf 1 Fronten, 2 Seiten (5.2a)
+passart: .byte  0, 1            ; pass 1 fronts, 2 sides (5.2a)
 
-;---------------------------------------------------------------- Objekte (5.8)
-; Objekte der Zelle kk (ZP0 = erstes Element, ksi): Kandidaten (Gegenstand der Inhaltsebene, Objekte der Liste),
-; dann je Objektplatz der Zelle in umgekehrter Malreihenfolge (p = 4 ... 0, bei gleichem p Objekte mit
-; absteigendem i, zuletzt der Gegenstand) je ein Sprite-Eintrag. Nur d >= 1 und Zellen in der Karte.
-vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekte/Gegenstände möglich)
+;---------------------------------------------------------------- objects (5.8)
+; objects of the cell kk (ZP0 = first element, ksi): candidates (item of the content plane, objects of the list),
+; then one sprite entry per object slot of the cell in reverse paint order (p = 4 ... 0, for equal p objects with
+; descending i, the item last). Only d >= 1 and cells within the map.
+vobjc:  ldx     kk              ; (vcells: only with objd, i.e. d >= 1 and objects/items possible)
         lda     k_ob,x
         cmp     #$FF
         bne     @go
@@ -973,7 +973,7 @@ vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekt
         sty     nc
         lda     itemn
         beq     @ob
-        clc                     ; Gegenstand g = Inhalt(c) AND 63 mit itemtab[g] <> 0: p = 2, Richtung $FF, ITEMPH
+        clc                     ; item g = content(c) AND 63 with itemtab[g] <> 0: p = 2, direction $FF, ITEMPH
         lda     map_cont
         adc     oclo
         sta     ZP1
@@ -997,7 +997,7 @@ vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekt
         lda     ITEMPH
         sta     cph
         inc     nc
-@ob:    lda     oclo            ; Vorfilter: Low-Byte im Bitfeld obm?
+@ob:    lda     oclo            ; pre-filter: low byte in bit field obm?
         and     #7
         tay
         lda     oclo
@@ -1008,7 +1008,7 @@ vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekt
         lda     obm,x
         and     bittab,y
         beq     @ce
-        ldx     #0              ; Objekte der Liste in i-Reihenfolge
+        ldx     #0              ; objects of the list in i order
 @ol:    cpx     nol
         bcs     @ce
         lda     ol_lo,x
@@ -1045,7 +1045,7 @@ vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekt
         bne     @ol
 @ce:    lda     nc
         beq     @r
-@el:    ldy     eo              ; Objektplätze der Zelle (DVG-Reihenfolge)
+@el:    ldy     eo              ; object slots of the cell (DVG order)
         lda     (ZP0),y
         cmp     #4
         bne     @en
@@ -1058,7 +1058,7 @@ vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekt
         cmp     ocp
         bne     @cl
         stx     ocj
-        jsr     vspr            ; STOP möglich
+        jsr     vspr            ; STOP possible
         ldx     ocj
         jmp     @cl
 @pn:    dec     ocp
@@ -1072,7 +1072,7 @@ vobjc:  ldx     kk              ; (vcells: nur mit objd, d. h. d >= 1 und Objekt
         bne     @el
 @r:     rts
 
-; Kandidat ocj an Platz ocp des Objektplatzes eo (5.8 Schritte 3-6)
+; candidate ocj at slot ocp of the object slot eo (5.8 steps 3-6)
 vspr:   lda     cset,x
         cmp     #8
         bcs     @r0
@@ -1080,12 +1080,12 @@ vspr:   lda     cset,x
         asl
         asl
         asl
-        adc     #48             ; C = 0: Satz in recs
+        adc     #48             ; C = 0: set in recs
         tay
         lda     recs,y
         beq     @r0
         sty     orx
-        lda     cdir,x          ; a = 0 bei $FF, sonst (2 + v - o) AND 3
+        lda     cdir,x          ; a = 0 for $FF, else (2 + v - o) AND 3
         cmp     #$FF
         beq     @a0
         eor     #$FF
@@ -1103,7 +1103,7 @@ vspr:   lda     cset,x
         bcc     @p
         lda     #0
 @p:     sta     oph
-        lda     recs+8,x        ; ai = angle_map[a] (Kopf 12-15)
+        lda     recs+8,x        ; ai = angle_map[a] (header 12-15)
         sta     ZP1
         lda     recs+9,x
         sta     ZP1+1
@@ -1113,7 +1113,7 @@ vspr:   lda     cset,x
         tay
         lda     (ZP1),y
         tay
-        lda     cd              ; Index ai * D + d - 1
+        lda     cd              ; index ai * D + d - 1
         sec
         sbc     #1
 @m:     dey
@@ -1123,11 +1123,11 @@ vspr:   lda     cset,x
         bcc     @m
 @r0:    rts
 @md:    sta     obase
-        lda     recs+10,x       ; Indextabelle
+        lda     recs+10,x       ; index table
         sta     ZP1
         lda     recs+11,x
         sta     ZP1+1
-        ldy     oph             ; + f * NA * D (f < NP <= 32, meist klein: Addition statt mul8)
+        ldy     oph             ; + f * NA * D (f < NP <= 32, usually small: addition instead of mul8)
         beq     @f0
 @ph:    clc
         lda     ZP1
@@ -1141,7 +1141,7 @@ vspr:   lda     cset,x
         lda     (ZP1),y
         cmp     #$FF
         bne     @b
-        ldx     orx             ; $FF: Phase 0
+        ldx     orx             ; $FF: phase 0
         lda     recs+10,x
         sta     ZP1
         lda     recs+11,x
@@ -1150,7 +1150,7 @@ vspr:   lda     cset,x
         lda     (ZP1),y
 @b:     cmp     #$FE
         bcs     @r0
-        ldx     orx             ; dp = Verzeichnis + 16 b
+        ldx     orx             ; dp = directory + 16 b
         sta     tmp
         lsr
         lsr
@@ -1174,7 +1174,7 @@ vspr:   lda     cset,x
         iny
         lda     (dp),y
         sta     oh
-        lda     ocp             ; Anker p: Spalte (vorzeichenbehaftet), Zeile
+        lda     ocp             ; anchor p: column (signed), row
         asl
         adc     eo              ; C = 0
         adc     #4
@@ -1184,7 +1184,7 @@ vspr:   lda     cset,x
         bpl     @ax
         dex
 @ax:    stx     tmp
-        sec                     ; x0 = ax - fx (16 Bit)
+        sec                     ; x0 = ax - fx (16 bit)
         ldy     #3
         sbc     (dp),y
         sta     cl_x0
@@ -1193,7 +1193,7 @@ vspr:   lda     cset,x
         sta     cl_x0+1
         bmi     @x0n            ; cx0 = max(x0, 0)
         lda     cl_x0
-        bcs     @x0             ; C = 1 (kein Borgen)
+        bcs     @x0             ; C = 1 (no borrow)
 @x0n:   lda     #0
 @x0:    sta     ocx0
         clc                     ; cx1 = min(x0 + w, VW)
@@ -1211,7 +1211,7 @@ vspr:   lda     cset,x
         cpx     ocx0
         beq     @rr
         bcc     @rr
-        lda     ocp             ; y0 = ay - fy (16 Bit)
+        lda     ocp             ; y0 = ay - fy (16 bit)
         asl
         adc     eo              ; C = 0
         adc     #5
@@ -1244,12 +1244,12 @@ vspr:   lda     cset,x
         cpx     ocy0
         beq     @rr
         bcc     @rr
-        ldx     ocx0            ; alle Spalten in cover belegt -> verwerfen; sonst vollständig, nur am Fenster
-        lda     ocx1            ; beschnitten (P6i: Verdeckung über die Malreihenfolge)
-        jsr     allcov_c        ; X bleibt cx0
+        ldx     ocx0            ; all columns occupied in cover -> discard; otherwise complete, only clipped
+        lda     ocx1            ; at the window (P6i: occlusion via the paint order)
+        jsr     allcov_c        ; X stays cx0
         bcc     @vis
 @rr:    rts
-@vis:   lda     ocx1            ; Ausschnitt im Bild: L, R, T, B
+@vis:   lda     ocx1            ; window in the image: L, R, T, B
         sec
         sbc     cl_x0
         sta     cl_r
@@ -1265,7 +1265,7 @@ vspr:   lda     cset,x
         lda     ocy0
         sbc     cl_y0
         sta     cl_t
-        ldx     #0              ; ofull: 1 unbeschnitten (L = 0, R = w, T = 0, B = h), 2 nur Zeilen (L = 0, R = w)
+        ldx     #0              ; ofull: 1 uncropped (L = 0, R = w, T = 0, B = h), 2 rows only (L = 0, R = w)
         lda     cl_l
         bne     @cut
         lda     cl_r
@@ -1290,14 +1290,14 @@ vspr:   lda     cset,x
 
 subpos: .byte   0, 1, 3, 4, 2,  3, 0, 4, 1, 2,  4, 3, 1, 0, 2,  1, 4, 0, 3, 2   ; SUBPOS[v][q] (P4 2.6)
 
-; ---------------------------------------------------------------- Bänder und Kacheln (5.6)
-; Einordnung im Zellendurchlauf (5.6 Schritt 1): X = Art (1 Boden, 2 Decke), A = n; Rückgabe A = $FE Lücke oder Stil.
-; Führt je Art und Tiefe live/gap/mix, st1 (erster Stil) und st0 (erster Stil mit auflösbarem Bandbild, nur
-; ohne Lücke von Belang; bst0f = zuletzt erfolglos versuchter Stil); gent[Art] = Bandbild von st0.
+; ---------------------------------------------------------------- bands and tiles (5.6)
+; classification in the cell pass (5.6 step 1): X = kind (1 floor, 2 ceiling), A = n; returns A = $FE gap or style.
+; Maintains per kind and depth live/gap/mix, st1 (first style) and st0 (first style with a resolvable band image, only
+; if there is no relevant gap; bst0f = last style tried without success); gent[kind] = band image of st0.
 bclass: cmp     #1
         jcc     @gap            ; n = 0
         sbc     #1
-        cmp     bnstk,x         ; st >= NST (bzw. DTS fehlt: NST = 0)
+        cmp     bnstk,x         ; st >= NST (or DTS missing: NST = 0)
         bcs     @gap
         sta     bstt
         lda     #1
@@ -1307,7 +1307,7 @@ bclass: cmp     #1
         bne     @s1
         lda     bstt
         sta     bst1,x
-        bcs     @s3             ; C = 1 nach cmp #$FF
+        bcs     @s3             ; C = 1 after cmp #$FF
 @s1:    cmp     bstt
         beq     @s3
         lda     #1
@@ -1321,7 +1321,7 @@ bclass: cmp     #1
         cmp     bst0f,x
         beq     @ret
         stx     bk
-        txa                     ; ZP1 = Slotkarte der Art + NE (Bandslots)
+        txa                     ; ZP1 = slot map of the kind + NE (band slots)
         asl
         asl
         asl
@@ -1360,7 +1360,7 @@ bclass: cmp     #1
         lda     #$FE
         rts
 
-; Bänder der Tiefe, A = 1 Boden, 2 Decke (5.6 Schritte 2-5): Entscheidung aus bclass, Kacheln, Grund
+; bands of the depth, A = 1 floor, 2 ceiling (5.6 steps 2-5): decision from bclass, tiles, ground
 vband:  sta     bk
         tax
         lda     bact,x
@@ -1373,7 +1373,7 @@ vband:  sta     bk
         asl
         asl
         asl
-        sta     bkx             ; Satz in recs
+        sta     bkx             ; set in recs
         lda     bk
         lsr
         bcc     @ce
@@ -1393,16 +1393,16 @@ vband:  sta     bk
         sta     bgm
         lda     bgap,x
         beq     @ng
-        lda     #1              ; Lücke: Grund = Tapete, Kacheln für alle Stile
-        sta     lue,x
+        lda     #1              ; gap: ground = wallpaper, tiles for all styles
+        sta     gap,x
         bne     @tiles
 @ng:    lda     bst0,x
         cmp     #$FF
-        beq     @tiles          ; kein auflösbares Bandbild: Kacheln für alle, kein Grund
-        inc     bgm             ; Grund = Band(st0)
+        beq     @tiles          ; no resolvable band image: tiles for all, no ground
+        inc     bgm             ; ground = band(st0)
         lda     bmix,x
-        jeq     @grnd           ; ein Stil: keine Kacheln
-@tiles: ldx     cd              ; Kacheln in DVG-Reihenfolge (= Zellreihenfolge)
+        jeq     @grnd           ; one style: no tiles
+@tiles: ldx     cd              ; tiles in DVG order (= cell order)
         lda     d_k0,x
         sta     bkk
         lda     d_kn,x
@@ -1424,7 +1424,7 @@ vband:  sta     bk
         beq     @tn
 @t1:    sta     bstt
         ldx     bkk
-        lda     k_elo,x         ; ZP0 = erstes Element der Zelle, beo = Platz des Boden-/Deckenelements
+        lda     k_elo,x         ; ZP0 = first element of the cell, beo = slot of the floor/ceiling element
         sta     ZP0
         lda     k_ehi,x
         sta     ZP0+1
@@ -1441,7 +1441,7 @@ vband:  sta     bk
         clc
         adc     k_ei,x
         sta     ecur
-        ldy     beo             ; allcov(bcov, x, x + w) vor resolve; ex, ey, ew
+        ldy     beo             ; allcov(bcov, x, x + w) before resolve; ex, ey, ew
         iny
         iny
         iny
@@ -1481,7 +1481,7 @@ vband:  sta     bk
         jne     @tl
 @grnd:  lda     bgm
         beq     @rts
-        jsr     spans           ; Folgen von rechts nach links
+        jsr     spans           ; sequences from right to left
         ldx     sp_n
 @gl:    dex
         bmi     @rts
@@ -1507,10 +1507,10 @@ vband:  sta     bk
         jmp     @gl
 @rts:   rts
 
-; ---------------------------------------------------------------- Tapete (5.7)
+; ---------------------------------------------------------------- wallpaper (5.7)
 vtap:   lda     #0
         sta     nr
-        lda     lue+2
+        lda     gap+2
         beq     @t1
         lda     dcy0
         ldx     dcy1
@@ -1518,12 +1518,12 @@ vtap:   lda     #0
 @t1:    lda     cd
         cmp     dvg_d
         bne     @t2
-        lda     fany            ; Fernsicht: Horizont erst nach dem Wartebereich (vdepth)
+        lda     fany            ; distant view: horizon only after the waiting area (vdepth)
         bne     @t2
         lda     dvg_y0
         ldx     dvg_y1
         jsr     addrng
-@t2:    lda     lue+1
+@t2:    lda     gap+1
         beq     @t3
         lda     dfy0
         ldx     dfy1
@@ -1531,10 +1531,10 @@ vtap:   lda     #0
 @t3:    lda     nr
         beq     @r
         jsr     spans
-@rl:    dec     nr              ; Bereiche von unten nach oben
+@rl:    dec     nr              ; ranges from bottom to top
         bmi     @r
         ldx     sp_n
-@sl:    dex                     ; Folgen von rechts nach links
+@sl:    dex                     ; sequences from right to left
         bmi     @rl
         stx     bsi
         ldy     nr
@@ -1553,7 +1553,7 @@ vtap:   lda     #0
         jmp     @sl
 @r:     rts
 
-; Zeilenbereich [A, X) anhängen, leere weglassen, an den vorigen angrenzende verbinden
+; append row range [A, X), omit empty ones, merge with the previous one if adjacent
 addrng: stx     tmp
         cmp     tmp
         bcs     @r
@@ -1570,12 +1570,12 @@ addrng: stx     tmp
         inc     nr
         rts
 
-; ---------------------------------------------------------------- Masken
-; cover und bcov als sortierte Listen belegter Spalten-Intervalle [S, E) (disjunkt, sich berührende verbunden),
-; höchstens MAXIV; VIEW beginnt mit leeren Listen. Kosten je Aufruf proportional zur Zahl der Intervalle.
+; ---------------------------------------------------------------- masks
+; cover and bcov as sorted lists of occupied column intervals [S, E) (disjoint, touching ones merged),
+; at most MAXIV; VIEW starts with empty lists. Cost per call proportional to the number of intervals.
 MAXIV    = 41
 
-; allcov: X = c0, A = c1 (exklusiv): C = 1, wenn alle Spalten belegt sind (auch bei c0 >= c1)
+; allcov: X = c0, A = c1 (exclusive): C = 1 if all columns are occupied (also for c0 >= c1)
 .macro IV_ALL PS, PE, PN
         .local ivl, ivf, ivno, ivyes
         sta     ib
@@ -1586,11 +1586,11 @@ MAXIV    = 41
 ivl:      cpy     PN
         bcs     ivno
         txa
-        cmp     PE,y             ; c0 < E[y]: Intervall gefunden
+        cmp     PE,y             ; c0 < E[y]: interval found
         bcc     ivf
         iny
         bne     ivl
-ivf:      cmp     PS,y             ; c0 >= S[y] und E[y] >= c1
+ivf:      cmp     PS,y             ; c0 >= S[y] and E[y] >= c1
         bcc     ivno
         lda     PE,y
         cmp     ib
@@ -1599,7 +1599,7 @@ ivno:     clc
 ivyes:    rts
 .endmacro
 
-; mark: X = c0, A = c1 (exklusiv) belegen
+; mark: X = c0, A = c1 (exclusive) occupy
 .macro IV_MARK PS, PE, PN
         .local ivf1, ivg, ivms, ivmj, ivme, ivme2, ivcp, ivcd, ivins, ivsh, ivput, ivr
         sta     ib
@@ -1607,21 +1607,21 @@ ivyes:    rts
         bcs     ivr
         stx     ia
         ldy     #0
-ivf1:     cpy     PN               ; i = erstes Intervall mit E >= c0
+ivf1:     cpy     PN               ; i = first interval with E >= c0
         bcs     ivins
         lda     PE,y
         cmp     ia
         bcs     ivg
         iny
         bne     ivf1
-ivg:      lda     ib              ; S[i] > c1: neues Intervall vor i
+ivg:      lda     ib              ; S[i] > c1: new interval before i
         cmp     PS,y
         bcc     ivins
         lda     ia              ; S[i] = min(S[i], c0)
         cmp     PS,y
         bcs     ivms
         sta     PS,y
-ivms:     tya                     ; j = letztes Intervall mit S <= c1
+ivms:     tya                     ; j = last interval with S <= c1
         tax
 ivmj:     inx
         cpx     PN
@@ -1638,7 +1638,7 @@ ivme2:    sta     PE,y
         stx     ij
         cpy     ij
         beq     ivr
-        iny                     ; i+1 ... j entfernen
+        iny                     ; remove i+1 ... j
         inx
 ivcp:     cpx     PN
         bcs     ivcd
@@ -1651,7 +1651,7 @@ ivcp:     cpx     PN
         bne     ivcp
 ivcd:     sty     PN
 ivr:      rts
-ivins:    sty     ii              ; [c0, c1) bei i einfügen
+ivins:    sty     ii              ; insert [c0, c1) at i
         ldx     PN
 ivsh:     cpx     ii
         beq     ivput
@@ -1676,22 +1676,22 @@ allcov_b:
 mark_c:
         IV_MARK cv_s, cv_e, cv_n
 mark_b: ldy     #$FF
-        sty     sp_n            ; Spannen neu berechnen
+        sty     sp_n            ; recompute spans
         IV_MARK bc_s, bc_e, bc_n
 
-; spans(bcov) nach sp_c0/sp_c1, sp_n Folgen (> 4 -> eine Folge von der ersten bis zur letzten freien Spalte)
+; spans(bcov) to sp_c0/sp_c1, sp_n sequences (> 4 -> one sequence from the first to the last free column)
 spans:  lda     sp_n
         bpl     @ok
         lda     #0
-        sta     ia              ; Ende des vorigen Intervalls
-        tax                     ; Anzahl Folgen
+        sta     ia              ; end of the previous interval
+        tax                     ; number of sequences
         tay
 @l:     cpy     bc_n
         bcs     @la
         lda     bc_s,y
         cmp     ia
         beq     @nx
-        jsr     @add            ; Folge [ia, S[y])
+        jsr     @add            ; sequence [ia, S[y])
 @nx:    lda     bc_e,y
         sta     ia
         iny
@@ -1708,7 +1708,7 @@ spans:  lda     sp_n
         ldx     #1
 @st:    stx     sp_n
 @ok:    rts
-@add:   sta     ib              ; letzte Folge endet bei ib
+@add:   sta     ib              ; last sequence ends at ib
         cpx     #5
         bcs     @a1
         sta     sp_c1,x
@@ -1717,9 +1717,9 @@ spans:  lda     sp_n
 @a1:    inx
         rts
 
-; ---------------------------------------------------------------- Hilfen
-; resolve (5.1): A = n, X = Satz (Art * 16), Y = Slotindex, ZP1 = Slotkarte (bzw. + NE).
-; C = 0: dp = Verzeichniseintrag; C = 1: kein Bild (dp unverändert). Zerstört A, X, Y, ZP1.
+; ---------------------------------------------------------------- helpers
+; resolve (5.1): A = n, X = set (kind * 16), Y = slot index, ZP1 = slot map (or + NE).
+; C = 0: dp = directory entry; C = 1: no image (dp unchanged). Destroys A, X, Y, ZP1.
 resolve:
         cmp     #1
         bcc     @no             ; n = 0
@@ -1728,7 +1728,7 @@ resolve:
         bcs     @no
         sta     rst
         lda     recs,x
-        beq     @no             ; DTS fehlt
+        beq     @no             ; DTS missing
         lda     (ZP1),y         ; k
         cmp     #$FF
         beq     @no
@@ -1738,14 +1738,14 @@ resolve:
         asl
         ora     rst
         tax
-        lda     sty_lo,x        ; Stilzeile (TEXSET)
+        lda     sty_lo,x        ; style row (TEXSET)
         sta     ZP1
         lda     sty_hi,x
         sta     ZP1+1
         lda     (ZP1),y
         cmp     #$FF
         bne     @b
-        lda     rkx             ; Rückgriff auf Stil 0
+        lda     rkx             ; fall back to style 0
         asl
         tax
         lda     sty_lo,x
@@ -1755,7 +1755,7 @@ resolve:
         lda     (ZP1),y
 @b:     cmp     #$FE
         bcs     @no
-        ldx     rkx             ; dp = Verzeichnis + 16 * b
+        ldx     rkx             ; dp = directory + 16 * b
         sta     tmp
         lsr
         lsr
@@ -1786,8 +1786,8 @@ addiv:  clc
         inc     iv+1
 @r:     rts
 
-; mr = A * mw (8 x 16 Bit); zerstört X, Y
-mul8:   tax                     ; X = Rest des Multiplikators, Y = Ergebnis lo
+; mr = A * mw (8 x 16 bit); destroys X, Y
+mul8:   tax                     ; X = remainder of the multiplier, Y = result lo
         lda     #0
         sta     mr+1
         tay
@@ -1833,16 +1833,16 @@ dstxy:  stx     tmp
         inc     e_dst+1
 @r:     rts
 
-; ---------------------------------------------------------------- Einträge: add (5.10), Einpass
-; Parameter: g_type (Bits 0-3 Typ, Bit 7 Rand weglassen), g_kind (Art 0-2), dp = Verzeichniseintrag (Wand, Band),
-; ex/ey/ew (Wand), g_a/g_b/g_c0/g_c1 (Band: y0, Zeilen, Spalten; Tapete: r0, r1, Spalten).
-; Der Eintrag wird sofort geschrieben: VCL-Einträge abwärts ab vp, VMS-Listen aufwärts ab mp. Reicht der Platz
-; nicht (vneed/vmsneed springen nach iovf), wird zurückgerollt, im Zählmodus gemessen und nach 5.10 entschieden.
+; ---------------------------------------------------------------- entries: add (5.10), fit pass
+; Parameters: g_type (bits 0-3 type, bit 7 omit border), g_kind (kind 0-2), dp = directory entry (wall, band),
+; ex/ey/ew (wall), g_a/g_b/g_c0/g_c1 (band: y0, rows, columns; wallpaper: r0, r1, columns).
+; The entry is written immediately: VCL entries downward from vp, VMS lists upward from mp. If there is not
+; enough space (vneed/vmsneed jump to iovf), it is rolled back, measured in count mode and decided according to 5.10.
 itemadd:
         lda     nitems
         cmp     #MAXITEM
         bne     @g
-        lda     g_type          ; leerer Sprite-Eintrag ist kein Eintrag (Referenz: add nur bei v > 0)
+        lda     g_type          ; empty sprite entry is not an entry (reference: add only for v > 0)
         cmp     #IT_SPR
         bne     @full
         jsr     gcnt
@@ -1871,7 +1871,7 @@ itemadd:
         beq     @spr
         inc     nitems
         rts
-@spr:   lda     vp              ; Sprite ohne geschriebenen Eintrag: leer
+@spr:   lda     vp              ; sprite without a written entry: empty
         cmp     svp
         bne     @acc
         lda     vp+1
@@ -1880,7 +1880,7 @@ itemadd:
         rts
 @acc:   inc     nitems
         jmp     objmark
-; Platz reicht nicht (Sprung aus vneed/vmsneed, beliebig tief): zurückrollen, zählen, entscheiden (5.10)
+; not enough space (jump from vneed/vmsneed, arbitrarily deep): roll back, count, decide (5.10)
 iovf:   ldx     isp
         txs
         lda     svp
@@ -1896,14 +1896,14 @@ iovf:   ldx     isp
         jsr     gcnt
         bne     @ne
         rts
-@ne:    sec                     ; frei = vp - mp = BL - nv - nm
+@ne:    sec                     ; free = vp - mp = BL - nv - nm
         lda     vp
         sbc     mp
         sta     s1
         lda     vp+1
         sbc     mp+1
         sta     s1+1
-        clc                     ; v + m <= frei: annehmen
+        clc                     ; v + m <= free: accept
         lda     iv
         adc     im
         sta     s3
@@ -1915,7 +1915,7 @@ iovf:   ldx     isp
         lda     s1+1
         sbc     s3+1
         bcs     @wr
-        lda     im              ; Rand im Puffer?
+        lda     im              ; border in the buffer?
         ora     im+1
         beq     @stop
         lda     iv+1
@@ -1924,7 +1924,7 @@ iovf:   ldx     isp
         cmp     #7
         beq     @drop
         bcc     @stop
-@strip: sec                     ; v - 7 <= frei: ohne Rand annehmen
+@strip: sec                     ; v - 7 <= free: accept without border
         lda     iv
         sbc     #7
         sta     s3
@@ -1941,7 +1941,7 @@ iovf:   ldx     isp
         sta     g_type
         lda     #1
         sta     vpart
-@wr:    lda     #WM_W+WM_X      ; Größe bekannt: ohne Platzprüfung schreiben
+@wr:    lda     #WM_W+WM_X      ; size known: write without space check
         sta     wmode
         jsr     gen
         inc     nitems
@@ -1953,7 +1953,7 @@ iovf:   ldx     isp
         sta     verr
         jmp     vstop
 
-; Zählprobe: iv/im = Größe des Eintrags (VCL/VMS); Z = 1: leerer Sprite-Eintrag (nur Sprites können leer sein)
+; count probe: iv/im = size of the entry (VCL/VMS); Z = 1: empty sprite entry (only sprites can be empty)
 gcnt:   lda     #0
         sta     wmode
         sta     iv
@@ -1968,7 +1968,7 @@ gcnt:   lda     #0
         cmp     #IT_SPR
 @r:     rts
 
-; angenommener Sprite-Eintrag eines Listenobjekts: OBJVIS-Bit i (auch ohne Rand)
+; accepted sprite entry of a list object: OBJVIS bit i (even without border)
 objmark:
         lda     g_type
         and     #$0F
@@ -1988,7 +1988,7 @@ objmark:
         sta     objv+1
 @r:     rts
 
-; vp -= A (Länge eines VCL-Eintrags); vp < mp: zu wenig Platz -> iovf
+; vp -= A (length of a VCL entry); vp < mp: not enough space -> iovf
 vneed:  eor     #$FF
         sec
         adc     vp
@@ -2004,7 +2004,7 @@ vneed:  eor     #$FF
         rts
 @o:     jmp     iovf
 
-; mp + (s3) <= vp, sonst iovf (Platz für s3 VMS-Bytes)
+; mp + (s3) <= vp, else iovf (space for s3 VMS bytes)
 vmsneed:
         clc
         lda     s3
@@ -2022,7 +2022,7 @@ vmsneed:
         rts
 @o:     jmp     iovf
 
-; ---------------------------------------------------------------- Erzeuger (zählen bzw. schreiben)
+; ---------------------------------------------------------------- generators (count or write)
 gen:    lda     g_type
         and     #$0F
         bne     @nw
@@ -2035,28 +2035,28 @@ gen:    lda     g_type
         jmp     gspr
 @g:     jmp     gbg
 
-; SPRITE (5.8, 5.9): Satz orx, Bildeintrag dp (S2), Lage cl_x0/cl_y0, Ausschnitt cl_l ... cl_b, ofull = unbeschnitten.
-; Kerne mit clipkerns; Rand unbeschnitten als Bank-1-Verweis (Typ 9; Build VMS_COPY: Kopie in den Puffer, Typ 12),
-; sonst mit clipvms_e
-gspr:   ldx     orx             ; VRAM-Basis, Inhaltsanfang (fsrc, fn, kc aus gsetx sind hier bedeutungslos)
+; SPRITE (5.8, 5.9): set orx, image entry dp (S2), position cl_x0/cl_y0, window cl_l ... cl_b, ofull = uncropped.
+; Cores with clipcores; border uncropped as bank 1 reference (type 9; build VMS_COPY: copy into the buffer, type 12),
+; otherwise with clipvms_e
+gspr:   ldx     orx             ; VRAM base, content start (fsrc, fn, kc from gsetx are meaningless here)
         jsr     gsetx
-        ldy     #5              ; nk, Kerntabelle
+        ldy     #5              ; nk, core table
         lda     (dp),y
         sta     kc
         iny
         jsr     grl
-        jsr     clipkerns
-        ldy     #8              ; Quelle = VB + rand_ofs, ZP1 = Liste, g_vlen
+        jsr     clipcores
+        ldy     #8              ; source = VB + edge_ofs, ZP1 = list, g_vlen
         jsr     grand
         lda     g_vlen
         ora     g_vlen+1
         beq     @r
         bit     wmode
         bmi     @w
-        lda     ofull           ; 1 = unbeschnitten
+        lda     ofull           ; 1 = uncropped
         lsr
         bcc     @cc
-        lda     #7              ; zählen: Eintrag (Typ 9), mit VMS_COPY auch die Liste
+        lda     #7              ; count: entry (type 9), with VMS_COPY also the list
         jsr     addiv
 .ifdef VMS_COPY
         lda     g_vlen
@@ -2066,7 +2066,7 @@ gspr:   ldx     orx             ; VRAM-Basis, Inhaltsanfang (fsrc, fn, kc aus gs
 .endif
 @r:     rts
 @w:     lda     g_type
-        bmi     @r              ; Rand weggelassen
+        bmi     @r              ; border omitted
         lda     ofull
         lsr
         bcc     @cc
@@ -2080,14 +2080,14 @@ gspr:   ldx     orx             ; VRAM-Basis, Inhaltsanfang (fsrc, fn, kc aus gs
 .endif
 @cc:    jmp     clipvms_e
 
-; gemeinsamer Anfang Wand/Band: VRAM-Basis, Inhaltsanfang; ZP1 = fsrc = Kerne bzw. Füllbytes, kc = nk, fn = h
+; common start of wall/band: VRAM base, content start; ZP1 = fsrc = cores or fill bytes, kc = nk, fn = h
 gsetup: lda     g_kind
         asl
         asl
         asl
         asl
         tax
-gsetx:  lda     recs+1,x        ; X = Satz in recs (gspr: S2-Satz)
+gsetx:  lda     recs+1,x        ; X = set in recs (gspr: S2 set)
 
         sta     gvb
         lda     recs+2,x
@@ -2115,8 +2115,8 @@ gsetx:  lda     recs+1,x        ; X = Satz in recs (gspr: S2-Satz)
         sta     fn
         rts
 
-; Y = Feld rand_ofs des Verzeichniseintrags (DTS 6, S2 8): g_rsrc = VB + rand_ofs, ZP1 = Inhalt + Liste (Y + 4),
-; g_vlen = Länge (Y + 6). Einstieg grl: ZP1 = Inhalt + Wort (dp),y; g_vlen = Wort (dp),y+2
+; Y = field edge_ofs of the directory entry (DTS 6, S2 8): g_rsrc = VB + edge_ofs, ZP1 = content + list (Y + 4),
+; g_vlen = length (Y + 6). Entry grl: ZP1 = content + word (dp),y; g_vlen = word (dp),y+2
 grand:  clc
         lda     (dp),y
         adc     gvb
@@ -2144,24 +2144,24 @@ grl:    clc
         sta     g_vlen+1
         rts
 
-; WALL(e, ent) (5.3): ex, ey, ew = Element
+; WALL(e, ent) (5.3): ex, ey, ew = element
 gwall:  jsr     gsetup
         ldy     #0
         lda     (dp),y
-        and     #EF_ZEIL
-        beq     @kern
-        lda     ey              ; ZEILEN: Füllbytes je Zeile
+        and     #EF_ROWS
+        beq     @core
+        lda     ey              ; ROWS: fill bytes per row
         sta     frow
         lda     ex
         sta     fx
         lda     ew
         sta     fw
         jmp     fillrows
-@kern:  lda     kc
-        jeq     @rand
+@core:  lda     kc
+        jeq     @edge
         bit     wmode
         bmi     @kw
-@kl:    ldy     #4              ; zählen: e_cnt = w (srcstep = w ist Typ 2)
+@kl:    ldy     #4              ; count: e_cnt = w (srcstep = w is type 2)
         lda     (ZP1),y
         sta     e_cnt
         ldy     #6
@@ -2179,17 +2179,17 @@ gwall:  jsr     gsetup
         inc     ZP1+1
 @kn:    dec     kc
         bne     @kl
-        jeq     @rand
-; schreiben: Kern (src, dx, dy, w, h, srcstep) direkt als Typ 2/3 (src = VB + src, dst = AP + row[y + dy] + x + dx)
+        jeq     @edge
+; write: core (src, dx, dy, w, h, srcstep) directly as type 2/3 (src = VB + src, dst = AP + row[y + dy] + x + dx)
 @kw:    ldy     #7
         lda     (ZP1),y
-        bne     @k3             ; srcstep >= 256: Typ 3
+        bne     @k3             ; srcstep >= 256: type 3
         dey
         lda     (ZP1),y
-        beq     @k2             ; srcstep 0: Typ 2
+        beq     @k2             ; srcstep 0: type 2
         ldy     #4
         cmp     (ZP1),y
-        bne     @k3             ; srcstep = w (e_cnt) ist ebenfalls Typ 2
+        bne     @k3             ; srcstep = w (e_cnt) is also type 2
 @k2:    lda     #11
         jsr     vneed
         ldy     #0
@@ -2272,13 +2272,13 @@ gwall:  jsr     gsetup
         inc     ZP1+1
 @k5:    dec     kc
         jne     @kw
-@rand:  ldy     #0
+@edge:  ldy     #0
         lda     (dp),y
-        and     #EF_RAND
+        and     #EF_EDGE
         beq     @r
         bit     wmode
         bmi     @rw
-        lda     #7              ; zählen: VMS-Eintrag (Typ 9), mit VMS_COPY auch die Liste im Puffer
+        lda     #7              ; count: VMS entry (type 9), with VMS_COPY also the list in the buffer
         jsr     addiv
 .ifdef VMS_COPY
         ldy     #12
@@ -2290,18 +2290,18 @@ gwall:  jsr     gsetup
 .endif
 @r:     rts
 @rw:    lda     g_type
-        bmi     @r              ; Rand weggelassen
+        bmi     @r              ; border omitted
         lda     ey
         ldx     ex
         jsr     dstxy
-        ; weiter in vmsverb
+        ; continue in vmsverb
 
-; Rand unbeschnitten (e_dst gesetzt): VMS-Eintrag mit src = VB + rand_ofs; die Liste wird als Bank-1-Adresse
-; eingetragen (Typ 9, 6a) bzw. im Build VMS_COPY in den Puffer kopiert (Typ 12)
+; border uncropped (e_dst set): VMS entry with src = VB + edge_ofs; the list is entered as a bank 1 address
+; (type 9, 6a) or, in the VMS_COPY build, copied into the buffer (type 12)
 vmsverb:
         ldy     #6
 .ifndef VMS_COPY
-        clc                     ; (Hauptpfad: ohne grand)
+        clc                     ; (main path: without grand)
         lda     (dp),y
         adc     gvb
         sta     g_rsrc
@@ -2318,7 +2318,7 @@ vmsverb:
         lda     (dp),y
         adc     gcont+1
         sta     ZP1+1
-; ZP1 = Liste (Bank 1), g_rsrc/e_dst gesetzt: Typ 9
+; ZP1 = list (bank 1), g_rsrc/e_dst set: type 9
 vms9:   lda     ZP1
         sta     e_lst
         lda     ZP1+1
@@ -2327,7 +2327,7 @@ vms9:   lda     ZP1
         jmp     emit_vms
 .else
         jsr     grand
-; unbeschnittene Liste kopieren: ZP1 = Liste, g_vlen = Länge, g_rsrc/e_dst gesetzt; Typ 12
+; copy uncropped list: ZP1 = list, g_vlen = length, g_rsrc/e_dst set; type 12
 vmscopy:
         lda     g_vlen
         sta     s3
@@ -2338,8 +2338,8 @@ vmscopy:
         sta     e_lst
         lda     mp+1
         sta     e_lst+1
-        ; vcopy: g_vlen Byte von (ZP1) nach (mp), mp += g_vlen
-        ldy     #0              ; vierfach entrollt (14 Zyklen je Byte)
+        ; vcopy: g_vlen bytes from (ZP1) to (mp), mp += g_vlen
+        ldy     #0              ; unrolled four times (14 cycles per byte)
         ldx     g_vlen+1
         beq     @r0
 @pg:    lda     (ZP1),y
@@ -2397,7 +2397,7 @@ vmscopy:
         jmp     emit_vms
 .endif
 
-; Füllzeilen: fn Bytes ab fsrc (Zeile frow ...), Spalte fx, Breite fw; gleiche Bytes gruppiert (Typ 4/5)
+; fill rows: fn bytes from fsrc (row frow ...), column fx, width fw; identical bytes grouped (type 4/5)
 fillrows:
         lda     fn
         beq     @r
@@ -2409,7 +2409,7 @@ fillrows:
         sta     e_cnt
         bit     wmode
         bmi     @w
-        ldy     #0              ; zählen
+        ldy     #0              ; count
 @g:     sty     fr
         lda     (ZP1),y
         sta     e_b
@@ -2429,7 +2429,7 @@ fillrows:
         cpy     fn
         bcc     @g
 @r:     rts
-@w:     ldy     #0              ; schreiben: Gruppe [fr, fy) als Typ 4 (eine Zeile) bzw. 5
+@w:     ldy     #0              ; write: group [fr, fy) as type 4 (one row) or 5
 @wg:    sty     fr
         tya
         eor     #$FF
@@ -2512,11 +2512,11 @@ fillrows:
         jcc     @wg
         rts
 
-; BAND(ent, y0, c0, c1) (5.6): ZEILEN oder Bandbild mit clip_image im Ausschnitt [c0, c1) x [y0, y0 + Zeilen)
+; BAND(ent, y0, c0, c1) (5.6): ROWS or band image with clip_image in the window [c0, c1) x [y0, y0 + rows)
 gband:  jsr     gsetup
         ldy     #0
         lda     (dp),y
-        and     #EF_ZEIL
+        and     #EF_ROWS
         beq     @img
         lda     g_a
         sta     frow
@@ -2540,17 +2540,17 @@ gband:  jsr     gsetup
         sta     cl_r
         lda     g_b
         sta     cl_b
-        jsr     clipkerns
+        jsr     clipcores
         ldy     #0
         lda     (dp),y
-        and     #EF_RAND
+        and     #EF_EDGE
         beq     @r
         ldy     #12             ; vlen
         lda     (dp),y
         iny
         ora     (dp),y
         beq     @r
-        lda     g_c0            ; volle Breite: unbeschnitten
+        lda     g_c0            ; full width: uncropped
         bne     @clip
         lda     g_c1
         cmp     dvg_vw
@@ -2578,11 +2578,11 @@ gband:  jsr     gsetup
         bpl     @cc
         lda     g_type
         bmi     @r
-@cc:    ldy     #6              ; Quelle = VB + rand_ofs, ZP1 = Liste, g_vlen
+@cc:    ldy     #6              ; source = VB + edge_ofs, ZP1 = list, g_vlen
         jsr     grand
         lda     #0
-        sta     ofull           ; allgemeiner Ausschnitt
-        lda     #$FF            ; Bildbreite unbekannt: Lauf rechts beschneiden möglich
+        sta     ofull           ; general window
+        lda     #$FF            ; image width unknown: run may be cropped on the right
         sta     cl_w
         jmp     clipvms_e
 
@@ -2592,13 +2592,13 @@ gbg:    sec
         sbc     g_c0
         sta     e_cnt
         sta     bgn
-        lda     bgsel           ; Fernsicht-Füllung (5.7a): Typ 4/5 mit dem Füllbyte
+        lda     bgsel           ; distant-view fill (5.7a): type 4/5 with the fill byte
         beq     @t
         lda     ffill
         bcs     @fb             ; C = 1 (c1 > c0)
 @t:     lda     dbg_ok
         bne     @dbg
-        lda     bgfill          ; ohne DBG: ein Typ 4/5
+        lda     bgfill          ; without DBG: one type 4/5
 @fb:    sta     e_b
         sec
         lda     g_b
@@ -2614,7 +2614,7 @@ gbg:    sec
         sta     fx
         lda     e_cnt
         sta     fw
-        ; Zeilen über dem Panorama [r0, min(r1, y0))
+        ; rows above the panorama [r0, min(r1, y0))
         lda     g_b
         cmp     dbg_y0
         bcc     @m1
@@ -2645,11 +2645,11 @@ gbg:    sec
         sta     e_ss
         lda     dbg_p+1
         sta     e_ss+1
-        lda     bgn             ; e_cnt = n (fillrows hat es nicht verändert: fw)
+        lda     bgn             ; e_cnt = n (fillrows has not changed it: fw)
         sta     e_cnt
         bit     wmode
         bmi     @pw
-        jsr     emit_vmc        ; zählen: ein oder zwei Typ 3
+        jsr     emit_vmc        ; count: one or two type 3
         jsr     bgq
         bcc     @low
         jsr     emit_vmc
@@ -2672,7 +2672,7 @@ gbg:    sec
         lda     bga
         ldx     g_c0
         jsr     dstxy
-        jsr     bgq             ; C = 1: zwei Teile, e_cnt = n1
+        jsr     bgq             ; C = 1: two parts, e_cnt = n1
         php
         clc
         lda     bgsrc
@@ -2684,7 +2684,7 @@ gbg:    sec
         jsr     emit_vmc
         plp
         bcc     @low
-        clc                     ; Teil 2: ab Quellspalte 0 an Zielspalte c0 + n1
+        clc                     ; part 2: from source column 0 to destination column c0 + n1
         lda     e_dst
         adc     e_cnt
         sta     e_dst
@@ -2699,7 +2699,7 @@ gbg:    sec
         lda     bgsrc+1
         sta     e_src+1
         jsr     emit_vmc
-@low:   ; Zeilen unter dem Panorama [max(r0, y0 + h), r1)
+@low:   ; rows below the panorama [max(r0, y0 + h), r1)
         lda     g_a
         cmp     bgy1
         bcs     @m4
@@ -2714,7 +2714,7 @@ gbg:    sec
         jmp     bgfr
 @r:     rts
 
-; Füllzeilen der DBG [g_a, A) (leer, wenn A <= g_a)
+; fill rows of the DBG [g_a, A) (empty if A <= g_a)
 bgfill_rows_to:
         sec
         sbc     g_a
@@ -2739,7 +2739,7 @@ bgfr:   clc                     ; fsrc = DBG + 24 + frow
 @f:     jmp     fillrows
 bgret:  rts
 
-; q = (o_v + c0) mod P -> bgqv; C = 1, wenn q + n > P (dann e_cnt = n1 = P - q), sonst e_cnt = n
+; q = (o_v + c0) mod P -> bgqv; C = 1 if q + n > P (then e_cnt = n1 = P - q), else e_cnt = n
 bgq:    clc
         lda     bgom
         adc     g_c0
@@ -2775,9 +2775,9 @@ bgq:    clc
         rts
 
 ; ---------------------------------------------------------------- clip_image (P5b 6)
-; Kerne: ZP1 = Kerntabelle, kc = Anzahl; Bildlage cl_x0/cl_y0 (16 Bit), Ausschnitt relativ zum Bild
-; [cl_l, cl_r) x [cl_t, cl_b). Je sichtbarem Kern ein Typ 2/3 (zählen bzw. schreiben).
-clipkerns:
+; cores: ZP1 = core table, kc = count; image position cl_x0/cl_y0 (16 bit), window relative to the image
+; [cl_l, cl_r) x [cl_t, cl_b). One type 2/3 per visible core (count or write).
+clipcores:
         lda     kc
         bne     @k
         rts
@@ -2830,7 +2830,7 @@ clipkerns:
         cmp     kc_
         beq     @nx
         bcc     @nx
-        lda     kss             ; st = srcstep oder w
+        lda     kss             ; st = srcstep or w
         sta     kst
         lda     kss+1
         sta     kst+1
@@ -2838,7 +2838,7 @@ clipkerns:
         bne     @st
         lda     kw
         sta     kst
-@st:    lda     kss             ; volle Breite: srcstep bleibt, sonst st
+@st:    lda     kss             ; full width: srcstep stays, otherwise st
         sta     e_ss
         lda     kss+1
         sta     e_ss+1
@@ -2852,7 +2852,7 @@ clipkerns:
         sta     e_ss
         lda     kst+1
         sta     e_ss+1
-@f:     sec                     ; e_cnt = Anzahl (ckwrite setzt es erneut)
+@f:     sec                     ; e_cnt = count (ckwrite sets it again)
         lda     kb
         sbc     ka
         sta     e_cnt
@@ -2870,7 +2870,7 @@ clipkerns:
         jne     @k
         rts
 
-; Schreibwerte eines beschnittenen Kerns: src = VB + src + (c - dy) * st + (a - dx), dst = AP + row[y0 + c] + x0 + a
+; write values of a cropped core: src = VB + src + (c - dy) * st + (a - dx), dst = AP + row[y0 + c] + x0 + a
 ckwrite:
         ldy     #0
         clc
@@ -2923,29 +2923,29 @@ ckwrite:
         sta     e_reps
         rts
 
-; VMS-Liste beschneiden (P5b 6.2): ZP1 = Liste, Ausschnitt cl_l/cl_r/cl_t/cl_b (im Bild), cl_w = Bildbreite (R < w: ein
-; Lauf kann rechts beschnitten sein; $FF = unbekannt), ofull = 2: nur Zeilen beschnitten (L = 0, R = w).
-; Bezugspunkt der Ausgabe (x0 + L, y0 + T). Zählen: iv += 7 und im = 3 + Bytes, falls ein Befehl sichtbar ist;
-; schreiben: Liste ab mp und VMS-Eintrag Typ 12 (src = g_rsrc, dst = AP + row[y0 + T] + x0 + L).
-; Voraussetzung (Formatregel P5b 4.6): ofs = Zeile * stride + Spalte, Spalte + len <= w <= stride; damit ist Zeile r in
-; ofs ausgedrückt sichtbar in [tL, tR) = [r * stride + L, r * stride + R), und ein sichtbarer Befehl mit Spalte >= L
-; bekommt ofs' = ofs - cfix, cfix = T * stride + L. Ablauf je Zeile: Befehle mit ofs < tL überspringen (k += Länge),
-; Rückblick auf den zuletzt übersprungenen Typ 1 (links beschnittener Lauf), dann die sichtbaren Befehle als Block
-; kopieren: op ist so versetzt, dass (op),y die Ausgabestelle zum Eingabeindex y ist; davor bleiben 3 Byte für den
-; Typ 3 frei (k > 0), der erst geschrieben wird, wenn der Block nicht leer ist. Ein Befehl mit ofs' >= lim' (= tR - cfix)
-; beendet den Block, ein rechts beschnittener Lauf ebenso. Nur Zeilen: ein Block über alle Zeilen (lim' = (B - T) *
-; stride, kein Rückblick). Y = laufender Eingabeindex (ab $FC wird ZP1 nachgezogen), X/ccnth = restliche Befehle.
-; Zählmodus: der Block schreibt nach CSCR (Bank 0 $0B00-$0BFF, Reserve der Engine, 2.2), die Einzelbefehle nichts.
+; crop VMS list (P5b 6.2): ZP1 = list, window cl_l/cl_r/cl_t/cl_b (in the image), cl_w = image width (R < w: a
+; run may be cropped on the right; $FF = unknown), ofull = 2: only rows cropped (L = 0, R = w).
+; Reference point of the output (x0 + L, y0 + T). Count: iv += 7 and im = 3 + bytes, if a command is visible;
+; write: list from mp and VMS entry type 12 (src = g_rsrc, dst = AP + row[y0 + T] + x0 + L).
+; Precondition (format rule P5b 4.6): ofs = row * stride + column, column + len <= w <= stride; thus row r expressed
+; in ofs is visible in [tL, tR) = [r * stride + L, r * stride + R), and a visible command with column >= L
+; gets ofs' = ofs - cfix, cfix = T * stride + L. Flow per row: skip commands with ofs < tL (k += length),
+; look back at the last skipped type 1 (run cropped on the left), then copy the visible commands as a block:
+; op is offset so that (op),y is the output location for input index y; 3 bytes stay free before it for the
+; type 3 (k > 0), which is written only if the block is not empty. A command with ofs' >= lim' (= tR - cfix)
+; ends the block, as does a run cropped on the right. Rows only: one block over all rows (lim' = (B - T) *
+; stride, no look-back). Y = current input index (from $FC on ZP1 is advanced), X/ccnth = remaining commands.
+; Count mode: the block writes to CSCR (bank 0 $0B00-$0BFF, engine reserve, 2.2), the single commands write nothing.
 CSCR     = $0B00
-cyl      = zt+4         ; clipvms_e: Index des Längenbytes des zuletzt übersprungenen Typ 1
+cyl      = zt+4         ; clipvms_e: index of the length byte of the last skipped type 1
 cq       = zt+5         ; clipvms_e: ofs' lo
-ck       = dp           ; clipvms_e: ausstehender Sprung k (dp wird gerettet: iovf erzeugt den Eintrag neu)
+ck       = dp           ; clipvms_e: pending jump k (dp is saved: iovf regenerates the entry)
 clipvms_e:
         bit     wmode
         bpl     @cnt
-        bvs     @k              ; Größe bekannt (iovf)
-        lda     g_vlen          ; Platz für höchstens 2 * vlen + 4 Byte (je Befehl höchstens ein Typ 3 dazu, dazu
-        asl                     ; der zuletzt zur Probe kopierte Befehl)
+        bvs     @k              ; size known (iovf)
+        lda     g_vlen          ; space for at most 2 * vlen + 4 bytes (at most one additional type 3 per command, plus
+        asl                     ; the command last copied for the probe)
         sta     s3
         lda     g_vlen+1
         rol
@@ -2958,19 +2958,19 @@ clipvms_e:
         inc     s3+1
         bne     @s
 @ov:    jmp     iovf
-@k:     lda     im              ; iovf ohne Platzprüfung: Liste leer (Zählprobe) -> nichts; sonst schriebe der Block
-        ora     im+1            ; bis zu 9 Byte Abfall hinter mp, wo bei genau passendem Platz schon die VCL-Einträge
-        bne     @x              ; der Kerne stehen (mit Liste: höchstens 6 Byte hinter ihrem Ende, dort ist der
-        rts                     ; 7-Byte-Eintrag Typ 12 noch frei)
+@k:     lda     im              ; iovf without space check: list empty (count probe) -> nothing; otherwise the block would write
+        ora     im+1            ; up to 9 bytes of scratch output after mp, where, with exactly fitting space, the VCL entries
+        bne     @x              ; of the cores already are (with list: at most 6 bytes after its end, where the
+        rts                     ; 7-byte entry type 12 is still free)
 @s:     jsr     vmsneed
-@x:     clc                     ; Ausgabe hinter dem Kopf
+@x:     clc                     ; output after the header
         lda     mp
         adc     #3
         sta     copos
         lda     mp+1
         adc     #0
         bcc     @p              ; (C = 0: mp + 3 < $10000)
-@cnt:   lda     #3              ; zählen: copos = 3 + Bytes
+@cnt:   lda     #3              ; count: copos = 3 + bytes
         sta     copos
         lda     #0
 @p:     sta     copos+1
@@ -3006,7 +3006,7 @@ clipvms_e:
         lda     ofull
         cmp     #2
         bne     @gen
-        sec                     ; nur Zeilen: ein Block, lim' = (B - T) * stride
+        sec                     ; rows only: one block, lim' = (B - T) * stride
         lda     cl_b
         sbc     cl_t
         jsr     mulst
@@ -3018,7 +3018,7 @@ clipvms_e:
         sta     cnr
         lda     #0
         beq     @fl
-@gen:   sec                     ; Zeile T: lim' = R - L
+@gen:   sec                     ; row T: lim' = R - L
         lda     cl_r
         sbc     cl_l
         sta     clim
@@ -3029,7 +3029,7 @@ clipvms_e:
         lda     cl_b
         sbc     cl_t
         sta     cnr
-        lda     cl_l            ; Bit 7: L > 0 (Rückblick), Bit 6: R < w (Lauf rechts beschneiden)
+        lda     cl_l            ; bit 7: L > 0 (look-back), bit 6: R < w (crop run on the right)
         cmp     #1
         lda     #0
         ror
@@ -3043,18 +3043,18 @@ clipvms_e:
         sta     calpha
         iny
         lda     (ZP1),y
-        tax                     ; X = Anzahl lo
+        tax                     ; X = count lo
         iny
         lda     (ZP1),y
-        cpx     #1              ; ccnth = hi + (lo <> 0): Schleife dex/beq, dec ccnth/bne
+        cpx     #1              ; ccnth = hi + (lo <> 0): loop dex/beq, dec ccnth/bne
         adc     #0
         sta     ccnth
         bne     @y3
-        jmp     @end            ; keine Befehle
+        jmp     @end            ; no commands
 @y3:    iny
-; ---- überspringen: Befehle mit ofs < tL (k += Länge); Y = Befehl
+; ---- skip: commands with ofs < tL (k += length); Y = command
 @sk:    lda     (ZP1),y
-        lsr                     ; C = 1: Typ 1
+        lsr                     ; C = 1: Type 1
         iny
         lda     (ZP1),y
         bcc     @s8
@@ -3062,7 +3062,7 @@ clipvms_e:
         iny
         lda     (ZP1),y
         sbc     ctl+1
-        bcs     @fd             ; ofs >= tL (Y = Befehl + 2)
+        bcs     @fd             ; ofs >= tL (Y = command + 2)
         iny
         sty     cyl
         lda     (ZP1),y         ; C = 0
@@ -3077,7 +3077,7 @@ clipvms_e:
         bcc     @sk
         jsr     cnorm
         jmp     @sk
-@s8:    cmp     ctl             ; Typ 8
+@s8:    cmp     ctl             ; Type 8
         iny
         lda     (ZP1),y
         sbc     ctl+1
@@ -3090,23 +3090,23 @@ clipvms_e:
         bne     @sc
 @sx:    dec     ccnth
         bne     @sc
-        bit     cflg            ; Liste zu Ende: Rückblick auf den letzten Befehl
+        bit     cflg            ; list at end: look back at the last command
         bpl     @se
         jsr     cleft
 @se:    jmp     @end
-; ---- Befehl bei Y - 2 hat ofs >= tL
+; ---- command at Y - 2 has ofs >= tL
 @fd:    dey
         dey
         bit     cflg
         bpl     @vis
-        tya                     ; Rückblick (L > 0): unmittelbar davor ein übersprungener Typ 1? (C = 1)
+        tya                     ; look-back (L > 0): immediately before it a skipped type 1? (C = 1)
         sbc     #1
         cmp     cyl
         bne     @vis
         jsr     cleft2
-; ---- sichtbare Befehle ab Y als Block
-@vis:   sty     cys             ; Block ab Y: Lücke für den Typ 3 bei k > 0, op = Ausgabe + Lücke - Y
-        stx     cxs             ; (zählen: CSCR + Lücke - Y)
+; ---- visible commands from Y as a block
+@vis:   sty     cys             ; block from Y: gap for the type 3 at k > 0, op = output + gap - Y
+        stx     cxs             ; (count: CSCR + gap - Y)
         ldx     #0
         lda     ck
         ora     ck+1
@@ -3134,13 +3134,13 @@ clipvms_e:
         bcs     @vd
         dec     op+1
 @vd:    ldx     cxs
-@cp:    lda     (ZP1),y         ; Typ
+@cp:    lda     (ZP1),y         ; type
         sta     (op),y
         lsr
         iny
         lda     (ZP1),y         ; ofs lo
         bcs     @c1
-        adc     cncf            ; Typ 8: ofs' = ofs - cfix (C = 0)
+        adc     cncf            ; Type 8: ofs' = ofs - cfix (C = 0)
         sta     (op),y
         sta     cq
         iny
@@ -3158,14 +3158,14 @@ clipvms_e:
         beq     @cx
 @cy:    cpy     #$FC
         bcc     @cp
-        jsr     ccommit         ; Y >= $FC: Block abschließen, ZP1 nachziehen, neuer Block
+        jsr     ccommit         ; Y >= $FC: close block, advance ZP1, new block
         jsr     cnorm
         jmp     @vis
 @cx:    dec     ccnth
         bne     @cy
-        jsr     ccommit         ; Liste zu Ende
+        jsr     ccommit         ; list at end
         jmp     @end
-@c1:    sbc     ccf             ; Typ 1 (C = 1)
+@c1:    sbc     ccf             ; Type 1 (C = 1)
         sta     (op),y
         sta     cq
         iny
@@ -3179,22 +3179,22 @@ clipvms_e:
         cmp     clim
         bcs     @ce
 @v1:    iny
-        lda     (ZP1),y         ; Länge
+        lda     (ZP1),y         ; length
         sta     (op),y
         bit     cflg
         bvc     @v2
-        lda     clim            ; R < w: d = lim' - ofs' (1 ... R - L, ofs' >= Zeilenanfang)
+        lda     clim            ; R < w: d = lim' - ofs' (1 ... R - L, ofs' >= row start)
         sec
         sbc     cq
         cmp     (ZP1),y
-        bcc     @pr             ; d < len: rechts beschnitten
+        bcc     @pr             ; d < len: cropped on the right
 @v2:    iny
         jmp     @cn
-@ce:    dey                     ; Befehl bei Y - 2 nicht sichtbar: Block abschließen, nächste Zeile
+@ce:    dey                     ; command at Y - 2 not visible: close block, next row
         dey
         jsr     ccommit
         jmp     @nr
-@pr:    sta     (op),y          ; Länge d; k = len - d nach dem Block; Zeile fertig
+@pr:    sta     (op),y          ; length d; k = len - d after the block; row done
         sta     cln
         lda     (ZP1),y
         sec
@@ -3213,10 +3213,10 @@ clipvms_e:
         bne     @pn
         lda     ccnth
         beq     @end
-@pn:    cpy     #$FC            ; Y bis $FF möglich (Lauf ab Y >= $F8): vor @sk nachziehen
+@pn:    cpy     #$FC            ; Y up to $FF possible (run from Y >= $F8): advance before @sk
         bcc     @nr
         jsr     cnorm
-; ---- nächste Zeile: tL += stride, lim' += stride; r >= B: Ende (Rest entfällt)
+; ---- next row: tL += stride, lim' += stride; r >= B: end (rest is dropped)
 @nr:    dec     cnr
         beq     @end
         clc
@@ -3241,7 +3241,7 @@ clipvms_e:
         lda     cn
         ora     cn+1
         bne     @vs
-        rts                     ; nichts sichtbar: keine Liste
+        rts                     ; nothing visible: no list
 @vs:    bit     wmode
         bmi     @wr
         lda     #7
@@ -3251,7 +3251,7 @@ clipvms_e:
         lda     copos+1
         sta     im+1
         rts
-@wr:    ldy     #0              ; Kopf: Alpha, Anzahl
+@wr:    ldy     #0              ; header: alpha, count
         lda     calpha
         sta     (mp),y
         iny
@@ -3264,7 +3264,7 @@ clipvms_e:
         sta     e_lst
         lda     mp+1
         sta     e_lst+1
-        lda     copos           ; mp = Ende der Liste
+        lda     copos           ; mp = end of the list
         sta     mp
         lda     copos+1
         sta     mp+1
@@ -3279,17 +3279,17 @@ clipvms_e:
         lda     #12
         jmp     emit_vms
 
-; Rückblick (L > 0) vor dem Befehl bei Y bzw. am Listenende: war der unmittelbar vorige Befehl ein übersprungener
-; Typ 1 (cyl = Index seiner Länge) mit e = ofs + len - tL > 0 (links beschnitten; der Lauf bleibt in seiner Zeile),
-; dann k -= e, Typ 3 (k), Typ 1 (ofs' = tL - cfix, n = min(e, R - L)), k = e - n. X, Y bleiben.
+; look-back (L > 0) before the command at Y or at the list end: was the immediately preceding command a skipped
+; type 1 (cyl = index of its length) with e = ofs + len - tL > 0 (cropped on the left; the run stays in its row),
+; then k -= e, type 3 (k), type 1 (ofs' = tL - cfix, n = min(e, R - L)), k = e - n. X, Y stay.
 cleft:  sec
-        tya                     ; Rückblick: unmittelbar davor ein übersprungener Typ 1 (cyl = Index seiner Länge)?
-        sbc     #1              ; (C = 1; cyl = $FF: keiner, Y >= 3)
+        tya                     ; look-back: immediately before it a skipped type 1 (cyl = index of its length)?
+        sbc     #1              ; (C = 1; cyl = $FF: none, Y >= 3)
         cmp     cyl
         beq     cleft2
         rts
 cleft2: sty     cq
-        ldy     cyl             ; e = ofs + len - tL > 0: links beschnitten (der Lauf bleibt in seiner Zeile)
+        ldy     cyl             ; e = ofs + len - tL > 0: cropped on the left (the run stays in its row)
         lda     (ZP1),y
         sta     cln
         dey
@@ -3311,14 +3311,14 @@ cleft2: sty     cq
         bcc     @r            ; e < 0 (e < 256: ofs < tL)
         lda     cle
         beq     @r
-        sec                     ; k -= e (k hatte schon len); Typ 3 (k)
+        sec                     ; k -= e (k already had len); type 3 (k)
         lda     ck
         sbc     cle
         sta     ck
         bcs     @l1
         dec     ck+1
 @l1:    jsr     cflush
-        lda     cwid            ; n = min(e, R - L), k = e - n; Typ 1 (ofs' = tL - cfix, n)
+        lda     cwid            ; n = min(e, R - L), k = e - n; type 1 (ofs' = tL - cfix, n)
         cmp     cle
         bcc     @l2
         lda     cle
@@ -3340,16 +3340,16 @@ cleft2: sty     cq
         jmp     cputb
 @r:     rts
 
-; Block bis vor Y abschließen: n = Y - cys Byte; n > 0: copos += Lücke + n, cn += Befehle (cxs - X, < 256), Typ 3 (k)
-; in die Lücke vor dem Block (zählen: nach CSCR). X, Y bleiben.
+; close block up to before Y: n = Y - cys bytes; n > 0: copos += gap + n, cn += commands (cxs - X, < 256), type 3 (k)
+; into the gap before the block (count: after CSCR). X, Y stay.
 ccommit:
         tya
         sec
         sbc     cys
-        beq     @r              ; leer: Lücke verfällt
+        beq     @r              ; empty: gap lapses
         clc
         adc     cgap
-        adc     copos           ; (C = 0: n + Lücke < 256)
+        adc     copos           ; (C = 0: n + gap < 256)
         sta     copos
         bcc     @a
         inc     copos+1
@@ -3386,7 +3386,7 @@ ccommit:
         ldy     cq
 @r:     rts
 
-; Y >= $FC: ZP1 += Y - 4, Y = 4 (der vorige Befehl bleibt für den Rückblick erreichbar); cyl nachziehen bzw. $FF
+; Y >= $FC: ZP1 += Y - 4, Y = 4 (the previous command stays reachable for the look-back); advance cyl or $FF
 cnorm:  tya
         sec
         sbc     #4
@@ -3405,7 +3405,7 @@ cnorm:  tya
         ldy     #4
         rts
 
-; k > 0: Typ 3 (k) ausgeben, k = 0. X, Y bleiben.
+; k > 0: output type 3 (k), k = 0. X, Y stay.
 cflush: lda     ck
         ora     ck+1
         beq     cpr
@@ -3417,7 +3417,7 @@ cflush: lda     ck
         sta     ck
         sta     ck+1
         lda     #3
-; Befehl A mit Wort cot bei copos ausgeben (zählen: nur copos), cn += 1. X, Y bleiben.
+; output command A with word cot at copos (count: only copos), cn += 1. X, Y stay.
 cputw:  sty     cq
         bit     wmode
         bpl     @c
@@ -3446,7 +3446,7 @@ cadv:   clc                     ; copos += A; Y = cq
         inc     copos+1
 @r:     ldy     cq
 cpr:    rts
-; Byte A bei copos ausgeben (Länge eines Typ 1). X, Y bleiben.
+; output byte A at copos (length of a type 1). X, Y stay.
 cputb:  sty     cq
         bit     wmode
         bpl     @c
@@ -3470,15 +3470,15 @@ mulst:  pha
         pla
         jmp     mul8
 
-; ---------------------------------------------------------------- VCL-Einträge (6)
-; zählen: iv += Länge; schreiben: vp -= Länge (vneed), Eintrag bei vp, nent += 1 (höchstens 255)
-emit_vmcn:                      ; Kerne: srcstep = e_cnt ist Typ 2 (wie srcstep 0)
+; ---------------------------------------------------------------- VCL entries (6)
+; count: iv += length; write: vp -= length (vneed), entry at vp, nent += 1 (at most 255)
+emit_vmcn:                      ; cores: srcstep = e_cnt is type 2 (like srcstep 0)
         lda     e_ss
         cmp     e_cnt
         bne     emit_vmc
         ldx     e_ss+1
         bne     emit_vmc
-        stx     e_ss            ; = 0 (e_ss+1 ist 0)
+        stx     e_ss            ; = 0 (e_ss+1 is 0)
 emit_vmc:
         lda     e_ss
         ora     e_ss+1
@@ -3489,13 +3489,13 @@ emit_vmc:
         bcc     @a
         lda     #13
 @a:     jmp     addiv
-@w:     ldx     #2              ; Typ 2 (11 Byte) bzw. 3 (13 Byte, srcstep e_ss)
+@w:     ldx     #2              ; type 2 (11 bytes) or 3 (13 bytes, srcstep e_ss)
         cmp     #1
         lda     #11
         bcc     @l
         inx
         lda     #13
-@l:     jsr     vneed           ; (X bleibt)
+@l:     jsr     vneed           ; (X stays)
         cpx     #3
         bne     @h
         ldy     #11
@@ -3519,7 +3519,7 @@ emit_vmc:
         iny
         lda     e_dst+1
         sta     (vp),y
-; Endstück ab Feld 5 (Y = 4, X = Typ): count, 0; außer bei Typ 4: reps, 0, step = stride
+; tail from field 5 (Y = 4, X = type): count, 0; except for type 4: reps, 0, step = stride
 vt5:    iny
         lda     e_cnt
         sta     (vp),y
@@ -3555,7 +3555,7 @@ emit_vmf:
         bcc     @a
         lda     #11
 @a:     jmp     addiv
-@w:     ldx     #4              ; Typ 4 (7 Byte) bzw. 5 (11 Byte, reps > 1)
+@w:     ldx     #4              ; type 4 (7 bytes) or 5 (11 bytes, reps > 1)
         lda     e_reps
         cmp     #2
         lda     #7
@@ -3580,7 +3580,7 @@ emit_vmf:
         sta     (vp),y
         jmp     vt5
 
-; A = Typ (12: Liste im Puffer, 9: Liste in Bank 1); src = g_rsrc, dst = e_dst, Liste = e_lst
+; A = type (12: list in the buffer, 9: list in bank 1); src = g_rsrc, dst = e_dst, list = e_lst
 emit_vms:
         bit     wmode
         bmi     @w
@@ -3588,7 +3588,7 @@ emit_vms:
         jmp     addiv
 @w:     tax
         lda     #7
-        jsr     vneed           ; (X bleibt)
+        jsr     vneed           ; (X stays)
         ldy     #0
         txa
         sta     (vp),y
@@ -3612,11 +3612,11 @@ emit_vms:
         sta     (vp),y
         jmp     ent_end
 
-; ---------------------------------------------------------------- Variablen VIEW
+; ---------------------------------------------------------------- variables VIEW
         .segment "LIBBSS"
 savesp: .res 1
 ap:     .res 2
-fc:     .res 2                  ; feste Koordinate der Tiefe (16 Bit vorzeichenbehaftet)
+fc:     .res 2                  ; fixed coordinate of the depth (16 bit signed)
 idxd:   .res 2                  ; pos + d * F
 fstep:  .res 2
 flim:   .res 1
@@ -3629,23 +3629,23 @@ facef:  .res 1
 facel:  .res 1
 facer:  .res 1
 bgom:   .res 2                  ; o_v mod P
-sp_n:   .res 1                  ; Anzahl Spannen, $FF = neu berechnen
+sp_n:   .res 1                  ; number of spans, $FF = recompute
 sp_c0:  .res 5
 sp_c1:  .res 5
-vz_start:                       ; ab hier löscht VIEW
+vz_start:                       ; VIEW clears from here on
 nitems: .res 1
 verr:   .res 1
 vpart:  .res 1
-cv_n:   .res 1                  ; Intervalle in cover, bcov (Masken)
+cv_n:   .res 1                  ; intervals in cover, bcov (masks)
 bc_n:   .res 1
 nent:   .res 1
 cd:     .res 1
 objv:   .res 2                  ; OBJVIS
-fon:    .res 1                  ; Fernsicht (5.7a): Tiefe D und an
-fany:   .res 1                  ; Fernsicht: eine Zelle der Tiefe D mit Füllung (dann vfar statt Horizont in vtap)
-bgsel:  .res 1                  ; gbg: <> 0 Fernsicht-Füllbyte statt Tapete
+fon:    .res 1                  ; distant view (5.7a): depth D and on
+fany:   .res 1                  ; distant view: a cell of depth D with fill (then vfar instead of horizon in vtap)
+bgsel:  .res 1                  ; gbg: <> 0 distant-view fill byte instead of wallpaper
 vz_end:
-fc0:    .res 1                  ; Fernsicht: Anfang der Folge
+fc0:    .res 1                  ; distant view: start of the sequence
 cv_s:   .res MAXIV
 cv_e:   .res MAXIV
 bc_s:   .res MAXIV
@@ -3654,14 +3654,14 @@ ia:     .res 1
 ib:     .res 1
 ii:     .res 1
 ij:     .res 1
-cellp:  .res 2                  ; Zelle in der Kachelebene (cellptr), High = 0 außerhalb der Karte
-cbase:  .res 2                  ; Kachelebene + pos + d * F
+cellp:  .res 2                  ; cell in the tile plane (cellptr), high = 0 outside the map
+cbase:  .res 2                  ; tile plane + pos + d * F
 du:     .res 2                  ; rtab
-r_lo:   .res 31                 ; s * R je s + 15
+r_lo:   .res 31                 ; s * R per s + 15
 r_hi:   .res 31
-rlo:    .res 1                  ; s + 15 in [rlo, rhi): Zelle in der Karte (Seitenachse)
+rlo:    .res 1                  ; s + 15 in [rlo, rhi): cell within the map (side axis)
 rhi:    .res 1
-; Tiefe (Reihenfolge = Tiefeneintrag 0-5)
+; depth (order = depth entry 0-5)
 dcy0:   .res 1
 dcy1:   .res 1
 dfy0:   .res 1
@@ -3669,40 +3669,40 @@ dfy1:   .res 1
 dfirst: .res 1
 dn:     .res 1
 dout:   .res 1
-lue:    .res 3                  ; Index 1 Boden, 2 Decke
+gap:    .res 3                  ; index 1 floor, 2 ceiling
 npend:  .res 1
 pi:     .res 1
 pd_c0:  .res MAXPEND
 pd_c1:  .res MAXPEND
 pd_both:.res MAXPEND
-; Zellen
+; Cells
 kn:     .res 1
 ksi:    .res 1                  ; s + 15
 eart:   .res 1
-gr_fc:  .res MAXGRP             ; Einordnung Boden/Decke je Zelle der Tiefe ($FF egal/kein Element, $FE Lücke, Stil)
+gr_fc:  .res MAXGRP             ; classification floor/ceiling per cell of the depth ($FF don't care/no element, $FE gap, style)
 gr_cc:  .res MAXGRP
 ecur:   .res 1
 pass:   .res 1
 tsum:   .res 1
 tlo:    .res 1
-wdeck:  .res 1
+wocc:  .res 1
 wc0:    .res 1
 wc1:    .res 1
-; Bänder (Index 1 Boden, 2 Decke)
+; bands (index 1 floor, 2 ceiling)
 bk:     .res 1
 bkx:    .res 1
 by0:    .res 1
 brows:  .res 1
-bact:   .res 3                  ; Zeilen der Tiefe nicht leer
-bnstk:  .res 3                  ; NST, 0 ohne DTS
-bsyk:   .res 3                  ; Bandslot
+bact:   .res 3                  ; rows of the depth not empty
+bnstk:  .res 3                  ; NST, 0 without DTS
+bsyk:   .res 3                  ; band slot
 blive:  .res 3
 bgap:   .res 3
 bmix:   .res 3
 bst1:   .res 3
 bst0:   .res 3
 bst0f:  .res 3
-gentl:  .res 3                  ; Bandbild von st0
+gentl:  .res 3                  ; band image of st0
 genth:  .res 3
 bstt:   .res 1
 bgm:    .res 1
@@ -3714,7 +3714,7 @@ bsi:    .res 1
 nr:     .res 1
 rr0:    .res 3
 rr1:    .res 3
-; resolve, Hilfen
+; resolve, helpers
 rst:    .res 1
 rkx:    .res 1
 tmp:    .res 1
@@ -3724,8 +3724,8 @@ mt:     .res 1
 mw:     .res 2
 ms:     .res 2
 mr:     .res 2
-; Einträge
-svp:    .res 2                  ; Zustand vor dem Eintrag (iovf)
+; entries
+svp:    .res 2                  ; state before the entry (iovf)
 smp:    .res 2
 snent:  .res 1
 isp:    .res 1
@@ -3733,7 +3733,7 @@ s1:     .res 2
 s3:     .res 2
 iv:     .res 2
 im:     .res 2
-; Erzeuger
+; generators
 g_type: .res 1
 g_kind: .res 1
 g_a:    .res 1
@@ -3786,41 +3786,41 @@ ke:     .res 1
 kxe:    .res 1
 calpha: .res 1                  ; clipvms_e
 ccnth:  .res 1
-csdp:   .res 2                  ; dp während clipvms_e
-cxs:    .res 1                  ; X am Blockanfang
-ckr:    .res 1                  ; Rest eines rechts beschnittenen Laufs
-cn:     .res 2                  ; ausgegebene Befehle
-copos:  .res 2                  ; Ausgabestelle (zählen: 3 + Bytes)
+csdp:   .res 2                  ; dp during clipvms_e
+cxs:    .res 1                  ; X at block start
+ckr:    .res 1                  ; remainder of a run cropped on the right
+cn:     .res 2                  ; commands output
+copos:  .res 2                  ; output location (count: 3 + bytes)
 cot:    .res 2
 cln:    .res 1
 cle:    .res 1
 ccf:    .res 2                  ; cfix = T * stride + L
 cncf:   .res 2                  ; -cfix
-ctl:    .res 2                  ; tL der Zeile
-clim:   .res 2                  ; lim' der Zeile
+ctl:    .res 2                  ; tL of the row
+clim:   .res 2                  ; lim' of the row
 cwid:   .res 1                  ; R - L
-cnr:    .res 1                  ; restliche Zeilen
+cnr:    .res 1                  ; remaining rows
 cflg:   .res 1
-cys:    .res 1                  ; Blockanfang (Y)
+cys:    .res 1                  ; block start (Y)
 cgap:   .res 1
-g_vlen: .res 2                  ; Länge der VMS-Liste (clipvms_e)
-g_rsrc: .res 2                  ; VB + rand_ofs
-; Objekte (5.8)
-obm:    .res 32                 ; Bitfeld: Low-Byte eines Objekt-Zellindex (bleibt bis zum nächsten VIEW)
+g_vlen: .res 2                  ; length of the VMS list (clipvms_e)
+g_rsrc: .res 2                  ; VB + edge_ofs
+; Objects (5.8)
+obm:    .res 32                 ; bit field: low byte of an object cell index (stays until the next VIEW)
 objd:   .res 1
-objon:  .res 1                  ; 0: keine Objekte und Gegenstände möglich; Bit 7: Gegenstände (itemn > 0), sonst 1
-nol:    .res 1                  ; sichtbare Objekte der Liste: Zellindex, Index i, Offset 6 i
+objon:  .res 1                  ; 0: no objects and items possible; bit 7: items (itemn > 0), else 1
+nol:    .res 1                  ; visible objects of the list: cell index, index i, offset 6 i
 ol_lo:  .res MAXOBJ
 ol_hi:  .res MAXOBJ
 ol_i:   .res MAXOBJ
 ol_o:   .res MAXOBJ
 spbase: .res 1                  ; 5 v
-oclo:   .res 1                  ; Zellindex der Zelle
+oclo:   .res 1                  ; cell index of the cell
 ochi:   .res 1
-nc:     .res 1                  ; Anzahl Kandidaten (Tabellen cp ... coi in LIBTAB)
-ocp:    .res 1                  ; aktuelles p
-ocj:    .res 1                  ; aktueller Kandidat
-orx:    .res 1                  ; Satz in recs
+nc:     .res 1                  ; number of candidates (tables cp ... coi in LIBTAB)
+ocp:    .res 1                  ; current p
+ocj:    .res 1                  ; current candidate
+orx:    .res 1                  ; set in recs
 oph:    .res 1
 obase:  .res 1
 ow:     .res 1
@@ -3829,12 +3829,12 @@ ocx0:   .res 1
 ocx1:   .res 1
 ocy0:   .res 1
 ocy1:   .res 1
-ofull:  .res 1                  ; 1 = unbeschnitten, 2 = nur Zeilen beschnitten
-cl_w:   .res 1                  ; Bildbreite (clipvms_e)
+ofull:  .res 1                  ; 1 = uncropped, 2 = rows only cropped
+cl_w:   .res 1                  ; image width (clipvms_e)
 g_oi:   .res 1
-        .segment "LIBTAB"       ; Arbeitstabellen von VIEW (INIT löscht sie nicht)
-fdec:   .res 31                 ; Fernsicht: Entscheidung je s + 15 der Tiefe D ($40 Füllung, 0 Tapete)
-cp:     .res MAXOBJ+1           ; Kandidaten: p, Satz, Richtung, Phase, Objektindex ($FF Gegenstand)
+        .segment "LIBTAB"       ; working tables of VIEW (INIT does not clear them)
+fdec:   .res 31                 ; distant view: decision per s + 15 of depth D ($40 fill, 0 wallpaper)
+cp:     .res MAXOBJ+1           ; candidates: p, set, direction, phase, object index ($FF item)
 cset:   .res MAXOBJ+1
 cdir:   .res MAXOBJ+1
 cph:    .res MAXOBJ+1

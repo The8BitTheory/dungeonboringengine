@@ -1,1022 +1,1022 @@
-# P6: Engine 0.2 in 6502 – Speicher, Funktionen, `VIEW`, Tests
+# P6: Engine 0.2 in 6502 – Memory, Functions, `VIEW`, Tests
 
-Stand: 2026-11-25. Detailspezifikation zu Schritt P6 aus `docs/plan-0.2.md` (Abschnitte 3, 5, 8). Umsetzung in Teilschritten P6a–P6h (Abschnitt 10). Review: Opus. Grundlagen: `P3-geometry.md` (DVG), `P4-map.md` (DMP), `P5-textures.md` (DTS, DBG), `P5b-sprites.md` (S2, `clip_image`), VDC-BASIC v3 (`vcl-format.md`, `vms-format.md` mit Typ 3, `RXV`), `review-notes.md`.
+Status: 2026-11-25. Detailed specification for step P6 from `docs/plan-0.2.md` (sections 3, 5, 8). Implemented in sub-steps P6a–P6h (section 10). Review: Opus. Foundations: `P3-geometry.md` (DVG), `P4-map.md` (DMP), `P5-textures.md` (DTS, DBG), `P5b-sprites.md` (S2, `clip_image`), VDC-BASIC v3 (`vcl-format.md`, `vms-format.md` with type 3, `RXV`), `review-notes.md`.
 
-## 1. Überblick
+## 1. Overview
 
-Die Lib bleibt eine Bank-1-Bibliothek hinter dem Stub (`SYS 3331,F,X,Y`). Sie liest DVG, DMP, DTS, DBG und S2 aus Bank 1 und schreibt die **VCL-Liste und die VMS-Listen** in einen Puffer im gemeinsamen RAM (Bank 0), den BASIC mit `::VCL` ausführt. Neu gegenüber 0.1:
+The lib remains a bank 1 library behind the stub (`SYS 3331,F,X,Y`). It reads DVG, DMP, DTS, DBG and S2 from bank 1 and writes the **VCL list and the VMS lists** into a buffer in the shared RAM (bank 0), which BASIC executes with `::VCL`. New compared to 0.1:
 
-- 8 KB gemeinsames RAM (`$0000–$1FFF`), Puffer `$1300–$1BFF` für VCL- und VMS-Listen zusammen, Objektliste 16 × 6 Byte bei `$0C50`.
-- Geometrie, Texturen, Tapete und Sprites aus den P3/P5/P5b-Formaten; Karte DMP.
-- `VIEW` nach Plan 5: Sichtbarkeit vorne → hinten mit Spaltenmaske, Ausgabe hinten → vorne; je Tiefe Tapete, Decke, Boden, Zellen außen → innen mit Wandflächen oder Objekten nach Unterposition; Beschneiden von Sprites am Sichtfenster über VMS-Typ 3 (seit P6i nicht mehr an verdeckten Spalten: Verdeckung von Sprites nur über die Malreihenfolge).
-- `WALLSET` (WSM) und Sprite-Sätze v1 entfallen (0.1-Formate). Crawl wird in P7 über einen Konverter auf DVG/DTS/S2 gebracht (review-notes G.6).
+- 8 KB shared RAM (`$0000–$1FFF`), buffer `$1300–$1BFF` for VCL and VMS lists together, object list 16 × 6 bytes at `$0C50`.
+- Geometry, textures, wallpaper and sprites from the P3/P5/P5b formats; DMP map.
+- `VIEW` according to plan 5: visibility front → back with column mask, output back → front; per depth wallpaper, ceiling, floor, cells outside → inside with wall faces or objects by sub-position; clipping of sprites at the viewport via VMS type 3 (since P6i no longer at occluded columns: occlusion of sprites only via the paint order).
+- `WALLSET` (WSM) and sprite sets v1 are dropped (0.1 formats). Crawl is brought onto DVG/DTS/S2 in P7 via a converter (review-notes G.6).
 
-Nicht in P6: `ENEMYSTEP` (Gegner-KI), Laufzeit-Animation, residente VMS-Listen in Bank 0 (Abschnitt 12), DTS v2.
+Not in P6: `ENEMYSTEP` (enemy AI), runtime animation, resident VMS lists in bank 0 (section 12), DTS v2.
 
-## 2. Speicher
+## 2. Memory
 
-### 2.1 Gemeinsames RAM und Stub
+### 2.1 Shared RAM and stub
 
-- Der Stub schaltet während des Aufrufs `$D506` = (alt AND `$F0`) OR **`$06`** (8 KB unten gemeinsam; 0.1: `$05` = 4 KB) und `$FF00 = $7F` (Bank 1 ohne I/O, P6d-opt; vorher `$7E`). Interruptweiche `$FF05–$FFFF` in Bank 1. Zeropage: `$FA–$FD` und der Block **`$63–$72`** (FAC/ARG), den der Stub vor den Aufrufen rettet, die ihn benutzen (`VIEW`, `GEOMSET`, Testfunktion 253; `dbe.inc` `ZPB_F*`), und danach zurückschreibt (Nachweis `test/vice_zp.py`, Ergebnis P6d-opt; Nutzung je Funktion `--funcs`, Ergebnis P6j).
-- Während des Aufrufs sieht die Lib unter `$2000` Bank 0. Folge: **keine Daten der Engine in Bank 1 unter `$2000`**. BASIC-Variablen in Bank 1 ab `$0400` sind davon nicht betroffen (sie werden nur außerhalb des Aufrufs benutzt; Korrektur zu P2a 4, review-notes G.16).
-- Bank 0 `$1C00–$1FFF` ist VDC-BASIC v3; die Lib schreibt dort nie (BUFSET prüft, 3.3).
+- During the call the stub sets `$D506` = (old AND `$F0`) OR **`$06`** (8 KB shared at the bottom; 0.1: `$05` = 4 KB) and `$FF00 = $7F` (bank 1 without I/O, P6d-opt; previously `$7E`). Interrupt switch `$FF05–$FFFF` in bank 1. Zero page: `$FA–$FD` and the block **`$63–$72`** (FAC/ARG), which the stub saves before the calls that use it (`VIEW`, `GEOMSET`, test function 253; `dbe.inc` `ZPB_F*`), and writes back afterwards (proof `test/vice_zp.py`, result P6d-opt; usage per function `--funcs`, result P6j).
+- During the call the lib sees bank 0 at `$2000`. Consequence: **no engine data in bank 1 below `$2000`**. BASIC variables in bank 1 from `$0400` are not affected (they are only used outside the call; correction to P2a 4, review-notes G.16).
+- Bank 0 `$1C00–$1FFF` is VDC-BASIC v3; the lib never writes there (BUFSET checks, 3.3).
 
 ### 2.2 Bank 0
 
-| Bereich | Inhalt |
+| Area | Contents |
 |---|---|
-| `$0B00–$0BFF` | Reserve der Engine (P6e-opt: `VIEW` schreibt hier während der Zählprobe beschnittener VMS-Listen Abfall); Kassetten-/Bootsektorpuffer des Systems |
-| `$0C00–$0CFF` | Parameterblock (2.3), Objektliste; RS-232-Eingabepuffer des Systems (seit 0.1 so genutzt) |
-| `$0D00–$0DFF` | Stub (`$0D00` init, `$0D03` call), Rest Reserve |
-| `$0E00–$0FFF` | frei (0.1: VMS-Puffer); VIC-Sprite-Daten des Systems |
-| **`$1300–$1BFF`** | **Puffer der Engine** (Standard, `BUFSET`): VCL-Liste ab Anfang, VMS-Listen direkt dahinter |
+| `$0B00–$0BFF` | Engine reserve (P6e-opt: `VIEW` writes garbage here during the counting dry run of clipped VMS lists); cassette/boot sector buffer of the system |
+| `$0C00–$0CFF` | Parameter block (2.3), object list; RS-232 input buffer of the system (used this way since 0.1) |
+| `$0D00–$0DFF` | Stub (`$0D00` init, `$0D03` call), rest reserve |
+| `$0E00–$0FFF` | free (0.1: VMS buffer); VIC sprite data of the system |
+| **`$1300–$1BFF`** | **Engine buffer** (default, `BUFSET`): VCL list at the start, VMS lists directly behind it |
 | `$1C00–$3FFF` | VDC-BASIC v3 |
-| `$4001–` | BASIC-Programm bzw. Blitz!-Kompilat (Image 2); darüber Ladepuffer des Spiels für VRL-Dateien (P7 legt die Lage fest) |
+| `$4001–` | BASIC program or Blitz! compilation (image 2); above it the game's load buffer for VRL files (P7 determines the location) |
 
-### 2.3 Parameterblock (`$0C00`, Bank 0)
+### 2.3 Parameter block (`$0C00`, bank 0)
 
-| Adresse | Name | Inhalt |
+| Address | Name | Contents |
 |---|---|---|
-| `$0C00–$0C07` | P0–P3 | Wörter, Ein- und Ausgabe der Funktionen |
-| `$0C08` | ITEMPH | Phase für Gegenstände aus der Inhaltsebene (Glitzern; Spiel setzt) |
-| `$0C09` | – | reserviert 0 |
-| `$0C0A–$0C0B` | VCLADR | `VIEW`: Adresse der VCL-Liste (= B1 − VCLLEN; P6d-opt, vorher Pufferanfang; mit fester Listenadresse = B0, dort ein Sprung auf B1 − VCLLEN, P6j) |
-| `$0C0C–$0C0D` | VCLLEN | `VIEW`: Länge der VCL-Liste inklusive Ende-Byte |
-| `$0C0E–$0C0F` | VMSLEN | `VIEW`: Bytes der VMS-Listen |
-| `$0C10–$0C11` | OBJVIS | `VIEW`: Bit i = Objekt i wurde (ganz oder teilweise) ausgegeben |
+| `$0C00–$0C07` | P0–P3 | Words, input and output of the functions |
+| `$0C08` | ITEMPH | Phase for items from the content layer (glitter; game sets) |
+| `$0C09` | – | reserved 0 |
+| `$0C0A–$0C0B` | VCLADR | `VIEW`: address of the VCL list (= B1 − VCLLEN; P6d-opt, previously buffer start; with fixed list address = B0, with a jump to B1 − VCLLEN there, P6j) |
+| `$0C0C–$0C0D` | VCLLEN | `VIEW`: length of the VCL list including end byte |
+| `$0C0E–$0C0F` | VMSLEN | `VIEW`: bytes of the VMS lists |
+| `$0C10–$0C11` | OBJVIS | `VIEW`: bit i = object i was output (wholly or partially) |
 | `$0C12–$0C3F` | – | Reserve |
-| `$0C40–$0C4F` | – | nur Tests (Zeitmessung, Szenen-Hook wie 0.1) |
-| **`$0C50`** | OBJN | Objektliste: Anzahl (0 … 16; größer wird als 16 gelesen) |
-| `$0C51–$0CB0` | OBJL | 16 × 6 Byte (2.5) |
+| `$0C40–$0C4F` | – | tests only (timing, scene hook as in 0.1) |
+| **`$0C50`** | OBJN | Object list: count (0 … 16; larger is read as 16) |
+| `$0C51–$0CB0` | OBJL | 16 × 6 bytes (2.5) |
 | `$0CB1–$0CFF` | – | Reserve |
 
-### 2.4 Bank 1 (Speicherkarte G, Vorgabe; P6h: `MEMSIZ $4000`)
+### 2.4 Bank 1 (memory map G, default; P6h: `MEMSIZ $4000`)
 
-Alle Adressen sind Parameter der Funktionen; die Tabelle ist die Vorgabe für Werkzeuge (Ladeadressen, `tools/dbemem.py`) und Spiele. Gegenüber Karte F (P6a, `MEMSIZ $5000`) sind die BASIC-Variablen auf `$0400–$3FFF` begrenzt; die 4 KB `$4000–$4FFF` gehen an die Assets (Wand-DTS 8 → 12 KB), alle Bereiche darüber rutschen um 4 KB nach unten.
+All addresses are parameters of the functions; the table is the default for tools (load addresses, `tools/dbemem.py`) and games. Compared to map F (P6a, `MEMSIZ $5000`), the BASIC variables are limited to `$0400–$3FFF`; the 4 KB `$4000–$4FFF` go to the assets (wall DTS 8 → 12 KB), and all areas above shift down by 4 KB.
 
-| Bereich | Größe | Inhalt | Standard-Ladeadresse (Werkzeug) |
+| Area | Size | Contents | Default load address (tool) |
 |---|---|---|---|
-| `$0000–$1FFF` | – | während des Aufrufs Bank 0 (gemeinsam): keine Engine-Daten | – |
-| `$0400–$3FFF` | 15 KB | BASIC-Variablen, Felder, Strings; das Spiel begrenzt mit `POKE 57,0:POKE 58,64:CLR` als erster Anweisung auf `$4000` (interpretiert und Blitz!) | – |
-| `$4000–$5FFF` | 8 KB | DMP (W·H ≤ etwa 4000), optional Arbeitskopie bei kleinen Karten | `dbemap`, `crawlmap` `$4000` |
-| `$6000–$7FFF` | 8 KB | Sprite-Sätze S2 (mehrere hintereinander) | `dbespr` `$6000` |
-| `$8000–$AFFF` | 12 KB | DTS Wand | `dbetex` wall `$8000` |
-| `$B000–$DBFF` | 11 KB | **Lib**: Code, Sprungtabelle bei `$B000` (RAM unter I/O, `$FF00 = $7F`); Reserve nach P6l 14 Byte (Testbuild 3) | – |
-| `$DC00–$DFFF` | 1 KB | Lib-Tabellen (LIBTAB: Zellentabelle von GEOMSET, Kachelzusammenfassung), nicht in der Datei | – |
-| `$E000–$E7FF` | 2 KB | Lib-Variablen (BSS) | – |
-| `$E800–$EDFF` | 1,5 KB | DVG | `dbegeom` `$E800` |
-| `$EE00–$F5FF` | 2 KB | DTS Boden | `dbetex` floor `$EE00` |
-| `$F600–$FB7F` | 1,375 KB | DTS Decke (1 Stil der Demo: 1 295 Byte) | `dbetex` ceiling `$F600` |
-| `$FB80–$FBFF` | 128 B | DBG (24 + VH ≤ 124 Byte) | `dbetex bg` `$FB80` |
-| `$FC00–$FEFF` | 768 B | **gesperrt:** Blitz!-Runtime (Image 2) – auch im interpretierten Spiel frei lassen | – |
+| `$0000–$1FFF` | – | during the call bank 0 (shared): no engine data | – |
+| `$0400–$3FFF` | 15 KB | BASIC variables, arrays, strings; the game limits to `$4000` with `POKE 57,0:POKE 58,64:CLR` as its first statement (interpreted and Blitz!) | – |
+| `$4000–$5FFF` | 8 KB | DMP (W·H ≤ about 4000), optionally working copy for small maps | `dbemap`, `crawlmap` `$4000` |
+| `$6000–$7FFF` | 8 KB | Sprite sets S2 (several one after another) | `dbespr` `$6000` |
+| `$8000–$AFFF` | 12 KB | DTS wall | `dbetex` wall `$8000` |
+| `$B000–$DBFF` | 11 KB | **Lib**: code, jump table at `$B000` (RAM under I/O, `$FF00 = $7F`); reserve after P6l 14 bytes (test build 3) | – |
+| `$DC00–$DFFF` | 1 KB | Lib tables (LIBTAB: cell table from GEOMSET, tile summary), not in the file | – |
+| `$E000–$E7FF` | 2 KB | Lib variables (BSS) | – |
+| `$E800–$EDFF` | 1.5 KB | DVG | `dbegeom` `$E800` |
+| `$EE00–$F5FF` | 2 KB | DTS floor | `dbetex` floor `$EE00` |
+| `$F600–$FB7F` | 1.375 KB | DTS ceiling (1 style of the demo: 1 295 bytes) | `dbetex` ceiling `$F600` |
+| `$FB80–$FBFF` | 128 B | DBG (24 + VH ≤ 124 bytes) | `dbetex bg` `$FB80` |
+| `$FC00–$FEFF` | 768 B | **locked:** Blitz! runtime (image 2) – leave free even in the interpreted game | – |
 | `$FF00–$FF04` | – | MMU | – |
-| `$FF05–$FFFF` | – | Kopie der Kernal-Interruptweiche | – |
+| `$FF05–$FFFF` | – | Copy of the Kernal interrupt switch | – |
 
-Bank-1-Fenster für Assets: `$4000–$AFFF` (28 KB) und `$E800–$FBFF` (5 KB). **Alle Engine-Daten liegen darin**; der Rest ist Lib (`$B000–$E7FF`), Runtime oder Bank-0-Sicht. Listen für VCL-Typ 9 (Inhalt von DTS und S2) müssen ab `$4000` liegen (nicht in `$D000–$DFFF`; die Engine prüft die Adresse in `TEXSET`/`SPRITESET`, Abschnitt 6a); die Karte erfüllt das für alle Bereiche.
+Bank 1 windows for assets: `$4000–$AFFF` (28 KB) and `$E800–$FBFF` (5 KB). **All engine data lies within these**; the rest is lib (`$B000–$E7FF`), runtime or bank 0 view. Lists for VCL type 9 (contents of DTS and S2) must lie at `$4000` or above (not in `$D000–$DFFF`; the engine checks the address in `TEXSET`/`SPRITESET`, section 6a); the map satisfies this for all areas.
 
-Begründung: Das Demo-Wand-DTS mit 4 Stilen hat 8,7 KB (P5-Beispiel; `dbetex` erlaubt höchstens `max_kerns` 4, review-notes G.1/G.2) und passt jetzt in den Wandbereich. Boden und Decke der Demo (9,1 und 3,2 KB mit mehreren Stilen) passen weiterhin nicht in ihre Bereiche (Asset-Befund, `P6g-vcl-analysis.md` Abschnitt 6); wer mehr braucht, packt die Dateien dicht in die Fenster oben (die Adressen sind Parameter von `GEOMSET`/`TEXSET`/`BGSET`).
+Rationale: The demo wall DTS with 4 styles has 8.7 KB (P5 example; `dbetex` allows at most `max_cores` 4, review-notes G.1/G.2) and now fits into the wall area. Floor and ceiling of the demo (9.1 and 3.2 KB with several styles) still do not fit into their areas (asset finding, `P6g-vcl-analysis.md` section 6); whoever needs more packs the files tightly into the upper windows (the addresses are parameters of `GEOMSET`/`TEXSET`/`BGSET`).
 
-**Blitz!-Runtime (Image 2, P6g):** Der verbesserte Runtime kopiert gemeinsamen Code nach `$FC00`, schaltet `$D506` auf `$0C` (unten **und oben** 1 KB gemeinsam) und senkt die String-Obergrenze auf `$FC00` (`blitz128/runtime2026/README.md`). Solange das Kompilat läuft, landet jeder Zugriff auf Bank 1 `$FC00–$FEFF` im gemeinsamen RAM, also im Runtime: ein `BLOAD …,B1` dorthin zerstört ihn (Kompilat hängt; interpretiert fällt es nicht auf, weil dort `$D506` = `$04` gilt). Darum gilt für **alle** Engine-Daten in Bank 1 die Obergrenze **`$FBFF`** (interpretiert und kompiliert gleich, damit ein Spiel in beiden Formen dieselben Dateien lädt):
+**Blitz! runtime (image 2, P6g):** The improved runtime copies shared code to `$FC00`, sets `$D506` to `$0C` (bottom **and top** 1 KB shared) and lowers the string upper limit to `$FC00` (`blitz128/runtime2026/README.md`). As long as the compilation runs, every access to bank 1 `$FC00–$FEFF` lands in the shared RAM, i.e. in the runtime: a `BLOAD …,B1` there destroys it (compilation hangs; interpreted it goes unnoticed because `$D506` = `$04` applies there). Therefore the upper limit **`$FBFF`** applies to **all** engine data in bank 1 (the same for interpreted and compiled, so that a game loads the same files in both forms):
 
-- Die hohen Bereiche DVG, DTS Boden, DTS Decke und DBG teilen sich `$E800–$FBFF` (5 KB). Ein Spiel darf die vier Dateien in diesem Fenster auch dicht packen (Beispiel `test/vice_view.py`: DVG `$E800`, Decke `$ED30`, Boden `$F240`, DBG `$F9C0`).
-- VCL-Typ 9: Listen in Bank 1 nur in `$4000–$CFFF` oder `$E000–$FBFF` (VDC-BASIC erlaubt bis `$FEFF`; der Rest gehört dem Runtime).
-- `MEMSIZ` (`$39/$3A`): Das Spiel setzt ihn mit der ersten Anweisung auf `$4000` (`POKE 57,0:POKE 58,64:CLR`, Messung P6a mit `$5000`, Abschnitt 12; `test/vice_blitzvars.py` prüft jetzt `$4000`); der Runtime senkt ihn beim Start ohnehin nur auf `$FC00`. Die Reihenfolge ist damit unkritisch. Variablen und Strings haben 15 KB (`$0400–$3FFF`); die 4 KB mehr für Assets sind die Folge der Entscheidung 4 nach der VCL-Analyse.
-- Der Stub schaltet während des Lib-Aufrufs `$D506` = (alt AND `$F0`) OR `$06` (oben nicht gemeinsam) und stellt den alten Wert wieder her; VCL-Typ 9 ebenso mit `$07`. Das verträgt sich mit dem Runtime (P6g: alle 42 Szenen als Kompilat gleich); Interrupts in diesen Fenstern laufen über die Kernal-Weiche in Bank 1 und berühren `$FC00–$FEFF` nicht.
-- **Werkzeuge (P6h umgesetzt):** `tools/dbemem.py` hält die Ladeadressen und die Bereichsgrenzen (Tabelle oben). `dbemap`/`crawlmap build`, `dbespr build`, `dbetex build`/`bg` und `dbegeom` brechen mit Fehlercode 1 und einer Meldung ab, wenn Ladeadresse + Länge das Ende des Bereichs der Datei überschreiten (liegt die Ladeadresse im Standardbereich der Art) bzw. das Ende des freien Fensters (eigene, dichte Packung) oder wenn die Ladeadresse in keinem der beiden Fenster liegt. Die Lib prüft die Obergrenze nicht (Länge der Daten unbekannt); eine Prüfung „Daten in `$2000 … $FBFF`, nicht in Lib/BSS“ wäre P6d-Review K5 mit neuer Grenze.
-- Die Demo-Assets (Wand 8,7 KB, Boden 9,1 KB mit 3 Stilen, Decke 3,2 KB) werden von `build_texset` und den Tests ohne Bereichsprüfung benutzt (nur die Schreibwege prüfen); im sim65-Harness (`run_sim.py`) liegen sie wie bisher in eigenen Adressen, alles unter `$FC00`.
+- The high areas DVG, DTS floor, DTS ceiling and DBG share `$E800–$FBFF` (5 KB). A game may also pack the four files tightly in this window (example `test/vice_view.py`: DVG `$E800`, ceiling `$ED30`, floor `$F240`, DBG `$F9C0`).
+- VCL type 9: lists in bank 1 only in `$4000–$CFFF` or `$E000–$FBFF` (VDC-BASIC permits up to `$FEFF`; the rest belongs to the runtime).
+- `MEMSIZ` (`$39/$3A`): The game sets it with the first statement to `$4000` (`POKE 57,0:POKE 58,64:CLR`, measurement P6a with `$5000`, section 12; `test/vice_blitzvars.py` now checks `$4000`); the runtime lowers it at startup only to `$FC00` anyway. The order is thus uncritical. Variables and strings have 15 KB (`$0400–$3FFF`); the 4 KB more for assets are the consequence of decision 4 after the VCL analysis.
+- During the lib call the stub sets `$D506` = (old AND `$F0`) OR `$06` (top not shared) and restores the old value; VCL type 9 likewise with `$07`. This is compatible with the runtime (P6g: all 42 scenes identical as compilation); interrupts in these windows run via the Kernal switch in bank 1 and do not touch `$FC00–$FEFF`.
+- **Tools (P6h implemented):** `tools/dbemem.py` holds the load addresses and the area limits (table above). `dbemap`/`crawlmap build`, `dbespr build`, `dbetex build`/`bg` and `dbegeom` abort with error code 1 and a message if load address + length exceeds the end of the file's area (if the load address lies in the standard area of the kind) or the end of the free window (own, tight packing), or if the load address lies in neither of the two windows. The lib does not check the upper limit (length of the data unknown); a check "data in `$2000 … $FBFF`, not in lib/BSS" would be P6d review K5 with the new limit.
+- The demo assets (wall 8.7 KB, floor 9.1 KB with 3 styles, ceiling 3.2 KB) are used by `build_texset` and the tests without area check (only the write paths check); in the sim65 harness (`run_sim.py`) they lie at their own addresses as before, everything below `$FC00`.
 
-### 2.5 Objektliste (`$0C51`, je 6 Byte)
+### 2.5 Object list (`$0C51`, 6 bytes each)
 
-| Offset | Inhalt |
+| Offset | Contents |
 |---|---|
-| 0–1 | Zellindex |
-| 2 | Sprite-Satz 0 … 7 |
-| 3 | Objektrichtung o: 0–3 (N, O, S, W) oder `$FF` (Blickwinkel 0) |
+| 0–1 | Cell index |
+| 2 | Sprite set 0 … 7 |
+| 3 | Object direction o: 0–3 (N, E, S, W) or `$FF` (viewing angle 0) |
 | 4 | Phase f |
-| 5 | Bits 0–2: Unterposition q absolut (0 NW, 1 NO, 2 SW, 3 SO, 4 Mitte; 5–7 wie 4); Bit 6: unsichtbar (`VIEW` überspringt); Bit 7: blockiert nicht (`MOVE`); Bits 3–5: 0 |
+| 5 | Bits 0–2: sub-position q absolute (0 NW, 1 NE, 2 SW, 3 SE, 4 center; 5–7 as 4); bit 6: invisible (`VIEW` skips); bit 7: does not block (`MOVE`); bits 3–5: 0 |
 
-Gegenstände der Inhaltsebene kommen zusätzlich dazu (5.8).
+Items of the content layer are added in addition (5.8).
 
-### 2.6 Lib: Größe und Ort
+### 2.6 Lib: size and location
 
-Schätzung (0.1 nach Schritt 1b: 1834 Byte Code, 342 Byte Variablen):
+Estimate (0.1 after step 1b: 1834 bytes code, 342 bytes variables):
 
-| Teil | Code etwa |
+| Part | Code approx. |
 |---|---|
-| Dispatcher, INIT, POOLSET, BUFSET, Prüfhilfen | 0,4 KB |
-| MAPINIT, SETPOS, CELL, SETCELL, SETITEM, MOVE | 0,6 KB |
-| GEOMSET, TEXSET, BGSET, SPRITESET, ITEMSET | 0,6 KB |
-| VIEW: Zellen, Stile, Abdeckung | 0,9 KB |
-| VIEW: Bänder, Kacheln, Tapete, Spannen | 0,9 KB |
-| VIEW: Objekte, Anker, Ausschnitt | 0,6 KB |
-| Ausgabe: Kerne, VMS kopieren und beschneiden, VMF-Gruppen, Größenrechnung | 1,1 KB |
-| **Summe** | **≈ 5,1 KB** (Ziel ≤ 7 KB) |
+| Dispatcher, INIT, POOLSET, BUFSET, check helpers | 0.4 KB |
+| MAPINIT, SETPOS, CELL, SETCELL, SETITEM, MOVE | 0.6 KB |
+| GEOMSET, TEXSET, BGSET, SPRITESET, ITEMSET | 0.6 KB |
+| VIEW: cells, styles, coverage | 0.9 KB |
+| VIEW: bands, tiles, wallpaper, spans | 0.9 KB |
+| VIEW: objects, anchors, clip rectangle | 0.6 KB |
+| Output: cores, copy and clip VMS, VMF groups, size calculation | 1.1 KB |
+| **Total** | **≈ 5.1 KB** (target ≤ 7 KB) |
 
-Variablen (BSS) etwa 1,4 KB: Abdeckung 2 × 80, Sichtliste MAXITEM × 10 = 960, Zeilentabelle 2 × 100, Zustand und Zeiger ≈ 150, `itemtab` 64. Daraus: **Code `$B000–$CFFF` (8 KB), BSS `$E000–$E7FF` (2 KB)**. `lib.cfg`: MEMORY `CODE` `$B000` Größe `$2000` (Datei), `BSS` `$E000` Größe `$800` (nicht in der Datei, INIT löscht). Der Stub springt `LIB = $B000`. P6a misst; überschreitet der Code 8 KB, ist das ein Befund für den Nutzer, kein stilles Verschieben.
+Variables (BSS) about 1.4 KB: coverage 2 × 80, visibility list MAXITEM × 10 = 960, row table 2 × 100, state and pointers ≈ 150, `itemtab` 64. From this: **code `$B000–$CFFF` (8 KB), BSS `$E000–$E7FF` (2 KB)**. `lib.cfg`: MEMORY `CODE` `$B000` size `$2000` (file), `BSS` `$E000` size `$800` (not in the file, INIT clears). The stub jumps to `LIB = $B000`. P6a measures; if the code exceeds 8 KB, that is a finding for the user, not a silent relocation.
 
-## 3. Funktionen
+## 3. Functions
 
-Aufruf `SYS 3331,F,X,Y`, Ergebnis `RREG A,X,Y`. A = Fehlercode (3.1). Alle Adressen in P0–P3 sind Bank-1-Adressen der Daten (Inhaltsanfang = `BLOAD`-Adresse), VRAM-Basen sind VDC-Adressen.
+Call `SYS 3331,F,X,Y`, result `RREG A,X,Y`. A = error code (3.1). All addresses in P0–P3 are bank 1 addresses of the data (content start = `BLOAD` address), VRAM bases are VDC addresses.
 
-| F | Name | Eingang | Ausgang |
+| F | Name | Input | Output |
 |---|---|---|---|
-| 0 | `INIT` | – | Zustand gelöscht (BSS, OBJN = 0, Puffer = Standard); X = `DBE_VERSION` (0.2: 3); P0 = Codeende, P1 = BSS-Ende |
-| 1 | `MAPINIT` | P0 = DMP, P1 = Arbeitskopie (0 = keine; sonst 2·W·H Byte für Kachel- und Inhaltsebene), X Bit 0 = Automap-Bit „gesehen“ in `VIEW` setzen (nur mit P6f, sonst ignoriert) | prüft Magic, Version, Offsets, Länge; Startzelle und -richtung übernommen (wie `SETPOS`); OBJN = 0; X = W, Y = H; P0 = Startzelle, P1 = Startrichtung. A = 1 Format; A = 6, wenn die Arbeitskopie [P1, P1 + 2·W·H) nicht ganz in `$4000` … `$AFFF` liegt (unter der Lib; Lib, BSS, DVG, I/O und MMU bleiben unberührt; darunter BASIC-Variablen und gemeinsames RAM) |
-| 2 | `SETPOS` | P0 = Zelle, X = Richtung | A = 0; 6, wenn Zelle ≥ W·H (Position unverändert) |
-| 3 | `MOVE` | X = Aktion (3.4) | P6f |
-| 4 | `VIEW` | P0 = Bildpuffer im VRAM (AP) | VCL-Liste [B1 − VCLLEN, B1), VMS-Listen [B0, B0 + VMSLEN) (feste Listenadresse: Sprung bei B0, VMS-Listen [B0 + 3, B0 + 3 + VMSLEN)); A = 0, 2 (gekürzt) oder 3 (Ränder weggelassen); X = Einträge (höchstens 255), Y = 0; **P0 = VCLADR** (Spiel: `::VCL` mit diesem Wert); VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 ohne GEOMSET/MAPINIT |
-| 5 | `CELL` | P0 = Zelle | X = Kachelindex, Y = Inhaltsbyte, P1 = Kachel-Flags; außerhalb: A = 6, X = Außenkachel, Y = 0 |
-| 6 | `SETCELL` | P0 = Zelle, X = Kachelindex | A = 0; 6 bei Zelle außerhalb oder X ≥ NT |
-| 7 | – | – | A = 255 (`ENEMYSTEP` reserviert) |
-| 8 | – | – | A = 255 (`WALLSET` entfällt) |
-| 9 | `SPRITESET` | X = Satz 0 … 7, P0 = S2 (0 = Satz löschen), P1 = VRAM-Basis | prüft `"S2"`, Version, ID (0 oder = DVG-ID), D, Stride; A = 1 Format, 4 Geometrie, 5 ohne GEOMSET, 6 Satznummer/Pool bzw. S2 unter `$4000` (VCL-Typ 9, 6a) |
-| 10 | `ITEMSET` | X = Gegenstand 0 … 63, Y = Satz + 1 (0 = keiner) | A = 0; 6 bei X ≥ 64 oder Y > 8 |
-| 11 | `POOLSET` | P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = keine Prüfung | A = 0; TEXSET/BGSET/SPRITESET prüfen danach Basis … Basis + U ⊆ Pool |
-| 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = aus der DVG) | prüft Magic, Version, Elementlänge 16, Tiefeneintrag 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1, dazu die Elementtabelle (7, P6d-opt; Fehler dort: A = 1 und keine gültige Geometrie); Zeilentabelle, Zellentabelle; TEXSET/BGSET/SPRITESET mit anderer ID werden gelöscht (Bit je Satz in Y: Bit 0–2 DTS, Bit 3 DBG; X = Bits der S2-Sätze); A = 1 Format |
-| 13 | `TEXSET` | X = Art (0 Wand, 1 Boden, 2 Decke), P0 = DTS (0 = löschen), P1 = VRAM-Basis | prüft `"DT"`, Version 1, Art = X, ID, NE, D, Stride; A = 1, 4, 5, 6 (auch DTS unter `$4000`, VCL-Typ 9, 6a) |
-| 14 | `BGSET` | P0 = DBG (0 = keine Tapete), P1 = VRAM-Basis, X = Füllbyte ohne DBG; **Y ≠ 0: Fernsicht-Füllung an, P2 Low = Füllbyte** (5.7a, P6l; Y = 0 aus) | prüft `"DB"`, Version, VW, VH, ID; A = 1, 4, 5, 6. Y und P2 werden immer übernommen (auch bei Fehler nach der Übernahme von X, wie X) |
-| 15 | `BUFSET` | P0 = Pufferanfang, P1 = Pufferende (exklusiv); X Bit 0 = feste Listenadresse (P6j) | A = 0; 6, wenn Anfang < `$1300`, Ende > `$1C00` oder Länge < 64 (alter Puffer und Modus bleiben; Fenster `$1300–$1BFF`, P6d-opt). Feste Listenadresse: 3.3, 5.11; `INIT` schaltet sie aus |
-| 16 | `SETITEM` | P0 = Zelle, X = Inhaltsbyte (Gegenstand und Automap-Bits) | A = 0; 6 außerhalb |
+| 0 | `INIT` | – | State cleared (BSS, OBJN = 0, buffer = default); X = `DBE_VERSION` (0.2: 3); P0 = code end, P1 = BSS end |
+| 1 | `MAPINIT` | P0 = DMP, P1 = working copy (0 = none; otherwise 2·W·H bytes for tile and content layer), X bit 0 = set automap bit "seen" in `VIEW` (only with P6f, otherwise ignored) | checks magic, version, offsets, length; start cell and direction adopted (as `SETPOS`); OBJN = 0; X = W, Y = H; P0 = start cell, P1 = start direction. A = 1 format; A = 6 if the working copy [P1, P1 + 2·W·H) does not lie entirely within `$4000` … `$AFFF` (below the lib; lib, BSS, DVG, I/O and MMU remain untouched; below that BASIC variables and shared RAM) |
+| 2 | `SETPOS` | P0 = cell, X = direction | A = 0; 6 if cell ≥ W·H (position unchanged) |
+| 3 | `MOVE` | X = action (3.4) | P6f |
+| 4 | `VIEW` | P0 = frame buffer in VRAM (AP) | VCL list [B1 − VCLLEN, B1), VMS lists [B0, B0 + VMSLEN) (fixed list address: jump at B0, VMS lists [B0 + 3, B0 + 3 + VMSLEN)); A = 0, 2 (shortened) or 3 (edges omitted); X = entries (at most 255), Y = 0; **P0 = VCLADR** (game: `::VCL` with this value); VCLLEN, VMSLEN, OBJVIS (2.3). A = 5 without GEOMSET/MAPINIT |
+| 5 | `CELL` | P0 = cell | X = tile index, Y = content byte, P1 = tile flags; outside: A = 6, X = outer tile, Y = 0 |
+| 6 | `SETCELL` | P0 = cell, X = tile index | A = 0; 6 for cell outside or X ≥ NT |
+| 7 | – | – | A = 255 (`ENEMYSTEP` reserved) |
+| 8 | – | – | A = 255 (`WALLSET` dropped) |
+| 9 | `SPRITESET` | X = set 0 … 7, P0 = S2 (0 = clear set), P1 = VRAM base | checks `"S2"`, version, ID (0 or = DVG ID), D, stride; A = 1 format, 4 geometry, 5 without GEOMSET, 6 set number/pool or S2 below `$4000` (VCL type 9, 6a) |
+| 10 | `ITEMSET` | X = item 0 … 63, Y = set + 1 (0 = none) | A = 0; 6 for X ≥ 64 or Y > 8 |
+| 11 | `POOLSET` | P0 = pool start, P1 = pool end (exclusive, 0 = 65536); both 0 = no check | A = 0; TEXSET/BGSET/SPRITESET then check base … base + U ⊆ pool |
+| 12 | `GEOMSET` | P0 = DVG, P1 = origin (`$FFFF` = from the DVG) | checks magic, version, element length 16, depth entry 8, VW ≤ 80, VH ≤ 100, D ≤ 7, NE ≥ 1, plus the element table (7, P6d-opt; error there: A = 1 and no valid geometry); row table, cell table; TEXSET/BGSET/SPRITESET with a different ID are cleared (bit per set in Y: bit 0–2 DTS, bit 3 DBG; X = bits of the S2 sets); A = 1 format |
+| 13 | `TEXSET` | X = kind (0 wall, 1 floor, 2 ceiling), P0 = DTS (0 = clear), P1 = VRAM base | checks `"DT"`, version 1, kind = X, ID, NE, D, stride; A = 1, 4, 5, 6 (also DTS below `$4000`, VCL type 9, 6a) |
+| 14 | `BGSET` | P0 = DBG (0 = no wallpaper), P1 = VRAM base, X = fill byte without DBG; **Y ≠ 0: distance fill on, P2 low = fill byte** (5.7a, P6l; Y = 0 off) | checks `"DB"`, version, VW, VH, ID; A = 1, 4, 5, 6. Y and P2 are always adopted (also on error after adopting X, like X) |
+| 15 | `BUFSET` | P0 = buffer start, P1 = buffer end (exclusive); X bit 0 = fixed list address (P6j) | A = 0; 6 if start < `$1300`, end > `$1C00` or length < 64 (old buffer and mode remain; window `$1300–$1BFF`, P6d-opt). Fixed list address: 3.3, 5.11; `INIT` switches it off |
+| 16 | `SETITEM` | P0 = cell, X = content byte (item and automap bits) | A = 0; 6 outside |
 | ≥ 17 | – | – | A = 255 |
 
-### 3.1 Fehlercodes
+### 3.1 Error codes
 
-| A | Name | Bedeutung |
+| A | Name | Meaning |
 |---|---|---|
 | 0 | `E_OK` | ok |
-| 1 | `E_FORMAT` | Magic, Version oder Längen falsch |
-| 2 | `E_TOOMANY` | `VIEW`: Liste gekürzt (hintere Teile fehlen) bzw. Tabellen voll |
-| 3 | `E_PARTIAL` | `VIEW`: Ränder einzelner Bilder weggelassen (nur Kerne gezeichnet), Liste sonst vollständig |
-| 4 | `E_GEOM` | Geometrie-ID, NE, D oder Stride passt nicht zur DVG |
-| 5 | `E_STATE` | Reihenfolge: GEOMSET fehlt (für TEXSET, BGSET, SPRITESET, VIEW) bzw. MAPINIT fehlt (VIEW, CELL …) |
-| 6 | `E_RANGE` | Parameter außerhalb (Zelle, Satznummer, Kachelindex, Pool, Puffer) |
-| 255 | `E_NOTIMPL` | Funktion nicht vorhanden |
+| 1 | `E_FORMAT` | Magic, version or lengths wrong |
+| 2 | `E_TOOMANY` | `VIEW`: list shortened (rear parts missing) or tables full |
+| 3 | `E_PARTIAL` | `VIEW`: edges of individual images omitted (only cores drawn), list otherwise complete |
+| 4 | `E_GEOM` | Geometry ID, NE, D or stride does not match the DVG |
+| 5 | `E_STATE` | Order: GEOMSET missing (for TEXSET, BGSET, SPRITESET, VIEW) or MAPINIT missing (VIEW, CELL …) |
+| 6 | `E_RANGE` | Parameter out of range (cell, set number, tile index, pool, buffer) |
+| 255 | `E_NOTIMPL` | Function does not exist |
 
-### 3.2 Prüfungen beim Setzen (Pflicht)
+### 3.2 Checks on setting (mandatory)
 
-- DTS: Art-Byte = X; Geometrie-ID = DVG-ID; NE, D, Stride gleich; NST ≥ 1. DBG: VW, VH, ID gleich. S2: ID = DVG-ID oder 0, D = DVG-D, Stride gleich.
-- Pool (falls gesetzt): Basis ≥ Poolanfang und Basis + U ≤ Poolende (16 Bit ohne Überlauf).
-- Die Lib rechnet beim Setzen die absoluten Bank-1-Adressen der Teiltabellen aus (Slotkarte, Stiltabelle, Verzeichnis, Kerne, Datenbereich, Indextabelle) und speichert sie; `VIEW` liest nie Kopf-Offsets.
+- DTS: kind byte = X; geometry ID = DVG ID; NE, D, stride equal; NST ≥ 1. DBG: VW, VH, ID equal. S2: ID = DVG ID or 0, D = DVG D, stride equal.
+- Pool (if set): base ≥ pool start and base + U ≤ pool end (16 bit without overflow).
+- On setting, the lib computes the absolute bank 1 addresses of the sub-tables (slot map, style table, directory, cores, data area, index table) and stores them; `VIEW` never reads header offsets.
 
-### 3.3 Puffer
+### 3.3 Buffer
 
-Der Puffer [B0, B1) liegt im gemeinsamen RAM (Bank 0, Fenster `$1300–$1BFF`). `VIEW` schreibt jeden angenommenen Eintrag sofort (Einpass, P6d-opt): VMS-Listen aufwärts ab B0, VCL-Einträge abwärts von B1 (Ende-Byte bei B1 − 1). VCLADR = Anfang der VCL-Liste. Größe Standard 2304 Byte.
+The buffer [B0, B1) lies in the shared RAM (bank 0, window `$1300–$1BFF`). `VIEW` writes each accepted entry immediately (single pass, P6d-opt): VMS lists upward from B0, VCL entries downward from B1 (end byte at B1 − 1). VCLADR = start of the VCL list. Default size 2304 bytes.
 
-**Feste Listenadresse (P6j, `BUFSET` X Bit 0):** `VIEW` schreibt bei B0 einen VCL-Sprung (Typ 10, VDC-BASIC v3 P2e: `10, Adresse`) auf den Listenanfang B1 − nv; die VMS-Listen beginnen bei B0 + 3, BL ist 3 Byte kleiner. VCLADR = P0 = B0 bei jedem Aufruf, VCLLEN und VMSLEN ohne den Sprung. Ein Spiel ruft dann `::VCL` mit der Konstanten B0 (am schnellsten über eine einmal gesetzte, als erste angelegte Variable, Ergebnis P6j). Kosten: etwa 100 Zyklen in `VIEW`, etwa 215 in `VCL`.
+**Fixed list address (P6j, `BUFSET` X bit 0):** `VIEW` writes a VCL jump (type 10, VDC-BASIC v3 P2e: `10, address`) at B0 to the list start B1 − nv; the VMS lists begin at B0 + 3, BL is 3 bytes smaller. VCLADR = P0 = B0 on every call, VCLLEN and VMSLEN without the jump. A game then calls `::VCL` with the constant B0 (fastest via a variable set once, created first, result P6j). Cost: about 100 cycles in `VIEW`, about 215 in `VCL`.
 
 ### 3.4 MOVE (P6f)
 
-| X | Aktion |
+| X | Action |
 |---|---|
-| 0 / 1 | vor / zurück |
-| 2 / 3 | seitwärts links / rechts |
-| 4 / 5 / 6 | drehen links / rechts / umdrehen |
+| 0 / 1 | forward / back |
+| 2 / 3 | sideways left / right |
+| 4 / 5 / 6 | turn left / right / turn around |
 
-Drehen: Richtung ändern, X = 0, Y = Kachel der Position (P6f). Schritt: Zielzelle nach Richtung; außerhalb der Karte → X = 1, Y = Außenkachel; Kachel-Flag WEG → X = 1, Y = Kachel; Objekt der Liste auf der Zielzelle ohne Bit 7 (blockiert nicht) und ohne Bit 6 → X = 2, Y = Objektindex; sonst Position = Ziel, X = 0, Y = Kachel. Immer: P0 = Position, P1 = Inhaltsbyte der Position, P2 = Index des ersten Ereignisses der Position in der DMP-Ereignisliste oder `$FFFF`. A = 0.
+Turning: change direction, X = 0, Y = tile of the position (P6f). Step: target cell by direction; outside the map → X = 1, Y = outer tile; tile flag SOLID → X = 1, Y = tile; object of the list on the target cell without bit 7 (does not block) and without bit 6 → X = 2, Y = object index; otherwise position = target, X = 0, Y = tile. Always: P0 = position, P1 = content byte of the position, P2 = index of the first event of the position in the DMP event list or `$FFFF`. A = 0.
 
-## 4. Zustand der Lib (BSS)
+## 4. State of the lib (BSS)
 
-| Name | Inhalt |
+| Name | Contents |
 |---|---|
-| Karte | Adressen Kachelebene, Inhaltsebene (Arbeitskopie oder DMP), Kacheltabelle, Ereignisse; W, H, NT, NE_ev, Außenkachel |
-| Position | pos (Zellindex), px, py (bei SETPOS/MOVE per fortgesetzter Subtraktion berechnet), v |
-| DVG | Adresse, VW, VH, D, S, NE, stride, origin, ID, Horizont y0/y1, Adressen Tiefentabelle und Elementtabelle; Zeilentabelle `row[y] = origin + y · stride` (y < VH) |
-| DTS[3] | gültig, VRAM-Basis, NS, NST, Adressen Slotkarte, Stiltabelle, Verzeichnis |
-| DBG | gültig, VRAM-Basis, P, y0, h, Flags, o_v (für die aktuelle Richtung in VIEW gewählt), Adresse der Füllbytes; Füllbyte ohne DBG; Fernsicht an (`ffon`) und Fernsicht-Füllbyte (`ffill`), P6l |
-| Fernsicht | `hs[VW]`: s + 15 der Zelle der Tiefe D je Spalte des Horizontbandes (GEOMSET, 5.7a) |
-| S2[8] | gültig, VRAM-Basis, NA, NP, D, Adressen Indextabelle, Verzeichnis, Kerntabelle; angle_map |
-| `itemtab[64]` | Satz + 1 |
-| Pool, Puffer | Grenzen |
-| VIEW | `cover[80]`, `bcov[80]`, Zähler, Sichtliste (MAXITEM = 96 Einträge, je etwa 10 Byte), Wartebereiche (pending, ≤ 16), Summen |
+| Map | Addresses of tile layer, content layer (working copy or DMP), tile table, events; W, H, NT, NE_ev, outer tile |
+| Position | pos (cell index), px, py (computed in SETPOS/MOVE by repeated subtraction), v |
+| DVG | Address, VW, VH, D, S, NE, stride, origin, ID, horizon y0/y1, addresses of depth table and element table; row table `row[y] = origin + y · stride` (y < VH) |
+| DTS[3] | valid, VRAM base, NS, NST, addresses of slot map, style table, directory |
+| DBG | valid, VRAM base, P, y0, h, flags, o_v (chosen in VIEW for the current direction), address of the fill bytes; fill byte without DBG; distance view on (`ffon`) and distance-view fill byte (`ffill`), P6l |
+| Distance view | `hs[VW]`: s + 15 of the cell at depth D per column of the horizon band (GEOMSET, 5.7a) |
+| S2[8] | valid, VRAM base, NA, NP, D, addresses of index table, directory, core table; angle_map |
+| `itemtab[64]` | set + 1 |
+| Pool, buffer | Limits |
+| VIEW | `cover[80]`, `bcov[80]`, counters, visibility list (MAXITEM = 96 entries, about 10 bytes each), pending areas (pending, ≤ 16), sums |
 
 ## 5. `VIEW`
 
-Die Python-Referenz (`tools/dbeview.py`, 9.1) setzt genau diesen Abschnitt um; die 6502-Ausgabe muss **bytegleich** sein. Bei Unklarheiten gilt nach Abstimmung die Referenz und dieser Abschnitt wird nachgezogen.
+The Python reference (`tools/dbeview.py`, 9.1) implements exactly this section; the 6502 output must be **byte-identical**. In case of ambiguity the reference applies after agreement, and this section is updated accordingly.
 
-### 5.1 Begriffe
+### 5.1 Terms
 
-- Elemente der DVG (P3 5.3), Art FRONT 0, SIDE 1, FLOOR 2, CEIL 3, OBJ 4; Felder e.x, e.y, e.w, e.h, e.flags, e.c0, e.c1, e.s, e.index, Anker e.anchor[p].
-- Tiefentabelle je d: Deckenband [cy0, cy1), Bodenband [fy0, fy1), erstes Element, Anzahl. Horizont [hy0, hy1).
-- `cell(d, s)`: Zelle im Gitter. Schritte: F = (fx, fy), R = (rx, ry) je Richtung v (N: F = (0, −1), R = (1, 0); O: F = (1, 0), R = (0, 1); S: F = (0, 1), R = (−1, 0); W: F = (−1, 0), R = (0, −1)). x' = px + d·fx + s·rx, y' = py + d·fy + s·ry; außerhalb von 0 ≤ x' < W, 0 ≤ y' < H → **Außenkachel**, Inhalt 0 (keine Zeilenumbrüche wie in 0.1, review-notes G.11); sonst Index y'·W + x' (= pos + d·F + s·R).
-- Kachel t: walls[4], floor, ceil, flags. `faces(t)` = mindestens ein walls ≠ 0. `blocked(t)` = Flag DECKEND und alle vier walls ≠ 0.
-- Fläche je Element: FRONT → (v + 2) AND 3; SIDE mit s < 0 → (v + 1) AND 3; s > 0 → (v + 3) AND 3 (P4 2.4).
-- `resolve(kind, slotindex, n)`: n = 0 → nichts; DTS der Art fehlt → nichts; st = n − 1 ≥ NST → nichts; k = Slotkarte[slotindex] (`$FF` → nichts); b = Stiltabelle[st · NS + k]; b = `$FF` → b = Stiltabelle[k]; b ≥ `$FE` → nichts; sonst Verzeichniseintrag b. slotindex = e.index für Elemente, NE + d für Deckenband d, NE + D + 1 + d für Bodenband d.
-- `deck(e, t, ent)` = (e.flags Bit 0) und (t.flags DECKEND) und (ent.flags Bit 0) (review-notes D.5).
-- **Spaltenmasken** (je VW Byte, 0 = frei):
-  - `cover`: verdeckt für alles hinter P_{d+1} und für Objekte und Seiten derselben Tiefe weiter außen. Für Objekte dient es nur dem Verwerfen ganz verdeckter Sprites (5.8); beschnitten wird gegen `cover` nichts.
-  - `bcov`: verdeckt für Bänder, Kacheln und Tapete der aktuellen Tiefe.
-- `allcov(m, c0, c1)`: alle Spalten c0 … c1 − 1 in m belegt.
-- `spans(m)`: maximale Folgen freier Spalten in [0, VW), links nach rechts; mehr als **4** Folgen → eine Folge [erste freie, letzte freie + 1); keine → leer.
-- DVG-Flag **Bit 3 „Bandabdeckung“** (neu, review-notes G.5): Fronten, deren Rechteck die Band-Zeilen ihrer Tiefe enthält (e.y ≤ cy0 und e.y + e.h ≥ fy1 der Tiefe e.d). `dbegeom` setzt es für alle Fronten.
+- Elements of the DVG (P3 5.3), kind FRONT 0, SIDE 1, FLOOR 2, CEIL 3, OBJ 4; fields e.x, e.y, e.w, e.h, e.flags, e.c0, e.c1, e.s, e.index, anchor e.anchor[p].
+- Depth table per d: ceiling band [cy0, cy1), floor band [fy0, fy1), first element, count. Horizon [hy0, hy1).
+- `cell(d, s)`: cell in the grid. Steps: F = (fx, fy), R = (rx, ry) per direction v (N: F = (0, −1), R = (1, 0); E: F = (1, 0), R = (0, 1); S: F = (0, 1), R = (−1, 0); W: F = (−1, 0), R = (0, −1)). x' = px + d·fx + s·rx, y' = py + d·fy + s·ry; outside 0 ≤ x' < W, 0 ≤ y' < H → **outer tile**, content 0 (no line wraparound as in 0.1, review-notes G.11); otherwise index y'·W + x' (= pos + d·F + s·R).
+- Tile t: walls[4], floor, ceil, flags. `faces(t)` = at least one walls ≠ 0. `blocked(t)` = flag OCCLUDING and all four walls ≠ 0.
+- Face per element: FRONT → (v + 2) AND 3; SIDE with s < 0 → (v + 1) AND 3; s > 0 → (v + 3) AND 3 (P4 2.4).
+- `resolve(kind, slotindex, n)`: n = 0 → nothing; DTS of the kind missing → nothing; st = n − 1 ≥ NST → nothing; k = slot map[slotindex] (`$FF` → nothing); b = style table[st · NS + k]; b = `$FF` → b = style table[k]; b ≥ `$FE` → nothing; otherwise directory entry b. slotindex = e.index for elements, NE + d for ceiling band d, NE + D + 1 + d for floor band d.
+- `occ(e, t, ent)` = (e.flags bit 0) and (t.flags OCCLUDING) and (ent.flags bit 0) (review-notes D.5).
+- **Column masks** (VW bytes each, 0 = free):
+  - `cover`: occluded for everything behind P_{d+1} and for objects and sides of the same depth further out. For objects it only serves to discard fully occluded sprites (5.8); nothing is clipped against `cover`.
+  - `bcov`: occluded for bands, tiles and wallpaper of the current depth.
+- `allcov(m, c0, c1)`: all columns c0 … c1 − 1 in m are occupied.
+- `spans(m)`: maximal runs of free columns in [0, VW), left to right; more than **4** runs → one run [first free, last free + 1); none → empty.
+- DVG flag **bit 3 "band coverage"** (new, review-notes G.5): fronts whose rectangle contains the band rows of their depth (e.y ≤ cy0 and e.y + e.h ≥ fy1 of depth e.d). `dbegeom` sets it for all fronts.
 
-### 5.2 Ablauf (Sichtdurchlauf, vorne → hinten)
+### 5.2 Procedure (visibility pass, front → back)
 
-`add(item)` hängt einen Eintrag an die Sichtliste an und prüft die Größe (5.10); „STOP“ beendet den ganzen Durchlauf.
+`add(item)` appends an entry to the visibility list and checks the size (5.10); "STOP" ends the entire pass.
 
 ```
 cover = bcov = 0;  ncov = 0
 for d in 0 .. D:
-    pend = []                                   # (c0, c1, ziel) – ziel: beide Masken oder nur bcov
-    for e in Elemente der Tiefe d (DVG-Reihenfolge; Kachel-Flag INHALT: 5.2a):
-        c = cell(d, e.s); t = Kachel(c)
-        if e.art in (FRONT, SIDE):
+    pend = []                                   # (c0, c1, target) – target: both masks or bcov only
+    for e in elements of depth d (DVG order; tile flag CONTENT: 5.2a):
+        c = cell(d, e.s); t = tile(c)
+        if e.kind in (FRONT, SIDE):
             if not faces(t): continue
-            ent = resolve(Wand, e.index, t.walls[Fläche(e)])
+            ent = resolve(wall, e.index, t.walls[face(e)])
             if ent is None or allcov(cover, e.x, e.x + e.w): continue
-            add(WALL(e, ent))                   # STOP möglich
-            if deck(e, t, ent):
-                if e.art == FRONT:
+            add(WALL(e, ent))                   # STOP possible
+            if occ(e, t, ent):
+                if e.kind == FRONT:
                     mark(cover, e.c0, e.c1)
-                    if e.flags Bit 3: mark(bcov, e.c0, e.c1) else pend += (e.c0, e.c1, nur bcov)
-                else: pend += (e.c0, e.c1, beide)
-        elif e.art == OBJ and d >= 1 and (not faces(t) or t.flags INHALT):
-            objekte(d, e, c)                    # 5.8, STOP möglich
-    baender(d, BODEN); baender(d, DECKE)        # 5.6, STOP möglich
-    tapete(d)                                   # 5.7, STOP möglich (Horizont bei Fernsicht-Füllung erst unten)
-    for (c0, c1, ziel) in pend: mark(bcov, c0, c1); if ziel == beide: mark(cover, c0, c1)
-    if fern: fernsicht()                        # 5.7a, nur d = D mit Fernsicht-Füllung, STOP möglich
-    if ncov == VW: break                        # ncov zählt belegte Spalten in cover
+                    if e.flags bit 3: mark(bcov, e.c0, e.c1) else pend += (e.c0, e.c1, bcov only)
+                else: pend += (e.c0, e.c1, both)
+        elif e.kind == OBJ and d >= 1 and (not faces(t) or t.flags CONTENT):
+            objects(d, e, c)                    # 5.8, STOP possible
+    bands(d, BODEN); bands(d, DECKE)        # 5.6, STOP possible
+    wallpaper(d)                                   # 5.7, STOP possible (horizon only below with distance fill)
+    for (c0, c1, target) in pend: mark(bcov, c0, c1); if target == both: mark(cover, c0, c1)
+    if distant: distant_view()                        # 5.7a, only d = D with distance fill, STOP possible
+    if ncov == VW: break                        # ncov counts occupied columns in cover
 ```
 
-- **5.2a Kachel-Flag INHALT (Nutzerentscheidung 4, DMP Bit 5):** Zellen mit Flächen und diesem Flag (Tür, Gitter, Bogen) zeigen auch ihre Objekte. Die Zelle trägt ihre Elemente in der Sichtliste in der Reihenfolge **Fronten, Objektplatz, Seiten** ein (statt DVG-Reihenfolge Front, Seite, Objektplatz), die Ausgabe rückwärts malt damit Seitenfläche, Objekte nach Unterposition, Front. Zellen = Gruppen gleichen s in der DVG (P3 5.3: zusammenhängend); alle anderen Zellen unverändert in DVG-Reihenfolge. Das Flag ändert die Abdeckung nicht.
-- `mark` setzt Bytes auf 1 und erhöht ncov für neu belegte Spalten von `cover`.
-- Elemente FLOOR/CEIL werden in der Schleife nicht ausgegeben (nur in `baender`).
-- Die Sichtliste wird bei der Ausgabe **rückwärts** abgearbeitet (5.11). Daraus folgt die Malreihenfolge je Tiefe D … 0: Tapete, Decke (Grund, Kacheln), Boden (Grund, Kacheln), Zellen außen → innen, je Zelle Seite vor Front bzw. Objekte hinten → vorne. Das ist Plan 5 mit review-notes B.1–B.3: Seitenflächen einer Tiefe verdecken erst nach den Objekten und Bändern dieser Tiefe; Fronten verdecken sofort (Seiten und Objekte derselben Tiefe weiter außen liegen hinter ihnen).
+- **5.2a Tile flag CONTENT (user decision 4, DMP bit 5):** Cells with faces and this flag (door, grating, arch) also show their objects. The cell enters its elements into the visibility list in the order **fronts, object slot, sides** (instead of DVG order front, side, object slot); the backward output thus paints side face, objects by sub-position, front. Cells = groups of equal s in the DVG (P3 5.3: contiguous); all other cells unchanged in DVG order. The flag does not change the coverage.
+- `mark` sets bytes to 1 and increments ncov for newly occupied columns of `cover`.
+- FLOOR/CEIL elements are not output in the loop (only in `bands`).
+- The visibility list is processed **backwards** during output (5.11). The paint order per depth D … 0 follows: wallpaper, ceiling (base, tiles), floor (base, tiles), cells outside → inside, per cell side before front or objects back → front. This is plan 5 with review-notes B.1–B.3: side faces of a depth occlude only after the objects and bands of this depth; fronts occlude immediately (sides and objects of the same depth further out lie behind them).
 
-### 5.3 Wände
+### 5.3 Walls
 
-`WALL(e, ent)`: Ziel T0 = AP + row[e.y] + e.x. Ausgabe nach P5 4.4: je Kern ein `VMC` (VCL-Typ 2 bei srcstep 0, sonst 3), dann bei RAND ein `VMS` (Typ 12) mit der kopierten Liste. Wände und Kacheln werden **nicht** beschnitten (das DVG-Rechteck liegt im Fenster).
+`WALL(e, ent)`: target T0 = AP + row[e.y] + e.x. Output according to P5 4.4: one `VMC` per core (VCL type 2 for srcstep 0, otherwise 3), then for EDGE a `VMS` (type 12) with the copied list. Walls and tiles are **not** clipped (the DVG rectangle lies within the window).
 
-### 5.4 Abdeckung – Annahmen
+### 5.4 Coverage – assumptions
 
-- Eine Abdeckung in `cover` aus Tiefe d gilt für alle Zeilen von P_{d+1} (P3 4.4). Objekte werden **nicht** gegen `cover` beschnitten (P6i, Nutzerentscheidung): ein Sprite wird vollständig gezeichnet und von den näheren Wänden, die in der Malreihenfolge später kommen, übermalt (Painter, Begründung 5.8a). Ein Sprite, das höher ist als die Wand an seiner Tiefe, wird über der Wandoberkante von den Deckenbändern bzw. der Tapete der näheren Tiefen übermalt (P5b 3.4 warnt weiterhin, weil es dann über dem Boden „schwebt“ bzw. in die Decke ragt).
-- Nicht abzudecken ist immer korrekt (nur Mehrarbeit).
-- Zellen mit Flächen zeigen keine Objekte (Plan 5: entweder Flächen oder Inhalt), auch wenn die Flächen nicht decken – **außer** die Kachel hat das Flag INHALT (5.2a, review-notes G.14).
+- A coverage in `cover` from depth d applies to all rows of P_{d+1} (P3 4.4). Objects are **not** clipped against `cover` (P6i, user decision): a sprite is drawn completely and overpainted by the nearer walls that come later in the paint order (painter's algorithm, rationale 5.8a). A sprite that is taller than the wall at its depth is overpainted above the wall's top edge by the ceiling bands or the wallpaper of the nearer depths (P5b 3.4 still warns, because it then "floats" above the floor or protrudes into the ceiling).
+- Not covering is always correct (only extra work).
+- Cells with faces show no objects (plan 5: either faces or content), even if the faces do not cover – **unless** the tile has the flag CONTENT (5.2a, review-notes G.14).
 
-### 5.5 Gruppen der Malreihenfolge innerhalb eines Eintrags
+### 5.5 Paint order groups within an entry
 
-Ein Sichtlisteneintrag erzeugt in dieser Reihenfolge: alle Kerne (in Tabellenreihenfolge), dann die VMS-Liste. Mehrere Folgen (Spannen) eines Bandes erzeugen getrennte Einträge.
+A visibility list entry produces in this order: all cores (in table order), then the VMS list. Several runs (spans) of a band produce separate entries.
 
-### 5.6 Bänder und Kacheln: `baender(d, K)`
+### 5.6 Bands and tiles: `bands(d, K)`
 
-Band-Zeilen [y0, y1) = Bodenband bzw. Deckenband der Tiefe d; leer → zurück. Kachel-Elemente E_K(d) = Elemente der Tiefe d mit Art FLOOR bzw. CEIL (DVG-Reihenfolge).
+Band rows [y0, y1) = floor band or ceiling band of depth d; empty → return. Tile elements E_K(d) = elements of depth d with kind FLOOR or CEIL (DVG order).
 
-1. Je Element e in E_K(d), Kachel t = Kachel(cell(d, e.s)): blocked(t) → **egal**; sonst n = t.floor bzw. t.ceil, st = n − 1; n = 0, kein DTS der Art oder st ≥ NST → **Lücke**; sonst Stil st.
-2. Alle egal → zurück (nichts zu zeichnen).
-3. **Einheitlich**, wenn es keine Lücke gibt und alle nicht egalen Elemente denselben Stil st haben und `resolve` für das Band (slotindex des Bandes, n = st + 1) ein Bild liefert: Grund = Band(st), keine Kacheln.
-4. Sonst **gemischt**: gibt es eine Lücke, ist der Grund die Tapete (`lueckeK = wahr`, 5.7) und Kacheln kommen für alle nicht egalen Nicht-Lücken; ohne Lücke ist der Grund Band(st0) mit st0 = Stil des ersten nicht egalen Elements in DVG-Reihenfolge, dessen Bandbild sich auflösen lässt (keins → Grund leer), und Kacheln kommen für alle nicht egalen Elemente mit Stil ≠ st0 (bzw. alle, wenn der Grund leer ist).
-5. **Anhängen** (rückwärts zur Malreihenfolge): zuerst die Kacheln in DVG-Reihenfolge – je Kachel `ent = resolve(Art, e.index, n)`; nichts → überspringen; `allcov(bcov, e.x, e.x + e.w)` → überspringen; sonst `add(WALL(e, ent))` –, danach der Grund (falls Band): je Folge aus `spans(bcov)` **von rechts nach links** `add(BAND(ent, y0, c0, c1))`.
+1. For each element e in E_K(d), tile t = tile(cell(d, e.s)): blocked(t) → **don't care**; otherwise n = t.floor or t.ceil, st = n − 1; n = 0, no DTS of the kind or st ≥ NST → **gap**; otherwise style st.
+2. All don't care → return (nothing to draw).
+3. **Uniform** if there is no gap and all non-don't-care elements have the same style st and `resolve` for the band (slotindex of the band, n = st + 1) yields an image: base = band(st), no tiles.
+4. Otherwise **mixed**: if there is a gap, the base is the wallpaper (`gapK = true`, 5.7) and tiles come for all non-don't-care non-gaps; without a gap the base is band(st0) with st0 = style of the first non-don't-care element in DVG order whose band image can be resolved (none → base empty), and tiles come for all non-don't-care elements with style ≠ st0 (or all, if the base is empty).
+5. **Appending** (backwards to the paint order): first the tiles in DVG order – per tile `ent = resolve(kind, e.index, n)`; nothing → skip; `allcov(bcov, e.x, e.x + e.w)` → skip; otherwise `add(WALL(e, ent))` –, then the base (if band): per run from `spans(bcov)` **from right to left** `add(BAND(ent, y0, c0, c1))`.
 
-`BAND(ent, y0, c0, c1)`: Bandbild in Zeilen [y0, y0 + h), Spalten [c0, c1):
-- ZEILEN (P5 5.6): je Zeile i das Füllbyte b_i, aufeinanderfolgende gleiche Bytes zu Gruppen; Gruppe mit 1 Zeile → VCL-Typ 4 (`AP + row[y0 + i] + c0`, b, c1 − c0), mit r > 1 Zeilen → Typ 5 (dto., reps r, step stride).
-- sonst: Kerne und Rand wie ein Sprite-Bild mit `clip_image` (P5b 6) im Bandrechteck (x0 = 0, y0) und Ausschnitt [c0, c1) × [y0, y0 + h); volle Breite = unbeschnitten.
+`BAND(ent, y0, c0, c1)`: band image in rows [y0, y0 + h), columns [c0, c1):
+- ROWS (P5 5.6): per row i the fill byte b_i, consecutive equal bytes grouped; a group with 1 row → VCL type 4 (`AP + row[y0 + i] + c0`, b, c1 − c0), with r > 1 rows → type 5 (ditto, reps r, step stride).
+- otherwise: cores and edge like a sprite image with `clip_image` (P5b 6) in the band rectangle (x0 = 0, y0) and clip rectangle [c0, c1) × [y0, y0 + h); full width = unclipped.
 
-### 5.7 Tapete: `tapete(d)`
+### 5.7 Wallpaper: `wallpaper(d)`
 
-Zeilenbereiche (oben nach unten): Deckenband d, falls `lueckeDECKE`; Horizont [hy0, hy1), falls d = D und nicht `fern` (5.7a); Bodenband d, falls `lueckeBODEN`. Leere Bereiche entfallen, aneinandergrenzende werden verbunden. Folgen = `spans(bcov)`. Anhängen: Bereiche **von unten nach oben**, je Bereich die Folgen **von rechts nach links**, je Paar `add(BG(r0, r1, c0, c1))`.
+Row ranges (top to bottom): ceiling band d, if `gapDECKE`; horizon [hy0, hy1), if d = D and not `distant` (5.7a); floor band d, if `gapBODEN`. Empty ranges are omitted, adjacent ones are merged. Runs = `spans(bcov)`. Appending: ranges **from bottom to top**, per range the runs **from right to left**, per pair `add(BG(r0, r1, c0, c1))`.
 
 `BG(r0, r1, c0, c1)` (P5 6.2):
-- **Ohne DBG:** Füllbyte f aus `BGSET`: ein Eintrag Typ 4 (r1 − r0 = 1) bzw. Typ 5 (`AP + row[r0] + c0`, f, c1 − c0, reps r1 − r0, step stride).
-- **Mit DBG** (Panoramazeilen [y0, y0 + h), Versatz o = o_v der Richtung v):
-  1. Zeilen über dem Panorama [r0, min(r1, y0)) und darunter [max(r0, y0 + h), r1): Füllbytes je Zeile aus der DBG, gleiche aufeinanderfolgende gruppiert, Typ 4/5 wie bei ZEILEN.
-  2. Panoramazeilen [a, b) = [max(r0, y0), min(r1, y0 + h)), falls nicht leer: Quellspalte q = (o + c0) mod P, n = c1 − c0. Wenn q + n ≤ P: ein Typ 3 (`VB + (a − y0) · P + q`, `AP + row[a] + c0`, n, reps b − a, step stride, srcstep P). Sonst (nur mit WRAP) zwei Typ 3: n1 = P − q ab q, dann n − n1 ab Quellspalte 0 an Zielspalte c0 + n1.
-  3. Reihenfolge der Einträge: über, Panorama (Teil 1, Teil 2), unter.
+- **Without DBG:** fill byte f from `BGSET`: one entry of type 4 (r1 − r0 = 1) or type 5 (`AP + row[r0] + c0`, f, c1 − c0, reps r1 − r0, step stride).
+- **With DBG** (panorama rows [y0, y0 + h), offset o = o_v of direction v):
+  1. Rows above the panorama [r0, min(r1, y0)) and below [max(r0, y0 + h), r1): fill bytes per row from the DBG, consecutive equal ones grouped, type 4/5 as for ROWS.
+  2. Panorama rows [a, b) = [max(r0, y0), min(r1, y0 + h)), if not empty: source column q = (o + c0) mod P, n = c1 − c0. If q + n ≤ P: one type 3 (`VB + (a − y0) · P + q`, `AP + row[a] + c0`, n, reps b − a, step stride, srcstep P). Otherwise (only with WRAP) two type 3: n1 = P − q from q, then n − n1 from source column 0 at target column c0 + n1.
+  3. Order of the entries: above, panorama (part 1, part 2), below.
 
-Reihenfolge der Bereiche und Teile im Bild ist gleichgültig (sie überdecken sich nicht), für den Listenvergleich aber festgelegt.
+The order of the ranges and parts in the image is irrelevant (they do not overlap), but it is fixed for the list comparison.
 
-### 5.7a Fernsicht: `fernsicht()` (P6l, Nutzerentscheidung 2026-11-26)
+### 5.7a Distance view: `distant_view()` (P6l, user decision 2026-11-26)
 
-Ohne Füllung ist die Tapete auch die Fernsicht: Sichtlinien länger als D enden im Horizontband [hy0, hy1) der Tiefe D in der Tapete. In Innenräumen mit Landschafts-Tapete sieht man dann z. B. durch ein Gitter in einer überdachten Kammer Berge. Mit **Fernsicht-Füllung** (`BGSET` Y ≠ 0, Füllbyte f = P2 Low) entscheidet je Spalte die Kachel, durch die man in die Ferne blickt, ob dort Tapete oder das Füllbyte erscheint. Ohne Füllung (Y = 0, Standard nach `INIT`) ist alles wie bisher.
+Without fill, the wallpaper is also the distance view: lines of sight longer than D end in the horizon band [hy0, hy1) of depth D in the wallpaper. In interior rooms with landscape wallpaper one then sees mountains, e.g. through a grating in a roofed chamber. With **distance fill** (`BGSET` Y ≠ 0, fill byte f = P2 low) the tile through which one looks into the distance decides per column whether wallpaper or the fill byte appears there. Without fill (Y = 0, default after `INIT`) everything is as before.
 
-- **Zelle je Spalte:** Das Horizontband ist das Bild der Ebene P_{D+1}, der fernen Kante der Zellen der Tiefe D. Spalte c gehört zur Zelle (D, s(c)), aus der ihr Sichtstrahl über P_{D+1} hinaus austritt. Die Grenzen sind die fernen Kanten der **Seitenflächen** der Tiefe D (Rechteck in der DVG, P3 4.4): eine Seite mit s < 0 endet rechts bei x + w, eine mit s > 0 beginnt links bei x. Daraus `s(c) = − #{Seiten s < 0 mit c < x + w} + #{Seiten s > 0 mit c ≥ x}` (alle Seiten der Tiefe D, unabhängig von Bild und Flags). `GEOMSET` legt die Tabelle `hs[c] = s(c) + 15` an. Voraussetzung (von `dbegeom` erfüllt): höchstens eine Seite je Zelle und für jedes vorkommende s(c) eine Zelle (D, s(c)) mit Elementen; sonst ist die Entscheidung dieser Spalten unbestimmt (die Referenz meldet einen Fehler).
-- **Entscheidung je Zelle** (Kachel t der Zelle (D, s), auch die Außenkachel; blockierte Zellen wie alle anderen): **Füllung**, wenn Deckenstil t.ceil ≠ 0, **Tapete**, wenn t.ceil = 0 (Himmel). Kachel-Flag **FERN** (DMP Bit 6, P4 2.4) kehrt die Regel um: überdachte Kachel mit Blick ins Freie (Arkade, Veranda) → Tapete; Kachel ohne Decke, hinter der es dunkel sein soll (Höhle ohne Deckentextur) → Füllung.
-- **`fern`** = Füllung an und d = D und mindestens eine Zelle der Tiefe D (Zellentabelle) mit Entscheidung Füllung. Sonst bleibt der Horizont in `tapete(D)` wie bisher (Bilder ins Freie sind damit auch in der Liste unverändert).
-- **Ablauf mit `fern`:** `tapete(D)` lässt den Horizont weg (Decken- und Bodenband mit Lücke bleiben Tapete über `spans(bcov)`). Nach dem Wartebereich der Tiefe D (dann deckt `bcov` alle Spalten ab, in denen eine deckende Front oder Seite der Tiefen 0 … D die Zeilen von P_{D+1} = Horizont ganz verdeckt; nur in den übrigen Spalten kann hinter der letzten Tiefe noch etwas sichtbar sein) für jede Folge aus `spans(bcov)` **von rechts nach links** die Läufe [a, b) gleicher Entscheidung **von rechts nach links**: Füllung → `add` eines Eintrags Typ 4/5 (`AP + row[hy0] + a`, f, b − a, reps hy1 − hy0, step stride) wie BG ohne DBG; Tapete → `add(BG(hy0, hy1, a, b))` (5.7, mit oder ohne DBG). Leerer Horizont (hy0 ≥ hy1): nichts.
-- **Malreihenfolge:** Die Einträge sind die letzten der Sichtliste, werden also zuerst gemalt (ganz hinten, vor allem anderen, auch vor Decken-/Bodenband D und den Wänden der Tiefe D). In den Spalten mit Füllung wird keine Tapete ausgegeben (nur das Füllbyte, ein Typ 4/5 statt Typ 3 je Lauf). Fenster, Gitter und Bögen decken nicht ab (5.4): dahinterliegende Wände werden normal gezeichnet; die Füllung liegt nur in den danach freien Spalten und unter allem, was davor gemalt wird.
-- **Größe und Überlauf:** wie jeder BG-Eintrag (5.10); `STOP` in `fernsicht()` verliert nur Horizont-Einträge.
-- `paint_reference` malt den Horizont voll breit wie bisher und überschreibt danach die Spalten mit Entscheidung Füllung mit f (unabhängig von `fern`, Abdeckung und Spannen).
+- **Cell per column:** The horizon band is the image of plane P_{D+1}, the far edge of the cells of depth D. Column c belongs to the cell (D, s(c)) from which its line of sight exits beyond P_{D+1}. The boundaries are the far edges of the **side faces** of depth D (rectangle in the DVG, P3 4.4): a side with s < 0 ends on the right at x + w, one with s > 0 begins on the left at x. From this `s(c) = − #{sides s < 0 with c < x + w} + #{sides s > 0 with c ≥ x}` (all sides of depth D, independent of image and flags). `GEOMSET` creates the table `hs[c] = s(c) + 15`. Prerequisite (met by `dbegeom`): at most one side per cell and, for every occurring s(c), a cell (D, s(c)) with elements; otherwise the decision for these columns is undetermined (the reference reports an error).
+- **Decision per cell** (tile t of the cell (D, s), including the outer tile; blocked cells like all others): **fill** if ceiling style t.ceil ≠ 0, **wallpaper** if t.ceil = 0 (sky). Tile flag **DISTANT** (DMP bit 6, P4 2.4) reverses the rule: roofed tile with a view to the outside (arcade, veranda) → wallpaper; tile without ceiling behind which it should be dark (cave without ceiling texture) → fill.
+- **`distant`** = fill on and d = D and at least one cell of depth D (cell table) with decision fill. Otherwise the horizon stays in `wallpaper(D)` as before (images to the outside are thus also unchanged in the list).
+- **Procedure with `distant`:** `wallpaper(D)` omits the horizon (ceiling and floor bands with a gap remain wallpaper via `spans(bcov)`). After the pending area of depth D (then `bcov` covers all columns in which an occluding front or side of depths 0 … D fully occludes the rows of P_{D+1} = horizon; only in the remaining columns can something still be visible behind the last depth) for each run from `spans(bcov)` **from right to left** the stretches [a, b) of equal decision **from right to left**: fill → `add` of an entry of type 4/5 (`AP + row[hy0] + a`, f, b − a, reps hy1 − hy0, step stride) like BG without DBG; wallpaper → `add(BG(hy0, hy1, a, b))` (5.7, with or without DBG). Empty horizon (hy0 ≥ hy1): nothing.
+- **Paint order:** The entries are the last in the visibility list, so they are painted first (at the very back, before everything else, also before ceiling/floor band D and the walls of depth D). In the columns with fill no wallpaper is output (only the fill byte, one type 4/5 instead of type 3 per stretch). Windows, gratings and arches do not cover (5.4): walls behind them are drawn normally; the fill lies only in the columns left free afterwards and beneath everything painted in front of it.
+- **Size and overflow:** like any BG entry (5.10); `STOP` in `distant_view()` loses only horizon entries.
+- `paint_reference` paints the horizon at full width as before and then overwrites the columns with decision fill with f (independent of `distant`, coverage and spans).
 
-### 5.8 Objekte: `objekte(d, e, c)`
+### 5.8 Objects: `objects(d, e, c)`
 
-1. Kandidaten der Zelle c: Objekte i der Liste (i < OBJN, Zellindex = c, Bit 6 von Byte 5 = 0) mit p = SUBPOS[v][q] (q = Byte 5 AND 7, q > 4 → 4; Tabelle P4 2.6); Gegenstand g = Inhalt(c) AND 63, falls g ≠ 0 und `itemtab[g]` ≠ 0, mit p = 2, Satz `itemtab[g]` − 1, Richtung `$FF`, Phase ITEMPH.
-2. **Malreihenfolge:** p aufsteigend (0 hinten links, 1 hinten rechts, 2 Mitte, 3 vorne links, 4 vorne rechts; P3 3.3); bei gleichem p zuerst der Gegenstand, dann Objekte nach i aufsteigend. **Anhängen in umgekehrter Malreihenfolge.**
-3. Je Kandidat: Satz ungültig → überspringen; a = 0 bei Richtung `$FF`, sonst (2 + v − o) AND 3; Bild = `lookup(Satz, f, a, d)` (P5b 6.3; f ≥ NP → 0; `$FF` → Phase 0; `$FE` → überspringen).
-4. Anker (ax, ay) = e.anchor[p] (vorzeichenbehaftete Byte-Spalte, Zeile); x0 = ax − fx, y0 = ay − fy (16 Bit vorzeichenbehaftet).
-5. Ausschnitt nur am Fenster: cx0 = max(x0, 0), cx1 = min(x0 + w, VW), cy0 = max(y0, 0), cy1 = min(y0 + h, VH); leer → überspringen. `allcov(cover, cx0, cx1)` → überspringen (alle Spalten des Ausschnitts verdeckt). Sonst bleibt der Ausschnitt, wie er ist: kein Zuschneiden gegen `cover` (P6i). Liegt das Sprite ganz im Fenster, ist es unbeschnitten (Kerne + Rand als Typ 9 bzw. im Build `VMS_COPY` als Kopie, 5.9).
-6. `add(SPRITE(Satz, Bild, x0, y0, cx0, cx1, cy0, cy1))`; Objekte decken nichts ab. Bei Annahme: OBJVIS Bit i setzen (nur Listenobjekte).
+1. Candidates of cell c: objects i of the list (i < OBJN, cell index = c, bit 6 of byte 5 = 0) with p = SUBPOS[v][q] (q = byte 5 AND 7, q > 4 → 4; table P4 2.6); item g = content(c) AND 63, if g ≠ 0 and `itemtab[g]` ≠ 0, with p = 2, set `itemtab[g]` − 1, direction `$FF`, phase ITEMPH.
+2. **Paint order:** p ascending (0 back left, 1 back right, 2 center, 3 front left, 4 front right; P3 3.3); for equal p first the item, then objects by i ascending. **Appending in reverse paint order.**
+3. Per candidate: set invalid → skip; a = 0 for direction `$FF`, otherwise (2 + v − o) AND 3; image = `lookup(set, f, a, d)` (P5b 6.3; f ≥ NP → 0; `$FF` → phase 0; `$FE` → skip).
+4. Anchor (ax, ay) = e.anchor[p] (signed byte column, row); x0 = ax − fx, y0 = ay − fy (16 bit signed).
+5. Clip rectangle only at the window: cx0 = max(x0, 0), cx1 = min(x0 + w, VW), cy0 = max(y0, 0), cy1 = min(y0 + h, VH); empty → skip. `allcov(cover, cx0, cx1)` → skip (all columns of the clip rectangle occluded). Otherwise the clip rectangle stays as it is: no cropping against `cover` (P6i). If the sprite lies entirely within the window, it is unclipped (cores + edge as type 9 or, in the build `VMS_COPY`, as a copy, 5.9).
+6. `add(SPRITE(set, image, x0, y0, cx0, cx1, cy0, cy1))`; objects cover nothing. On acceptance: set OBJVIS bit i (list objects only).
 
-### 5.8a Verdeckung von Sprites über die Malreihenfolge (P6i)
+### 5.8a Occlusion of sprites via the paint order (P6i)
 
-Ein Sprite in Tiefe d (Zelle s) wird vollständig gezeichnet. Ein Zuschneiden gegen `cover` ist unnötig, wenn jede Wand, die eine Spalte von `cover` zum Zeitpunkt des Sprites belegt, in der ausgeführten VCL **nach** dem Sprite kommt und selbst ungeschnitten ist. `cover` enthält dann genau:
+A sprite at depth d (cell s) is drawn completely. Clipping against `cover` is unnecessary if every wall that occupies a column of `cover` at the time of the sprite comes **after** the sprite in the executed VCL and is itself unclipped. `cover` then contains exactly:
 
-1. **Fronten und Seiten der Tiefen < d** (deckend): Die Ausgabe läuft Tiefe D … 0, die Tiefe d' < d kommt ganz nach d. Wände werden nie beschnitten (5.3); eine Wand, die wegen `allcov(cover)` entfällt, liegt in Spalten, die eine noch nähere, ebenfalls spätere Wand deckt. Eine deckende Front bzw. Seite der Tiefe d' deckt in ihren Spalten [c0, c1) alle Zeilen von P_{d'+1} (5.4, Seiten: das Trapez ist an jeder Spalte mindestens so hoch wie P_{d'+1}), ein Sprite in der Zelle d ≥ d' + 1 liegt darin, solange es nicht höher ist als die Wand seiner Tiefe.
-2. **Fronten der Tiefe d in Zellen weiter innen** (sie belegen `cover` sofort): Die Zellen einer Tiefe werden innen → außen durchlaufen und außen → innen gemalt, die innere Front kommt also nach dem Sprite der äußeren Zelle.
-3. **Front der eigenen INHALT-Zelle** (5.2a): Erzeugung Fronten, Objekte, Seiten, gemalt Seite, Objekte, **Front**; die Front kommt nach den Objekten.
+1. **Fronts and sides of depths < d** (occluding): The output runs depth D … 0, depth d' < d comes entirely after d. Walls are never clipped (5.3); a wall that is dropped because of `allcov(cover)` lies in columns that an even nearer, likewise later wall occludes. An occluding front or side of depth d' occludes in its columns [c0, c1) all rows of P_{d'+1} (5.4, sides: the trapezoid is at every column at least as tall as P_{d'+1}); a sprite in cell d ≥ d' + 1 lies within it, as long as it is not taller than the wall of its depth.
+2. **Fronts of depth d in cells further inside** (they occupy `cover` immediately): The cells of a depth are traversed inside → outside and painted outside → inside, so the inner front comes after the sprite of the outer cell.
+3. **Front of the own CONTENT cell** (5.2a): generation fronts, objects, sides, painted side, objects, **front**; the front comes after the objects.
 
-Seiten der Tiefe d (auch weiter innen) belegen `cover` erst am Ende der Tiefe (`pend`) und kommen ebenfalls nach dem Sprite. Fronten und Seiten derselben Tiefe weiter außen kommen vor dem Sprite, belegen aber beim Sprite `cover` noch nicht; das ist unverändert gegenüber P6 (dort wurde gegen sie ebenfalls nicht geschnitten).
+Sides of depth d (also further inside) occupy `cover` only at the end of the depth (`pend`) and likewise come after the sprite. Fronts and sides of the same depth further outside come before the sprite, but do not yet occupy `cover` at the sprite; this is unchanged compared to P6 (there, clipping against them was likewise not done).
 
-**Bänder, Kacheln, Tapete:** Bodenbänder, Deckenbänder, Kacheln und Tapete einer Tiefe d'' < d werden nach dem Sprite gemalt und übermalen Teile, die in ihre Zeilen ragen (zu hohe Sprites; Objekte stehen mit dem Fußpunkt auf dem Boden ihrer Zelle, Plan 5). Sie werden nur gegen `bcov` geschnitten; in einer Spalte, die eine deckende Wand der Tiefe d' belegt, fehlen sie genau ab der Tiefe d', also in den Zeilen, die diese Wand selbst deckt (Bit 3) bzw. die sie nach den eigenen Bändern übermalt (ohne Bit 3: `pend`, Bänder der Tiefe d' kommen vor ihren Wänden). Über und unter der Wand bleiben die Bänder der Tiefen < d' und übermalen das Sprite dort. Die Zusammenlegung von mehr als 4 Spannen (5.1 `spans`) malt Bänder über verdeckte Spalten; die Wände darüber kommen danach, das Ergebnis bleibt gleich. Alle Fälle betreffen Zeilen, die das Sprite schon in P6 ungeschnitten erreichte (geschnitten wurde nur nach Spalten); **zusätzliche Änderungen der Reihenfolge sind nicht nötig**.
+**Bands, tiles, wallpaper:** Floor bands, ceiling bands, tiles and wallpaper of a depth d'' < d are painted after the sprite and overpaint parts that protrude into their rows (sprites that are too tall; objects stand with their foot point on the floor of their cell, plan 5). They are clipped only against `bcov`; in a column occupied by an occluding wall of depth d', they are missing exactly from depth d' on, i.e. in the rows that this wall itself covers (bit 3) or that it overpaints after its own bands (without bit 3: `pend`, bands of depth d' come before their walls). Above and below the wall the bands of depths < d' remain and overpaint the sprite there. The merging of more than 4 spans (5.1 `spans`) paints bands over occluded columns; the walls above come afterwards, the result stays the same. All cases concern rows that the sprite already reached unclipped in P6 (clipping was done only by columns); **additional changes of the order are not necessary**.
 
-**Grenzfälle** (wie bisher, kein neuer Fehler): (a) Überlauf: ein Wandeintrag „ohne Rand“ oder „verworfen“ (5.10) belegt `cover` trotzdem; das Sprite dahinter ist dann teilweise sichtbar (A = 3). Bisher fehlte dort das Sprite und der alte Bildinhalt blieb stehen; beides ist ein Fehlerzustand. (b) Bänder ohne auflösbares Bild (gemischt, Grund leer, Kachel ohne Bild) malen nichts; dort steht dann ein zu hohes Sprite statt des alten Bildinhalts. (c) Sprites, die höher sind als die Wand ihrer Tiefe (P5b 3.4): Was über der Oberkante der verdeckenden Wand liegt, übermalen die Deckenbänder näherer Tiefen; vorher war es abgeschnitten. Das entspricht 0.1 (Crawl 1.0f übermalte ebenfalls).
+**Edge cases** (as before, no new error): (a) Overflow: a wall entry "without edge" or "discarded" (5.10) occupies `cover` anyway; the sprite behind it is then partially visible (A = 3). Previously the sprite was missing there and the old image content remained; both are an error state. (b) Bands without a resolvable image (mixed, base empty, tile without image) paint nothing; a too-tall sprite then stands there instead of the old image content. (c) Sprites that are taller than the wall of their depth (P5b 3.4): what lies above the top edge of the occluding wall is overpainted by the ceiling bands of nearer depths; previously it was cut off. This corresponds to 0.1 (Crawl 1.0f also overpainted).
 
-### 5.9 Beschneiden
+### 5.9 Clipping
 
-Sprites (nur am Fenster, 5.8) und Bänder mit Rand werden mit `clip_image` (P5b 6) geschnitten. Ziel eines Kerns: `AP + row[Zeile] + Spalte`; Ziel einer beschnittenen VMS-Liste: `AP + row[cy0] + cx0`; unbeschnitten `AP + row[y0] + x0` (dann gilt y0 ≥ 0, x0 ≥ 0). VMS-Quelle immer `VB + rand_ofs` (die übersprungenen Bytes am Anfang erledigt Typ 3). Die 6502-Fassung rechnet ofs' mit einem laufenden Zeilenanfang (keine Multiplikation) und bricht ab, sobald r ≥ B.
+Sprites (only at the window, 5.8) and bands with an edge are cut with `clip_image` (P5b 6). Target of a core: `AP + row[line] + column`; target of a clipped VMS list: `AP + row[cy0] + cx0`; unclipped `AP + row[y0] + x0` (then y0 ≥ 0, x0 ≥ 0 applies). VMS source always `VB + edge_ofs` (the skipped bytes at the start are handled by type 3). The 6502 version computes ofs' with a running line start (no multiplication) and aborts as soon as r ≥ B.
 
-### 5.10 Größenrechnung und Überlauf
+### 5.10 Size calculation and overflow
 
-Der Sichtdurchlauf führt `nv` (VCL-Bytes, Start 1 für das Ende-Byte) und `nm` (VMS-Bytes); Puffergröße BL = B1 − B0. Je Eintrag sind seine Größen **exakt** bekannt: Kerne 11 Byte (Typ 2) bzw. 13 (Typ 3) nach dem Beschneiden, Typ 4 = 7, Typ 5 = 11, VMS-Eintrag 7 + Listenlänge (bei beschnittenen Listen durch einen Probelauf von `clip_image` ohne Schreiben ermittelt).
+The visibility pass keeps `nv` (VCL bytes, start 1 for the end byte) and `nm` (VMS bytes); buffer size BL = B1 − B0. For each entry its sizes are known **exactly**: cores 11 bytes (type 2) or 13 (type 3) after clipping, type 4 = 7, type 5 = 11, VMS entry 7 + list length (for clipped lists determined by a trial run of `clip_image` without writing).
 
 ```
 add(item):
-    if Anzahl == MAXITEM:                      → A = 2, STOP
-    if nv + item.v + nm + item.m <= BL:        annehmen
+    if count == MAXITEM:                       → A = 2, STOP
+    if nv + item.v + nm + item.m <= BL:        accept
     elif item.m > 0 and item.v > 7 and nv + item.v - 7 + nm <= BL:
-                                               annehmen ohne Rand, partial = 1
-    elif item.m > 0 and item.v == 7:           verwerfen, partial = 1 (weiter)
+                                               accept without edge, partial = 1
+    elif item.m > 0 and item.v == 7:           discard, partial = 1 (continue)
     else:                                      → A = 2, STOP
 ```
 
-Feste Listenadresse (P6j): BL = B1 − B0 − 3 (Sprung bei B0), sonst unverändert.
+Fixed list address (P6j): BL = B1 − B0 − 3 (jump at B0), otherwise unchanged.
 
-- Abbruch verliert die **hinteren** Teile (der Durchlauf geht vorne → hinten). Bänder und Tapete einer Tiefe kommen nach deren Zellen; bricht es dort ab, bleiben Zeilen der Tiefe ungezeichnet (alter Bildinhalt). Das ist ein Fehlerzustand (A = 2), kein Normalfall; Spiele messen ihre Szenen (Bericht `dbeview budget`, 9.1).
-- A = 2 hat Vorrang vor A = 3.
+- Aborting loses the **rear** parts (the pass goes front → back). Bands and wallpaper of a depth come after its cells; if it aborts there, rows of that depth remain undrawn (old image content). This is an error state (A = 2), not a normal case; games measure their scenes (report `dbeview budget`, 9.1).
+- A = 2 takes precedence over A = 3.
 
-### 5.11 Ausgabe (hinten → vorne)
+### 5.11 Output (back → front)
 
-**Einpass (P6d-opt):** Es gibt keine Sichtliste mehr. Jeder angenommene Eintrag wird beim Sichtdurchlauf sofort geschrieben: seine VMS-Liste aufwärts ab dem VMS-Zeiger (Start B0), seine VCL-Einträge in Erzeugungsreihenfolge **abwärts** vom VCL-Zeiger (Start B1 − 1 mit dem Ende-Byte 0). Die Liste ab VCLADR ist damit die umgekehrte Erzeugungsreihenfolge: hinten → vorne, und innerhalb eines Eintrags ebenfalls umgekehrt (erst die VMS-Liste, dann die Kerne rückwärts; pixelgleich, weil Kerne und Rand bzw. ZEILEN-Gruppen und Tapetenteile disjunkt sind, P5 4.4). VCLADR = B1 − nv, VCLLEN = nv, VMSLEN = nm, X = min(Anzahl VCL-Einträge, 255).
+**Single pass (P6d-opt):** There is no visibility list any more. Each accepted entry is written immediately during the visibility pass: its VMS list upward from the VMS pointer (start B0), its VCL entries in generation order **downward** from the VCL pointer (start B1 − 1 with the end byte 0). The list from VCLADR is thus the reverse generation order: back → front, and within an entry likewise reversed (first the VMS list, then the cores backwards; pixel-identical, because cores and edge or ROWS groups and wallpaper parts are disjoint, P5 4.4). VCLADR = B1 − nv, VCLLEN = nv, VMSLEN = nm, X = min(number of VCL entries, 255).
 
-Überlauf: Reicht beim Schreiben der freie Raum (VCL-Zeiger − VMS-Zeiger) nicht, wird der Eintrag zurückgenommen, im Zählmodus genau gemessen und nach 5.10 entschieden (annehmen, ohne Rand, verwerfen, STOP); die Regel und damit die Ergebnisse sind unverändert.
+Overflow: If the free space (VCL pointer − VMS pointer) is not sufficient while writing, the entry is withdrawn, measured exactly in counting mode and decided according to 5.10 (accept, without edge, discard, STOP); the rule and thus the results are unchanged.
 
-Feste Listenadresse (P6j): VMS-Zeiger ab B0 + 3; bei B0 steht schon vor dem Durchlauf das Typ-Byte 10, am Ende kommt die Adresse B1 − nv dazu. VCLADR = P0 = B0.
+Fixed list address (P6j): VMS pointer from B0 + 3; at B0 the type byte 10 is already in place before the pass, and at the end the address B1 − nv is added. VCLADR = P0 = B0.
 
-Im Spiel: `SYS3331,4,...:RREG A:::VCL PEEK(3072)+256*PEEK(3073)` (P0 = VCLADR); mit fester Listenadresse `::VCL VB` mit VB = B0 (Ergebnis P6j).
+In the game: `SYS3331,4,...:RREG A:::VCL PEEK(3072)+256*PEEK(3073)` (P0 = VCLADR); with fixed list address `::VCL VB` with VB = B0 (result P6j).
 
-## 6. Ausgabe-VCL-Typen
+## 6. Output VCL types
 
-Alle Parameter als Wort (Low/High), auch Bytewerte (VDC-BASIC `vcl-format.md`).
+All parameters as a word (low/high), including byte values (VDC-BASIC `vcl-format.md`).
 
-| Typ | Länge | Felder | Verwendung |
+| Type | Length | Fields | Use |
 |---|---|---|---|
-| 2 | 11 | src, dst, count, reps, step = stride | Kerne mit srcstep 0 **oder srcstep = count** (P6h; Quelle läuft ohnehin hinter dem vorigen Lauf weiter) |
-| 3 | 13 | src, dst, count, reps, step = stride, srcstep | Kerne mit srcstep ∉ {0, count}, beschnittene Kerne (Teilbreite), Tapete (srcstep P, immer Typ 3) |
-| 4 | 7 | vaddr, byte, count | Zeilenfüllung, eine Zeile |
-| 5 | 11 | vaddr, byte, count, reps, step = stride | Zeilenfüllung, mehrere gleiche Zeilen |
-| 12 | 7 | src, dst, list | Rand (VMS) beschnitten; Liste im Puffer, Befehle Typ 1, 3, 8 (Build `VMS_COPY`: auch unbeschnittene) |
-| 9 | 7 | src, dst, list (Bank 1) | Rand (VMS) unbeschnitten (Wände, Kacheln, Bänder voller Breite, Sprites): Liste direkt aus Bank 1 (6a) |
-| 0 | 1 | – | Ende |
+| 2 | 11 | src, dst, count, reps, step = stride | Cores with srcstep 0 **or srcstep = count** (P6h; the source continues behind the previous run anyway) |
+| 3 | 13 | src, dst, count, reps, step = stride, srcstep | Cores with srcstep ∉ {0, count}, clipped cores (partial width), wallpaper (srcstep P, always type 3) |
+| 4 | 7 | vaddr, byte, count | Row fill, one row |
+| 5 | 11 | vaddr, byte, count, reps, step = stride | Row fill, several equal rows |
+| 12 | 7 | src, dst, list | Edge (VMS) clipped; list in the buffer, commands type 1, 3, 8 (build `VMS_COPY`: also unclipped) |
+| 9 | 7 | src, dst, list (bank 1) | Edge (VMS) unclipped (walls, tiles, full-width bands, sprites): list directly from bank 1 (6a) |
+| 0 | 1 | – | End |
 
-Nicht benutzt: 1, 6, 7, 8 (`RXV` lädt das Spiel), 13. Grenzen: reps ≤ 100 (VH), count ≤ 80, VMS-Typ-1-Länge ≤ 255.
+Not used: 1, 6, 7, 8 (`RXV` is loaded by the game), 13. Limits: reps ≤ 100 (VH), count ≤ 80, VMS type 1 length ≤ 255.
 
-## 6a. Vorschlag VDC-BASIC: VCL-Typ 9 „VMS aus Bank 1“ (P6d-opt, Entscheidung 2)
+## 6a. Proposal VDC-BASIC: VCL type 9 "VMS from bank 1" (P6d-opt, decision 2)
 
-**Vorläufig:** Die Lesemethode ist offen (VDC-BASIC P2d). Liest VDC-BASIC nicht direkt mit `$FF00 = $7E` (sein Code ab `$2000` liegt nicht im gemeinsamen RAM), sondern z. B. per FETCH oder über einen Zwischenpuffer im gemeinsamen RAM, bleibt die Engine-Seite gleich (Eintrag mit Bank-1-Adresse, Build-Schalter `VMS_BANK1`); Typnummer und Bereichsregel werden dann an P2d angepasst. Die Zyklen mit `VMS_BANK1` messen nur die Engine; die Kosten verschieben sich in die VCL-Ausführung und sind erst mit P6g (VIEW + VCL) vergleichbar.
+**Provisional:** The read method is open (VDC-BASIC P2d). If VDC-BASIC does not read directly with `$FF00 = $7E` (its code from `$2000` does not lie in the shared RAM), but e.g. via FETCH or an intermediate buffer in the shared RAM, the engine side stays the same (entry with bank 1 address, build switch `VMS_BANK1`); type number and range rule are then adapted to P2d. The cycles with `VMS_BANK1` measure only the engine; the costs shift into the VCL execution and are comparable only with P6g (VIEW + VCL).
 
-| Byte | Inhalt |
+| Byte | Contents |
 |---|---|
 | 0 | 9 |
-| 1–2 | source: VRAM-Adresse der Randbytes (= VB + rand_ofs) |
-| 3–4 | target: VRAM-Bezugsadresse (wie Typ 12) |
-| 5–6 | list: Adresse der VMS-Liste in **CPU-RAM Bank 1** |
+| 1–2 | source: VRAM address of the edge bytes (= VB + edge_ofs) |
+| 3–4 | target: VRAM reference address (like type 12) |
+| 5–6 | list: address of the VMS list in **CPU RAM bank 1** |
 
-- Listenformat unverändert wie Typ 12 (`vms-format.md`: Alpha, Anzahl, Befehle; die Engine erzeugt 1, 3, 8).
-- Die Liste liegt ganz in Bank 1 `$4000–$CFFF` oder `$E000–$FEFF` (Engine-Vorgabe seit P6g: `$E000–$FBFF`, Blitz!-Runtime, 2.4; nie in `$D000–$DFFF`, nie unter `$4000`: VDC-BASIC schaltet für Typ 9 das gemeinsame RAM kurz auf 16 KB unten, P2d). Die Engine prüft das in `TEXSET` und `SPRITESET` (Adresse < `$4000` → A = 6; nicht im Build `VMS_COPY`); Typ 9 belegt keine Pufferbytes. VDC-BASIC liest sie mit `$FF00 = $7E` (Bank 1 mit I/O, VDC-Register erreichbar; Schleife im gemeinsamen RAM `$1C00–$1FFF`) und stellt danach seine Konfiguration wieder her. Interrupts dürfen laufen (Kernal-Weiche in Bank 1 `$FF05–$FFFF`, wie beim Stub).
-- Die Engine schreibt Typ 9 nur für **unbeschnittene** Listen (Wand-/Kachelbilder, Bänder in voller Breite, unbeschnittene Sprites): list = Inhaltsanfang des DTS bzw. S2 + vofs. Beschnittene Listen bleiben Typ 12 im Puffer. Typ 9 belegt keine Pufferbytes (m = 0 in 5.10; „ohne Rand“ und „verwerfen“ gelten nur für Listen im Puffer).
-- Engine: **Standard** seit dem P6e-Review (VDC-BASIC P2d abgenommen); der alte Weg (Kopie, Typ 12) bleibt als Build-Schalter `VMS_COPY` (`ca65 -DVMS_COPY`, kostet im Standardbuild nichts, sim testet beide). Referenz: `Scene.vms_bank1` (Vorgabe noch `False` = `VMS_COPY`, weil die Demo-Assets nicht in die Bereiche von 2.4 passen und sich Bank-1-Adressen sonst überlappen), `Scene.dts_addr`, `Scene.s2_addr` (`None`: dicht ab `$7000`); `run_vcl(..., bank1=...)` führt Typ 9 aus.
+- List format unchanged as for type 12 (`vms-format.md`: alpha, count, commands; the engine generates 1, 3, 8).
+- The list lies entirely in bank 1 `$4000–$CFFF` or `$E000–$FEFF` (engine default since P6g: `$E000–$FBFF`, Blitz! runtime, 2.4; never in `$D000–$DFFF`, never below `$4000`: for type 9 VDC-BASIC briefly switches the shared RAM to 16 KB at the bottom, P2d). The engine checks this in `TEXSET` and `SPRITESET` (address < `$4000` → A = 6; not in build `VMS_COPY`); type 9 occupies no buffer bytes. VDC-BASIC reads them with `$FF00 = $7E` (bank 1 with I/O, VDC registers reachable; loop in the shared RAM `$1C00–$1FFF`) and then restores its configuration. Interrupts may run (Kernal switch in bank 1 `$FF05–$FFFF`, as with the stub).
+- The engine writes type 9 only for **unclipped** lists (wall/tile images, full-width bands, unclipped sprites): list = content start of the DTS or S2 + vofs. Clipped lists remain type 12 in the buffer. Type 9 occupies no buffer bytes (m = 0 in 5.10; "without edge" and "discard" apply only to lists in the buffer).
+- Engine: **default** since the P6e review (VDC-BASIC P2d accepted); the old way (copy, type 12) remains as build switch `VMS_COPY` (`ca65 -DVMS_COPY`, costs nothing in the default build, sim tests both). Reference: `Scene.vms_bank1` (default still `False` = `VMS_COPY`, because the demo assets do not fit into the areas of 2.4 and bank 1 addresses would otherwise overlap), `Scene.dts_addr`, `Scene.s2_addr` (`None`: tightly from `$7000`); `run_vcl(..., bank1=...)` executes type 9.
 
-## 7. Grenzen
+## 7. Limits
 
-| Größe | Grenze | bei Überschreitung |
+| Quantity | Limit | on exceeding |
 |---|---|---|
-| DVG | NE ≤ 255 (keine Kopie, die Lib liest die Tabelle direkt; 0.1-`MAXWS` entfällt, review-notes C.3), VW ≤ 80, VH ≤ 100, D ≤ 7, S ≤ 15 (P6d: höchstens 31 Zellen je Tiefe) | GEOMSET A = 1 |
-| DTS | NST ≤ 32 (Stilzeilentabelle, P6d) | TEXSET A = 1 |
+| DVG | NE ≤ 255 (no copy, the lib reads the table directly; 0.1 `MAXWS` is dropped, review-notes C.3), VW ≤ 80, VH ≤ 100, D ≤ 7, S ≤ 15 (P6d: at most 31 cells per depth) | GEOMSET A = 1 |
+| DTS | NST ≤ 32 (style row table, P6d) | TEXSET A = 1 |
 | DBG | P ≥ 1 | BGSET A = 1 |
-| Wartebereich je Tiefe | 16 deckende Seiten bzw. Fronten ohne DVG-Bit 3 | GEOMSET A = 1 (P6d-opt; vorher VIEW A = 2) |
-| Elementtabelle (GEOMSET, P6d-opt) | first + n ≤ NE, Art ≤ 4, \|s\| ≤ S, Zellen zusammenhängend (P3 5.3), ≤ 16 Elemente und ≤ 1 Boden- bzw. Deckenelement je Zelle, Art 0–3: x + w ≤ VW, y + h ≤ VH, Wände: c0 ≤ c1 ≤ VW; ≤ 48 Zellen und ≤ 96 Wände gesamt | GEOMSET A = 1, keine gültige Geometrie; `dbeview.parse_dvg` ViewError |
-| Einträge je VIEW | MAXITEM = 96 | A = 2 |
-| Puffer | BL (Standard 2304) für VCL + VMS zusammen | A = 2 bzw. 3 (5.10) |
-| Objektliste | 16 | mehr wird ignoriert |
-| Objektplätze je Zelle (Art 4) | beliebig viele (innerhalb der 16 Elemente); Zellentabelle: erster und letzter | – |
-| Sprite-Sätze | 8 | A = 6 |
-| Kerne je Bild | 16 (DTS und S2) | Lib verarbeitet nk, wie angegeben; Werkzeuge begrenzen |
-| Karte | W, H ≤ 255, W·H ≤ 16384 | MAPINIT A = 1 |
+| Pending area per depth | 16 occluding sides or fronts without DVG bit 3 | GEOMSET A = 1 (P6d-opt; previously VIEW A = 2) |
+| Element table (GEOMSET, P6d-opt) | first + n ≤ NE, kind ≤ 4, \|s\| ≤ S, cells contiguous (P3 5.3), ≤ 16 elements and ≤ 1 floor or ceiling element per cell, kind 0–3: x + w ≤ VW, y + h ≤ VH, walls: c0 ≤ c1 ≤ VW; ≤ 48 cells and ≤ 96 walls in total | GEOMSET A = 1, no valid geometry; `dbeview.parse_dvg` ViewError |
+| Entries per VIEW | MAXITEM = 96 | A = 2 |
+| Buffer | BL (default 2304) for VCL + VMS together | A = 2 or 3 (5.10) |
+| Object list | 16 | more is ignored |
+| Object slots per cell (kind 4) | any number (within the 16 elements); cell table: first and last | – |
+| Sprite sets | 8 | A = 6 |
+| Cores per image | 16 (DTS and S2) | Lib processes nk as given; tools limit |
+| Map | W, H ≤ 255, W·H ≤ 16384 | MAPINIT A = 1 |
 
-## 8. Zyklenziele (sim65, Westwood 140 × 96, D = 3)
+## 8. Cycle targets (sim65, Westwood 140 × 96, D = 3)
 
-| Fall | Ziel |
+| Case | Target |
 |---|---|
-| Crawl auf 0.2 (P7-Daten), alle Ansichten | ≤ 2 × 0.1 (0.1: 10 813–14 191) |
-| Gang mit deckenden Wänden, einheitliche Bänder, keine Objekte | Mittel ≤ 30 000, max ≤ 45 000 |
-| offene Szene: gemischte Kacheln, Lücken, Tapete mit WRAP, Gitter | max ≤ 80 000 |
-| je sichtbares Objekt (unbeschnitten / beschnitten) | ≤ 2 500 / ≤ 4 000 + 12 je kopiertem bzw. geprüftem Listenbyte |
-| `MAPINIT`, `GEOMSET`, `TEXSET` | ≤ 20 000 (einmalig; MAPINIT ohne Arbeitskopie) |
+| Crawl on 0.2 (P7 data), all views | ≤ 2 × 0.1 (0.1: 10 813–14 191) |
+| Corridor with occluding walls, uniform bands, no objects | mean ≤ 30 000, max ≤ 45 000 |
+| open scene: mixed tiles, gaps, wallpaper with WRAP, grating | max ≤ 80 000 |
+| per visible object (unclipped / clipped) | ≤ 2 500 / ≤ 4 000 + 12 per copied or checked list byte |
+| `MAPINIT`, `GEOMSET`, `TEXSET` | ≤ 20 000 (once; MAPINIT without working copy) |
 
-Verfehlte Ziele sind ein Befund mit Messwerten, kein Abnahmehindernis für P6d/P6e; P6f optimiert die teuersten Teile (Profil über sim65-Zähler je Abschnitt). Die VDC-Zeit der Liste misst P6g in VICE.
+Missed targets are a finding with measured values, not an acceptance obstacle for P6d/P6e; P6f optimizes the most expensive parts (profile via sim65 counters per section). The VDC time of the list is measured by P6g in VICE.
 
-## 9. Testkonzept
+## 9. Test concept
 
-### 9.1 Python-Referenz `tools/dbeview.py`
+### 9.1 Python reference `tools/dbeview.py`
 
-Unabhängig von der 6502-Fassung geschrieben (P6b, vor P6d), aus dieser Spezifikation:
+Written independently of the 6502 version (P6b, before P6d), from this specification:
 
 ```python
 class Scene: dvg, dmp, dts[3], dbg, bgfill, farfill (P6l), s2[8], vram_bases, itemtab, objects, itemph, pos, dir, ap, buf=(0x1300, 0x1C00)
-def view(scene) -> Result            # a, x, vcl (bytes ab B0), vms (bytes), vcllen, vmslen, objvis – bytegenau nach Abschnitt 5
-def run_vcl(bank0, vram, addr)        # VCL-Interpreter: Typen 1–8, 12, 13 (13 = nichts), VMS 1, 2, 3, 8; RXV über vrl.decode
-def paint_reference(scene, vram)      # unabhängiger Maler ohne Abdeckung und Spannen
+def view(scene) -> Result            # a, x, vcl (bytes from B0), vms (bytes), vcllen, vmslen, objvis – byte-exact according to section 5
+def run_vcl(bank0, vram, addr)        # VCL interpreter: types 1–8, 12, 13 (13 = nothing), VMS 1, 2, 3, 8; RXV via vrl.decode
+def paint_reference(scene, vram)      # independent painter without coverage and spans
 def load_scene(toml) ; def random_scene(seed, ...) ; def budget(scene_list)
 ```
 
-- **`paint_reference`** malt in Plan-Reihenfolge (5.2 letzter Absatz) **alles**, was nach Karte und Stilen existiert, ohne `cover`/`bcov`, ohne Spannen (Bänder volle Breite, Tapete volle Breite), Sprites nur am Fenster beschnitten. Bausteine: `dbetex.render` (Einträge), `dbetex.render_background` (Tapete), `dbespr.render_image` (Sprites). Die Bänder-Entscheidung (einheitlich, gemischt, Lücke) ist dieselbe wie in 5.6.
-- **Pixelprüfung:** `run_vcl(view(scene))` = `paint_reference(scene)` im Sichtfenster, für alle Szenen, in denen jedes Sprite höchstens so hoch ist wie die Wand seiner Tiefe (5.4). Damit ist bewiesen, dass Abdeckung, Spannen und Beschneiden unsichtbar sind. Außerhalb des Fensters wird kein VRAM-Byte verändert (Prüfung über das ganze 64-KB-Feld mit Zufallsinhalt).
-- **Antwort auf die Frage „dbetex-Renderer als Referenz?“:** `dbetex.render`/`preview` zeichnet nur Einträge, keine Szene; er ist Baustein von `paint_reference`, nicht die Referenz selbst. Die Bytes der Liste prüft `view`, die Pixel prüft `run_vcl` gegen `paint_reference`.
-- `budget(scenes)`: größte nv + nm, Einträge, Warnung bei A ≠ 0 – für Spielszenen (Werkzeug für Leveldesigner).
+- **`paint_reference`** paints in plan order (5.2 last paragraph) **everything** that exists according to map and styles, without `cover`/`bcov`, without spans (bands full width, wallpaper full width), sprites clipped only at the window. Building blocks: `dbetex.render` (entries), `dbetex.render_background` (wallpaper), `dbespr.render_image` (sprites). The band decision (uniform, mixed, gap) is the same as in 5.6.
+- **Pixel check:** `run_vcl(view(scene))` = `paint_reference(scene)` in the viewport, for all scenes in which every sprite is at most as tall as the wall of its depth (5.4). This proves that coverage, spans and clipping are invisible. Outside the window no VRAM byte is changed (check over the entire 64 KB field with random contents).
+- **Answer to the question "dbetex renderer as reference?":** `dbetex.render`/`preview` draws only entries, not a scene; it is a building block of `paint_reference`, not the reference itself. `view` checks the bytes of the list, `run_vcl` checks the pixels against `paint_reference`.
+- `budget(scenes)`: largest nv + nm, entries, warning for A ≠ 0 – for game scenes (tool for level designers).
 
-### 9.2 sim65: Listenvergleich 6502 ↔ Python
+### 9.2 sim65: list comparison 6502 ↔ Python
 
-- `test/sim/sim.cfg` neu: Programm `$2000–$4FFF`; Daten an ihren Bank-1-Adressen nach 2.4 (sim65 hat einen flachen 64-KB-Speicher; `$D000–$DFFF` bleibt frei wie in der echten Karte). Parameterblock und Puffer wie auf dem C128.
-- Harness `test/sim/viewsim.c` neu: liest eine **Szenendatei** (Segmente Adresse/Länge/Daten, dann Aufrufe: F, X, Y, P0–P3, Objektliste, ITEMPH) über die sim65-Dateifunktionen, führt die Aufrufe aus und schreibt je Aufruf A, X, Y, P0–P3, Parameterblock `$0C08–$0C11` und bei `VIEW` den Puffer (B0 … B0 + nv + nm) in eine Ergebnisdatei. Viele Ansichten je sim65-Lauf.
-- `test/sim/run_sim.py`: erzeugt Szenendateien aus Python-Szenen, baut (cl65, `--asm-define SIM`), startet sim65, vergleicht mit `dbeview.view` **bytegenau**; bei Abweichung: erste abweichende Stelle als dekodierter VCL-Eintrag beider Seiten.
-- Zyklen: sim65 liefert nur die Summe eines Laufs. Messung wie 0.1 als Differenz zweier Läufe (mit/ohne VIEW) für eine Stichprobe von Ansichten; Profil je Abschnitt über `SIM`-Zählpunkte (P6f).
+- `test/sim/sim.cfg` new: program `$2000–$4FFF`; data at their bank 1 addresses according to 2.4 (sim65 has a flat 64 KB memory; `$D000–$DFFF` remains free as in the real map). Parameter block and buffer as on the C128.
+- Harness `test/sim/viewsim.c` new: reads a **scene file** (segments address/length/data, then calls: F, X, Y, P0–P3, object list, ITEMPH) via the sim65 file functions, executes the calls and writes per call A, X, Y, P0–P3, parameter block `$0C08–$0C11` and, for `VIEW`, the buffer (B0 … B0 + nv + nm) into a result file. Many views per sim65 run.
+- `test/sim/run_sim.py`: generates scene files from Python scenes, builds (cl65, `--asm-define SIM`), starts sim65, compares with `dbeview.view` **byte-exactly**; on deviation: first deviating position as a decoded VCL entry of both sides.
+- Cycles: sim65 delivers only the sum of a run. Measurement as in 0.1 as the difference of two runs (with/without VIEW) for a sample of views; profile per section via `SIM` count points (P6f).
 
-### 9.3 Szenen und Karten
+### 9.3 Scenes and maps
 
-| Satz | Inhalt |
+| Set | Contents |
 |---|---|
-| demo | `docs/specs/examples/demo.toml` mit den P5-Beispieltexturen (ziegel, gitter, fenster, bogen; stein, holz; himmel mit WRAP) und P5b-Demo-Sprites; alle freien Zellen × 4 Richtungen; je Ansicht 0, 1 und 5 Objekte (fester Seed) |
-| abgrund | demo-Variante mit Zellen ohne Boden/Decke (Lücken, review-notes D.6) und blockierten Zellen mit Boden 0 |
-| zufall | 200 Zufallskarten 8 × 8 … 24 × 24 (Kacheln mit zufälligen Stilen, Flags, Lücken; Außenkachel zufällig), je 20 Ansichten, bis 16 Objekte inkl. Bit 6/7, Gegenstände, ITEMPH |
-| rand | Sprites gezielt an Fensterrändern (s = ±1, ±2, d = 1 … 3, alle p), teilweise verdeckt, über dem oberen Rand |
-| überlauf | `BUFSET` mit 64, 128, 256, 512, 1024 Byte auf demo- und Gitter-Szenen: A, Kürzung hinten, Ränder weggelassen, Liste immer korrekt abgeschlossen und ausführbar |
-| fehler | Formatfehler, falsche ID/Art/Stride, Reihenfolge (E_STATE), Bereiche (E_RANGE), unbekannte F |
+| demo | `docs/specs/examples/demo.toml` with the P5 example textures (brick, grating, window, arch; stone, wood; sky with WRAP) and P5b demo sprites; all free cells × 4 directions; per view 0, 1 and 5 objects (fixed seed) |
+| abyss | demo variant with cells without floor/ceiling (gaps, review-notes D.6) and blocked cells with floor 0 |
+| random | 200 random maps 8 × 8 … 24 × 24 (tiles with random styles, flags, gaps; outer tile random), 20 views each, up to 16 objects incl. bit 6/7, items, ITEMPH |
+| edge | Sprites deliberately at window edges (s = ±1, ±2, d = 1 … 3, all p), partially occluded, above the top edge |
+| overflow | `BUFSET` with 64, 128, 256, 512, 1024 bytes on demo and grating scenes: A, truncation at the rear, edges omitted, list always correctly terminated and executable |
+| error | Format errors, wrong ID/kind/stride, order (E_STATE), ranges (E_RANGE), unknown F |
 
-### 9.4 VICE-Szenen
+### 9.4 VICE scenes
 
-`test/vice_view.py` (Portregel review-notes A: `--port`, `DBE_VICE_PORT`, Standard 6631, Bereich 6631–6649, bind-Test, nur eigener Prozess, `-remotemonitor -remotemonitoraddress ip4://127.0.0.1:<port>`):
+`test/vice_view.py` (port rule review-notes A: `--port`, `DBE_VICE_PORT`, default 6631, range 6631–6649, bind test, own process only, `-remotemonitor -remotemonitoraddress ip4://127.0.0.1:<port>`):
 
-- Disk: `BOOT` (VDC-BASIC v3, Zeile 50 `RUN"T"`), `VDCBASIC3`, Stub, Lib, DVG, DMP, DTS/DBG/S2 mit VRL, Testprogramm `T` (BASIC) und Szenentabelle (PRG in Bank 0 über dem Programm).
-- `T`: lädt alles (`BLOAD`, `RXV` der VRL in den Pool), GEOMSET/TEXSET/BGSET/SPRITESET/ITEMSET, dann je Szene: SETPOS, Objektliste, `VIEW`, `::VCL 4864`, `::VTR` der Fensterzeilen in einen Bank-0-Puffer, dann `SYS` auf eine Marke (RTS bei `$0C4E`).
-- Ereignisgesteuert: Haltepunkt auf der Marke → Monitor liest Puffer und VCL-Liste (`bank ram`), Haltepunkt auf dem BASIC-Fehlervektor `($0300)` → Abbruch mit Zeilennummer; Timeout nur als Wächter. Keine festen Wartezeiten.
-- Vergleich: Fenster-Bytes = `dbeview.run_vcl` derselben Szene; VCL-Liste = sim65-Ergebnis. Zeit: Stoppuhr an Marken vor und nach `VIEW` und `VCL` (Zyklen), Bericht je Szene.
-- Interpretiert und als Blitz!-Kompilat (Image 2, `test/blitzprep.py` aus vdc-basic).
+- Disk: `BOOT` (VDC-BASIC v3, line 50 `RUN"T"`), `VDCBASIC3`, stub, lib, DVG, DMP, DTS/DBG/S2 with VRL, test program `T` (BASIC) and scene table (PRG in bank 0 above the program).
+- `T`: loads everything (`BLOAD`, `RXV` of the VRL into the pool), GEOMSET/TEXSET/BGSET/SPRITESET/ITEMSET, then per scene: SETPOS, object list, `VIEW`, `::VCL 4864`, `::VTR` of the window rows into a bank 0 buffer, then `SYS` to a marker (RTS at `$0C4E`).
+- Event-driven: breakpoint on the marker → monitor reads buffer and VCL list (`bank ram`), breakpoint on the BASIC error vector `($0300)` → abort with line number; timeout only as a guard. No fixed wait times.
+- Comparison: window bytes = `dbeview.run_vcl` of the same scene; VCL list = sim65 result. Time: stopwatch at markers before and after `VIEW` and `VCL` (cycles), report per scene.
+- Interpreted and as Blitz! compilation (image 2, `test/blitzprep.py` from vdc-basic).
 
 ### 9.5 Crawl (P7)
 
-Pixelgleichheit von Crawl auf 0.2 mit den 19 Testbildern und den 10 Geisterszenen aus Schritt 1/1b (Screenshot-Vergleich wie `vice_drive.py`, das dafür die Portregel übernimmt). Voraussetzung ist der Konverter aus P7 (Crawl-DVG mit zwei Fronten je Zelle (2, ±1)/(3, ±1), Crawl-DTS nur mit Kernen, S2 für Geister und Edelstein, Tapete = Füllbyte 0). Die Lib verarbeitet beliebig viele Elemente je Zelle in DVG-Reihenfolge; P6 testet das mit einer synthetischen DVG (9.3 zufall: doppelte Fronten).
+Pixel equality of Crawl on 0.2 with the 19 test images and the 10 ghost scenes from step 1/1b (screenshot comparison as `vice_drive.py`, which adopts the port rule for this). Prerequisite is the converter from P7 (Crawl DVG with two fronts per cell (2, ±1)/(3, ±1), Crawl DTS with cores only, S2 for ghosts and gem, wallpaper = fill byte 0). The lib processes any number of elements per cell in DVG order; P6 tests this with a synthetic DVG (9.3 random: double fronts).
 
-## 10. Teilschritte
+## 10. Sub-steps
 
-| Schritt | Inhalt | Abnahme | Modell |
+| Step | Contents | Acceptance | Model |
 |---|---|---|---|
-| **P6a** Gerüst | Stub mit 8 KB gemeinsam (`$06`), `LIB = $B000`, `lib.cfg` (Code `$B000`, BSS `$E000`), `dbe.inc` (Adressen 2.2/2.3, Fehlercodes 3.1), Dispatcher mit Tabelle 3 (Rest `E_NOTIMPL`), INIT, POOLSET, BUFSET; neue `sim.cfg`, Harness mit Szenen-/Ergebnisdatei, `run_sim.py`-Gerüst; VICE-Rauchtest mit `BOOT` v3: INIT über den Stub, danach `VMW`/`RXV` funktionieren, Interrupts laufen (Jiffy-Uhr zählt während eines langen Aufrufs weiter), Bank 0 `$1C00–$3FFF` unverändert (Prüfsumme); Blitz!-Variablenlage in Bank 1 ermitteln (Abschnitt 12) | Build fehlerfrei, Größen aus der Map; sim: INIT/BUFSET/POOLSET-Ergebnisse; VICE-Rauchtest grün (interpretiert und Blitz!), Portregel | Sonnet |
-| **P6b** Python-Referenz | `tools/dbeview.py` (9.1): erst Wände, Bänder, Kacheln, Tapete, Überlauf; Sprites, sobald P5b fertig ist; `test/tools/test_dbeview.py` | Pixelprüfung grün für alle demo-, abgrund- und zufall-Szenen; kein Byte außerhalb des Fensters; Überlaufregeln; Unklarheiten der Spezifikation als Liste an Opus | Sonnet (Review Opus) |
-| **P6c** Karte und Assets | MAPINIT, SETPOS, CELL, SETCELL, SETITEM, GEOMSET (Zeilentabelle, origin, Löschen bei ID-Wechsel), TEXSET, BGSET, SPRITESET, ITEMSET mit allen Prüfungen 3.2 | sim: Rückgaben und gespeicherte Werte (über einen SIM-Dump der BSS) gegen das Python-Modell; Fehlerfälle 9.3 | Sonnet |
-| **P6d** VIEW ohne Objekte | Abschnitte 5.1–5.7, 5.9 (Bänder mit Rand), 5.10, 5.11 | sim65 bytegleich mit `dbeview` für demo, abgrund, zufall (ohne Objekte), überlauf; Zyklen als Befund | Opus |
-| **P6e** Objekte | 5.8, `clip_image` in 6502 (Kerne, VMS mit Typ 3, Probelauf), OBJVIS, Gegenstände, ITEMPH | sim65 bytegleich für alle Szenen 9.3 inkl. rand; Zyklen je Objekt | Opus |
-| **P6f** MOVE, Automap, Zyklen | MOVE (3.4), Automap-Bit 6 (Zellen mit angenommenem Wand- oder Kachel-Eintrag bzw. nicht ganz verdecktem Boden-Element, nur mit MAPINIT X Bit 0 und Arbeitskopie), Profil, Optimierung der teuersten Abschnitte | sim: MOVE-Tabelle aller Fälle; Zyklen gegen Abschnitt 8 (Bericht); Lib-Größe | Sonnet; Messläufe Haiku |
-| **P6g** VICE-Szenen | `test/vice_view.py` (9.4), 30 Szenen aus demo/abgrund/rand, interpretiert und kompiliert | VRAM-Fenster = Python, VCL = sim65, Zeiten im Bericht; keine festen Wartezeiten | Sonnet (Skript), Haiku (Läufe) |
-| **P6h** Doku | `docs/formats.md`: Funktionstabelle, Parameterblock, Speicherkarte, S2-Verweis; Standard-Ladeadressen der Werkzeuge (2.4) mit Tests nachziehen; DVG-Flag Bit 3 in `dbegeom` | Tests der Werkzeuge grün, Beispiele neu erzeugt | Sonnet |
+| **P6a** Skeleton | Stub with 8 KB shared (`$06`), `LIB = $B000`, `lib.cfg` (code `$B000`, BSS `$E000`), `dbe.inc` (addresses 2.2/2.3, error codes 3.1), dispatcher with table 3 (rest `E_NOTIMPL`), INIT, POOLSET, BUFSET; new `sim.cfg`, harness with scene/result file, `run_sim.py` skeleton; VICE smoke test with `BOOT` v3: INIT via the stub, afterwards `VMW`/`RXV` work, interrupts run (jiffy clock keeps counting during a long call), bank 0 `$1C00–$3FFF` unchanged (checksum); determine the Blitz! variable layout in bank 1 (section 12) | Build error-free, sizes from the map; sim: INIT/BUFSET/POOLSET results; VICE smoke test green (interpreted and Blitz!), port rule | Sonnet |
+| **P6b** Python reference | `tools/dbeview.py` (9.1): first walls, bands, tiles, wallpaper, overflow; sprites as soon as P5b is done; `test/tools/test_dbeview.py` | Pixel check green for all demo, abyss and random scenes; no byte outside the window; overflow rules; ambiguities of the specification as a list to Opus | Sonnet (review Opus) |
+| **P6c** Map and assets | MAPINIT, SETPOS, CELL, SETCELL, SETITEM, GEOMSET (row table, origin, clearing on ID change), TEXSET, BGSET, SPRITESET, ITEMSET with all checks 3.2 | sim: return values and stored values (via a SIM dump of the BSS) against the Python model; error cases 9.3 | Sonnet |
+| **P6d** VIEW without objects | Sections 5.1–5.7, 5.9 (bands with edge), 5.10, 5.11 | sim65 byte-identical with `dbeview` for demo, abyss, random (without objects), overflow; cycles as a finding | Opus |
+| **P6e** Objects | 5.8, `clip_image` in 6502 (cores, VMS with type 3, trial run), OBJVIS, items, ITEMPH | sim65 byte-identical for all scenes 9.3 incl. edge; cycles per object | Opus |
+| **P6f** MOVE, automap, cycles | MOVE (3.4), automap bit 6 (cells with an accepted wall or tile entry or a not completely occluded floor element, only with MAPINIT X bit 0 and working copy), profile, optimization of the most expensive sections | sim: MOVE table of all cases; cycles against section 8 (report); lib size | Sonnet; measurement runs Haiku |
+| **P6g** VICE scenes | `test/vice_view.py` (9.4), 30 scenes from demo/abyss/edge, interpreted and compiled | VRAM window = Python, VCL = sim65, times in the report; no fixed wait times | Sonnet (script), Haiku (runs) |
+| **P6h** Docs | `docs/formats.md`: function table, parameter block, memory map, S2 reference; update standard load addresses of the tools (2.4) with tests; DVG flag bit 3 in `dbegeom` | Tool tests green, examples regenerated | Sonnet |
 
-Reihenfolge: P5b ∥ P6a ∥ P6b (Wände); P6c nach P6a; P6d nach P6b (Wände) und P6c; P6e nach P5b und P6d; P6f, P6g nach P6e; P6h jederzeit nach P6c (die Werkzeugänderungen DVG-Bit 3 und Ladeadressen vor P6d, weil sie Testdaten ändern). P7 nach P6g.
+Order: P5b ∥ P6a ∥ P6b (walls); P6c after P6a; P6d after P6b (walls) and P6c; P6e after P5b and P6d; P6f, P6g after P6e; P6h any time after P6c (the tool changes DVG bit 3 and load addresses before P6d, because they change test data). P7 after P6g.
 
-## 11. Änderungen an anderen Spezifikationen (umsetzen in P6h bzw. P5b)
+## 11. Changes to other specifications (implement in P6h or P5b)
 
-| Wo | Änderung | Grund |
+| Where | Change | Reason |
 |---|---|---|
-| P3 (`dbegeom`) | DVG-Flag Bit 3 „Bandabdeckung“ für Fronten (5.1); Standard `load` `$E800` | 5.2, Speicherkarte |
-| P4 (`dbemap`, `crawlmap`) | Standard-Ladeadresse `$4000` (P6h; Karte F: `$5000`) | Speicherkarte |
-| P5 (`dbetex`) | `max_kerns` 0 … 4 (`dbespr` bis 16); `vms_buffer` → Prüfung „VCL + VMS je Bild gegen den gemeinsamen Puffer 2304“; Standard `load` Wand `$8000`, Boden `$EE00`, Decke `$F600`, DBG `$FB00` (P6h; Karte F: `$9000`, `$F000`, `$F800`, `$FE00`, nach P6g `$EE00`, `$F600`, `$FB00`); `sim_vms` Typ 3 (P5b) | review-notes G.1–G.3 |
-| P5 4.4/4.6 | Formatregel VMS-Listen (Zeilenreihenfolge, steigender ofs, Lauf in einer Zeile) ausdrücklich | Beschneiden, G.7 |
-| `engine-design.md` | Funktionstabelle, Speicher 3.1 → Verweis auf P6 (P8) | – |
+| P3 (`dbegeom`) | DVG flag bit 3 "band coverage" for fronts (5.1); default `load` `$E800` | 5.2, memory map |
+| P4 (`dbemap`, `crawlmap`) | Default load address `$4000` (P6h; map F: `$5000`) | memory map |
+| P5 (`dbetex`) | `max_cores` 0 … 4 (`dbespr` up to 16); `vms_buffer` → check "VCL + VMS per image against the shared buffer 2304"; default `load` wall `$8000`, floor `$EE00`, ceiling `$F600`, DBG `$FB00` (P6h; map F: `$9000`, `$F000`, `$F800`, `$FE00`, after P6g `$EE00`, `$F600`, `$FB00`); `sim_vms` type 3 (P5b) | review-notes G.1–G.3 |
+| P5 4.4/4.6 | Format rule for VMS lists (row order, increasing ofs, run within one row) explicitly | Clipping, G.7 |
+| `engine-design.md` | Function table, memory 3.1 → reference to P6 (P8) | – |
 
-## 12. Offene Punkte
+## 12. Open points
 
-1. **Blitz!-Variablen in Bank 1 – geprüft in P6a, Ergebnis: Karte F bleibt** (P6h: `MEMSIZ` jetzt `$4000`, `POKE 58,64`, 15 KB für Variablen; das Ergebnis gilt gleich, `test/vice_blitzvars.py` und die Rauchtests nutzen `$4000`). Messung mit `test/vice_blitzvars.py` (VICE, Haltepunkte an zwei `SYS`-Marken; Bank 1 `$5000–$FEFF` vorher mit `$A5` gefüllt, danach auf Änderungen geprüft; Zeiger `$2D–$3A` gelesen), Programme „passt“ (Felder 3 KB, 61 Strings, Müllsammlung) und „Stress“ (Strings bis `OUT OF MEMORY`), je interpretiert und als Blitz!-Kompilat (Image 2, über `BOOT`):
-   - Variablen, Felder und Strings liegen **nur in Bank 1** (BASIC 7: Variablenbereich ab `VARTAB` = `$0400`, Felder dahinter, Strings von `MEMSIZ` (`$39/$3A`) nach unten). Das Kompilat verhält sich gleich; die ersten geänderten Bytes liegen bei `$0402` (Skalare der Runtime, 7-Byte-Plätze laut Blitz!-Analyse), Felder dahinter.
-   - **Vorgabe ohne Begrenzung:** `MEMSIZ` = `$FF00` (interpretiert) bzw. **`$FC00` (Blitz!)**; die Strings wachsen von dort nach unten (im Test bis `$5A84`, im Stresstest bis ins Variablengebiet). Ohne Begrenzung belegen Strings also Bank 1 `$5000–$FBFF`, genau dort, wo Karte F die Spieldaten ablegt.
-   - **Die Blitz!-Runtime respektiert `$39/$3A`:** `POKE 57,0:POKE 58,80:CLR` als **erste Anweisung** (vor jeder Variablenbenutzung; `CLR` löscht alle Variablen) setzt `MEMSIZ` und `FRETOP` auf `$5000`. Mit Begrenzung blieb Bank 1 `$5000–$FEFF` in allen Läufen **unverändert (0 Byte)**, auch im Stresstest, der mit `?OUT OF MEMORY` (Fehler 16) endete, wenn Felder und Strings die 19 KB `$0400–$4FFF` füllten (interpretiert und kompiliert gleich). Obergrenze der Strings = `$4FFF`.
-   - Folge: Das Spiel beginnt mit `POKE 57,0:POKE 58,80:CLR` (in `crawl.bas` und jedem Testprogramm, ebenso im kompilierten Programm; Zeile 10 der Tests), dann liegen alle Variablen in `$0400–$4FFF`. Mit dem Stub (8 KB gemeinsam) sind `$0400–$1FFF` von Bank 1 während des Aufrufs nicht sichtbar, die Lib berührt sie nicht (nicht eigens getestet; die Lib schreibt nur in den Bereich `$0C00–$1BFF`, den Bank 0 und die Sicht der Lib teilen, und der Rauchtest prüft Bank 0 `$1C00–$3FFF`).
-   - Ein Watchpoint auf Bank-1-Adressen war nicht nötig: Das Füllmuster zeigt jede Änderung, unabhängig vom Befehl, der sie schreibt.
-2. **Residente VMS-Listen** (TEXSET/SPRITESET kopieren die Listen einmal in einen Bank-0-Bereich über dem Programm; `VIEW` verweist nur noch darauf, außer bei beschnittenen Listen): spart je Bild das Kopieren und entschärft den Puffer bei Gittern. Nicht in P6; Entscheidung nach den Messungen aus P6f/P6g.
-3. **Ladepuffer des Spiels** in Bank 0 für VRL (Plan 3 „Zu prüfen“): P7.
+1. **Blitz! variables in bank 1 – checked in P6a, result: map F stays** (P6h: `MEMSIZ` now `$4000`, `POKE 58,64`, 15 KB for variables; the result applies equally, `test/vice_blitzvars.py` and the smoke tests use `$4000`). Measurement with `test/vice_blitzvars.py` (VICE, breakpoints at two `SYS` markers; bank 1 `$5000–$FEFF` filled with `$A5` beforehand, afterwards checked for changes; pointers `$2D–$3A` read), programs "fits" (arrays 3 KB, 61 strings, garbage collection) and "stress" (strings up to `OUT OF MEMORY`), each interpreted and as Blitz! compilation (image 2, via `BOOT`):
+   - Variables, arrays and strings lie **only in bank 1** (BASIC 7: variable area from `VARTAB` = `$0400`, arrays behind it, strings from `MEMSIZ` (`$39/$3A`) downward). The compilation behaves the same; the first changed bytes are at `$0402` (scalars of the runtime, 7-byte slots according to the Blitz! analysis), arrays behind them.
+   - **Default without limit:** `MEMSIZ` = `$FF00` (interpreted) or **`$FC00` (Blitz!)**; the strings grow from there downward (in the test down to `$5A84`, in the stress test into the variable area). Without a limit strings thus occupy bank 1 `$5000–$FBFF`, exactly where map F stores the game data.
+   - **The Blitz! runtime respects `$39/$3A`:** `POKE 57,0:POKE 58,80:CLR` as the **first statement** (before any variable use; `CLR` clears all variables) sets `MEMSIZ` and `FRETOP` to `$5000`. With a limit, bank 1 `$5000–$FEFF` stayed **unchanged (0 bytes)** in all runs, also in the stress test, which ended with `?OUT OF MEMORY` (error 16) when arrays and strings filled the 19 KB `$0400–$4FFF` (interpreted and compiled the same). Upper limit of the strings = `$4FFF`.
+   - Consequence: The game begins with `POKE 57,0:POKE 58,80:CLR` (in `crawl.bas` and every test program, likewise in the compiled program; line 10 of the tests), then all variables lie in `$0400–$4FFF`. With the stub (8 KB shared), `$0400–$1FFF` of bank 1 is not visible during the call, the lib does not touch it (not specifically tested; the lib writes only to the area `$0C00–$1BFF`, which bank 0 and the lib's view share, and the smoke test checks bank 0 `$1C00–$3FFF`).
+   - A watchpoint on bank 1 addresses was not necessary: the fill pattern shows every change, regardless of the instruction that writes it.
+2. **Resident VMS lists** (TEXSET/SPRITESET copy the lists once into a bank 0 area above the program; `VIEW` only refers to them, except for clipped lists): saves the copying per image and defuses the buffer for gratings. Not in P6; decision after the measurements from P6f/P6g.
+3. **Load buffer of the game** in bank 0 for VRL (plan 3 "To be checked"): P7.
 
-## 12a. Festlegungen der Referenz `dbeview.py` (P6b)
+## 12a. Determinations of the reference `dbeview.py` (P6b)
 
-Beim Schreiben der Referenz entschieden; die 6502-Fassung folgt der Referenz:
+Decided while writing the reference; the 6502 version follows the reference:
 
-1. **X** (Ergebnis von `VIEW`) = Zahl der VCL-Einträge **ohne** das Ende-Byte (höchstens 255).
-2. **Leere Sprite-Einträge:** Bleibt nach dem Beschneiden weder Kern noch Rand übrig (z. B. nur transparente Bytes im Ausschnitt), wird nichts angehängt und OBJVIS nicht gesetzt.
-3. **Boden-/Deckenkacheln:** Die Maske schließt die Randpixel ein, benachbarte Trapeze überlappen sich an ihrer Kante. Bei verschiedenen Bildern entscheidet die Malreihenfolge: außen → innen (= umgekehrte DVG-Reihenfolge, so malt die Ausgabe von 5.6 Schritt 5).
-4. **DVG-Bit 3** setzt `dbegeom` seit P6h (vorher: nie); die Referenz und ihre Tests behandeln beide Fälle (Bit fehlt: Fronten tragen `bcov` erst am Tiefenende ein, Pixel gleich).
-5. **VMS Typ 2** (nicht von der Engine erzeugt) nimmt den Zeilenschritt aus VDC-Register 1; `run_vcl` hat dafür den Parameter `rowstep` (80).
-6. **`clip_image`:** Der Zeilenabstand der VMS-Offsets (Stride) ist ein zusätzlicher Parameter (P5b 6 nennt ihn nicht; `dbespr.clip_image(…, stride)` und `dbeview.clip_image(img, stride, …)` liefern dieselben Werte, im Test geprüft).
-7. **Puffer:** Szenen mit Kachelbildern, deren Bytes fast alle Rand sind (Muster mit Löchern in jedem Byte, z. B. 18 Kacheln Boden + 18 Decke), brauchen über 6 KB VMS; die 2 304 Byte reichen dort nicht (A = 2). Das ist ein Budgetfall für Spiele (`dbeview budget`), kein Fehler der Referenz.
-8. **Pixelgleichheit gilt nur für A = 0** und Sprites, die nicht höher sind als ihre Wand und mit der Fußzeile am unteren Bildrand stehen (5.4).
+1. **X** (result of `VIEW`) = number of VCL entries **without** the end byte (at most 255).
+2. **Empty sprite entries:** If neither core nor edge remains after clipping (e.g. only transparent bytes in the clip rectangle), nothing is appended and OBJVIS is not set.
+3. **Floor/ceiling tiles:** The mask includes the edge pixels, adjacent trapezoids overlap at their edge. With different images the paint order decides: outside → inside (= reverse DVG order, which is how the output of 5.6 step 5 paints).
+4. **DVG bit 3** is set by `dbegeom` since P6h (before: never); the reference and its tests handle both cases (bit missing: fronts enter `bcov` only at the end of the depth, pixels identical).
+5. **VMS type 2** (not generated by the engine) takes the row step from VDC register 1; `run_vcl` has the parameter `rowstep` (80) for this.
+6. **`clip_image`:** The row distance of the VMS offsets (stride) is an additional parameter (P5b 6 does not mention it; `dbespr.clip_image(…, stride)` and `dbeview.clip_image(img, stride, …)` return the same values, checked in the test).
+7. **Buffer:** Scenes with tile images whose bytes are almost all edge (patterns with holes in every byte, e.g. 18 floor tiles + 18 ceiling), need over 6 KB VMS; the 2 304 bytes are not sufficient there (A = 2). This is a budget case for games (`dbeview budget`), not an error of the reference.
+8. **Pixel equality applies only for A = 0** and sprites that are not taller than their wall and stand with the foot row at the bottom edge of the image (5.4).
 
-## Entscheidungen des Nutzers (2026-11-25)
+## Decisions of the user (2026-11-25)
 
-1. BASIC-Variablen in Bank 1 auf `$0400–$4FFF` begrenzen (ca. 19 KB reichen). P6a prüft, wo ein Blitz!-Kompilat seine Variablen ablegt, und setzt die String-Obergrenze.
-2. WALLSET/SPRITESET v1 entfallen ohne Kompatibilitätspfad; Crawl kommt in P7 per Konverter.
-3. MOVE, CELL und Automap-Bit bleiben in P6 (P6f).
-4. Neues Kachel-Flag „Inhalt zeichnen“ in DMP (P4 erweitern): Wandzellen mit diesem Flag (Tür, Gitter, Bogen) zeichnen Seitenfläche, dann ihre Objekte nach Unterposition, dann die Front. Betrifft P4 (Flag-Bit festlegen, dbemap), P6d/P6e (VIEW) und dbeview.
-5. VMS-Listen fest in Bank 0 statt Kopie je Bild: nach den Messungen entscheiden.
+1. Limit BASIC variables in bank 1 to `$0400–$4FFF` (about 19 KB suffice). P6a checks where a Blitz! compilation stores its variables and sets the string upper limit.
+2. WALLSET/SPRITESET v1 are dropped without a compatibility path; Crawl comes in P7 via a converter.
+3. MOVE, CELL and automap bit remain in P6 (P6f).
+4. New tile flag "draw content" in DMP (extend P4): wall cells with this flag (door, grating, arch) draw side face, then their objects by sub-position, then the front. Affects P4 (define flag bit, dbemap), P6d/P6e (VIEW) and dbeview.
+5. VMS lists permanently in bank 0 instead of a copy per image: decide after the measurements.
 
-## Ergebnis P6a (2026-11-25)
+## Result P6a (2026-11-25)
 
-Umgesetzt: Stub mit `RCR_LIB = $06`, `LIB = $B000`, `lib.cfg` (Code `$B000` 8 KB, `LIBBSS` `$E000` 2 KB), `dbe.inc` (2.2/2.3, 3.1), Dispatcher mit Tabelle 3 (F ≥ 17 und alle noch nicht umgesetzten F: `E_NOTIMPL`), `INIT`, `POOLSET`, `BUFSET`; sim65-Harness (`test/sim/viewsim.c`, `sim.cfg`, `run_sim.py`); VICE-Rauchtest (`test/vice_smoke.py`, `test/vice/smoke.bas`); Blitz!-Messung (`test/vice_blitzvars.py`). `VERSION` = 0.2 (Dateien `dbe0.2.stub`, `dbe0.2.lib`).
+Implemented: stub with `RCR_LIB = $06`, `LIB = $B000`, `lib.cfg` (code `$B000` 8 KB, `LIBBSS` `$E000` 2 KB), `dbe.inc` (2.2/2.3, 3.1), dispatcher with table 3 (F ≥ 17 and all F not yet implemented: `E_NOTIMPL`), `INIT`, `POOLSET`, `BUFSET`; sim65 harness (`test/sim/viewsim.c`, `sim.cfg`, `run_sim.py`); VICE smoke test (`test/vice_smoke.py`, `test/vice/smoke.bas`); Blitz! measurement (`test/vice_blitzvars.py`). `VERSION` = 0.2 (files `dbe0.2.stub`, `dbe0.2.lib`).
 
-Größen (`build/*.map`): Lib-Code 322 Byte (`$B000–$B141`), Lib-Variablen 11 Byte, Stub 132 Byte. Die Schätzung 2.6 (≈ 5,1 KB Code) bleibt unberührt, die 8 KB sind reichlich.
+Sizes (`build/*.map`): lib code 322 bytes (`$B000–$B141`), lib variables 11 bytes, stub 132 bytes. The estimate 2.6 (≈ 5.1 KB code) remains untouched, the 8 KB are ample.
 
-Festlegungen, die die Spezifikation offen ließ:
-- `INIT` löscht zusätzlich `ITEMPH`…`OBJVIS` (`$0C08–$0C11`) und setzt `VCLADR` = `$1300`.
-- `POOLSET`: Poolanfang ≥ Poolende (Ende ≠ 0) gibt `E_RANGE` (6) und lässt den alten Pool stehen (3 nennt nur A = 0).
-- Die Lib hat im Normalbuild keine Testfunktionen; `build.sh` baut zusätzlich `dbe0.2-test.lib` mit `-DDBE_TEST`: F = 250 (liefert `$D506 AND $0F`, `$FF00`, ein Byte aus `$1300`, schreibt `$A5` nach `$1301`) und F = 251 (Warteschleife, P0 × etwa 1300 Zyklen). Nur für den Rauchtest.
-- Der Rauchtest prüft: `$D506` = x6 und `$FF00 = $7E` im Aufruf, Lesen und Schreiben von Bank 0 bis `$1FFF` aus der Lib, Jiffy-Uhr zählt in einem Aufruf von etwa 1 Mio. Zyklen weiter (30–120 Jiffies), Prüfsumme Bank 0 `$1C00–$3FFF` unverändert, `BUFSET` über den Stub, danach `VMW`, `VMD`, `RXV` (interpretiert und Blitz! Image 2).
+Determinations that the specification left open:
+- `INIT` additionally clears `ITEMPH`…`OBJVIS` (`$0C08–$0C11`) and sets `VCLADR` = `$1300`.
+- `POOLSET`: pool start ≥ pool end (end ≠ 0) gives `E_RANGE` (6) and leaves the old pool in place (3 mentions only A = 0).
+- In the normal build the lib has no test functions; `build.sh` additionally builds `dbe0.2-test.lib` with `-DDBE_TEST`: F = 250 (returns `$D506 AND $0F`, `$FF00`, one byte from `$1300`, writes `$A5` to `$1301`) and F = 251 (wait loop, P0 × about 1300 cycles). Only for the smoke test.
+- The smoke test checks: `$D506` = x6 and `$FF00 = $7E` in the call, reading and writing bank 0 up to `$1FFF` from the lib, jiffy clock keeps counting in a call of about 1 million cycles (30–120 jiffies), checksum bank 0 `$1C00–$3FFF` unchanged, `BUFSET` via the stub, then `VMW`, `VMD`, `RXV` (interpreted and Blitz! image 2).
 
-## Ergebnis P6c (2026-11-25)
+## Result P6c (2026-11-25)
 
-Umgesetzt in `engine/lib.s`: `MAPINIT`, `SETPOS`, `CELL`, `SETCELL`, `SETITEM`, `ITEMSET`, `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET` mit den Prüfungen aus 3.2. Lib-Code gesamt 2174 Byte (P6a: 322), BSS 512 Byte (`$E000–$E1FF`). Code je Funktion (Byte, einschließlich eigener Verzweigungen): `MAPINIT` 419, `SETPOS` 49, `CELL` 75, `SETCELL`/`SETITEM` 59, `ITEMSET` 29, `GEOMSET` 356, `TEXSET` 121, `BGSET` 107, `SPRITESET` 178; gemeinsame Hilfen (Kopfprüfung, Pool, Satz füllen, Zellzeiger, Kachel-Flags, px/py) etwa 500; Prüftabellen 68. Zyklen (reine Funktion, ohne Harness-Aufwand geschätzt): `MAPINIT` etwa 1 000 (7 × 5; Kopie je Byte etwa 16), `GEOMSET` etwa 5 500, `TEXSET` etwa 300; Ziel 8 (≤ 20 000) erfüllt.
+Implemented in `engine/lib.s`: `MAPINIT`, `SETPOS`, `CELL`, `SETCELL`, `SETITEM`, `ITEMSET`, `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET` with the checks from 3.2. Lib code total 2174 bytes (P6a: 322), BSS 512 bytes (`$E000–$E1FF`). Code per function (bytes, including own branches): `MAPINIT` 419, `SETPOS` 49, `CELL` 75, `SETCELL`/`SETITEM` 59, `ITEMSET` 29, `GEOMSET` 356, `TEXSET` 121, `BGSET` 107, `SPRITESET` 178; common helpers (header check, pool, fill set, cell pointer, tile flags, px/py) about 500; check tables 68. Cycles (pure function, estimated without harness overhead): `MAPINIT` about 1 000 (7 × 5; copy per byte about 16), `GEOMSET` about 5 500, `TEXSET` about 300; target 8 (≤ 20 000) met.
 
-Festlegungen, die die Spezifikation offen ließ:
-- Fehlerreihenfolge: `E_STATE` (Karte bzw. Geometrie fehlt), `E_RANGE` (Satz-/Artnummer, Zelle), `E_FORMAT` (Magic, Version, feste Längen, Art ≠ X, NST = 0, NA ∉ 1…4, NP = 0), `E_GEOM` (ID, NE, D, Stride, VW, VH), `E_RANGE` (Pool). **Art-Byte ≠ X ist `E_FORMAT`** (3.1 ordnet es nicht zu).
-- `MAPINIT` setzt `map_ok` zuerst auf 0: nach einem Fehler (A = 1) liefern `CELL`/`SETPOS`/… `E_STATE`. Zusätzlich zu 3 geprüft: Startzelle < W·H, Richtung ≤ 3, Außenkachel < NT, Offsets lückenlos (24, +W·H, +W·H, +8·NT, +4·NE) und Gesamtlänge ohne 16-Bit-Überlauf. Rückgabe: X = W, Y = H, P0 = Startzelle, P1 = Startrichtung; X Bit 0 wird als `map_auto` gespeichert.
-- Arbeitskopie: P1 ≠ 0 kopiert beide Ebenen (2·W·H Byte). Ohne Kopie schreiben `SETCELL`/`SETITEM` **in die DMP selbst**.
-- `SETPOS`: Richtung > 3 gibt `E_RANGE` (Position unverändert). `CELL` außerhalb: A = 6, X = Außenkachel, Y = 0, **P1 = Flags der Außenkachel**.
-- `GEOMSET`: zusätzlich VW ≥ 1 und VH ≥ 1 (sonst `E_FORMAT`; VH = 0 würde die Zeilentabelle zerstören). Löschen bei anderer ID: alle DTS und die DBG; S2-Sätze mit ID ≠ 0 bei anderer ID, S2-Sätze mit ID 0 nur bei anderem D oder Stride. Rückgabe X = Bits der gelöschten S2-Sätze, Y = Bits 0–2 DTS, Bit 3 DBG. Bei A = 1 bleibt der Zustand unverändert.
-- Gespeichert (3.2): je DTS/S2-Satz 16 Byte (`recs`): gültig, VRAM-Basis, NS/NA, NST/NP, ID (S2), Inhaltsanfang, drei absolute Tabellenadressen (DTS: Slotkarte, Stiltabelle, Verzeichnis; S2: Indextabelle, Verzeichnis, Kerntabelle). Kerne und VMS-Listen braucht `VIEW` nicht als Tabellenadresse: die Verzeichniseinträge enthalten inhaltsrelative Offsets (Inhaltsanfang + Offset); `angle_map` (S2-Kopf 12–15) liest `VIEW` über Inhaltsanfang + festen Kopfversatz. Abweichung von 3.2 („liest nie Kopf-Offsets“): nur feste Kopffelder, keine Offsetwörter. DBG: Basis, VRAM-Basis, P, y0, h, Flags; `o_v` und Füllbytes über die Basis. Karte: absolute Adressen von Kachelebene, Inhaltsebene, Kacheltabelle, Ereignissen; DVG: Tiefen- und Elementtabelle, Zeilentabelle (200 Byte).
-- `BGSET` speichert X immer als Füllbyte (auch mit DBG); `P0 = 0` und `TEXSET`/`SPRITESET` mit `P0 = 0` löschen auch ohne `GEOMSET` (A = 0).
-- Test: `test/sim/run_sim.py` (P6c sim A: Geometrie und Assets mit den Demo-Daten, Fehler- und Pool-Fälle, ID-Wechsel; B: Karte `demo.toml` mit/ohne Arbeitskopie; C: Karten 128 × 128, 255 × 64, 1 × 255, 255 × 1 mit NT = 256 usw.). Vergleich der BSS-Werte gegen aus den Dateien berechnete Erwartungen.
+Determinations that the specification left open:
+- Error order: `E_STATE` (map or geometry missing), `E_RANGE` (set/kind number, cell), `E_FORMAT` (magic, version, fixed lengths, kind ≠ X, NST = 0, NA ∉ 1…4, NP = 0), `E_GEOM` (ID, NE, D, stride, VW, VH), `E_RANGE` (pool). **Kind byte ≠ X is `E_FORMAT`** (3.1 does not assign it).
+- `MAPINIT` sets `map_ok` to 0 first: after an error (A = 1) `CELL`/`SETPOS`/… return `E_STATE`. Additionally checked beyond 3: start cell < W·H, direction ≤ 3, outer tile < NT, offsets gapless (24, +W·H, +W·H, +8·NT, +4·NE) and total length without 16-bit overflow. Return: X = W, Y = H, P0 = start cell, P1 = start direction; X bit 0 is stored as `map_auto`.
+- Working copy: P1 ≠ 0 copies both layers (2·W·H bytes). Without a copy `SETCELL`/`SETITEM` write **into the DMP itself**.
+- `SETPOS`: direction > 3 gives `E_RANGE` (position unchanged). `CELL` outside: A = 6, X = outer tile, Y = 0, **P1 = flags of the outer tile**.
+- `GEOMSET`: additionally VW ≥ 1 and VH ≥ 1 (otherwise `E_FORMAT`; VH = 0 would destroy the row table). Clearing on a different ID: all DTS and the DBG; S2 sets with ID ≠ 0 on a different ID, S2 sets with ID 0 only on a different D or stride. Return X = bits of the cleared S2 sets, Y = bits 0–2 DTS, bit 3 DBG. With A = 1 the state remains unchanged.
+- Stored (3.2): per DTS/S2 set 16 bytes (`recs`): valid, VRAM base, NS/NA, NST/NP, ID (S2), content start, three absolute table addresses (DTS: slot map, style table, directory; S2: index table, directory, core table). `VIEW` does not need cores and VMS lists as a table address: the directory entries contain content-relative offsets (content start + offset); `angle_map` (S2 header 12–15) is read by `VIEW` via content start + fixed header offset. Deviation from 3.2 ("never reads header offsets"): only fixed header fields, no offset words. DBG: base, VRAM base, P, y0, h, flags; `o_v` and fill bytes via the base. Map: absolute addresses of tile layer, content layer, tile table, events; DVG: depth and element table, row table (200 bytes).
+- `BGSET` always stores X as fill byte (also with DBG); `P0 = 0` and `TEXSET`/`SPRITESET` with `P0 = 0` also clear without `GEOMSET` (A = 0).
+- Test: `test/sim/run_sim.py` (P6c sim A: geometry and assets with the demo data, error and pool cases, ID change; B: map `demo.toml` with/without working copy; C: maps 128 × 128, 255 × 64, 1 × 255, 255 × 1 with NT = 256 etc.). Comparison of the BSS values against expectations computed from the files.
 
-## Ergebnis P6d (2026-11-25)
+## Result P6d (2026-11-25)
 
-Umgesetzt: `VIEW` ohne Objekte in `engine/view.s` (eingebunden von `lib.s`): Abschnitte 5.1–5.7, 5.9 (Bänder mit Rand über `clip_image`: Kerne und VMS-Liste mit Typ 3, Probelauf für die Größe), 5.10, 5.11. Objektplätze rufen `objekte` auf (P6e, noch leer); `clip_image` ist allgemein (Bildlage x0/y0, Ausschnitt L/R/T/B, T·stride) und für Sprites wiederverwendbar.
+Implemented: `VIEW` without objects in `engine/view.s` (included by `lib.s`): sections 5.1–5.7, 5.9 (bands with edge via `clip_image`: cores and VMS list with type 3, trial run for the size), 5.10, 5.11. Object slots call `objects` (P6e, still empty); `clip_image` is general (image position x0/y0, clip rectangle L/R/T/B, T·stride) and reusable for sprites.
 
-Aufbau: Sichtdurchlauf vorne → hinten; jeder Eintrag kommt mit seinen Parametern in die Sichtliste (8 Felder × 96, je ein Array). Seine Größe liefert derselbe Erzeuger wie die Ausgabe im Zählmodus (keine getrennte Größenrechnung, damit nv/nm immer zur Ausgabe passen). STOP setzt den Stapelzeiger zurück und springt in die Ausgabe. Zellen werden je Tiefe einmal berechnet (feste Achse je Tiefe, Seitenachse je Zelle); Boden/Decke/blocked je Zelle und das Boden-/Deckenelement je Zelle merkt sich der Zellendurchlauf, `baender` läuft über Zellen (Fallback: alle Elemente, wenn eine Zelle zwei Boden- oder Deckenelemente hat). `spans(bcov)` wird zwischengespeichert, bis `bcov` sich ändert. Blockkopie der VMS-Listen mit selbstmodifizierendem Code (`vcopy`).
+Structure: visibility pass front → back; each entry enters the visibility list with its parameters (8 fields × 96, one array each). Its size is delivered by the same generator as the output in counting mode (no separate size calculation, so that nv/nm always match the output). STOP resets the stack pointer and jumps into the output. Cells are computed once per depth (fixed axis per depth, side axis per cell); floor/ceiling/blocked per cell and the floor/ceiling element per cell are remembered by the cell pass, `bands` runs over cells (fallback: all elements if a cell has two floor or ceiling elements). `spans(bcov)` is cached until `bcov` changes. Block copy of the VMS lists with self-modifying code (`vcopy`).
 
-Umsetzung der Entscheidungen aus dem P6c-Review:
-1. `TEXSET` legt je Stil die Adresse der Stilzeile ab (`sty_lo/hi[Art · 32 + st]`); `resolve` rechnet kein st · NS. Dafür neu geprüft: NST ≤ 32 (sonst A = 1).
-2. S2-Satz: `recs+14` = NA · D (für den Index (f · NA + ai) · D + d − 1 in P6e), `recs+15` = 0; die Kerntabellenadresse entfällt.
-3. `MAPINIT`: Arbeitskopie nur in `$4000 ≤ P1` und `P1 + 2·W·H ≤ $B000` (ohne 16-Bit-Überlauf), sonst A = 6 und keine gültige Karte (wie bei A = 1). Test: genau unter `$B000` ok; ein Byte darüber, ab `$B000`, BSS, DVG, I/O, unter `$4000`, `$2000`, `$0400`, Überlauf: A = 6 und danach `CELL` A = 5. Die untere Grenze `$4000` ist im sim65-Harness nicht positiv testbar (dort liegt das Programm).
-4. Synthetische DVG mit zwei Fronten je Zelle: `dbeview.double_fronts(assets)` (jede Front der Tiefen ≥ 1 doppelt, um −1/+1/0 Spalten verschoben, abwechselnd direkt dahinter oder hinter der Seite: F, S, F′ prüft die INHALT-Reihenfolge) und `dbeview.dvg_bytes(dvg)`; `test_dbeview.TestDoubleFronts` (Pixel demo × 4 Richtungen × Bit 3, Zufall) und sim-Vergleich (Abschnitt „zwei Fronten“).
+Implementation of the decisions from the P6c review:
+1. `TEXSET` stores the address of the style row per style (`sty_lo/hi[kind · 32 + st]`); `resolve` does not compute st · NS. For this newly checked: NST ≤ 32 (otherwise A = 1).
+2. S2 set: `recs+14` = NA · D (for the index (f · NA + ai) · D + d − 1 in P6e), `recs+15` = 0; the core table address is dropped.
+3. `MAPINIT`: working copy only in `$4000 ≤ P1` and `P1 + 2·W·H ≤ $B000` (without 16-bit overflow), otherwise A = 6 and no valid map (as with A = 1). Test: exactly below `$B000` ok; one byte above, from `$B000`, BSS, DVG, I/O, below `$4000`, `$2000`, `$0400`, overflow: A = 6 and afterwards `CELL` A = 5. The lower limit `$4000` cannot be tested positively in the sim65 harness (the program lies there).
+4. Synthetic DVG with two fronts per cell: `dbeview.double_fronts(assets)` (every front of depths ≥ 1 doubled, shifted by −1/+1/0 columns, alternately directly behind or behind the side: F, S, F′ checks the CONTENT order) and `dbeview.dvg_bytes(dvg)`; `test_dbeview.TestDoubleFronts` (pixels demo × 4 directions × bit 3, random) and sim comparison (section "two fronts").
 
-Weitere Festlegungen:
-- `GEOMSET` prüft zusätzlich S ≤ 15 (Zellentabelle je Tiefe, 31 Einträge), `BGSET` P ≥ 1 (sonst Endlosschleife bei q mod P); beide A = 1.
-- Wartebereich (pend) 16 Einträge je Tiefe; mehr gibt A = 2 („Tabellen voll“). Die Referenz kennt keine Grenze; in allen Testszenen nicht erreicht.
-- Die Lib-BSS beginnt mit `bss_start` vor allen Variablen (auch denen von `view.s`); `argx` ist exportiert (Tests).
+Further determinations:
+- `GEOMSET` additionally checks S ≤ 15 (cell table per depth, 31 entries), `BGSET` P ≥ 1 (otherwise endless loop at q mod P); both A = 1.
+- Pending area (pend) 16 entries per depth; more gives A = 2 ("tables full"). The reference knows no limit; not reached in any test scene.
+- The lib BSS begins with `bss_start` before all variables (also those of `view.s`); `argx` is exported (tests).
 
-Test (`test/sim/run_sim.py`, `test_p6d`): je Ansicht A, X, Y, P0, VCLADR/VCLLEN/VMSLEN/OBJVIS und der Puffer (VCL + VMS) bytegleich mit `dbeview.view`. Sätze: demo (alle freien Zellen × 4 Richtungen × Bit 3 aus/an, ohne DBG mit Füllbyte, ap `$0123`/`$E200`/`$F800` (Fenster über 65535), origin 123), abgrund, Gang, zufall (Standard 60 Karten × 6 Ansichten, `DBEVIEW_FULL=1` 200 × 20; INHALT, Lücken, blockierte Zellen, Außenkachel, Bit 3 und DBG zufällig, ap ≠ 0, Puffer 2304 bzw. 3840 Byte), überlauf (BUFSET 64 … 1024 Byte: A = 2 und A = 3), zwei Fronten. Ergebnis: 1302 Ansichten (voll: 4942) bytegleich, davon A = 2: 270 (873), A = 3: 20 (69). P6a/P6c weiter grün. Zyklen: Differenz zweier Läufe (VIEW gegen F = 7, neuer stiller Aufrufsatz 4 im Harness).
+Test (`test/sim/run_sim.py`, `test_p6d`): per view A, X, Y, P0, VCLADR/VCLLEN/VMSLEN/OBJVIS and the buffer (VCL + VMS) byte-identical with `dbeview.view`. Sets: demo (all free cells × 4 directions × bit 3 off/on, without DBG with fill byte, ap `$0123`/`$E200`/`$F800` (window across 65535), origin 123), abyss, corridor, random (default 60 maps × 6 views, `DBEVIEW_FULL=1` 200 × 20; CONTENT, gaps, blocked cells, outer tile, bit 3 and DBG random, ap ≠ 0, buffer 2304 or 3840 bytes), overflow (BUFSET 64 … 1024 bytes: A = 2 and A = 3), two fronts. Result: 1302 views (full: 4942) byte-identical, of which A = 2: 270 (873), A = 3: 20 (69). P6a/P6c still green. Cycles: difference of two runs (VIEW against F = 7, new silent call set 4 in the harness).
 
-Größen: Lib-Code 7 960 Byte (`$B000–$CF17`, davon VIEW etwa 5,6 KB), BSS 1 993 Byte (`$E000–$E7C8`). **Befund:** Es bleiben 232 Byte Code und 55 Byte BSS – zu wenig für P6e (Objekte, Sprite-Einträge mit x0/y0/Ausschnitt). Die Schätzung 2.6 (VIEW ≈ 3 KB) ist überschritten, vor allem weil alle Variablen absolut adressiert werden (Zeropage nur `$FA–$FD`).
+Sizes: lib code 7 960 bytes (`$B000–$CF17`, of which VIEW about 5.6 KB), BSS 1 993 bytes (`$E000–$E7C8`). **Finding:** 232 bytes of code and 55 bytes of BSS remain – too little for P6e (objects, sprite entries with x0/y0/clip rectangle). The estimate 2.6 (VIEW ≈ 3 KB) is exceeded, mainly because all variables are addressed absolutely (zero page only `$FA–$FD`).
 
-Zyklen je VIEW (sim65, Demo-Assets 140 × 96, D = 3):
+Cycles per VIEW (sim65, demo assets 140 × 96, D = 3):
 
-| Satz | n | min | Mittel | max | Ziel 8 |
+| Set | n | min | mean | max | Target 8 |
 |---|---|---|---|---|---|
-| Gang, deckend, einheitliche Bänder | 60 | 29 959 | 90 696 | 106 247 | Mittel ≤ 30 000, max ≤ 45 000 |
+| Corridor, occluding, uniform bands | 60 | 29 959 | 90 696 | 106 247 | mean ≤ 30 000, max ≤ 45 000 |
 | demo | 56 | 29 927 | 68 655 | 111 364 | – |
-| zufall (offen, gemischt, Tapete) | 40 | 70 645 | 106 719 | 143 610 | max ≤ 80 000 |
-| zwei Fronten | 28 | 34 950 | 75 829 | 127 974 | – |
+| random (open, mixed, wallpaper) | 40 | 70 645 | 106 719 | 143 610 | max ≤ 80 000 |
+| two fronts | 28 | 34 950 | 75 829 | 127 974 | – |
 
-**Befund:** Ziele verfehlt (Faktor etwa 3 bzw. 1,8). Profil (Gang): Zellendurchlauf und Zellen etwa 16 000, Erzeuger-Vorlauf (Verzeichniseintrag lesen, zweimal je Eintrag) 7 900, VMS-Kopie 5 300, `baender` 4 800, `spans` 3 900, `add` 3 600, `resolve` 3 200. Die Kosten verteilen sich breit (Schleifen über alle Elemente der Tiefe, absolute Adressierung, 16-Bit-Zeigerarithmetik), kein einzelner Engpass. Vorschläge für P6f: mehr Zeropage während `VIEW` (retten/zurückschreiben), vorberechnete Element-/Zellentabellen je Tiefe bei `GEOMSET`, Erzeugerwerte je Eintrag aus dem Zähllauf aufheben, Spannen inkrementell.
+**Finding:** Targets missed (factor about 3 and 1.8). Profile (corridor): cell pass and cells about 16 000, generator prelude (reading directory entry, twice per entry) 7 900, VMS copy 5 300, `bands` 4 800, `spans` 3 900, `add` 3 600, `resolve` 3 200. The costs are spread widely (loops over all elements of the depth, absolute addressing, 16-bit pointer arithmetic), no single bottleneck. Proposals for P6f: more zero page during `VIEW` (save/restore), precomputed element/cell tables per depth at `GEOMSET`, keep generator values per entry from the counting run, spans incrementally.
 
 
-## Entscheidungen nach dem P6d-Review (2026-11-25)
+## Decisions after the P6d review (2026-11-25)
 
-Nutzer:
-1. Lib-Code bis `$DFFF`: der Stub schaltet während des Aufrufs `$FF00 = $7F` (Bank 1 ohne I/O); die Lib greift nicht auf I/O zu.
-2. VMS-Listen werden nicht mehr je Bild nach Bank 0 kopiert: VDC-BASIC v3 bekommt eine Bank-1-Quelle für VMS-Listen (VCL-Typ 12 / VMS). Zyklenziele bleiben 30k/45k/80k.
-3. Zeropage-Block (z. B. `$63–$72`) während `VIEW`, im Stub gerettet und zurückgeschrieben – erst nach Nachweis in VICE (interpretiert und Blitz!, mit IRQ).
+User:
+1. Lib code up to `$DFFF`: the stub sets `$FF00 = $7F` during the call (bank 1 without I/O); the lib does not access I/O.
+2. VMS lists are no longer copied to bank 0 per image: VDC-BASIC v3 gets a bank 1 source for VMS lists (VCL type 12 / VMS). Cycle targets remain 30k/45k/80k.
+3. Zero-page block (e.g. `$63–$72`) during `VIEW`, saved and written back in the stub – only after proof in VICE (interpreted and Blitz!, with IRQ).
 
-Hauptagent (technisch):
-4. VCL-Liste nicht mehr fest bei B0, sondern an einer Adresse, die `VIEW` in P0 zurückgibt (`::VCL` mit diesem Wert).
-5. `$0B00`/`$0E00` als Reserve der Engine.
-6. `BUFSET` auf erlaubte Fenster beschränken (nicht unter `$1300`, nicht über `$1BFF`), `GEOMSET` prüft die Elementtabelle (Zellen zusammenhängend, Grenzen für Wartebereich und Masken) → `E_FORMAT`.
+Main agent (technical):
+4. VCL list no longer fixed at B0, but at an address that `VIEW` returns in P0 (`::VCL` with this value).
+5. `$0B00`/`$0E00` as engine reserve.
+6. Restrict `BUFSET` to allowed windows (not below `$1300`, not above `$1BFF`), `GEOMSET` checks the element table (cells contiguous, limits for pending area and masks) → `E_FORMAT`.
 
-## Ergebnis P6d-opt (2026-11-25)
+## Result P6d-opt (2026-11-25)
 
-Umgesetzt nach `P6d-review.md` und den Entscheidungen oben. Bytegleich mit `dbeview.view` in allen Sätzen (`run_sim.py`: 1322 Ansichten Standard, 1302 mit `VMS_BANK1`; `DBEVIEW_FULL=1`: 4962 bzw. 4942), `test_dbeview.py` grün (auch voll), VICE-Rauchtest und `test/vice_zp.py` grün (interpretiert und Blitz! Image 2).
+Implemented according to `P6d-review.md` and the decisions above. Byte-identical with `dbeview.view` in all sets (`run_sim.py`: 1322 views standard, 1302 with `VMS_BANK1`; `DBEVIEW_FULL=1`: 4962 and 4942), `test_dbeview.py` green (also full), VICE smoke test and `test/vice_zp.py` green (interpreted and Blitz! image 2).
 
-### Maßnahmen und Zyklen (sim65, Mittel/max je Ansicht; ohne Stub, der Stub kostet zusätzlich etwa 450 Zyklen)
+### Measures and cycles (sim65, mean/max per view; without stub, the stub costs about 450 cycles additionally)
 
-| Schritt | Gang Mittel | Gang max | zufall max | mit `VMS_BANK1` (vorläufig, 6a): Gang Mittel / max / zufall max |
+| Step | Corridor mean | Corridor max | random max | with `VMS_BANK1` (provisional, 6a): corridor mean / max / random max |
 |---|---|---|---|---|
-| P6d (Ausgang) | 90 696 | 106 247 | 143 610 | – |
-| 1 Stub `$FF00 = $7F`, Code bis `$DBFF`, LIBTAB | 90 696 | 106 247 | 143 610 | – |
-| 2 Zellentabelle (GEOMSET), nur Wände, allcov vor resolve, `rtab` | 76 163 | 89 833 | 128 326 | – |
-| 3 Einpass (VCL abwärts, VMS aufwärts, Rücknahme bei Überlauf) | 58 654 | 69 791 | 101 343 | 50 242 / 56 403 / 76 100 |
-| 4 Band-Entscheidung im Zellendurchlauf | 52 857 | 64 415 | 95 989 | 44 452 / 51 039 / 68 795 |
-| 5 Zeropage-Block, Intervall-Masken, Kacheltabellen (MAPINIT), direkte Kern-/Zeilenausgabe, `bgoffs` bei BGSET | **41 446** | **52 087** | **83 671** | **33 017 / 38 679 / 54 874** |
-| Ziel (Abschnitt 8) | 30 000 | 45 000 | 80 000 | |
+| P6d (baseline) | 90 696 | 106 247 | 143 610 | – |
+| 1 Stub `$FF00 = $7F`, code up to `$DBFF`, LIBTAB | 90 696 | 106 247 | 143 610 | – |
+| 2 Cell table (GEOMSET), walls only, allcov before resolve, `rtab` | 76 163 | 89 833 | 128 326 | – |
+| 3 Single pass (VCL downward, VMS upward, withdrawal on overflow) | 58 654 | 69 791 | 101 343 | 50 242 / 56 403 / 76 100 |
+| 4 Band decision in the cell pass | 52 857 | 64 415 | 95 989 | 44 452 / 51 039 / 68 795 |
+| 5 Zero-page block, interval masks, tile tables (MAPINIT), direct core/row output, `bgoffs` at BGSET | **41 446** | **52 087** | **83 671** | **33 017 / 38 679 / 54 874** |
+| Target (section 8) | 30 000 | 45 000 | 80 000 | |
 
-Bewertung (Werte mit `VMS_BANK1` vorläufig, nur Engine-Zyklen, 6a): Mit `VMS_BANK1` (VDC-BASIC-Typ 9) sind Gang max und zufall max erfüllt, Gang Mittel liegt 10 % darüber. Ohne Bank-1-Listen kostet allein die Kopie im Gang etwa 8 400 Zyklen (432 VMS-Bytes je Ansicht im Mittel). Der VICE-Nachweis für den Zeropage-Block wurde vor Schritt 2 geführt; die Schritte 2–4 benutzen deshalb schon die Zeiger im Block, Schritt 5 die Einzelwerte.
+Assessment (values with `VMS_BANK1` provisional, engine cycles only, 6a): With `VMS_BANK1` (VDC-BASIC type 9) corridor max and random max are met, corridor mean is 10 % above. Without bank 1 lists the copy alone costs about 8 400 cycles in the corridor (432 VMS bytes per view on average). The VICE proof for the zero-page block was done before step 2; steps 2–4 therefore already use the pointers in the block, step 5 the individual values.
 
-### Festlegungen
+### Determinations
 
-- **Stub/Speicher:** `$FF00 = $7F`; Lib-Code `$B000–$DBFF` (11 KB), LIBTAB `$DC00–$DFFF` (Zellentabelle, Kachelzusammenfassung; INIT löscht sie nicht), BSS `$E000–$E7FF`. Testbuild `lib-test.cfg` (bis `$DBFF` aufgefüllt, Funktion 252 bei `$DB80` prüft Code unter I/O). Funktion 250 schaltet für `$D506` kurz `$7E`.
-- **Zeropage-Block `$63–$72`:** Der Stub rettet ihn bei jedem Aufruf (alle Funktionen) und schreibt ihn zurück. Nachweis `test/vice_zp.py`: 20 lange Aufrufe (Funktion 253 füllt den Block, wartet etwa 330 000 Zyklen, prüft ihn) unter Jiffy/Tastatur, SOUND mit Sweep und MOVSPR; Watchpoint (Lesen/Schreiben) auf `$63–$72` nur zwischen `JSR LIB` und Rückkehr: 640 Treffer, alle aus der Lib (`$FF00 = $7F`), **0 fremde**; danach SIN, STR$, VAL, Division richtig; Gegenprobe `--control` (Watchpoint auf `$A0–$A2`) findet die Kernal-IRQ-Zugriffe. NMI wurde nicht geprüft.
-- **GEOMSET** prüft die Elementtabelle (7) in einem Durchlauf und legt dabei die Zellentabelle an (je Zelle s, erstes Element, Slot, Wandliste, Boden-/Deckenplatz). Fehler in der Elementtabelle: A = 1 und **keine gültige Geometrie** (`geom_ok = 0`; Kopf-Fehler lassen den Zustand wie bisher unverändert). Objektplätze stehen nicht in der Tabelle (P6e ergänzt sie). `dbeview.parse_dvg` prüft dasselbe (`check_elems`).
-- **BUFSET:** Fenster `$1300–$1BFF`; `BIGBUF` der Tests ist damit der Standardpuffer.
-- **Einpass/VCLADR:** P0 = VCLADR = B1 − VCLLEN; VMS ab B0. Harness `viewsim.c` liefert VCL ab VCLADR, dann VMS ab B0 (`dbe_b0`). Referenz: `Result.b0`, `bank0()`, `bank1()`, `lists1`.
-- **MAXITEM** bleibt als Zähler; Test mit `-D MAXITEM_T=8` (eigener sim-Build) gegen die Referenz mit `MAXITEM = 8`.
-- **Masken** als sortierte Intervalllisten (höchstens 41 je Maske), kein Löschen je VIEW. `spans` aus den Lücken der bcov-Liste.
-- **Kacheln:** MAPINIT legt `tpl/tph` (Adresse) und `tsm` (Flächen, blocked, Flags) je Kachel an (768 Byte; MAPINIT demo 2 100 Zyklen, bei NT = 256 etwa 20 000).
-- **sim65-Harness:** Stack `$200` (Programm sonst zu groß); Reserve nur noch 81 Byte (MAIN endet bei `$4DAE`, Grenze `$4E00`) → vor P6e Lib-Code im Harness an `$B000` legen.
+- **Stub/memory:** `$FF00 = $7F`; lib code `$B000–$DBFF` (11 KB), LIBTAB `$DC00–$DFFF` (cell table, tile summary; INIT does not clear it), BSS `$E000–$E7FF`. Test build `lib-test.cfg` (padded to `$DBFF`, function 252 at `$DB80` checks code under I/O). Function 250 briefly sets `$D506` to `$7E`.
+- **Zero-page block `$63–$72`:** The stub saves it on every call (all functions) and writes it back. Proof `test/vice_zp.py`: 20 long calls (function 253 fills the block, waits about 330 000 cycles, checks it) under jiffy/keyboard, SOUND with sweep and MOVSPR; watchpoint (read/write) on `$63–$72` only between `JSR LIB` and return: 640 hits, all from the lib (`$FF00 = $7F`), **0 foreign**; afterwards SIN, STR$, VAL, division correct; control test `--control` (watchpoint on `$A0–$A2`) finds the Kernal IRQ accesses. NMI was not checked.
+- **GEOMSET** checks the element table (7) in one pass and creates the cell table in the process (per cell s, first element, slot, wall list, floor/ceiling slot). Error in the element table: A = 1 and **no valid geometry** (`geom_ok = 0`; header errors leave the state unchanged as before). Object slots are not in the table (P6e adds them). `dbeview.parse_dvg` checks the same (`check_elems`).
+- **BUFSET:** window `$1300–$1BFF`; `BIGBUF` of the tests is thus the default buffer.
+- **Single pass/VCLADR:** P0 = VCLADR = B1 − VCLLEN; VMS from B0. Harness `viewsim.c` delivers VCL from VCLADR, then VMS from B0 (`dbe_b0`). Reference: `Result.b0`, `bank0()`, `bank1()`, `lists1`.
+- **MAXITEM** remains as a counter; test with `-D MAXITEM_T=8` (own sim build) against the reference with `MAXITEM = 8`.
+- **Masks** as sorted interval lists (at most 41 per mask), no clearing per VIEW. `spans` from the gaps of the bcov list.
+- **Tiles:** MAPINIT creates `tpl/tph` (address) and `tsm` (faces, blocked, flags) per tile (768 bytes; MAPINIT demo 2 100 cycles, at NT = 256 about 20 000).
+- **sim65 harness:** stack `$200` (program otherwise too large); reserve only 81 bytes left (MAIN ends at `$4DAE`, limit `$4E00`) → before P6e place lib code in the harness at `$B000`.
 
-### Größen
+### Sizes
 
-Lib-Code 8 935 Byte (`$B000–$D2E6`, P6d: 7 960), LIBTAB 764 Byte, BSS 1 799 Byte (P6d: 1 993; Sichtliste −672, Kachelzeiger +512), Stub 168 Byte. Reserve: Code 2,3 KB, BSS 249 Byte, LIBTAB 260 Byte.
+Lib code 8 935 bytes (`$B000–$D2E6`, P6d: 7 960), LIBTAB 764 bytes, BSS 1 799 bytes (P6d: 1 993; visibility list −672, tile pointer +512), stub 168 bytes. Reserve: code 2.3 KB, BSS 249 bytes, LIBTAB 260 bytes.
 
-### Offene Punkte
+### Open points
 
-1. Gang Mittel mit `VMS_BANK1` 33 000 statt 30 000. Kandidaten: ZEILEN-Gruppen bei TEXSET vorberechnen (~1 000), `resolve` für Wände cachen (~800), `gsetup`/`itemadd` schlanker (~800).
-2. GEOMSET 24 400 Zyklen (demo, Ziel 20 000; einmalig).
-3. VDC-BASIC Typ 9 (6a) umsetzen, danach `VMS_BANK1` zum Standard machen und in VICE (P6g) messen.
-4. P6e: Objektplätze in die Zellentabelle, Objekte im Zellendurchlauf (Intervallmaske für „erste/letzte freie Spalte“).
+1. Corridor mean with `VMS_BANK1` 33 000 instead of 30 000. Candidates: precompute ROWS groups at TEXSET (~1 000), cache `resolve` for walls (~800), slimmer `gsetup`/`itemadd` (~800).
+2. GEOMSET 24 400 cycles (demo, target 20 000; once).
+3. Implement VDC-BASIC type 9 (6a), then make `VMS_BANK1` the default and measure in VICE (P6g).
+4. P6e: object slots into the cell table, objects in the cell pass (interval mask for "first/last free column").
 
-## Ergebnis P6e (2026-11-25)
+## Result P6e (2026-11-25)
 
-Umgesetzt: Objekte und Gegenstände in `VIEW` (5.8) in `engine/view.s`, bytegleich mit `dbeview.view` (keine Änderung an `tools/dbeview.py` nötig).
+Implemented: objects and items in `VIEW` (5.8) in `engine/view.s`, byte-identical with `dbeview.view` (no change to `tools/dbeview.py` necessary).
 
-### Umsetzung
+### Implementation
 
-- **sim-Harness:** Lib-Code im Harness an `$B000` (Segment `LIBCODE`, `.define LIBSEG` in `lib.s` unter `SIM`); `sim.cfg`: Harness `$2000–$2BFF`, Stack bis `$2DFF`, Daten `$2E00–$AFFF`, die Datei ist zusammenhängend bis `$DBFF`. Ladeadressen der Tests: DTS Wand `$6000`, Boden `$8300`, Decke `$F000`, S2 ab `$3000` (zusätzliche Sätze ab `$A700`), große Karten (P6c C) `$2E00`. `viewsim.c` weist Segmente in Harness und Lib-Code ab. sim65 läuft mit Wächter-Timeout (300 s).
-- **Zellentabelle (GEOMSET):** `k_ob`/`k_oe` = 16 · Platz des ersten/letzten Objektplatzes der Zelle (`$FF` keiner). Mehrere Objektplätze je Zelle sind erlaubt (wie die Referenz).
-- **Zellendurchlauf:** Zellen ohne Flächen → Objekte; Flächen mit INHALT → Fronten, Objekte, Seiten (5.2a); sonst nur Wände. `objd` (d ≥ 1 und Objekte bzw. Gegenstände möglich) schaltet den Objektteil je Tiefe ab, ohne Objekte kostet er nichts.
-- **Kandidaten:** Am Anfang von `VIEW` die Liste der sichtbaren Objekte (Bit 6 = 0, min(OBJN, 16)) mit Zellindex, i, 6 i und ein 256-Bit-Feld `obm` der Low-Bytes der Zellindizes (Vorfilter je Zelle; nur die Bits des vorigen `VIEW` werden gelöscht). Gegenstand aus der Inhaltsebene nur, wenn `itemn` > 0 (Anzahl der `itemtab`-Einträge ≠ 0, von `ITEMSET` geführt). Malreihenfolge ohne Sortieren: p = 4 … 0, je p die Kandidaten rückwärts (Objekte i absteigend, zuletzt der Gegenstand).
-- **Bild:** `lookup` nach P5b 6.3 (f ≥ NP → 0, `angle_map`, `$FF` → Phase 0, `$FE` → nichts), Anker x0/y0 16 Bit vorzeichenrichtig, Fenster- und `cover`-Ausschnitt (erste/letzte freie Spalte aus der Intervallliste, `ffree`; seit P6i entfallen: nur Fenster, `allcov_c` verwirft ganz verdeckte Sprites).
-- **Erzeuger `gspr`:** Kerne mit `clipkerns`; Rand unbeschnitten als Kopie in den Puffer (Typ 12, **auch mit `VMS_BANK1`**, wie die Referenz), nur Zeilen beschnitten (L = 0, R = w) über einen schnellen Weg ohne Spaltenrechnung (sichtbar genau T · stride ≤ ofs < B · stride), sonst `clipvms_e`. `clipvms_e` liest Länge und Quelle aus `g_vlen`/`g_rsrc` (DTS und S2 haben verschiedene Verzeichnisse).
-- **Leere Sprite-Einträge** (weder Kern noch Randbefehl im Ausschnitt) sind keine Einträge: sie zählen nicht für MAXITEM (auch nicht bei voller Eintragszahl: dann Zählprobe) und setzen kein OBJVIS-Bit (12a.2). OBJVIS-Bit i bei Annahme, auch „ohne Rand“; nicht bei „verworfen“.
-- **K6:** Zeilenzähler in `clipvms_e` endet bei r = B (läuft nicht über). VMS-Kopie vierfach entrollt (14 statt 17 Zyklen je Byte, wirkt auch für Wände).
-- **VMS_BANK1** bleibt Build-Schalter; `TEXSET` weist dort DTS unter `$4000` ab (P2d, 6a). *(Überholt durch den Review-Nachtrag unten.)*
+- **sim harness:** Lib code in the harness at `$B000` (segment `LIBCODE`, `.define LIBSEG` in `lib.s` under `SIM`); `sim.cfg`: harness `$2000–$2BFF`, stack up to `$2DFF`, data `$2E00–$AFFF`, the file is contiguous up to `$DBFF`. Load addresses of the tests: DTS wall `$6000`, floor `$8300`, ceiling `$F000`, S2 from `$3000` (additional sets from `$A700`), large maps (P6c C) `$2E00`. `viewsim.c` rejects segments in the harness and lib code. sim65 runs with a guard timeout (300 s).
+- **Cell table (GEOMSET):** `k_ob`/`k_oe` = 16 · slot of the first/last object slot of the cell (`$FF` none). Several object slots per cell are allowed (like the reference).
+- **Cell pass:** cells without faces → objects; faces with CONTENT → fronts, objects, sides (5.2a); otherwise walls only. `objd` (d ≥ 1 and objects or items possible) switches the object part off per depth, without objects it costs nothing.
+- **Candidates:** At the start of `VIEW` the list of visible objects (bit 6 = 0, min(OBJN, 16)) with cell index, i, 6 i and a 256-bit field `obm` of the low bytes of the cell indices (pre-filter per cell; only the bits of the previous `VIEW` are cleared). Item from the content layer only if `itemn` > 0 (number of `itemtab` entries ≠ 0, maintained by `ITEMSET`). Paint order without sorting: p = 4 … 0, per p the candidates backwards (objects i descending, the item last).
+- **Image:** `lookup` according to P5b 6.3 (f ≥ NP → 0, `angle_map`, `$FF` → phase 0, `$FE` → nothing), anchor x0/y0 16 bit sign-correct, window and `cover` clip rectangle (first/last free column from the interval list, `ffree`; dropped since P6i: window only, `allcov_c` discards fully occluded sprites).
+- **Generator `gspr`:** Cores with `clipcores`; edge unclipped as a copy into the buffer (type 12, **also with `VMS_BANK1`**, like the reference), clipped by rows only (L = 0, R = w) via a fast path without column computation (visible exactly T · stride ≤ ofs < B · stride), otherwise `clipvms_e`. `clipvms_e` reads length and source from `g_vlen`/`g_rsrc` (DTS and S2 have different directories).
+- **Empty sprite entries** (neither core nor edge command in the clip rectangle) are not entries: they do not count for MAXITEM (not even when the entry count is full: then counting dry run) and set no OBJVIS bit (12a.2). OBJVIS bit i on acceptance, also "without edge"; not on "discarded".
+- **K6:** Row counter in `clipvms_e` ends at r = B (does not overrun). VMS copy unrolled fourfold (14 instead of 17 cycles per byte, also effective for walls).
+- **VMS_BANK1** remains a build switch; `TEXSET` rejects DTS below `$4000` there (P2d, 6a). *(Superseded by the review addendum below.)*
 
-### Test (`test/sim/run_sim.py`, `test_p6e`; GEOMSET-Grenzfälle in `test_geomcheck`)
+### Test (`test/sim/run_sim.py`, `test_p6e`; GEOMSET edge cases in `test_geomcheck`)
 
-Bytegleich (A, X, Y, P0, VCLADR/VCLLEN/VMSLEN/**OBJVIS**, Puffer) in allen Sätzen: demo mit 0/1/5 Objekten (alle freien Zellen × 4 Richtungen, Gegenstände, ITEMPH), rand (Sätze blob, wache, breit und drei Zusatzsätze „hoch“ (oben hinaus), „links“, „rechts“; s = −2 … 2, d = 1 … 3, alle q), rand hinter deckenden Wänden, INHALT (Türen/Gitter deckend und nicht, Objekte und Gegenstände darauf), zufall mit 0–16 Objekten (Bit 6/7, unbekannte Sätze, OBJN = 20), überlauf (64 … 1024 Byte, A = 2 und 3), MAXITEM = 8. Standard: 1 600 Ansichten (mit `VMS_BANK1` 1 570), `DBEVIEW_FULL=1`: 5 240 (5 210), davon A = 2: 1 577, A = 3: 60; P6d voll 4 962 (4 942). P6a, P6c, P6d unverändert grün.
+Byte-identical (A, X, Y, P0, VCLADR/VCLLEN/VMSLEN/**OBJVIS**, buffer) in all sets: demo with 0/1/5 objects (all free cells × 4 directions, items, ITEMPH), edge (sets blob, guard, wide and three additional sets "up" (out the top), "links", "rechts"; s = −2 … 2, d = 1 … 3, all q), edge behind occluding walls, CONTENT (doors/gratings occluding and not, objects and items on them), random with 0–16 objects (bit 6/7, unknown sets, OBJN = 20), overflow (64 … 1024 bytes, A = 2 and 3), MAXITEM = 8. Standard: 1 600 views (with `VMS_BANK1` 1 570), `DBEVIEW_FULL=1`: 5 240 (5 210), of which A = 2: 1 577, A = 3: 60; P6d full 4 962 (4 942). P6a, P6c, P6d unchanged green.
 
-GEOMSET (neu): 16 Elemente in einer Zelle ok / 17 A = 1, 48 Zellen ok / 49 A = 1, 96 Wände ok / 97 A = 1, zwei Deckenelemente A = 1, `VIEW` nach fehlgeschlagenem GEOMSET A = 5 (danach mit gültigem GEOMSET wieder 0); `parse_dvg` gleich.
+GEOMSET (new): 16 elements in one cell ok / 17 A = 1, 48 cells ok / 49 A = 1, 96 walls ok / 97 A = 1, two ceiling elements A = 1, `VIEW` after a failed GEOMSET A = 5 (afterwards with a valid GEOMSET 0 again); `parse_dvg` the same.
 
-### Zyklen (sim65, Demo-Assets, ohne Stub)
+### Cycles (sim65, demo assets, without stub)
 
-| Satz | Mittel | max |
+| Set | Mean | max |
 |---|---|---|
-| Gang ohne Objekte (P6d-Satz) | 40 439 (P6d-opt 41 446) | 50 280 |
-| Gang ohne Objekte, `VMS_BANK1` | 33 380 (33 017) | 39 066 |
-| demo mit 1 / 5 Objekten | 33 782 / 37 595 | 68 125 / 95 147 |
-| zufall mit 0–16 Objekten | 82 224 | 136 168 |
+| Corridor without objects (P6d set) | 40 439 (P6d-opt 41 446) | 50 280 |
+| Corridor without objects, `VMS_BANK1` | 33 380 (33 017) | 39 066 |
+| demo with 1 / 5 objects | 33 782 / 37 595 | 68 125 / 95 147 |
+| random with 0–16 objects | 82 224 | 136 168 |
 
-Je Objekt (offener Raum, Differenz zur Ansicht ohne Objekte, enthält den Objektteil aller Zellen ≈ 2 700):
+Per object (open room, difference to the view without objects, contains the object part of all cells ≈ 2 700):
 
-| Fall | Zyklen | Ziel 8 |
+| Case | Cycles | Target 8 |
 |---|---|---|
-| unbeschnitten (blob d = 1/2/3, 227/145/87 VMS-Byte) | 8 443 / 7 365 / 5 732 | 2 500 + 12 je Byte ≈ 5 200 / 4 240 / 3 540 |
-| Rand links/rechts (breit d = 1, 242 Listenbyte) | 25 400 – 27 200 | 4 000 + 12 · 242 ≈ 6 900 |
-| oben hinaus (hoch d = 1/2/3, nur Zeilen) | 25 255 / 15 774 / 18 303 | ≈ 7 500 / 6 100 / 7 000 |
-| unsichtbar (ausgeschnitten) | 2 724 | – |
+| unclipped (blob d = 1/2/3, 227/145/87 VMS bytes) | 8 443 / 7 365 / 5 732 | 2 500 + 12 per byte ≈ 5 200 / 4 240 / 3 540 |
+| Edge left/right (wide d = 1, 242 list bytes) | 25 400 – 27 200 | 4 000 + 12 · 242 ≈ 6 900 |
+| out the top (up d = 1/2/3, rows only) | 25 255 / 15 774 / 18 303 | ≈ 7 500 / 6 100 / 7 000 |
+| invisible (clipped out) | 2 724 | – |
 
-**Befund:** Ziele für Objekte verfehlt, unbeschnitten um etwa 1,5×, beschnitten um 3–4×. Ursache beschnitten: `clipvms_e` kostet je Befehl etwa 130 (unsichtbar) bzw. 250–280 Zyklen (sichtbar: Zeilenverfolgung, 16-Bit-Spalte, `cflush`/`cput3` je Befehl, Zähler). Ursache unbeschnitten: Kandidatensuche und Bildsuche (≈ 2 700 Grundlast je `VIEW` mit Objekten, je Zelle ≈ 100) und die Kopie (14 je Byte).
+**Finding:** Targets for objects missed, unclipped by about 1.5×, clipped by 3–4×. Cause clipped: `clipvms_e` costs about 130 (invisible) or 250–280 cycles (visible: row tracking, 16-bit column, `cflush`/`cput3` per command, counters) per command. Cause unclipped: candidate search and image search (≈ 2 700 base load per `VIEW` with objects, ≈ 100 per cell) and the copy (14 per byte).
 
-### Größen
+### Sizes
 
-Lib-Code 10 747 Byte (`$B000–$D9FA`, P6d-opt 8 935), LIBTAB 945 Byte, BSS 1 926 Byte (P6d-opt 1 799). Reserve: Code 517 Byte bis `$DBFF` (Testbuild bis `$DB80`: 261 Byte), BSS 122, LIBTAB 79.
+Lib code 10 747 bytes (`$B000–$D9FA`, P6d-opt 8 935), LIBTAB 945 bytes, BSS 1 926 bytes (P6d-opt 1 799). Reserve: code 517 bytes up to `$DBFF` (test build up to `$DB80`: 261 bytes), BSS 122, LIBTAB 79.
 
-### Offene Punkte (P6f/P6g)
+### Open points (P6f/P6g)
 
-1. `clipvms_e` beschleunigen: sichtbare Befehle blockweise (Folge sichtbarer Befehle einer Zeile mit einem Versatz kopieren), `cput3`/Zähler inline, Spalte 8-bittig bei stride < 256; Ziel ≈ 40–60 Zyklen je Befehl. Ebenso der Zeilenweg (sichtbare Folge in einem Lauf).
-2. Grundlast Objekte: Objekt-(d, s) einmal je `VIEW` statt Vergleich je Zelle (M9: Zellzeiger bei `SETPOS`), `lookup` je Kandidat cachen.
-3. Unbeschnittene Sprite-Listen mit `VMS_BANK1` als Typ 9 (spart die Kopie; Referenz und Spec 6a anpassen, sobald P2d entschieden ist).
-4. Code-Reserve nur 0,5 KB: P6f (MOVE, Automap) braucht Platz → Kandidaten für Einsparungen: `vpass`/Wandschleife zusammenlegen, `clipkerns`/`ckwrite` mit `mul8` vereinfachen; notfalls LIBTAB verkleinern oder Code bis `$DBFF` dicht.
-5. VICE-Lauf (P6g) mit Objekten; NMI weiterhin ungeprüft (P6d-opt).
+1. Speed up `clipvms_e`: visible commands blockwise (copy a run of visible commands of a row with one offset), `cput3`/counter inline, column 8-bit for stride < 256; target ≈ 40–60 cycles per command. Likewise the row path (visible run in one go).
+2. Base load objects: object (d, s) once per `VIEW` instead of a comparison per cell (M9: cell pointer at `SETPOS`), cache `lookup` per candidate.
+3. Unclipped sprite lists with `VMS_BANK1` as type 9 (saves the copy; adapt reference and spec 6a as soon as P2d is decided).
+4. Code reserve only 0.5 KB: P6f (MOVE, automap) needs space → candidates for savings: merge `vpass`/wall loop, simplify `clipcores`/`ckwrite` with `mul8`; if necessary shrink LIBTAB or pack code tightly up to `$DBFF`.
+5. VICE run (P6g) with objects; NMI still unchecked (P6d-opt).
 
-### Nachtrag Review P6e (2026-11-25)
+### Addendum review P6e (2026-11-25)
 
-- **Typ 9 ist Standard** (6a): unbeschnittene Listen von Wänden, Kacheln, Bändern und jetzt auch Sprites gehen als VCL-Typ 9 nach Bank 1; Build-Schalter `VMS_COPY` = alter Weg (Typ 12 überall). `vmscopy` steht nur noch im `VMS_COPY`-Build. `SPRITESET` prüft wie `TEXSET` S2 ≥ `$4000` (A = 6); beide Prüfungen sind jetzt in P6c getestet (vorher lief P6c nur mit dem Build ohne Prüfung).
-- Referenz: unbeschnittene Sprites mit `vms_bank1` als `vms1` (Adresse `Scene.s2_bank1(k)` + vofs). `double_fronts(assets, objs=True)`: zweiter Objektplatz je Zelle; dabei Fehler gefunden: `copy.copy` übernahm den vofs-Cache der Vorlage (falsche Typ-9-Adressen bei Wänden der synthetischen DVG, fiel nur durch die Testreihenfolge nicht auf).
-- sim: Standard-PRG = Typ 9, `viewsimc.prg` = `VMS_COPY`; Lage in `ViewRunner`: DMP `$2E00`, S2 `$4000–$5FFF` und `$A700–$AFFF`; P6c: S2 ab `$4000`, gültige Kopf-Kopien bei `$A700`. Neuer Satz „zwei Fronten, zwei Objektplätze“ (k_ob < k_oe, 68 Ansichten). Satz „rechts“ ohne Bild für d = 2 (Index `$FE`, vorher ungetestet).
-- Bytegleich: Standard 1 668 / `VMS_COPY` 1 638 (P6e), voll 5 308 / 5 278; P6d voll 4 962 / 4 942; test_dbeview grün (`test_vms_bank1` mit Objekten).
-- Zyklen (Standard): Gang ohne Objekte 33 416 (max 39 111), demo 1/5 Objekte 26 311 / 29 988, zufall 0–16 Objekte 64 296; je Objekt unbeschnitten 4 318–5 001 (Ziel erreicht), beschnitten unverändert 15 800–27 200.
-- Größe (Standard): Code 10 596 Byte (`$B000–$D963`), Reserve 668 (Testbuild 412); `VMS_COPY` 10 747.
+- **Type 9 is the default** (6a): unclipped lists of walls, tiles, bands and now also sprites go as VCL type 9 to bank 1; build switch `VMS_COPY` = old way (type 12 everywhere). `vmscopy` is now only in the `VMS_COPY` build. `SPRITESET` checks like `TEXSET` S2 ≥ `$4000` (A = 6); both checks are now tested in P6c (before, P6c ran only with the build without check).
+- Reference: unclipped sprites with `vms_bank1` as `vms1` (address `Scene.s2_bank1(k)` + vofs). `double_fronts(assets, objs=True)`: second object slot per cell; an error was found in the process: `copy.copy` adopted the vofs cache of the template (wrong type 9 addresses for walls of the synthetic DVG, went unnoticed only because of the test order).
+- sim: default PRG = type 9, `viewsimc.prg` = `VMS_COPY`; layout in `ViewRunner`: DMP `$2E00`, S2 `$4000–$5FFF` and `$A700–$AFFF`; P6c: S2 from `$4000`, valid header copies at `$A700`. New set "two fronts, two object slots" (k_ob < k_oe, 68 views). Set "rechts" without image for d = 2 (index `$FE`, previously untested).
+- Byte-identical: standard 1 668 / `VMS_COPY` 1 638 (P6e), full 5 308 / 5 278; P6d full 4 962 / 4 942; test_dbeview green (`test_vms_bank1` with objects).
+- Cycles (standard): corridor without objects 33 416 (max 39 111), demo 1/5 objects 26 311 / 29 988, random 0–16 objects 64 296; per object unclipped 4 318–5 001 (target met), clipped unchanged 15 800–27 200.
+- Size (standard): code 10 596 bytes (`$B000–$D963`), reserve 668 (test build 412); `VMS_COPY` 10 747.
 
-## Ergebnis P6e-opt (2026-11-25)
+## Result P6e-opt (2026-11-25)
 
-Umgesetzt in `engine/view.s` nach dem Plan aus dem Review-Nachtrag P6e, in drei Schritten, nach jedem Schritt bytegleich mit `dbeview.view` (keine Änderung an `tools/dbeview.py` und an den Tests).
+Implemented in `engine/view.s` according to the plan from the review addendum P6e, in three steps, byte-identical with `dbeview.view` after each step (no change to `tools/dbeview.py` and to the tests).
 
-### Umsetzung
+### Implementation
 
-1. **Code-Einsparung (−205 Byte, ohne Zyklenverlust):** `grand`/`grl` (g_rsrc = VB + rand_ofs, ZP1 = Inhalt + Liste, g_vlen aus einem Verzeichniseintrag; DTS und S2 liegen um 2 versetzt) für `gspr`, `gband` und `vmsverb` (nur `VMS_COPY`; der Hauptpfad Wand bleibt ohne Unterprogramm). `emit_vms` nimmt die Quelle aus `g_rsrc` (Kopien nach `e_src` entfallen, `clen` und `e_t` entfallen). Gemeinsames VCL-Endstück `vt5` (count, 0, reps, 0, step) für `emit_vmc` und `emit_vmf` (dadurch auch schneller). Wandschleife von `vcells` und `vpass` zusammengelegt (ein Durchlauf, INHALT mit pass 1/2). `gspr` benutzt `gsetx` (Einstieg in `gsetup` mit X = Satz). Zählprobe `gcnt` gemeinsam für `itemadd` (MAXITEM) und `iovf`. Außenkachel-Zweig aus der Zellschleife verlegt.
-2. **`clipvms_e` neu:** Zeilen-Zustandsautomat im ofs-Raum. Zeile r ist sichtbar in [tL, tR) = [r·stride + L, r·stride + R); sichtbare Befehle bekommen ofs′ = ofs − cfix mit cfix = T·stride + L (die Multiplikationen T·stride bzw. (B − T)·stride stehen jetzt in `clipvms_e`, `cl_rt`/`cl_rb` entfallen in `vspr`/`gband`). Je Zeile: Befehle mit ofs < tL überspringen (16-Bit-Vergleich, k += Länge), Rückblick auf den zuletzt übersprungenen Typ 1 (links beschnittener Lauf, nur bei L > 0; auch am Listenende), dann die sichtbaren Befehle als Block direkt kopieren: `op` ist so versetzt, dass `(op),y` die Ausgabestelle zum Eingabeindex y ist (ein Y für Ein- und Ausgabe, ofs′ per Addition von −cfix); davor bleiben 3 Byte für den Typ 3 frei, der erst beim Abschluss des Blocks (nicht leer) geschrieben wird. Ein Befehl mit ofs′ ≥ lim′ (= tR − cfix) beendet den Block; ein rechts beschnittener Lauf (nur bei R < w, `cl_w`) wird mit gekürzter Länge in den Block übernommen. Nur Zeilen beschnitten (`ofull` = 2): ein Block über alle Zeilen, lim′ = (B − T)·stride. Y läuft über die Liste (ab Y ≥ `$FC` wird ZP1 nachgezogen, Y = 4, damit der Rückblick erreichbar bleibt), X/`ccnth` zählen die Befehle, `cn` je Block aus der X-Differenz. Spalte 8-bittig: nur noch R − L und die Differenz lim′ − ofs′ beim rechten Rand.
-3. **Grundlast Objekte:** Zellmarke im Zellendurchlauf statt `jsr vobjc` je Zelle: Low-Byte des Zellindex (idxd + r_lo[s]) gegen das Bitfeld `obm`, nur bei Treffer `vobjc` (prüft wie bisher vollständig, auch Zellen außerhalb der Karte). `objon`/`objd` Bit 7 = Gegenstände möglich (`itemn` > 0): dann weiter jede Zelle über `vobjc` (Inhaltsebene). Phase f · NA · D per Addition statt `mul8`. `mul8` mit Registern statt BSS-Zähler (etwa 30 Zyklen je Aufruf schneller).
+1. **Code saving (−205 bytes, without cycle loss):** `grand`/`grl` (g_rsrc = VB + edge_ofs, ZP1 = content + list, g_vlen from a directory entry; DTS and S2 are offset by 2) for `gspr`, `gband` and `vmsverb` (`VMS_COPY` only; the main wall path remains without a subroutine). `emit_vms` takes the source from `g_rsrc` (copies to `e_src` dropped, `clen` and `e_t` dropped). Common VCL tail `vt5` (count, 0, reps, 0, step) for `emit_vmc` and `emit_vmf` (thereby also faster). Wall loop of `vcells` and `vpass` merged (one pass, CONTENT with pass 1/2). `gspr` uses `gsetx` (entry into `gsetup` with X = set). Counting dry run `gcnt` shared by `itemadd` (MAXITEM) and `iovf`. Outer tile branch moved out of the cell loop.
+2. **`clipvms_e` new:** Row state machine in ofs space. Row r is visible in [tL, tR) = [r·stride + L, r·stride + R); visible commands get ofs′ = ofs − cfix with cfix = T·stride + L (the multiplications T·stride and (B − T)·stride are now in `clipvms_e`, `cl_rt`/`cl_rb` dropped in `vspr`/`gband`). Per row: skip commands with ofs < tL (16-bit comparison, k += length), look back at the last skipped type 1 (run clipped on the left, only for L > 0; also at the list end), then copy the visible commands directly as a block: `op` is offset such that `(op),y` is the output position for the input index y (one Y for input and output, ofs′ by addition of −cfix); before it 3 bytes remain free for the type 3, which is written only when the block is completed (not empty). A command with ofs′ ≥ lim′ (= tR − cfix) ends the block; a run clipped on the right (only for R < w, `cl_w`) is taken into the block with shortened length. Clipped by rows only (`ofull` = 2): one block over all rows, lim′ = (B − T)·stride. Y runs over the list (from Y ≥ `$FC` ZP1 is advanced, Y = 4, so that the look-back stays reachable), X/`ccnth` count the commands, `cn` per block from the X difference. Column 8-bit: only R − L and the difference lim′ − ofs′ at the right edge.
+3. **Base load objects:** Cell marker in the cell pass instead of `jsr vobjc` per cell: low byte of the cell index (idxd + r_lo[s]) against the bit field `obm`, `vobjc` only on a hit (checks completely as before, also cells outside the map). `objon`/`objd` bit 7 = items possible (`itemn` > 0): then continue every cell via `vobjc` (content layer). Phase f · NA · D by addition instead of `mul8`. `mul8` with registers instead of BSS counter (about 30 cycles faster per call).
 
-### Festlegungen
+### Determinations
 
-- **Formatvoraussetzung** für das Beschneiden (P5b 4.6, vom Konverter erfüllt): ofs = Zeile · stride + Spalte mit Spalte + len ≤ w ≤ stride; ein Lauf bleibt in seiner Zeile; Befehle steigend ohne Überlappung (Review: ergänzt, `dbetex.check_vms` in `from_s2`/`from_dts`). Damit ist die Zeile eines Befehls ofs div stride, und ein Lauf der Zeile r − 1 reicht nie über tL der Zeile r. Für Listen, die das verletzen, ist die Ausgabe nicht mehr zwingend gleich der Referenz.
-- **Zählmodus** (`iovf`, MAXITEM-Probe): der Block schreibt nach Bank 0 `$0B00–$0BFF` (Reserve der Engine, 2.2 angepasst), die Einzelbefehle schreiben nichts; die Größe ergibt sich aus der Ausgabestelle. Platzprüfung beim direkten Schreiben: 2 · vlen + 4 (der zur Probe kopierte Befehl hinter dem Block).
-- **Zeropage:** `clipvms_e` benutzt `kwi`/`kwn` (zt+4/5) als `cyl`/`cq` und `dp` als k; `dp` wird gerettet und vor `emit_vms` zurückgeschrieben (`iovf` erzeugt den Eintrag neu und liest `dp`).
+- **Format prerequisite** for clipping (P5b 4.6, met by the converter): ofs = row · stride + column with column + len ≤ w ≤ stride; a run stays in its row; commands ascending without overlap (review: added, `dbetex.check_vms` in `from_s2`/`from_dts`). Thus the row of a command is ofs div stride, and a run of row r − 1 never extends beyond tL of row r. For lists that violate this, the output is no longer necessarily equal to the reference.
+- **Counting mode** (`iovf`, MAXITEM trial): the block writes to bank 0 `$0B00–$0BFF` (engine reserve, 2.2 adapted), the individual commands write nothing; the size results from the output position. Space check during direct writing: 2 · vlen + 4 (the command copied for the trial behind the block).
+- **Zero page:** `clipvms_e` uses `kwi`/`kwn` (zt+4/5) as `cyl`/`cq` and `dp` as k; `dp` is saved and written back before `emit_vms` (`iovf` regenerates the entry and reads `dp`).
 
 ### Test
 
-`run_sim.py` unverändert: P6e Standard 1 668 / `VMS_COPY` 1 638 Ansichten bytegleich, `DBEVIEW_FULL=1` 5 308 / 5 278; P6d 1 322 / 1 302, voll 4 962 / 4 942; P6a, P6c, GEOMSET-Grenzfälle grün. Beschnittene Listen über 252 Byte (Nachziehen von ZP1 im Überspringen und im Block), links beschnittene Läufe am Listenende, rechts beschnittene Läufe und Zählmodus (überlauf, MAXITEM = 8) sind in den Sätzen enthalten.
+`run_sim.py` unchanged: P6e standard 1 668 / `VMS_COPY` 1 638 views byte-identical, `DBEVIEW_FULL=1` 5 308 / 5 278; P6d 1 322 / 1 302, full 4 962 / 4 942; P6a, P6c, GEOMSET edge cases green. Clipped lists over 252 bytes (advancing ZP1 in skipping and in the block), runs clipped on the left at the list end, runs clipped on the right and counting mode (overflow, MAXITEM = 8) are contained in the sets.
 
-### Zyklen (sim65, Demo-Assets, ohne Stub; Standardbuild Typ 9)
+### Cycles (sim65, demo assets, without stub; standard build type 9)
 
-| Fall | P6e | Schritt 1 | Schritt 2 | Schritt 3 (P6e-opt) | Ziel |
+| Case | P6e | Step 1 | Step 2 | Step 3 (P6e-opt) | Target |
 |---|---|---|---|---|---|
-| Gang ohne Objekte, Mittel / max | 33 416 / 39 111 | 33 365 / 39 049 | 33 373 / 39 064 | **33 364 / 39 048** | 30 000 / 45 000 |
-| Gang ohne Objekte, `VMS_COPY` | 40 439 / 50 280 | 40 390 / 50 210 | 40 409 / 50 237 | 40 422 / 50 254 | – |
-| zufall ohne Objekte, Mittel / max | 41 314 / 55 653 | 41 154 / 55 462 | 41 178 / 55 489 | 41 159 / 55 457 | – / 80 000 |
-| je Objekt unbeschnitten d = 1 / 2 / 3 | 4 999 / 5 001 / 4 318 | 5 091 / 5 093 / 4 425 | 5 073 / 5 075 / 4 406 | **3 884 / 3 886 / 3 217** | 5 200 / 4 240 / 3 540 |
-| je Objekt beschnitten links (d = 1, 242 Listenbyte) | 25 424 | 25 496 | 17 245 | **16 045** | 6 900 |
-| je Objekt beschnitten rechts (d = 1) | 27 213 | 27 267 | 17 307 | **16 112** | 6 900 |
-| je Objekt oben hinaus d = 1 / 2 / 3 | 25 375 / 15 820 / 18 353 | 25 302 / 15 851 / 18 380 | 14 703 / 10 381 / 11 570 | **13 432 / 9 105 / 10 290** | 7 500 / 6 100 / 7 000 |
-| je Objekt unsichtbar (ausgeschnitten) | 2 709 | 2 725 | 2 725 | 1 535 | – |
-| demo 1 / 5 Objekte (mit Gegenständen), Mittel | 26 311 / 29 988 | 26 306 / 30 003 | 26 308 / 29 056 | 26 315 / 29 048 | – |
-| zufall 0–16 Objekte, Mittel / max | 64 296 / 116 471 | 64 524 / 117 387 | 62 344 / 106 763 | **62 192 / 106 554** | – |
+| Corridor without objects, mean / max | 33 416 / 39 111 | 33 365 / 39 049 | 33 373 / 39 064 | **33 364 / 39 048** | 30 000 / 45 000 |
+| Corridor without objects, `VMS_COPY` | 40 439 / 50 280 | 40 390 / 50 210 | 40 409 / 50 237 | 40 422 / 50 254 | – |
+| random without objects, mean / max | 41 314 / 55 653 | 41 154 / 55 462 | 41 178 / 55 489 | 41 159 / 55 457 | – / 80 000 |
+| per object unclipped d = 1 / 2 / 3 | 4 999 / 5 001 / 4 318 | 5 091 / 5 093 / 4 425 | 5 073 / 5 075 / 4 406 | **3 884 / 3 886 / 3 217** | 5 200 / 4 240 / 3 540 |
+| per object clipped left (d = 1, 242 list bytes) | 25 424 | 25 496 | 17 245 | **16 045** | 6 900 |
+| per object clipped right (d = 1) | 27 213 | 27 267 | 17 307 | **16 112** | 6 900 |
+| per object out the top d = 1 / 2 / 3 | 25 375 / 15 820 / 18 353 | 25 302 / 15 851 / 18 380 | 14 703 / 10 381 / 11 570 | **13 432 / 9 105 / 10 290** | 7 500 / 6 100 / 7 000 |
+| per object invisible (clipped out) | 2 709 | 2 725 | 2 725 | 1 535 | – |
+| demo 1 / 5 objects (with items), mean | 26 311 / 29 988 | 26 306 / 30 003 | 26 308 / 29 056 | 26 315 / 29 048 | – |
+| random 0–16 objects, mean / max | 64 296 / 116 471 | 64 524 / 117 387 | 62 344 / 106 763 | **62 192 / 106 554** | – |
 
-**Befund:** Unbeschnittene Objekte liegen unter dem Ziel, die Grundlast ist um etwa 1 200 je `VIEW` gesunken (ohne Gegenstände). Beschnittene Objekte sind 1,6–1,9× schneller, das Ziel ≈ 6 900 ist aber **verfehlt** (16 000 bzw. 13 400). Aufteilung Rand d = 1 (68 Befehle, 22 bzw. 34 sichtbar, 15 Zeilen): Liste ≈ 11 200 (Überspringen ≈ 3 100 bei 57 Durchläufen à ≈ 55, Block ≈ 3 800 bei 45 Durchläufen à ≈ 80, je Zeile Fund, Blockanfang, Typ 3, Abschluss und Zeilenwechsel ≈ 200), 4 Kerne ≈ 2 000, Rest ≈ 2 800. Oben d = 1: Liste ≈ 7 200 (89 Befehle), 4 oben beschnittene Kerne ≈ 3 300 (je ein `mul8`). Die Liste muss Befehl für Befehl gelesen werden (Länge und Quellbytes je Befehl); mit etwa 50 Zyklen je übersprungenem und 70 je kopiertem Befehl liegt die Untergrenze für den Randfall bei etwa 9 000–10 000 je Objekt.
+**Finding:** Unclipped objects are below the target, the base load has dropped by about 1 200 per `VIEW` (without items). Clipped objects are 1.6–1.9× faster, but the target ≈ 6 900 is **missed** (16 000 and 13 400). Breakdown edge d = 1 (68 commands, 22 or 34 visible, 15 rows): list ≈ 11 200 (skipping ≈ 3 100 with 57 passes at ≈ 55, block ≈ 3 800 with 45 passes at ≈ 80, per row find, block start, type 3, completion and row change ≈ 200), 4 cores ≈ 2 000, rest ≈ 2 800. Top d = 1: list ≈ 7 200 (89 commands), 4 cores clipped at the top ≈ 3 300 (one `mul8` each). The list has to be read command by command (length and source bytes per command); with about 50 cycles per skipped and 70 per copied command the lower bound for the edge case is about 9 000–10 000 per object.
 
-### Größen
+### Sizes
 
-Lib-Code 10 457 Byte (`$B000–$D8D8`, P6e 10 596; Schritt 1 10 391, Schritt 2 10 445, Schritt 3 10 457), Reserve bis `$DBFF` **807 Byte** (`VMS_COPY` 10 550 Byte, Reserve 714; Testbuild 10 585 Byte, Reserve bis `$DB80` 551). BSS 1 920 Byte (P6e 1 926), LIBTAB 945 Byte (unverändert).
+Lib code 10 457 bytes (`$B000–$D8D8`, P6e 10 596; step 1 10 391, step 2 10 445, step 3 10 457), reserve up to `$DBFF` **807 bytes** (`VMS_COPY` 10 550 bytes, reserve 714; test build 10 585 bytes, reserve up to `$DB80` 551). BSS 1 920 bytes (P6e 1 926), LIBTAB 945 bytes (unchanged).
 
-### Offene Punkte
+### Open points
 
-1. Ziel für beschnittene Objekte: nur mit Formatergänzung erreichbar, z. B. ein Zeilenindex je Bild im S2 (je Bildzeile Index des ersten Befehls und Quellposition: Zeilen vor T und Befehle links von L ohne Lesen überspringen, k aus der Differenz der Quellpositionen). Entscheidung Nutzer (P5b/P6f). Ohne Formatänderung bleiben etwa −500 (Blockabschluss inline, Typ 3 beim Blockanfang) und bei Kernen etwa −100 je Kern.
-2. Mit Gegenständen (`itemn` > 0) prüft der Zellendurchlauf weiter jede Zelle über `vobjc` (demo-Werte unverändert).
-3. Gang Mittel 33 364 (Ziel 30 000) unverändert offen (P6d-opt).
+1. Target for clipped objects: reachable only with a format addition, e.g. a row index per image in the S2 (per image row index of the first command and source position: skip rows before T and commands left of L without reading, k from the difference of the source positions). Decision user (P5b/P6f). Without a format change about −500 (block completion inline, type 3 at block start) and for cores about −100 per core remain.
+2. With items (`itemn` > 0) the cell pass continues to check every cell via `vobjc` (demo values unchanged).
+3. Corridor mean 33 364 (target 30 000) still open (P6d-opt).
 
-### Nachtrag Review P6e-opt (2026-11-25)
+### Addendum review P6e-opt (2026-11-25)
 
-- **Fehler `clipvms_e`:** nach einem rechts beschnittenen Lauf ab Y ≥ `$F8` ging es mit Y = `$FC…$FF` ohne Nachziehen von ZP1 in die nächste Zeile; der nächste Befehl lief über Y = `$FF` hinaus (Y = 0, falsche Liste), sofern die Zeile nicht die letzte war. Behoben (`@pn`: Prüfung Y ≥ `$FC`, +5 Byte, nur auf diesem Weg). Neuer Testsatz „gitter“ (`tall_sets`, Satz 7; Satz 1 im Rand-Test frei wegen des S2-Platzes im sim): breite Bilder ohne Kerne, je Zeile Läufe, halbe Bytes und Lücken, lange Listen; trifft den Fall (vorher 1 Abweichung).
-- **Zählprobe/`iovf`:** im Modus „Größe bekannt“ (ohne Platzprüfung) schrieb der Block auch bei leerer Ergebnisliste bis zu 9 Byte Abfall hinter mp; bei genau passendem Platz stehen dort schon die VCL-Einträge der Kerne. Jetzt: `im` = 0 → sofort zurück. Mit Liste bleibt der Abfall höchstens 6 Byte hinter ihrem Ende, wo der 7-Byte-Eintrag Typ 12 noch frei ist. Zählmodus: Abfall nur `$0B00–$0BFF` (Block < 256 Byte, Typ 3 bei `$0B00–$0B02`); keine Kollision (BUFSET-Fenster `$1300–$1BFF`, `$0B00` seit P6d-opt Reserve).
-- **Formatregel:** `dbespr`/`dbetex` erfüllen sie beim Erzeugen (`pack_image`), geprüft wurde beim Lesen nichts, und „ohne Überlappung“ stand nicht in P5b 4.6 (VIEW setzt es voraus: Rückblick nur auf den unmittelbar vorigen Befehl, Zeile fertig nach dem rechts beschnittenen Lauf). Ergänzt: `dbetex.check_vms` (Typ 1/8, Anzahl/Länge, Zeile < h, Spalte + len ≤ w ≤ stride, steigend ohne Überlappung) in `from_s2` und `from_dts`; Test `test_check_vms`, `test_vms_format_rules` prüft Überlappung.
-- Bytegleich: P6e Standard 1 743 / `VMS_COPY` 1 713 Ansichten (Rand 525), voll 5 383 / 5 353; P6d, P6a, P6c, GEOMSET grün. Zyklen unverändert (±40). Code 10 473 Byte (`$B000–$D8E8`), Reserve 791 (Testbuild bis `$DB80`: 535).
-- **Zeilenindex je Bild (offener Punkt 1):** 4 Byte je Bildzeile kosten in den Demo-Sätzen +20 … 60 % S2 (Satz „hoch“ +123 %), dazu Format-/Werkzeugänderung und ≈ 80–120 Byte Code. Nutzen: Zeilen vor T entfallen (oben hinaus ≈ −3 000), bei Rand links/rechts nur die Befehle rechts von R (≈ −1 500 … −2 500 je Objekt); links von L muss weiter gelesen werden. Das Ziel ≈ 6 900 bliebe verfehlt (Kerne und Grundlast ≈ 5 000). Empfehlung: nicht umsetzen; falls oben hinaus wichtig wird, grober Index (alle 8 Zeilen, ≈ 3–8 % S2).
+- **Bug `clipvms_e`:** after a run clipped on the right, from Y ≥ `$F8` it went into the next row with Y = `$FC…$FF` without advancing ZP1; the next command ran past Y = `$FF` (Y = 0, wrong list), unless the row was the last. Fixed (`@pn`: check Y ≥ `$FC`, +5 bytes, only on this path). New test set "grating" (`tall_sets`, set 7; set 1 in the edge test free because of the S2 space in the sim): wide images without cores, runs per row, half bytes and gaps, long lists; hits the case (before: 1 deviation).
+- **Counting dry run/`iovf`:** in the "size known" mode (without space check) the block wrote up to 9 bytes of garbage behind mp even with an empty result list; with exactly fitting space the VCL entries of the cores are already there. Now: `im` = 0 → return immediately. With a list the garbage stays at most 6 bytes behind its end, where the 7-byte type 12 entry is still free. Counting mode: garbage only `$0B00–$0BFF` (block < 256 bytes, type 3 at `$0B00–$0B02`); no collision (BUFSET window `$1300–$1BFF`, `$0B00` reserve since P6d-opt).
+- **Format rule:** `dbespr`/`dbetex` satisfy it on creation (`pack_image`), nothing was checked on reading, and "without overlap" was not in P5b 4.6 (VIEW presupposes it: look-back only at the immediately preceding command, row finished after the run clipped on the right). Added: `dbetex.check_vms` (type 1/8, count/length, row < h, column + len ≤ w ≤ stride, ascending without overlap) in `from_s2` and `from_dts`; test `test_check_vms`, `test_vms_format_rules` checks overlap.
+- Byte-identical: P6e standard 1 743 / `VMS_COPY` 1 713 views (edge 525), full 5 383 / 5 353; P6d, P6a, P6c, GEOMSET green. Cycles unchanged (±40). Code 10 473 bytes (`$B000–$D8E8`), reserve 791 (test build up to `$DB80`: 535).
+- **Row index per image (open point 1):** 4 bytes per image row cost +20 … 60 % S2 in the demo sets (set "up" +123 %), plus format/tool change and ≈ 80–120 bytes of code. Benefit: rows before T are dropped (out the top ≈ −3 000), for edge left/right only the commands right of R (≈ −1 500 … −2 500 per object); left of L still has to be read. The target ≈ 6 900 would remain missed (cores and base load ≈ 5 000). Recommendation: do not implement; if out the top becomes important, a coarse index (every 8 rows, ≈ 3–8 % S2).
 
 
-## Ergebnis P6f (2026-11-25)
+## Result P6f (2026-11-25)
 
-Umgesetzt: `MOVE` (3.4) und Automap-Bit 6 in `VIEW`; `CELL` war seit P6c fertig (Test `map_check`, unverändert). Referenz: neues Modul **`tools/dbemove.py`** (nur `MOVE`, braucht weder DVG noch DTS; `move(m, pos, v, objects, action, objn)`), der Automap-Teil in **`tools/dbeview.py`** (`Scene.automap`, `_View.seen`/`seen_floor`), weil er die Interna der Sichtberechnung (`cover`, `bcov`, Zelle je Eintrag) braucht. `view()` verändert bei `automap = True` das `dmp.content` der Szene (Tests arbeiten auf einer Kopie).
+Implemented: `MOVE` (3.4) and automap bit 6 in `VIEW`; `CELL` has been finished since P6c (test `map_check`, unchanged). Reference: new module **`tools/dbemove.py`** (`MOVE` only, needs neither DVG nor DTS; `move(m, pos, v, objects, action, objn)`), the automap part in **`tools/dbeview.py`** (`Scene.automap`, `_View.seen`/`seen_floor`), because it needs the internals of the visibility computation (`cover`, `bcov`, cell per entry). With `automap = True`, `view()` changes the `dmp.content` of the scene (tests work on a copy).
 
-### Festlegungen (Lücken der Spezifikation)
+### Determinations (gaps in the specification)
 
-- **MOVE:** `A = 5` ohne `MAPINIT`, `A = 6` bei X ≥ 7 (Zustand und P0–P2 unverändert). Drehen: **Y = Kachel der Position** (3.4 sagte nur X = 0). Schritt: Reihenfolge der Prüfungen Karte → WEG → Objekt; Objektliste: höchstens 16 Einträge (`OBJN` > 16 wird als 16 gelesen), kleinster Index gewinnt, Bit 6 (unsichtbar) und Bit 7 (blockiert nicht) blockieren nicht. P3 bleibt unverändert; `MOVE` setzt kein Automap-Bit. `px`, `py` werden beim Schritt direkt fortgeschrieben (kein `calcxy`; Randprüfung 8 Bit: `$FF` ≥ W, auch für W = 255). P2 = Index des ersten Ereignisses mit gleicher Zelle (lineare Suche, Abbruch beim ersten Eintrag mit größerer Zelle, weil die Liste nach Zelle sortiert ist, P4 2.5; Referenz und 6502 gleich).
-- **Automap:** `MAPINIT` X Bit 0 wirkt nur mit Arbeitskopie (P1 ≠ 0), sonst `map_auto` = 0 (das DMP in Bank 1 bleibt unverändert). Markiert wird Bit 6 der Inhaltsebene (a) bei jeder Wand (Front oder Seite) einer Zelle in der Karte, die nicht ganz von `cover` verdeckt ist und ein Bild hat („angenommen“ = vor MAXITEM-/Pufferprüfung von `itemadd`; ein danach verworfener Eintrag markiert trotzdem), (b) bei jeder Zelle in der Karte mit Bodenelement, die nicht blockiert ist (DECKEND + vier Wände), deren Tiefe sichtbare Bodenzeilen hat und deren Bodenelement (x … x + w) nicht ganz von `bcov` verdeckt ist (Stand nach `vcells`, vor `vband`; auch bei Lücke und Abgrund). Deckenkacheln markieren nicht; Zellen außerhalb nie. Bei Abbruch (`E_TOOMANY`) bleiben die bis dahin gesetzten Marken.
-- **Testbuild:** `TESTHI` (Funktion 252) von `$DB80` nach `$DBC0` verschoben (`lib-test.cfg`, `lib.s`, Kommentar in `vice_smoke.py`), weil der Testbuild mit den P6f-Funktionen sonst nicht mehr unter `$DB80` passt; die Probe liest jetzt `$DBBF` (Füllbyte `$EA`).
-- **Tests:** `run_sim.py`: P6a erwartet `F = 3` ohne `MAPINIT` als `E_STATE`; neu `test_p6f_move`, `test_p6f_auto`, `test_p6f_cycles`; `ViewRunner.mapx/mapp1` (MAPINIT mit Arbeitskopie bei `AUTO_ADDR` = `$3800`), `last_items`. `test/tools/test_dbemove.py` (Referenz).
+- **MOVE:** `A = 5` without `MAPINIT`, `A = 6` for X ≥ 7 (state and P0–P2 unchanged). Turning: **Y = tile of the position** (3.4 said only X = 0). Step: order of checks map → SOLID → object; object list: at most 16 entries (`OBJN` > 16 is read as 16), smallest index wins, bit 6 (invisible) and bit 7 (does not block) do not block. P3 remains unchanged; `MOVE` sets no automap bit. `px`, `py` are advanced directly on the step (no `calcxy`; edge check 8 bit: `$FF` ≥ W, also for W = 255). P2 = index of the first event with the same cell (linear search, abort at the first entry with a greater cell, because the list is sorted by cell, P4 2.5; reference and 6502 the same).
+- **Automap:** `MAPINIT` X bit 0 works only with a working copy (P1 ≠ 0), otherwise `map_auto` = 0 (the DMP in bank 1 remains unchanged). Bit 6 of the content layer is marked (a) at every wall (front or side) of a cell in the map that is not completely occluded by `cover` and has an image ("accepted" = before the MAXITEM/buffer check of `itemadd`; an entry discarded afterwards marks anyway), (b) at every cell in the map with a floor element that is not blocked (OCCLUDING + four walls), whose depth has visible floor rows and whose floor element (x … x + w) is not completely occluded by `bcov` (state after `vcells`, before `vband`; also with gap and abyss). Ceiling tiles do not mark; cells outside never. On abort (`E_TOOMANY`) the marks set up to then remain.
+- **Test build:** `TESTHI` (function 252) moved from `$DB80` to `$DBC0` (`lib-test.cfg`, `lib.s`, comment in `vice_smoke.py`), because the test build with the P6f functions otherwise no longer fits below `$DB80`; the probe now reads `$DBBF` (fill byte `$EA`).
+- **Tests:** `run_sim.py`: P6a expects `F = 3` without `MAPINIT` as `E_STATE`; new `test_p6f_move`, `test_p6f_auto`, `test_p6f_cycles`; `ViewRunner.mapx/mapp1` (MAPINIT with working copy at `AUTO_ADDR` = `$3800`), `last_items`. `test/tools/test_dbemove.py` (reference).
 
-### Test (sim65, bytegleich mit den Referenzen)
+### Test (sim65, byte-identical with the references)
 
-- **MOVE:** 22 884 Aufrufe (X = 0: 15 524, 1: 5 269, 2: 2 091): demo, abgrund, 6 Zufallskarten (mit Gittern/Türen/WEG, 0–300 Ereignisse), 255 × 4 (600 Ereignisse, Index > 255, Zeiger über Seiten, px + 1 = `$FF`), 1 × 40, 40 × 1, 4 × 255, 1 × 1; je Karte alle Zellen (bei > 60 Zellen 60 zufällige und die Ecken) × 4 Richtungen × 7 Aktionen mit Zufallsobjekten (Nachbarzellen, Bit 6/7, 16 Objekte, `OBJN` = 20) und 300 Aufrufe lange Zufallsketten ohne `SETPOS` dazwischen; verglichen A, X, Y, P0, P1, P2 und der BSS-Zustand (`pos`, `vdir`, `px`, `py`). Fehlerfälle X = 7/255 und `MOVE` ohne `MAPINIT`.
-- **Automap:** 2 332 Ansichten (demo, abgrund, offener Raum, Gang, 24 Zufallskarten mit 6 Ansichten, zwei Fronten, darunter Abbruch durch kleine Puffer), Ketten über dieselbe Karte (Marken sammeln sich an); nach jeder Ansicht ist die Arbeitskopie (2 W H Byte) gleich der Referenz; dazu `X = 1` ohne Kopie und `X = 0` mit Kopie (keine Marken, DMP unverändert). Alle früheren Sätze (P6a, P6c, GEOMSET, P6d, P6e, je Standard und `VMS_COPY`) und die Python-Tests (106) unverändert grün.
+- **MOVE:** 22 884 calls (X = 0: 15 524, 1: 5 269, 2: 2 091): demo, abyss, 6 random maps (with gratings/doors/SOLID, 0–300 events), 255 × 4 (600 events, index > 255, pointer across pages, px + 1 = `$FF`), 1 × 40, 40 × 1, 4 × 255, 1 × 1; per map all cells (for > 60 cells 60 random ones and the corners) × 4 directions × 7 actions with random objects (neighboring cells, bit 6/7, 16 objects, `OBJN` = 20) and 300 calls of long random chains without `SETPOS` in between; compared A, X, Y, P0, P1, P2 and the BSS state (`pos`, `vdir`, `px`, `py`). Error cases X = 7/255 and `MOVE` without `MAPINIT`.
+- **Automap:** 2 332 views (demo, abyss, open room, corridor, 24 random maps with 6 views, two fronts, including abort through small buffers), chains over the same map (marks accumulate); after every view the working copy (2 W H bytes) equals the reference; additionally `X = 1` without copy and `X = 0` with copy (no marks, DMP unchanged). All earlier sets (P6a, P6c, GEOMSET, P6d, P6e, each standard and `VMS_COPY`) and the Python tests (106) unchanged green.
 
-### Größen
+### Sizes
 
-Lib-Code **11 016 Byte** (`$B000–$DB07`, P6e-opt 10 473: +543), **Reserve 248 Byte** bis `$DBFF` (Testbuild bis `$DBBF`: 56). BSS 1 922 Byte (+2, `cellp`), Reserve 126; LIBTAB unverändert (945). Je Funktion: `f_move` 387 Byte (davon 14 Byte Tabellen `mvtab`/`mvdel`), `cellptr` 54, `mark_seen` 36, `vauto` 81, dazu je 3 Byte in `vwall` und `vdepth`; aus `vcells` entfielen 28 Byte (nach `cellptr` ausgelagert).
+Lib code **11 016 bytes** (`$B000–$DB07`, P6e-opt 10 473: +543), **reserve 248 bytes** up to `$DBFF` (test build up to `$DBBF`: 56). BSS 1 922 bytes (+2, `cellp`), reserve 126; LIBTAB unchanged (945). Per function: `f_move` 387 bytes (of which 14 bytes tables `mvtab`/`mvdel`), `cellptr` 54, `mark_seen` 36, `vauto` 81, plus 3 bytes each in `vwall` and `vdepth`; 28 bytes were dropped from `vcells` (moved out to `cellptr`).
 
-### Zyklen (sim65, ohne Stub, Lauf mit Funktion minus Lauf mit F = 7)
+### Cycles (sim65, without stub, run with function minus run with F = 7)
 
-| Fall | Zyklen |
+| Case | Cycles |
 |---|---|
-| MOVE drehen (Mittel / max) | 340 / 431 (ohne Ereignisse 224 + Kartenzugriffe) |
-| MOVE Schritt ok | 629 / 697 |
-| MOVE Schritt gegen Karte/WEG | 512 / 626 |
-| MOVE, 16 Objekte, blockierendes zuletzt | 941 |
-| Ereignissuche je Eintrag | ≈ 56 je Eintrag vor der Position (Abbruch beim ersten größeren; Ereignis an Position 600 von 600: 33 987; 3 … 600 Ereignisse alle hinter der Position: 254) |
-| VIEW Gang, Mittel / max, ohne Automap | 33 962 / 39 701 (P6e-opt 33 364 / 39 048: +600 durch `cellptr`) |
-| VIEW Gang mit Automap | 36 035 / 41 681 (+2 070) |
-| VIEW demo ohne / mit Automap (Mittel) | 24 916 / 27 035 |
-| VIEW zufall (0 Objekte) ohne / mit (Mittel, max) | 41 739 / 56 094 · 45 719 / 59 526 |
+| MOVE turn (mean / max) | 340 / 431 (without events 224 + map accesses) |
+| MOVE step ok | 629 / 697 |
+| MOVE step against map/SOLID | 512 / 626 |
+| MOVE, 16 objects, blocking one last | 941 |
+| Event search per entry | ≈ 56 per entry before the position (abort at the first greater one; event at position 600 of 600: 33 987; 3 … 600 events all behind the position: 254) |
+| VIEW corridor, mean / max, without automap | 33 962 / 39 701 (P6e-opt 33 364 / 39 048: +600 through `cellptr`) |
+| VIEW corridor with automap | 36 035 / 41 681 (+2 070) |
+| VIEW demo without / with automap (mean) | 24 916 / 27 035 |
+| VIEW random (0 objects) without / with (mean, max) | 41 739 / 56 094 · 45 719 / 59 526 |
 
-### Offene Punkte
+### Open points
 
-1. Ereignissuche linear: im Review auf Abbruch beim ersten größeren Eintrag umgestellt (+4 Byte; Zellen ohne Ereignis kosten nur noch die Einträge davor, ≈ 56 Zyklen je Eintrag). Binäre Suche (≈ +50 Byte) erst bei Karten mit mehreren hundert Ereignissen nötig; Entscheidung Nutzer.
-2. Zyklenziel Gang (Mittel ≤ 30 000) bleibt offen (33 962; P6d-opt/P6e-opt unverändert). Automap kostet +6 %; Marken nur bei Bedarf einschalten (`MAPINIT` X Bit 0).
-3. Reserve nach P6f nur 248 Byte (Testbuild 56): P6g/P7 sollten keine größeren Funktionen mehr in die Lib legen, oder `VMS_COPY`-freie Einsparungen (`vauto` 81 Byte durch Marken in `vcells` ersetzen, ≈ −35 Byte, geänderte Semantik: `bcov` noch unvollständig) prüfen.
+1. Event search linear: changed in the review to abort at the first greater entry (+4 bytes; cells without an event now cost only the entries before them, ≈ 56 cycles per entry). Binary search (≈ +50 bytes) is needed only for maps with several hundred events; decision user.
+2. Cycle target corridor (mean ≤ 30 000) remains open (33 962; P6d-opt/P6e-opt unchanged). Automap costs +6 %; switch marks on only when needed (`MAPINIT` X bit 0).
+3. Reserve after P6f only 248 bytes (test build 56): P6g/P7 should not put any larger functions into the lib any more, or check `VMS_COPY`-free savings (replace `vauto` 81 bytes by marks in `vcells`, ≈ −35 bytes, changed semantics: `bcov` still incomplete).
 
 
-## Ergebnis P6g (2026-11-25)
+## Result P6g (2026-11-25)
 
-Umgesetzt: `test/vice_view.py` (Harness, Szenen, Assets, Vergleich) und `test/vice/view.bas` (BASIC-Vorlage; der Harness setzt Dateinamen, Adressen und Setz-Aufrufe ein und erzeugt `build/vice/view.bas`). Aufruf `test/vice_view.py [--only i|c] [--check] [--png DIR] [--control] [--no-sim]`; Port `--port`/`DBE_VICE_PORT` (Läufe mit 6632, Review-Nachlauf 6634), bind-Test, nur der eigene Prozess, keine festen Wartezeiten. Weder `lib.s`/`view.s` noch VDC-BASIC wurden geändert.
+Implemented: `test/vice_view.py` (harness, scenes, assets, comparison) and `test/vice/view.bas` (BASIC template; the harness inserts file names, addresses and set calls and generates `build/vice/view.bas`). Call `test/vice_view.py [--only i|c] [--check] [--png DIR] [--control] [--no-sim]`; port `--port`/`DBE_VICE_PORT` (runs with 6632, review follow-up run 6634), bind test, own process only, no fixed wait times. Neither `lib.s`/`view.s` nor VDC-BASIC were changed.
 
-### Ablauf
+### Procedure
 
-`BOOT` (VDC-BASIC v3) → `POKE 57,0:POKE 58,80:CLR` → Stub, Lib (Standardbuild `dbe0.2.lib`), `INIT` → Chunky-Modus wie Crawl (`crawl.bas` 10059–10135: R0 127, R4 159, R6 120, R7 133, R9 1, R25 Bit 7, R28 24, R36 0, R26 `$FF`, `DISP 46335`, `ATTR 0`, Bildschirm-RAM und Attribut-RAM gefüllt; vorher das ganze 64-KB-VRAM gelöscht, damit das Modell exakt gilt) → DVG, DMP, DTS ×3, DBG, S2 ×4 per `BLOAD` nach Bank 1; VRL der Texturen, Tapete und Sprites (`vrl.encode` der `vram`-Bytes) per `BLOAD` nach Bank 0 `$9000` und `RXV` in den Pool → `POOLSET` (9600 … 46335), `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`, `MAPINIT`, `BUFSET`. Die Szenentabelle (Bank 0 `$8000`: SETPOS oder MOVE, Objektliste, ITEMPH) liest das BASIC mit `PEEK`; je Schritt: Setz-Aufruf, Marke `SYS 3148` (`$0C4C`, RTS), `VIEW`, `::VCL`, Marke `SYS 3149`. Am Fehlervektor `($0300)` und an den Marken hält der Harness (Haltepunkte); an `$0C4D` liest er das ganze VRAM (`bank vdc`, `bsave`), den Puffer `$1300–$1BFF`, Parameterblock und Testbytes (`$0C40–$0C46`: A/X von `VIEW`, A/X/Y/P0 von `MOVE`).
+`BOOT` (VDC-BASIC v3) → `POKE 57,0:POKE 58,80:CLR` → stub, lib (standard build `dbe0.2.lib`), `INIT` → chunky mode as Crawl (`crawl.bas` 10059–10135: R0 127, R4 159, R6 120, R7 133, R9 1, R25 bit 7, R28 24, R36 0, R26 `$FF`, `DISP 46335`, `ATTR 0`, screen RAM and attribute RAM filled; beforehand the entire 64 KB VRAM cleared so that the model applies exactly) → DVG, DMP, DTS ×3, DBG, S2 ×4 via `BLOAD` to bank 1; VRL of the textures, wallpaper and sprites (`vrl.encode` of the `vram` bytes) via `BLOAD` to bank 0 `$9000` and `RXV` into the pool → `POOLSET` (9600 … 46335), `GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`, `MAPINIT`, `BUFSET`. The scene table (bank 0 `$8000`: SETPOS or MOVE, object list, ITEMPH) is read by BASIC with `PEEK`; per step: set call, marker `SYS 3148` (`$0C4C`, RTS), `VIEW`, `::VCL`, marker `SYS 3149`. The harness halts (breakpoints) at the error vector `($0300)` and at the markers; at `$0C4D` it reads the entire VRAM (`bank vdc`, `bsave`), the buffer `$1300–$1BFF`, parameter block and test bytes (`$0C40–$0C46`: A/X of `VIEW`, A/X/Y/P0 of `MOVE`).
 
-Vergleich je Szene: (1) das **ganze VRAM** (64 KB) bytegleich mit einem Modell (`run_vcl` über die Referenz-Liste, Zustand wandert von Szene zu Szene mit); damit ist auch „kein Byte außerhalb des Fensters“ geprüft; (2) das Fenster gegen `paint_reference` (nur bei A = 0); (3) A, X, VCLADR, VCLLEN, VMSLEN, OBJVIS und die Pufferbytes (VCL-Liste und VMS-Listen) gegen `dbeview.view` (= sim65); (4) `MOVE`-Ergebnis A/X/Y/P0 gegen `dbemove.move`. Gegenprobe `--control` (ein Byte im Modell verfälscht): genau diese Szene wird gemeldet. Zyklen: Stoppuhr des Monitors; VIEW von `$0D03` (Stub-Eintritt) bis zum RTS des Stubs, VCL vom Eintritt `vcl` bis `.vcl_done` (`vcl` aus `vdcbasic3.sym`, die lokale Marke aus dem ACME-Report, `vdc_labels`; Review: vorher `complex_instruction_shared_exit`, siehe Nachtrag); in beiden Fenstern ist das I-Flag gesetzt (kein Kernal-IRQ, vergleichbar mit sim65), danach wie vorher. „mit BASIC“ = alles zwischen den Marken (Zuweisungen, `POKE`, `SYS`-Auswertung, `::VCL`-Parsing, IRQ an). Spalte sim65 = dieselbe Ansicht im sim65-Harness (Differenz zweier Läufe, ohne Stub).
+Comparison per scene: (1) the **entire VRAM** (64 KB) byte-identical with a model (`run_vcl` over the reference list, state carries over from scene to scene); this also checks "no byte outside the window"; (2) the window against `paint_reference` (only for A = 0); (3) A, X, VCLADR, VCLLEN, VMSLEN, OBJVIS and the buffer bytes (VCL list and VMS lists) against `dbeview.view` (= sim65); (4) `MOVE` result A/X/Y/P0 against `dbemove.move`. Control test `--control` (one byte in the model falsified): exactly this scene is reported. Cycles: stopwatch of the monitor; VIEW from `$0D03` (stub entry) to the RTS of the stub, VCL from the entry `vcl` to `.vcl_done` (`vcl` from `vdcbasic3.sym`, the local marker from the ACME report, `vdc_labels`; review: previously `complex_instruction_shared_exit`, see addendum); in both windows the I flag is set (no Kernal IRQ, comparable with sim65), afterwards as before. "with BASIC" = everything between the markers (assignments, `POKE`, `SYS` evaluation, `::VCL` parsing, IRQ on). Column sim65 = the same view in the sim65 harness (difference of two runs, without stub).
 
-### Szenen (42; je interpretiert und als Blitz!-Kompilat, Image 2)
+### Scenes (42; each interpreted and as Blitz! compilation, image 2)
 
-Demo-Karte 15 × 11: Gänge, Raum mit Himmel (Tapete), Gitter, Fenster-Wand, Abgrund, INHALT-Tür, Gegenstand. 18 Ansichten Wände/Boden/Decke/Tapete/Gitter/Fenster/Abgrund/Gegenstand, 8 mit Objekten (mittig d = 1/2/3, alle Unterpositionen, Wache + Gem + ITEMPH, `breit` am linken/rechten Rand und bei d = 2, 5 Objekte im offenen Raum; `VMS` Typ 12 beschnitten in 4 Szenen), 4 INHALT-Szenen (leer, Blob d = 3/2, zwei Blobs d = 1), 12 MOVE-Schritte (Start, vor, drehen, seitwärts, gegen Wand X = 1, gegen Objekt X = 2, umdrehen, zurück).
+Demo map 15 × 11: corridors, room with sky (wallpaper), grating, window wall, abyss, CONTENT door, item. 18 views walls/floor/ceiling/wallpaper/grating/window/abyss/item, 8 with objects (centered d = 1/2/3, all sub-positions, guard + gem + ITEMPH, `wide` at the left/right edge and at d = 2, 5 objects in the open room; `VMS` type 12 clipped in 4 scenes), 4 CONTENT scenes (empty, blob d = 3/2, two blobs d = 1), 12 MOVE steps (start, forward, turn, sideways, against wall X = 1, against object X = 2, turn around, back).
 
-### Ergebnis
+### Result
 
-**Alle 42 Szenen in beiden Läufen pixelgleich** (ganzes VRAM = Modell, Fenster = `paint_reference`, Puffer = Referenz, MOVE-Ergebnisse gleich, A = 0 überall, keine BASIC-Fehler). Die Prüfung gilt nur für die gestellten Szenen, nicht für alle Ansichten (das leistet sim65 bytegleich).
+**All 42 scenes in both runs pixel-identical** (entire VRAM = model, window = `paint_reference`, buffer = reference, MOVE results equal, A = 0 everywhere, no BASIC errors). The check applies only to the scenes provided, not to all views (sim65 does that byte-identically).
 
-Zyklen (VICE, 1 MHz, Mittel / min / max über 42 Szenen; Kompilat in Klammern, wo abweichend):
+Cycles (VICE, 1 MHz, mean / min / max over 42 scenes; compilation in parentheses where different):
 
-| Teil | Mittel | min | max |
+| Part | Mean | min | max |
 |---|---|---|---|
-| VIEW (mit Stub) | 43 150 | 12 170 | 76 460 |
+| VIEW (with stub) | 43 150 | 12 170 | 76 460 |
 | VCL | 201 700 (201 800) | 68 000 (67 850) | 391 400 (391 200) |
 | VIEW + VCL | 244 900 | 80 200 | 445 700 (446 000) |
-| mit BASIC, interpretiert / kompiliert | 317 300 / 253 700 | 153 100 / 89 200 | 517 400 / 456 200 |
-| sim65 (VIEW ohne Stub) | 40 141 | 11 114 | 71 513 |
+| with BASIC, interpreted / compiled | 317 300 / 253 700 | 153 100 / 89 200 | 517 400 / 456 200 |
+| sim65 (VIEW without stub) | 40 141 | 11 114 | 71 513 |
 
-Beispiele (VIEW / VCL, interpretiert): Gang Süd 44 700 / 235 800; Raum mit Himmel Süd 33 900 / 72 300; Fenster Süd d = 1 23 100 / 184 500; Fenster Ost 41 700 / 301 400; Blob mittig d = 1 48 100 / 271 500; `breit` Rand links 61 800 / 156 700; 5 Objekte offen 76 500 / 220 100; INHALT Blobs d = 1 49 500 / 391 400; Drehen 12 200 / 68 000. Zwischen Läufen schwanken die VCL-Werte um bis zu 3 000 (VIC-II-Badlines, Phasenlage).
+Examples (VIEW / VCL, interpreted): corridor south 44 700 / 235 800; room with sky south 33 900 / 72 300; window south d = 1 23 100 / 184 500; window east 41 700 / 301 400; blob centered d = 1 48 100 / 271 500; `wide` edge left 61 800 / 156 700; 5 objects open 76 500 / 220 100; CONTENT blobs d = 1 49 500 / 391 400; turning 12 200 / 68 000. Between runs the VCL values fluctuate by up to 3 000 (VIC-II badlines, phase position).
 
-### Befunde
+### Findings
 
-1. **Speicherkarte 2.4 kollidiert mit dem verbesserten Blitz!-Runtime.** Der Runtime (Image 2) macht das obere 1 KB gemeinsam (`RCR` = `$0C`) und belegt `$FC00–$FEFF`; ein `BLOAD` der Decken-DTS (`$F800 …`) oder des DBG (`$FE00`) nach Bank 1 landet im gemeinsamen RAM und zerstört den Runtime (Kompilat hängt, interpretiert unbemerkt). Im Test liegen DVG, Decke, Boden und DBG dicht gepackt in `$E800–$FBFF` (5 KB; DVG `$E800`, Decke `$ED30`, Boden `$F240`, DBG `$F9C0`), Wand-DTS `$9000`, DMP `$5000`, S2 `$7000` wie in 2.4. **Spec 2.4 angepasst (Review P6g):** Obergrenze `$FBFF` für alle Bank-1-Daten, neue Werkzeug-Vorgaben Boden `$EE00`, Decke `$F600`, DBG `$FB00`. Der Bereich steht auch in `blitz128/blitzc/README.md` (Blitz!-Compiler).
-2. **Demo-Assets passen nicht in 2.4** (Wand 8,7 KB, Boden 9,1 KB mit 3 Stilen, Decke 3,2 KB; VRAM 54 KB gegen Pool 36,7 KB). Kleine Sätze im Test: Wand 3 Stile (ziegel, gitter, fenster; 7 520 Byte DTS), Boden 1 Stil (1 918), Decke 1 Stil (1 295), Tapete mit Panorama 2 · VW (122 Byte DBG), 4 Sprite-Sätze (S2 zusammen 3 900 Byte in `$7000–$8F1D`); VRAM 9 600 … 44 751 im Pool 9 600 … 46 334 (hinter dem Attribut-RAM, vor dem Bildschirm-RAM wie in Crawl). Die Boden- und Decken-Stile mit Lücken und der Wandstil „bogen“ fehlen deshalb in den VICE-Szenen (in sim65 und `test_dbeview` getestet).
-3. VICE-VIEW ist im Mittel 7 % (≈ 3 000) über sim65: Stub (≈ 450) und die VIC-II-Badlines, die die Stoppuhr mitzählt (x128, 1 MHz); die Werte schwanken zwischen Läufen um etwa 300. Ziele aus Abschnitt 8 bleiben als sim65-Zahlen gültig.
-4. **VCL ist 82 % der Zeit** (Mittel 201 700 gegen 43 150): ein Bild kostet interpretiert wie kompiliert etwa 0,25 s bei 1 MHz (Blobs d = 1/INHALT 0,45 s). Zerlegung und Maßnahmen: `docs/specs/P6g-vcl-analysis.md`. Die VDC-Zeit modelliert VICE nur grob; maßgeblich wäre Z64K oder Hardware. Der BASIC-Aufwand zwischen den Marken beträgt interpretiert etwa 71 000, kompiliert etwa 8 000 Zyklen je Szene.
-5. `BLOAD … :IF DS<>0` und `GOSUB`/`POKE`-Schleifen laufen im Blitz!-Kompilat unverändert; `FOR` mit 0 Durchläufen im Interpreter läuft einmal (Vorlage prüft `n = 0`).
+1. **Memory map 2.4 collides with the improved Blitz! runtime.** The runtime (image 2) makes the upper 1 KB shared (`RCR` = `$0C`) and occupies `$FC00–$FEFF`; a `BLOAD` of the ceiling DTS (`$F800 …`) or of the DBG (`$FE00`) to bank 1 lands in the shared RAM and destroys the runtime (compilation hangs, interpreted unnoticed). In the test DVG, ceiling, floor and DBG are packed tightly in `$E800–$FBFF` (5 KB; DVG `$E800`, ceiling `$ED30`, floor `$F240`, DBG `$F9C0`), wall DTS `$9000`, DMP `$5000`, S2 `$7000` as in 2.4. **Spec 2.4 adapted (review P6g):** upper limit `$FBFF` for all bank 1 data, new tool defaults floor `$EE00`, ceiling `$F600`, DBG `$FB00`. The range is also in `blitz128/blitzc/README.md` (Blitz! compiler).
+2. **Demo assets do not fit into 2.4** (wall 8.7 KB, floor 9.1 KB with 3 styles, ceiling 3.2 KB; VRAM 54 KB against pool 36.7 KB). Small sets in the test: wall 3 styles (brick, grating, window; 7 520 bytes DTS), floor 1 style (1 918), ceiling 1 style (1 295), wallpaper with panorama 2 · VW (122 bytes DBG), 4 sprite sets (S2 together 3 900 bytes in `$7000–$8F1D`); VRAM 9 600 … 44 751 in the pool 9 600 … 46 334 (behind the attribute RAM, before the screen RAM as in Crawl). The floor and ceiling styles with gaps and the wall style "arch" are therefore missing in the VICE scenes (tested in sim65 and `test_dbeview`).
+3. VICE VIEW is on average 7 % (≈ 3 000) above sim65: stub (≈ 450) and the VIC-II badlines that the stopwatch counts along (x128, 1 MHz); the values fluctuate between runs by about 300. Targets from section 8 remain valid as sim65 figures.
+4. **VCL is 82 % of the time** (mean 201 700 against 43 150): one image costs, interpreted as well as compiled, about 0.25 s at 1 MHz (blobs d = 1/CONTENT 0.45 s). Breakdown and measures: `docs/specs/P6g-vcl-analysis.md`. VICE models the VDC time only roughly; Z64K or hardware would be authoritative. The BASIC overhead between the markers is about 71 000 cycles per scene interpreted, about 8 000 compiled.
+5. `BLOAD … :IF DS<>0` and `GOSUB`/`POKE` loops run unchanged in the Blitz! compilation; `FOR` with 0 iterations in the interpreter runs once (template checks `n = 0`).
 
-### Offene Punkte
+### Open points
 
-- Z64K-Lauf (Pixel per CRC wie `vdc-basic/test/zvt.py`) nicht umgesetzt: bräuchte die Szenentabelle als Datei, ein 6502-Hilfsprogramm für die CRC und mehrere Starts (je 8 s + 1,7 MHz); VICE-Szenen decken Funktion und Zeit ab.
-- Szenen mit A ≠ 0 (Puffer zu klein), Automap, Arbeitskopie (`SETCELL`) und `OBJN` > 16 sind nicht in VICE gestellt (sim65 prüft sie bytegleich).
-- NMI weiterhin ungeprüft (P6d-opt).
-- Zeitmessung mit I-Flag gesetzt: der Zustand wird an Ein- und Ausgang vom Harness gesetzt und zurückgeschrieben; ein CLI in Stub/Lib würde nicht auffallen (es gibt keins).
+- Z64K run (pixels by CRC like `vdc-basic/test/zvt.py`) not implemented: would need the scene table as a file, a 6502 helper program for the CRC and several starts (each 8 s + 1.7 MHz); VICE scenes cover function and time.
+- Scenes with A ≠ 0 (buffer too small), automap, working copy (`SETCELL`) and `OBJN` > 16 are not provided in VICE (sim65 checks them byte-identically).
+- NMI still unchecked (P6d-opt).
+- Time measurement with I flag set: the state is set and written back by the harness at entry and exit; a CLI in stub/lib would go unnoticed (there is none).
 
-### Nachtrag Review P6g (2026-11-25)
+### Addendum review P6g (2026-11-25)
 
-- Testregeln eingehalten: eigener Port (`vicemon.choose_port`, bind-Test, Bereich 6631–6649), ereignisgesteuert (Haltepunkte an Marken und Fehlervektor, Debug-Cartridge; `-limitcycles` und Timeout nur Wächter), nur der eigene Prozess (`terminate`/`kill` per Popen). Der Vergleich ist stark: ganzes 64-KB-VRAM gegen das fortgeschriebene Modell, zusätzlich Fenster gegen den unabhängigen `paint_reference`, Puffer gegen `dbeview.view`. `--control` verfälscht das Byte `$00FA` (Zeile 3, Spalte 10, im Fenster) von Szene 5; Nachlauf: genau diese Szene gemeldet, Exitcode 0.
-- **Korrigiert: Ende der VCL-Messung.** `complex_instruction_shared_exit` ist das gemeinsame Ende **jedes** VMC/VMF und jedes VMS-Kopierbefehls, nicht von VCL. Der Haltepunkt traf hunderte Male je Szene; gezählt wurde der letzte Treffer, und schon beim ersten Treffer wurde das I-Flag zurückgesetzt, so dass ab dem zweiten Eintrag Kernal-IRQs mitgezählt wurden (≈ 5 %). Jetzt endet die Messung an `.vcl_done` (Adresse aus dem ACME-Report einer Kopie, gegen `vdcbasic3.bin` geprüft). Neue Werte oben (VCL im Mittel ≈ 5 % niedriger als vorher gemeldet: 211 200 → 200 500 bei gleichen Szenen), beide Läufe weiterhin pixelgleich.
-- **Korrigiert: zwei Szenen mit der Kamera in einer deckenden Zelle** („Fenster Ost“ in der Fenster-Wand (8, 9), „Abgrund Nord“ in einer Wand (4, 5)). Dort blieben Fensterbytes ungeschrieben (Fenster Ost: 1 050 Byte, Boden- und Deckenband d = 0 der blockierten Zelle). Jetzt (7, 9) Ost bzw. (3, 4) Nord; `build_steps` weist Kamerazellen mit DECKEND ab. Die Tabelle oben stammt aus dem Lauf danach (42 Szenen, beide Läufe pixelgleich).
-- Neues Werkzeug `test/vice_vclprof.py` (VCL-Zeit je Eintrag und je VMS-Befehl, Herkunft der Einträge, Overdraw; `--static` ohne VICE) für die Analyse `P6g-vcl-analysis.md`.
-- Aussagekraft der Zyklen: VICE modelliert die VDC-Wartezeiten nur grob (Bytes sind fast kostenlos); Hochrechnung auf Z64K in der Analyse (Abschnitt 4).
+- Test rules observed: own port (`vicemon.choose_port`, bind test, range 6631–6649), event-driven (breakpoints at markers and error vector, debug cartridge; `-limitcycles` and timeout only guards), only the own process (`terminate`/`kill` via Popen). The comparison is strong: entire 64 KB VRAM against the carried-forward model, additionally window against the independent `paint_reference`, buffer against `dbeview.view`. `--control` falsifies the byte `$00FA` (row 3, column 10, in the window) of scene 5; follow-up run: exactly this scene reported, exit code 0.
+- **Corrected: end of the VCL measurement.** `complex_instruction_shared_exit` is the common end of **every** VMC/VMF and every VMS copy command, not of VCL. The breakpoint hit hundreds of times per scene; the last hit was counted, and already at the first hit the I flag was reset, so that from the second entry Kernal IRQs were counted along (≈ 5 %). Now the measurement ends at `.vcl_done` (address from the ACME report of a copy, checked against `vdcbasic3.bin`). New values above (VCL on average ≈ 5 % lower than previously reported: 211 200 → 200 500 for the same scenes), both runs still pixel-identical.
+- **Corrected: two scenes with the camera in an occluding cell** ("window east" in the window wall (8, 9), "abyss north" in a wall (4, 5)). There window bytes remained unwritten (window east: 1 050 bytes, floor and ceiling band d = 0 of the blocked cell). Now (7, 9) east and (3, 4) north respectively; `build_steps` rejects camera cells with OCCLUDING. The table above comes from the run afterwards (42 scenes, both runs pixel-identical).
+- New tool `test/vice_vclprof.py` (VCL time per entry and per VMS command, origin of the entries, overdraw; `--static` without VICE) for the analysis `P6g-vcl-analysis.md`.
+- Significance of the cycles: VICE models the VDC wait times only roughly (bytes are almost free); extrapolation to Z64K in the analysis (section 4).
 
 
-## Entscheidungen nach der VCL-Analyse (2026-11-25)
+## Decisions after the VCL analysis (2026-11-25)
 
-1. VDC-BASIC-Optimierung (VMC-Zeile, VMS Typ 1/8, VCL-Eintrag) kommt später, nicht vor P7.
-2. Kanten auf ganze Bytes (2-Pixel-Stufen) als Option je Projekt: `view.toml` Schalter `byte_edges` (Standard `false` = pixelgenau); dbegeom rundet Masken dann auf Bytegrenzen.
-3. Gerendert wird mit 2 MHz (FAST, VIC aus während VIEW und VCL). Zyklenziele und Messungen werden auf 2 MHz bezogen.
-4. `MEMSIZ $4000`: BASIC-Variablen in Bank 1 `$0400–$3FFF`; erste Anweisung `POKE 57,0:POKE 58,64:CLR`. Asset-Bereiche ab `$4000` neu aufteilen (Speicherkarte 2.4 in P6h nachziehen).
+1. VDC-BASIC optimization (VMC row, VMS type 1/8, VCL entry) comes later, not before P7.
+2. Edges on whole bytes (2-pixel steps) as an option per project: `view.toml` switch `byte_edges` (default `false` = pixel-exact); dbegeom then rounds masks to byte boundaries.
+3. Rendering at 2 MHz (FAST, VIC off during VIEW and VCL). Cycle targets and measurements refer to 2 MHz.
+4. `MEMSIZ $4000`: BASIC variables in bank 1 `$0400–$3FFF`; first statement `POKE 57,0:POKE 58,64:CLR`. Re-divide asset areas from `$4000` (update memory map 2.4 in P6h).
 
-## Ergebnis P6h (2026-11-25)
+## Result P6h (2026-11-25)
 
-Umgesetzt: Speicherkarte G mit `MEMSIZ $4000` (2.4), Werkzeug-Ladeadressen und Bereichsprüfung (`tools/dbemem.py`), DVG-Bit 3 in `dbegeom`, `view.toml`-Schalter `byte_edges`, VCL-Typ 2 statt 3 bei srcstep = Länge (Engine und Referenz), Tests und Harness auf die neue Karte, Messung mit 2 MHz.
+Implemented: memory map G with `MEMSIZ $4000` (2.4), tool load addresses and range check (`tools/dbemem.py`), DVG bit 3 in `dbegeom`, `view.toml` switch `byte_edges`, VCL type 2 instead of 3 for srcstep = length (engine and reference), tests and harness on the new map, measurement at 2 MHz.
 
-### Speicherkarte
+### Memory map
 
-Bank 1: Variablen `$0400–$3FFF` (15 KB), DMP `$4000–$5FFF`, S2 `$6000–$7FFF`, Wand-DTS `$8000–$AFFF` (12 KB), Lib `$B000–$DBFF`, LIBTAB `$DC00`, BSS `$E000–$E7FF`, DVG `$E800`, Boden `$EE00`, Decke `$F600–$FB7F`, DBG `$FB80–$FBFF`, `$FC00–$FEFF` Blitz!-Runtime (gesperrt). Gegenüber Karte F rutschen DMP, S2 und Wand um 4 KB nach unten, die Wand bekommt 4 KB mehr (das Demo-Wand-DTS mit 4 Stilen, 8 736 Byte, passt jetzt); der hohe Teil `$E800–$FBFF` bleibt (5 KB), nur die Grenze Decke/DBG wandert von `$FB00` auf `$FB80` (1 Stil der Demo-Decke hat 1 295 Byte, der alte Bereich hatte 1 280; DBG braucht höchstens 124 Byte). Alle Bereiche liegen ≥ `$4000` (VCL-Typ-9-Listen) und unter `$FC00`.
+Bank 1: variables `$0400–$3FFF` (15 KB), DMP `$4000–$5FFF`, S2 `$6000–$7FFF`, wall DTS `$8000–$AFFF` (12 KB), lib `$B000–$DBFF`, LIBTAB `$DC00`, BSS `$E000–$E7FF`, DVG `$E800`, floor `$EE00`, ceiling `$F600–$FB7F`, DBG `$FB80–$FBFF`, `$FC00–$FEFF` Blitz! runtime (locked). Compared to map F, DMP, S2 and wall shift down by 4 KB, the wall gets 4 KB more (the demo wall DTS with 4 styles, 8 736 bytes, now fits); the high part `$E800–$FBFF` remains (5 KB), only the ceiling/DBG boundary moves from `$FB00` to `$FB80` (1 style of the demo ceiling has 1 295 bytes, the old area had 1 280; DBG needs at most 124 bytes). All areas are ≥ `$4000` (VCL type 9 lists) and below `$FC00`.
 
-### Werkzeuge
+### Tools
 
-- `tools/dbemem.py` (neu): Standard-Ladeadressen und `range_error(art, load, länge)`. `dbemap build`/`crawlmap` `$4000` (vorher `$8000`), `dbespr` `$6000` (`$7000`), `dbetex` Wand `$8000` (`$A000`), Boden `$EE00`, Decke `$F600`, DBG `$FB80` (`$A900`), `dbegeom` `$E800` (`$E400`). Die Schreibwege (`dbemap build`, `crawlmap`, `dbespr build`, `dbetex build`/`bg`, `dbegeom`) brechen mit Exitcode 1 und Meldung ab, wenn die Datei über das Bereichsende reicht oder ihre Ladeadresse in keinem Asset-Fenster liegt; liegt die Ladeadresse außerhalb des Standardbereichs der Art (dichte Packung), zählt das Ende des Fensters (`$AFFF` bzw. `$FBFF`). Die Rechenfunktionen (`to_dts`, `to_s2`, `to_dmp`, `build_texset`) prüfen nicht, damit Referenz und Tests die übergroßen Demo-Assets weiter benutzen können.
-- `dbegeom`: DVG-Flag **Bit 3** (Bandabdeckung) an allen Fronten, die die Bandzeilen ihrer Tiefe enthalten (JSON-Flag `bandcover`); die Geometrie-ID ändert sich dadurch. `dbeview.without_band_cover` erzeugt die Variante „Bit fehlt“ für die Tests (`make_scene(band_cover=False)` benutzt sie).
-- **`byte_edges`** (`[viewport]`, Standard `false`): Halbe Bytes (nur ein Pixel im Polygon) werden auf ganze Bytes gerundet: das Byte gehört zum Polygon, wenn sein Mittelpunkt innerhalb liegt; liegt er auf einer Kante, bekommt es das Polygon, das das linke Pixel besitzt (Nachbarflächen bleiben lückenlos und überlappungsfrei). Masken enthalten dann kein `L`/`R`, der Konverter erzeugt keine VMS-Typ-8-Befehle an den Kanten von Wänden und Kacheln (Sprites bleiben unberührt: `dbespr`).
-- VCL-Typ 3 mit srcstep = Länge wird als Typ 2 ausgegeben (Kerne; die Tapete bleibt Typ 3). Engine: neuer Einstieg `emit_vmcn` in `view.s` (Zählen und Schreiben, auch für beschnittene Kerne), Referenz `dbeview._kern_vmc`; bytegleich (sim65). In den Demo-Assets 29 von 256 Wandkernen; je Eintrag 2 VCL-Byte und der Typ-3-Mehraufwand weniger. Lib-Code **+41 Byte** (11 016 → 11 057 von 11 264), Reserve 207 Byte.
+- `tools/dbemem.py` (new): default load addresses and `range_error(kind, load, length)`. `dbemap build`/`crawlmap` `$4000` (before `$8000`), `dbespr` `$6000` (`$7000`), `dbetex` wall `$8000` (`$A000`), floor `$EE00`, ceiling `$F600`, DBG `$FB80` (`$A900`), `dbegeom` `$E800` (`$E400`). The write paths (`dbemap build`, `crawlmap`, `dbespr build`, `dbetex build`/`bg`, `dbegeom`) abort with exit code 1 and message if the file extends beyond the end of the area or its load address lies in no asset window; if the load address lies outside the standard area of the kind (tight packing), the end of the window counts (`$AFFF` or `$FBFF`). The calculation functions (`to_dts`, `to_s2`, `to_dmp`, `build_texset`) do not check, so that reference and tests can keep using the oversized demo assets.
+- `dbegeom`: DVG flag **bit 3** (band coverage) on all fronts that contain the band rows of their depth (JSON flag `bandcover`); the geometry ID changes as a result. `dbeview.without_band_cover` produces the variant "bit missing" for the tests (`make_scene(band_cover=False)` uses it).
+- **`byte_edges`** (`[viewport]`, default `false`): Half bytes (only one pixel in the polygon) are rounded to whole bytes: the byte belongs to the polygon if its center lies inside; if it lies on an edge, it gets the polygon that owns the left pixel (neighboring faces remain gapless and overlap-free). Masks then contain no `L`/`R`, the converter produces no VMS type 8 commands at the edges of walls and tiles (sprites remain untouched: `dbespr`).
+- VCL type 3 with srcstep = length is output as type 2 (cores; the wallpaper remains type 3). Engine: new entry `emit_vmcn` in `view.s` (counting and writing, also for clipped cores), reference `dbeview._core_vmc`; byte-identical (sim65). In the demo assets 29 of 256 wall cores; per entry 2 VCL bytes and the type 3 overhead less. Lib code **+41 bytes** (11 016 → 11 057 of 11 264), reserve 207 bytes.
 
 ### Tests
 
-- `test/tools` (255 Tests): neu `test_dbemem.py` (Bereiche, Fehlermeldungen, CLI von `dbemap`, `dbetex`, `dbespr`), in `test_dbegeom.py` Bit 3, `byte_edges` (Option, ganze Bytes, Rundung höchstens ein Pixel, keine Überlappung gleicher Art und Tiefe, andere ID, Bereichsprüfung des DVG).
-- `run_sim.py` (normal und `DBEVIEW_FULL=1`) bytegleich; Demo-DTS liegen im sim65 in eigenen Adressen (Decke `$EE00`/`$EF00`, DBG `$FB80`/`$8280`, alles unter `$FC00`).
-- `vice_smoke.py` (zusätzlich Prüfung `PEEK(58) = 64`), `vice_zp.py`, `vice_view.py` (interpretiert und Blitz!, je zwei Läufe) grün; alle 42 Szenen pixelgleich, `--control` meldet die verfälschte Szene. `.bas`-Vorlagen mit `POKE 58,64`; `vice_blitzvars.py` auf `$4000` angepasst.
-- `vice_view.py` misst jetzt zusätzlich mit **2 MHz**: zweiter Lauf mit `FAST:` vor `SYS 3148` (VIC-Anzeige aus) und `SLOW` nach `SYS 3149`, also genau während VIEW und VCL; gleiche Pixelprüfung. Die Stoppuhr zählt Takte zu 1 MHz (µs-Äquivalent). `--no-fast` überspringt ihn, `--byte-edges` baut die Demo-Geometrie mit `byte_edges`.
+- `test/tools` (255 tests): new `test_dbemem.py` (areas, error messages, CLI of `dbemap`, `dbetex`, `dbespr`), in `test_dbegeom.py` bit 3, `byte_edges` (option, whole bytes, rounding at most one pixel, no overlap of equal kind and depth, different ID, range check of the DVG).
+- `run_sim.py` (normal and `DBEVIEW_FULL=1`) byte-identical; demo DTS lie in sim65 at their own addresses (ceiling `$EE00`/`$EF00`, DBG `$FB80`/`$8280`, everything below `$FC00`).
+- `vice_smoke.py` (additionally check `PEEK(58) = 64`), `vice_zp.py`, `vice_view.py` (interpreted and Blitz!, two runs each) green; all 42 scenes pixel-identical, `--control` reports the falsified scene. `.bas` templates with `POKE 58,64`; `vice_blitzvars.py` adapted to `$4000`.
+- `vice_view.py` now additionally measures at **2 MHz**: second run with `FAST:` before `SYS 3148` (VIC display off) and `SLOW` after `SYS 3149`, i.e. exactly during VIEW and VCL; same pixel check. The stopwatch counts clocks at 1 MHz (µs equivalent). `--no-fast` skips it, `--byte-edges` builds the demo geometry with `byte_edges`.
 
-### Zyklen (VICE, Mittel über 42 Szenen; interpretiert, Blitz! gleich ±100)
+### Cycles (VICE, mean over 42 scenes; interpreted, Blitz! equal ±100)
 
-| | 1 MHz | 2 MHz (FAST, VIC aus) | Verhältnis |
+| | 1 MHz | 2 MHz (FAST, VIC off) | Ratio |
 |---|---|---|---|
-| VIEW (mit Stub) | 43 287 | 21 308 | 0,49 |
-| VCL | 200 279 | 122 369 | 0,61 |
-| VIEW + VCL | 243 566 | 143 678 | 0,59 |
-| VIEW + VCL, `byte_edges` | 210 350 | 123 062 | 0,59 |
-| VCL, `byte_edges` | 167 154 | 101 812 | 0,61 |
+| VIEW (with stub) | 43 287 | 21 308 | 0.49 |
+| VCL | 200 279 | 122 369 | 0.61 |
+| VIEW + VCL | 243 566 | 143 678 | 0.59 |
+| VIEW + VCL, `byte_edges` | 210 350 | 123 062 | 0.59 |
+| VCL, `byte_edges` | 167 154 | 101 812 | 0.61 |
 
-VIEW halbiert sich (reiner CPU-Code, Badlines entfallen); VCL sinkt nur auf 61 %, weil die Wartezeiten des VDC bleiben. Das Verhältnis 0,61 liegt unter der Hochrechnung der Analyse (0,74); in VICE sind die VDC-Wartezeiten ein grobes Modell, Z64K bzw. Hardware bleiben maßgeblich.
+VIEW halves (pure CPU code, badlines no longer apply); VCL drops only to 61 % because the wait times of the VDC remain. The ratio 0.61 is below the extrapolation of the analysis (0.74); in VICE the VDC wait times are a rough model, Z64K or hardware remain authoritative.
 
-### `byte_edges` an der Demo (VICE-Szenen, `--byte-edges`)
+### `byte_edges` on the demo (VICE scenes, `--byte-edges`)
 
-VCL −16,5 % bei 1 MHz (200 279 → 167 154) und −16,8 % bei 2 MHz (122 369 → 101 812); die Analyse hatte −37 000 (−18 %) geschätzt. Größen: Wand-DTS 7 520 → 7 254 Byte, Boden 1 916 → 1 504, Decke 1 295 → 1 086; VRAM-Pool belegt 44 751 → 44 591 Byte (−160). Alle 42 Szenen weiterhin pixelgleich zum jeweiligen Modell (andere Bilder als pixelgenau: schräge Kanten stufen in 2-Pixel-Schritten).
+VCL −16.5 % at 1 MHz (200 279 → 167 154) and −16.8 % at 2 MHz (122 369 → 101 812); the analysis had estimated −37 000 (−18 %). Sizes: wall DTS 7 520 → 7 254 bytes, floor 1 916 → 1 504, ceiling 1 295 → 1 086; VRAM pool occupied 44 751 → 44 591 bytes (−160). All 42 scenes still pixel-identical to the respective model (different images than pixel-exact: slanted edges step in 2-pixel increments).
 
-### Offene Punkte
+### Open points
 
-- Sprites (`dbespr`) kennen `byte_edges` nicht; ein Schalter für halbtransparente Randbytes bleibt eine Entscheidung für P7.
-- Boden-/Decken-Demo (9,1 / 3,2 KB) passen weiter nicht in ihre Bereiche (Asset-Etat in P7).
-- Die Lib-Prüfung „Daten außerhalb von Lib/BSS“ (K5) fehlt weiterhin.
+- Sprites (`dbespr`) do not know `byte_edges`; a switch for semi-transparent edge bytes remains a decision for P7.
+- Floor/ceiling demo (9.1 / 3.2 KB) still do not fit into their areas (asset budget in P7).
+- The lib check "data outside lib/BSS" (K5) is still missing.
 
-## Ergebnis P6i (2026-11-26): Verdeckung von Sprites über die Malreihenfolge
+## Result P6i (2026-11-26): Occlusion of sprites via the paint order
 
-Nutzerentscheidung (von Anfang an vorgegeben, in P6 falsch umgesetzt): Sprites werden **nicht** gegen `cover` beschnitten. Ein Sprite wird vollständig gezeichnet und von den näheren Wänden übermalt; `cover` verwirft ein Sprite nur, wenn alle Spalten seines Fensterausschnitts belegt sind. Beschnitten wird nur am Rand des Sichtfensters (der Rest des Bildschirms gehört dem Spiel). Ein Sprite ganz im Fenster nimmt den schnellen unbeschnittenen Weg (Kerne + Rand als Typ 9, im Build `VMS_COPY` als Kopie).
+User decision (specified from the start, implemented wrongly in P6): Sprites are **not** clipped against `cover`. A sprite is drawn completely and overpainted by the nearer walls; `cover` discards a sprite only if all columns of its window clip rectangle are occupied. Clipping happens only at the edge of the viewport (the rest of the screen belongs to the game). A sprite entirely within the window takes the fast unclipped path (cores + edge as type 9, in the build `VMS_COPY` as a copy).
 
-### Umsetzung
+### Implementation
 
-- Spec 5.4, 5.8 Schritt 5, 5.9; neue Begründung **5.8a** (Analyse der Reihenfolge: alles, was ein Sprite in Tiefe d verdecken kann, kommt in der VCL danach und ist ungeschnitten; keine zusätzlichen Änderungen der Reihenfolge nötig; Grenzfälle Überlauf, Bänder ohne Bild, zu hohe Sprites). P5b 3.4 (Höhenprüfung) und 6 (Ausschnitt) nachgezogen.
-- Referenz `dbeview._View.objekte`: Spaltensuche durch `allcov(cover, cx0, cx1)` ersetzt. `paint_reference` war schon so (Sprites nur am Fenster beschnitten).
-- Lib `view.s` (`vspr`): `ffree` (erste/letzte freie Spalte) entfällt, stattdessen `allcov_c` (gibt es für die Wände ohnehin). Lib-Code **11 057 → 10 982 Byte (−75)**, Reserve bis `$DBFF` **207 → 282 Byte**. BSS unverändert.
+- Spec 5.4, 5.8 step 5, 5.9; new rationale **5.8a** (analysis of the order: everything that can occlude a sprite at depth d comes after it in the VCL and is unclipped; no additional changes of the order needed; edge cases overflow, bands without image, too-tall sprites). P5b 3.4 (height check) and 6 (clip rectangle) updated.
+- Reference `dbeview._View.objects`: column search replaced by `allcov(cover, cx0, cx1)`. `paint_reference` was already like this (sprites clipped only at the window).
+- Lib `view.s` (`vspr`): `ffree` (first/last free column) dropped, instead `allcov_c` (which exists for walls anyway). Lib code **11 057 → 10 982 bytes (−75)**, reserve up to `$DBFF` **207 → 282 bytes**. BSS unchanged.
 
 ### Test
 
-- `python3 -m unittest discover -s test/tools`: 283 Tests grün, darunter der Offline-Vollvergleich `test_crawl01` (19 136 Ansichten pixelgleich zum 0.1-Modell; 0.1 hat ebenfalls einfach übermalt).
-- `run_sim.py` grün (P6a/P6c/GEOMSET, P6d 1 322 / `VMS_COPY` 1 302, P6e 1 743 / 1 713, P6f MOVE und Automap, alle bytegleich).
-- `run_crawl.py --dir test/tools/data`: 19 136 Ansichten bytegleich (sim65 gegen `dbeview.view`), alle A = 0.
-- `vice_view.py` (interpretiert und Blitz!, je 1 und 2 MHz): 42 Szenen pixelgleich. `vice_demo.py --only i`: 75 Prompts gleich dem Modell.
-- Crawl-Pixeltest im Spiel-Repo (`test/vice_crawl.py --ports 6633,6634`, neue Lib nach `libs/dbe0.2.lib.prg`, Stub unverändert): **PASS**, 1.1 interpretiert und kompiliert je 74 Prompts gleich 1.0f (Rundgang, Automap, 32 Geist-Szenen), `crawl01` gegen das echte 1.0f-Fenster 73 Prompts gleich. Die P7d-Zeitmessung für 1.1 ist mit dieser Lib zu wiederholen.
+- `python3 -m unittest discover -s test/tools`: 283 tests green, including the offline full comparison `test_crawl01` (19 136 views pixel-identical to the 0.1 model; 0.1 likewise simply overpainted).
+- `run_sim.py` green (P6a/P6c/GEOMSET, P6d 1 322 / `VMS_COPY` 1 302, P6e 1 743 / 1 713, P6f MOVE and automap, all byte-identical).
+- `run_crawl.py --dir test/tools/data`: 19 136 views byte-identical (sim65 against `dbeview.view`), all A = 0.
+- `vice_view.py` (interpreted and Blitz!, each 1 and 2 MHz): 42 scenes pixel-identical. `vice_demo.py --only i`: 75 prompts equal to the model.
+- Crawl pixel test in the game repo (`test/vice_crawl.py --ports 6633,6634`, new lib to `libs/dbe0.2.lib.prg`, stub unchanged): **PASS**, 1.1 interpreted and compiled each 74 prompts equal to 1.0f (tour, automap, 32 ghost scenes), `crawl01` against the real 1.0f window 73 prompts equal. The P7d time measurement for 1.1 is to be repeated with this lib.
 
-### Zyklen VIEW (sim65, Crawl-Szenen wie `run_crawl.py`, ohne Stub; Mittel / max)
+### Cycles VIEW (sim65, Crawl scenes like `run_crawl.py`, without stub; mean / max)
 
-| | vorher (P6h) | nachher | 0.1 |
+| | before (P6h) | after | 0.1 |
 |---|---|---|---|
-| ohne Geist (400) | 16 863 / 26 104 | 16 747 / 25 877 | 16 369 / 19 215 |
-| mit Geist (9 168) | 20 755 / 45 666 | **18 833 / 30 364** | 18 745 / 25 746 |
-| Geist d = 1 seitlich (896) | 36 256 / 45 666 | **22 411 / 30 364** | 22 883 / 25 746 |
-| Geist d = 2 seitlich (1 312) | 21 301 / 38 285 | 18 053 / 28 805 | 18 932 / 23 735 |
-| Geist mittig (s = 0, d ≥ 1, 2 704) | 22 599 / 30 638 | 22 435 / 30 364 | 20 835 / 25 644 |
-| pos 67 Richtung 3, Geist Zelle 86 (d = 1, s = −1), Blick 0 / 1 | 45 666 / 43 348 | 28 951 / 30 324 | 25 521 / 25 049 |
+| without ghost (400) | 16 863 / 26 104 | 16 747 / 25 877 | 16 369 / 19 215 |
+| with ghost (9 168) | 20 755 / 45 666 | **18 833 / 30 364** | 18 745 / 25 746 |
+| ghost d = 1 sideways (896) | 36 256 / 45 666 | **22 411 / 30 364** | 22 883 / 25 746 |
+| ghost d = 2 sideways (1 312) | 21 301 / 38 285 | 18 053 / 28 805 | 18 932 / 23 735 |
+| ghost centered (s = 0, d ≥ 1, 2 704) | 22 599 / 30 638 | 22 435 / 30 364 | 20 835 / 25 644 |
+| pos 67 direction 3, ghost cell 86 (d = 1, s = −1), view 0 / 1 | 45 666 / 43 348 | 28 951 / 30 324 | 25 521 / 25 049 |
 
-Das Beschneiden am Rand von `cover` (Zählprobe und Kopie der VMS-Liste, `clipvms_e`) kostete beim seitlichen Geist in Tiefe 1 etwa 14 000 Zyklen; das entfällt jetzt ganz. Ziel ≤ 28 382 (2 × 0.1): vorher 1 630 Ansichten darüber, jetzt 382 (davon 164 Geist d = 1 seitlich, 210 mittig; Maximum 30 364 = 1,07 × Ziel; größter Quotient zu 0.1 je Ansicht 1,82 → 1,37). Die VMS-Pufferbelegung im Crawl sinkt auf 0 (alle Geister und Edelsteine im Fenster gehen als Typ 9).
+Clipping at the edge of `cover` (counting dry run and copy of the VMS list, `clipvms_e`) cost about 14 000 cycles for the sideways ghost at depth 1; this now disappears entirely. Target ≤ 28 382 (2 × 0.1): before, 1 630 views above it, now 382 (of which 164 ghost d = 1 sideways, 210 centered; maximum 30 364 = 1.07 × target; largest quotient to 0.1 per view 1.82 → 1.37). The VMS buffer occupancy in Crawl drops to 0 (all ghosts and gems in the window go as type 9).
 
-### VCL-Mehrkosten durch übermalte Bytes (Crawl-Szenen, `dbeview.view`)
+### Extra VCL cost due to overpainted bytes (Crawl scenes, `dbeview.view`)
 
-| | VCL-Byte Mittel | VRAM-Schreibbytes Mittel (Δ, max Δ) | Δ Operationen (Mittel) | Schätzung Δ VCL (VICE-Modell P6g) |
+| | VCL bytes mean | VRAM write bytes mean (Δ, max Δ) | Δ operations (mean) | Estimate Δ VCL (VICE model P6g) |
 |---|---|---|---|---|
-| ohne Geist (Edelsteine) | 79 → 77 | 6 677 → 6 692 (+15, +54) | 5 VMC-Zeilen Typ 3 → Typ 2 | −480 Zyklen |
-| mit Geist | 92 → 90 | 6 743 → 6 781 (+38, +247) | +1 VMC-Zeile, +0,7 VMS1, +2,0 VMS8 | +900 Zyklen |
-| Geist d = 1 seitlich | 123 → 121 | 7 045 → 7 237 (+192, +247) | +10 VMC-Zeilen, +5,6 VMS1, +15,5 VMS8 | +11 600 Zyklen (max +21 800) |
+| without ghost (gems) | 79 → 77 | 6 677 → 6 692 (+15, +54) | 5 VMC rows type 3 → type 2 | −480 cycles |
+| with ghost | 92 → 90 | 6 743 → 6 781 (+38, +247) | +1 VMC row, +0.7 VMS1, +2.0 VMS8 | +900 cycles |
+| ghost d = 1 sideways | 123 → 121 | 7 045 → 7 237 (+192, +247) | +10 VMC rows, +5.6 VMS1, +15.5 VMS8 | +11 600 cycles (max +21 800) |
 
-Schätzung mit den P6g-Werten (Eintrag 670, VMC-Zeile 187 bzw. 281 mit srcstep, VMS-Typ 1 308, Typ 8 706 Zyklen); auf Z64K/Hardware kommen etwa 5–7 Zyklen je zusätzlichem Byte dazu (+192 Byte ≈ +1 200). Beim seitlichen Geist in Tiefe 1 übertrifft die Ersparnis in VIEW (≈ −13 800) die VCL-Mehrkosten (≈ +11 600): VIEW + VCL ≈ −2 200 im Mittel; über alle Ansichten mit Geist ≈ −1 000, ohne Geist ≈ −600 (Schätzung, VICE-Modell). Die Mehrkosten kommen fast ganz von den halben Randbytes (VMS-Typ 8) des Geistes, die jetzt hinter der Wand gemalt und übermalt werden.
+Estimate with the P6g values (entry 670, VMC row 187 or 281 with srcstep, VMS type 1 308, type 8 706 cycles); on Z64K/hardware about 5–7 cycles per additional byte are added (+192 bytes ≈ +1 200). For the sideways ghost at depth 1 the saving in VIEW (≈ −13 800) exceeds the extra VCL cost (≈ +11 600): VIEW + VCL ≈ −2 200 on average; over all views with ghost ≈ −1 000, without ghost ≈ −600 (estimate, VICE model). The extra cost comes almost entirely from the half edge bytes (VMS type 8) of the ghost, which are now painted behind the wall and overpainted.
 
-## Ergebnis P6j (2026-11-26): feste Listenadresse und Zeropage nur, wo nötig
+## Result P6j (2026-11-26): fixed list address and zero page only where necessary
 
-Anlass: Messung im Crawl-Rundgang (comp 2 MHz, 1.1 +34 800 Takte gegen 1.0f): etwa 15 600 Takte BASIC zwischen `VIEW` und `VCL` (Listenanfang aus P0 als Float-`PEEK`-Rechnung, `::VCL VA`) und etwa 11 200 im Stub (16 Byte Zeropage bei jedem Aufruf retten und zurückschreiben).
+Occasion: measurement in the Crawl tour (comp 2 MHz, 1.1 +34 800 clocks compared to 1.0f): about 15 600 clocks of BASIC between `VIEW` and `VCL` (list start from P0 as a float `PEEK` computation, `::VCL VA`) and about 11 200 in the stub (saving and writing back 16 bytes of zero page on every call).
 
-### 1. Feste Listenadresse (`BUFSET` X Bit 0)
+### 1. Fixed list address (`BUFSET` X bit 0)
 
-**Warum die Adresse wandert:** `VIEW` läuft von vorne nach hinten durch die Sicht und schreibt jeden Eintrag sofort (Einpass); `VCL` muss von hinten nach vorne malen (seit P6i hängt auch die Verdeckung der Sprites davon ab). Die Liste wächst deshalb abwärts von B1, ihr Anfang B1 − nv ändert sich mit jedem Bild. Vorwärts ab B0 ginge nur mit zwei Durchläufen (0.1) oder mit Umkehren am Ende (30–60 Zyklen je Byte).
+**Why the address moves:** `VIEW` runs through the view from front to back and writes each entry immediately (single pass); `VCL` must paint from back to front (since P6i the occlusion of sprites also depends on this). The list therefore grows downward from B1, its start B1 − nv changes with every image. Forward from B0 would only be possible with two passes (0.1) or with reversal at the end (30–60 cycles per byte).
 
-**Lösung:** neuer VCL-Eintrag **Typ 10 „weiter bei Adresse“** in VDC-BASIC v3 (`10, Adresse`, 3 Byte; vdc-basic `docs/v3/P2e-vcl-jump.md`). Mit `BUFSET` X Bit 0 schreibt `VIEW` vor dem Durchlauf das Typ-Byte 10 nach B0 und am Ende die Adresse B1 − nv dahinter; die VMS-Listen beginnen bei B0 + 3 (BL 3 Byte kleiner, 5.10), sonst ist alles gleich (keine Einschränkung, beschnittene Ränder bleiben im Puffer). VCLADR = P0 = B0 bei jedem Aufruf, VCLLEN und VMSLEN ohne den Sprung. `INIT` schaltet den Modus aus; der Standard (X Bit 0 = 0) ist unverändert.
+**Solution:** new VCL entry **type 10 "continue at address"** in VDC-BASIC v3 (`10, address`, 3 bytes; vdc-basic `docs/v3/P2e-vcl-jump.md`). With `BUFSET` X bit 0, `VIEW` writes the type byte 10 to B0 before the pass and the address B1 − nv behind it at the end; the VMS lists begin at B0 + 3 (BL 3 bytes smaller, 5.10), otherwise everything is the same (no restriction, clipped edges remain in the buffer). VCLADR = P0 = B0 on every call, VCLLEN and VMSLEN without the jump. `INIT` switches the mode off; the default (X bit 0 = 0) is unchanged.
 
-Verworfen: (A, Zwischenstand) Liste nach B0 kopieren und VMS-Listen im festen Modus weglassen (Funktionsverlust am Fensterrand, Kopie 14–18 Zyklen je Byte, Crawl ≈ 1 150–1 330 je `VIEW`, 132 Byte Code); (B) Liste nach B0 kopieren, VMS-Listen verschieben oder drehen und die Typ-12-Adressen nachtragen (≈ 200–250 Byte Code, mit vielen VMS-Bytes 20 000–100 000 Zyklen); (C) VMS-Listen abwärts ab B1 mit verschiebbarem Listenstapel (Eingriff in Erzeugung und Rücknahme).
+Rejected: (A, interim state) copy the list to B0 and omit VMS lists in fixed mode (loss of function at the window edge, copy 14–18 cycles per byte, Crawl ≈ 1 150–1 330 per `VIEW`, 132 bytes of code); (B) copy the list to B0, move or reverse VMS lists and patch the type 12 addresses (≈ 200–250 bytes of code, with many VMS bytes 20 000–100 000 cycles); (C) VMS lists downward from B1 with a movable list stack (intervention in generation and withdrawal).
 
-**Kosten:** `VIEW` sim65 (Crawl, 9 568 Ansichten) mit festem Modus Mittel 16 888 / 18 978 (ohne / mit Geist), ohne 16 792 / 18 883: **≈ +100 Zyklen**. `VCL` +≈ 215 Zyklen für den Sprung (VDC-BASIC, VICE). Dagegen BASIC (VICE-Mikromessung je Aufruf, ohne die Liste; interpretiert / Blitz!): `V=PEEK(3072)+256*PEEK(3073):::VCL V` mit spät angelegtem V 25 500 / 5 700, `::VCL 4864` (Zahl, wird jedes Mal umgerechnet) 7 000 / 6 400, **`::VCL VB` mit VB = B0 als erster Variable 3 400 / 2 900**. Empfehlung für Spiele: `VB` als erste Variable nach `CLR` setzen.
+**Cost:** `VIEW` sim65 (Crawl, 9 568 views) with fixed mode mean 16 888 / 18 978 (without / with ghost), without 16 792 / 18 883: **≈ +100 cycles**. `VCL` +≈ 215 cycles for the jump (VDC-BASIC, VICE). Against that BASIC (VICE micro-measurement per call, without the list; interpreted / Blitz!): `V=PEEK(3072)+256*PEEK(3073):::VCL V` with late-created V 25 500 / 5 700, `::VCL 4864` (number, converted every time) 7 000 / 6 400, **`::VCL VB` with VB = B0 as the first variable 3 400 / 2 900**. Recommendation for games: set `VB` as the first variable after `CLR`.
 
-**Lib:** 10 982 → 11 065 Byte Code (`$B000–$DB38`), Reserve **282 → 199 Byte**; BSS +1 (`buf_fix`). Testbuild: `TESTHI` (Funktion 252) von `$DBC0` nach `$DBF0` verschoben (`lib-test.cfg`, Probe liest `$DBEF`), Reserve im Testbuild bis `$DBEF` 54 Byte.
+**Lib:** 10 982 → 11 065 bytes of code (`$B000–$DB38`), reserve **282 → 199 bytes**; BSS +1 (`buf_fix`). Test build: `TESTHI` (function 252) moved from `$DBC0` to `$DBF0` (`lib-test.cfg`, probe reads `$DBEF`), reserve in the test build up to `$DBEF` 54 bytes.
 
-### 2. Zeropage nur, wo nötig (Stub)
+### 2. Zero page only where necessary (stub)
 
-Nutzung je Funktion, gemessen mit `test/vice_zp.py --funcs` (Programm von `vice_view.py` plus CELL, SETCELL, SETITEM, BUFSET X = 1/0, F = 7, 8, 17; je Lib-Aufruf Watchpoints Lesen/Schreiben auf `$63–$72` und `$FA–$FD`, erster Treffer je Aufruf mit `$FF00`):
+Usage per function, measured with `test/vice_zp.py --funcs` (program of `vice_view.py` plus CELL, SETCELL, SETITEM, BUFSET X = 1/0, F = 7, 8, 17; per lib call watchpoints read/write on `$63–$72` and `$FA–$FD`, first hit per call with `$FF00`):
 
-| F | Funktion | ZPB `$63–$72` | `$FA–$FD` |
+| F | Function | ZPB `$63–$72` | `$FA–$FD` |
 |---|---|---|---|
-| 0 | INIT | – | ja |
-| 1 | MAPINIT | – | ja |
+| 0 | INIT | – | yes |
+| 1 | MAPINIT | – | yes |
 | 2 | SETPOS | – | – |
-| 3 | MOVE | – | ja |
-| 4 | VIEW | **ja** | ja |
-| 5, 6 | CELL, SETCELL | – | ja |
-| 7, 8, ≥ 17 | (nicht umgesetzt) | – | – |
-| 9 | SPRITESET | – | ja |
+| 3 | MOVE | – | yes |
+| 4 | VIEW | **yes** | yes |
+| 5, 6 | CELL, SETCELL | – | yes |
+| 7, 8, ≥ 17 | (not implemented) | – | – |
+| 9 | SPRITESET | – | yes |
 | 10, 11 | ITEMSET, POOLSET | – | – |
-| 12 | GEOMSET | **ja** | ja |
-| 13, 14 | TEXSET, BGSET | – | ja |
+| 12 | GEOMSET | **yes** | yes |
+| 13, 14 | TEXSET, BGSET | – | yes |
 | 15 | BUFSET | – | – |
-| 16 | SETITEM | – | ja |
+| 16 | SETITEM | – | yes |
 
-0 fremde Zugriffe (alle Treffer mit `$FF00 = $7F`); statisch dasselbe (ZPB-Symbole nur in `f_geomset`/`gcells`, `view.s` und `t_zp`; aus `view.s` ruft nur BGSET `bgoffs`, ohne ZPB).
+0 foreign accesses (all hits with `$FF00 = $7F`); statically the same (ZPB symbols only in `f_geomset`/`gcells`, `view.s` and `t_zp`; from `view.s` only BGSET calls `bgoffs`, without ZPB).
 
-Der Stub rettet den Block nur noch für F = `ZPB_F1` (4), `ZPB_F2` (12) und `ZPB_FT` (253, Testbuild) (`dbe.inc`; eine neue Funktion mit ZPB muss dort eingetragen werden); Flag `sv_f` (Bit 7) für das Zurückschreiben. Retten und Zurückschreiben vierfach entrollt (9 statt 14 Zyklen je Byte). Ersparnis je Aufruf ohne ZPB ≈ 420 Zyklen (Vergleiche +≈ 20), je VIEW/GEOMSET ≈ 150. Stub 168 → 221 Byte (`$0D00–$0DDC`). Neue Marke `call_rts` (RTS am Stubende) in `build/stub.lbl`; `vice_view.stub_rts()` liest sie dort statt das Ende abzuzählen.
+The stub saves the block only for F = `ZPB_F1` (4), `ZPB_F2` (12) and `ZPB_FT` (253, test build) (`dbe.inc`; a new function with ZPB must be entered there); flag `sv_f` (bit 7) for the write-back. Saving and writing back unrolled fourfold (9 instead of 14 cycles per byte). Saving per call without ZPB ≈ 420 cycles (comparisons +≈ 20), per VIEW/GEOMSET ≈ 150. Stub 168 → 221 bytes (`$0D00–$0DDC`). New marker `call_rts` (RTS at the stub end) in `build/stub.lbl`; `vice_view.stub_rts()` reads it there instead of counting off the end.
 
 ### 3. Tests
 
-- `python3 -m unittest discover -s test/tools`: 285 Tests grün (neu `TestFixedAddress`: Sprung, VMS ab B0 + 3, gleiches Bild wie ohne festen Modus, 3 Byte weniger Platz).
-- `run_sim.py` grün: P6a mit BUFSET X = 1/3/2 (Modus, Fehler lässt ihn stehen); neue Sätze „feste Listenadresse“ in P6d (232 Ansichten, je Standard und `VMS_COPY`) und P6e (150), alle bytegleich (Harness `viewsim.c` folgt dem Sprung).
-- `run_crawl.py --dir test/tools/data` und `--fix`: je 19 136 Ansichten bytegleich, A = 0.
-- VICE: `vice_smoke`, `vice_zp` (interpretiert und Blitz!), `vice_zp --funcs`, `vice_view` (42 Szenen, interpretiert und Blitz!, 1 und 2 MHz), neu `vice_view --fix` (dasselbe mit BUFSET X = 1 und `VCL` mit der Konstanten B0), `vice_blitzvars`, `vice_demo --only i` (Demo jetzt im festen Modus: `demo.bas` 290, `vcl vb`; 75 Prompts gleich dem Modell).
-- Crawl (Spiel-Repo, VDC-BASIC v3 mit P2e, `BUFSET` X = 1, `::VCL VB`): Pixeltest gegen 1.0f **PASS**; Zeitmessung P7 12.4.
+- `python3 -m unittest discover -s test/tools`: 285 tests green (new `TestFixedAddress`: jump, VMS from B0 + 3, same image as without fixed mode, 3 bytes less space).
+- `run_sim.py` green: P6a with BUFSET X = 1/3/2 (mode, error leaves it in place); new sets "fixed list address" in P6d (232 views, each standard and `VMS_COPY`) and P6e (150), all byte-identical (harness `viewsim.c` follows the jump).
+- `run_crawl.py --dir test/tools/data` and `--fix`: each 19 136 views byte-identical, A = 0.
+- VICE: `vice_smoke`, `vice_zp` (interpreted and Blitz!), `vice_zp --funcs`, `vice_view` (42 scenes, interpreted and Blitz!, 1 and 2 MHz), new `vice_view --fix` (the same with BUFSET X = 1 and `VCL` with the constant B0), `vice_blitzvars`, `vice_demo --only i` (demo now in fixed mode: `demo.bas` 290, `vcl vb`; 75 prompts equal to the model).
+- Crawl (game repo, VDC-BASIC v3 with P2e, `BUFSET` X = 1, `::VCL VB`): pixel test against 1.0f **PASS**; time measurement P7 12.4.
 
-## Ergebnis P6l (2026-11-26): Fernsicht-Füllung
+## Result P6l (2026-11-26): Distance-view fill
 
-Nutzerentscheidung: Die Tapete darf nicht mehr ungewollt die Fernsicht sein (Demo: durch das Gitter in der überdachten Kammer sah man Berge). Regeln und Ablauf: 5.7a; Aufruf: `BGSET` Y ≠ 0 = an, P2 Low = Füllbyte (Y = 0 aus, Standard nach `INIT`; Crawl ruft `SYS3331,14,0` ohne Y auf, Y kommt dann aus dem vorigen `SYS` (`TEXSET` endet mit Y = 0); ohne Decken wäre die Füllung dort ohnehin wirkungslos). Kachel-Flag FERN (DMP Bit 6, `dbemap` `"fern"`) kehrt die Deckenregel um. Ohne Füllung ist die Liste unverändert, ebenso mit Füllung, solange keine Zelle der Tiefe D überdacht ist.
+User decision: The wallpaper must no longer be the distance view unintentionally (demo: through the grating in the roofed chamber one saw mountains). Rules and procedure: 5.7a; call: `BGSET` Y ≠ 0 = on, P2 low = fill byte (Y = 0 off, default after `INIT`; Crawl calls `SYS3331,14,0` without Y, Y then comes from the previous `SYS` (`TEXSET` ends with Y = 0); without ceilings the fill would be ineffective there anyway). Tile flag DISTANT (DMP bit 6, `dbemap` `"distant"`) reverses the ceiling rule. Without fill the list is unchanged, likewise with fill as long as no cell of depth D is roofed.
 
-### Umsetzung
+### Implementation
 
-- **Spalte → Zelle:** `GEOMSET` legt `hs[c] = s(c) + 15` an (80 Byte BSS): Startwert 15, jede Seite der Tiefe D verschiebt die Grenze an ihrer fernen Kante (s < 0: `hs − 1` für c < x + w; s > 0: `hs + 1` für c ≥ x). Damit fallen die Grenzen Füllung/Tapete genau unter die fernen Ecken der Decken der Tiefe D (Ebene P_{D+1}), nicht auf die nahen Kanten der Fronten (P_D, bis zu 4 Spalten daneben).
-- **Entscheidung je Zelle:** `vcells` schreibt in der Tiefe D (nur mit Füllung) je Zelle `fdec[s + 15]` = ((Deckenstil ≠ 0) XOR Flag FERN) als `$40`/0 (31 Byte LIBTAB) und sammelt `fany`.
-- **Ausgabe:** `vtap` lässt mit `fany` den Horizont weg; nach dem Wartebereich der Tiefe D (dann sind auch deckende Seiten und Fronten ohne Bit 3 der Tiefe D in `bcov`, deren Spaltenbereich die Horizontzeilen nach P3 4.4 ganz deckt) läuft `vfar` über `spans(bcov)` und die Läufe gleicher Entscheidung (rechts → links): Füllung als BG-Eintrag mit `bgsel` (`gbg` nimmt dann das Füllbyte wie ohne DBG, Typ 4/5), Tapete als normaler BG-Eintrag. Die Einträge sind die letzten der Liste und werden zuerst gemalt.
-- **GEOMSET:** Die Zellentabelle wurde immer mit A = 1 angelegt (Prüfen und Anlegen in einem Durchlauf); die toten Abfragen `gbld` (A = 0 „nur prüfen“) sind entfernt (−43 Byte), damit die Fernsicht in die Lib passt.
-- **Referenz:** `dbeview` `Scene.farfill`, `_Ctx.far_cols`/`far_dec`, `_View.fern`, Maler (Horizont je Spalte), `far_variant` (Zufallsszenen mit Füllung und FERN), TOML-Schlüssel `farfill`. Fehlt für eine Spalte die Zelle (D, s(c)) in der DVG (nur bei fremden DVGs möglich), meldet die Referenz einen Fehler; die Lib liest dann einen alten Wert.
+- **Column → cell:** `GEOMSET` creates `hs[c] = s(c) + 15` (80 bytes BSS): start value 15, each side of depth D shifts the boundary at its far edge (s < 0: `hs − 1` for c < x + w; s > 0: `hs + 1` for c ≥ x). The fill/wallpaper boundaries thus fall exactly below the far corners of the ceilings of depth D (plane P_{D+1}), not on the near edges of the fronts (P_D, up to 4 columns off).
+- **Decision per cell:** `vcells` writes in depth D (only with fill) per cell `fdec[s + 15]` = ((ceiling style ≠ 0) XOR flag DISTANT) as `$40`/0 (31 bytes LIBTAB) and collects `fany`.
+- **Output:** `vtap` omits the horizon with `fany`; after the pending area of depth D (then occluding sides and fronts without bit 3 of depth D are also in `bcov`, whose column range fully covers the horizon rows according to P3 4.4) `vfar` runs over `spans(bcov)` and the stretches of equal decision (right → left): fill as a BG entry with `bgsel` (`gbg` then takes the fill byte as without DBG, type 4/5), wallpaper as a normal BG entry. The entries are the last in the list and are painted first.
+- **GEOMSET:** The cell table was always created with A = 1 (checking and creating in one pass); the dead queries `gbld` (A = 0 "check only") are removed (−43 bytes) so that the distance view fits into the lib.
+- **Reference:** `dbeview` `Scene.farfill`, `_Ctx.far_cols`/`far_dec`, `_View.distant`, painter (horizon per column), `far_variant` (random scenes with fill and DISTANT), TOML key `farfill`. If the cell (D, s(c)) is missing in the DVG for a column (possible only with foreign DVGs), the reference reports an error; the lib then reads an old value.
 
-### Größen
+### Sizes
 
-- Lib-Code **11 065 → 11 250 Byte** (`$B000–$DBF1`), Reserve **199 → 14 Byte** (Fernsicht ≈ +228, tote `gbld`-Abfragen −43). BSS 1 923 → 2 009 Byte (`hs` 80, `ffon`, `ffill`, `fon`, `fany`, `bgsel`, `fc0`), LIBTAB 945 → 976 (`fdec`).
-- **Testbuild:** Die Testfunktionen 250–253 und ihr Verteiler liegen jetzt in `TESTLO` vor der Lib (`$AF00–$AF7E`, Datei ab `$AF00`), in der Lib bleibt ein Sprung (`cmp #NFUNC` → `t_disp`). `TESTHI` (Funktion 252) von `$DBF0` nach `$DBF8`; die Probe liest das eigene erste Byte (`$A9`, `smoke.bas` 160 prüft Y = 169). Reserve im Testbuild bis `$DBF7`: 3 Byte.
-- **`VMS_COPY` passt nicht mehr in die 11 KB** (11 343 Byte); der Schalter bleibt für sim65 (`test/sim/simc.cfg`: Lib-Code bis `$DCFF`, LIBTAB bei `$FC00`). Auf dem C128 ist nur der Standardbuild (Typ 9) möglich.
+- Lib code **11 065 → 11 250 bytes** (`$B000–$DBF1`), reserve **199 → 14 bytes** (distance view ≈ +228, dead `gbld` queries −43). BSS 1 923 → 2 009 bytes (`hs` 80, `ffon`, `ffill`, `fon`, `fany`, `bgsel`, `fc0`), LIBTAB 945 → 976 (`fdec`).
+- **Test build:** The test functions 250–253 and their dispatcher now lie in `TESTLO` before the lib (`$AF00–$AF7E`, file from `$AF00`), a jump remains in the lib (`cmp #NFUNC` → `t_disp`). `TESTHI` (function 252) from `$DBF0` to `$DBF8`; the probe reads its own first byte (`$A9`, `smoke.bas` 160 checks Y = 169). Reserve in the test build up to `$DBF7`: 3 bytes.
+- **`VMS_COPY` no longer fits into the 11 KB** (11 343 bytes); the switch remains for sim65 (`test/sim/simc.cfg`: lib code up to `$DCFF`, LIBTAB at `$FC00`). On the C128 only the standard build (type 9) is possible.
 
-### Zyklen
+### Cycles
 
-- `VIEW` (sim65, Demo-Karte `demo/demo.toml` mit den Demo-Assets der Tests, 504 Ansichten ohne Objekte): ohne Füllung Mittel 30 085 / max 55 839, **mit Füllung 30 780 / 59 609** (+695 im Mittel: Entscheidung je Zelle der Tiefe D, Lauf je Spalte ≈ 23 Zyklen, Horizont als eigene Einträge).
-- Grundlast ohne Füllung (Abfrage je Zelle, 3 Byte mehr löschen): Crawl `run_crawl.py --fix` Mittel **17 024 / 19 117** (ohne / mit Geist) gegen 16 888 / 18 978 (P6j): +≈ 135 (0,8 %).
-- `VCL` (VICE-Kostenmodell P6g: Eintrag 670, Zeile Typ 2/3/5 187/281/237; Demo-Welt, 504 Ansichten ohne Goblins): 228 Ansichten ändern sich, Δ Mittel **−1 650 Zyklen**, Median −1 010, min −14 270, max +7 460, VCL-Liste +9 Byte im Mittel. Ersparnis: Füllen statt Panorama-Kopie (Typ 5 statt Typ 3 je Zeile) und keine Tapete in den Spalten deckender Seiten der Tiefe D; Mehrkosten: eigene Einträge für den Horizont, wo er vorher mit Decken- oder Bodenlücken der Tiefe D in einem Eintrag lag, und mehrere Läufe bei gemischten Reihen. Gitter d = 1 (17, 5, S): +330 (2 Einträge mehr, Abgrund in der Tiefe D); Gang Ost (4, 14): −5 790.
-- VICE (`vice_demo.py --only i`, Tour 74 Tasten, neue Fassung, Lib `2757b277`): interpretiert 1 MHz VIEW Mittel 48 255, VCL 161 765; 2 MHz VIEW 22 975, VCL 98 761. Gitter d = 1 (Bild 70, 1 MHz): VIEW 54 060, VCL 292 778.
+- `VIEW` (sim65, demo map `demo/demo.toml` with the demo assets of the tests, 504 views without objects): without fill mean 30 085 / max 55 839, **with fill 30 780 / 59 609** (+695 on average: decision per cell of depth D, run per column ≈ 23 cycles, horizon as separate entries).
+- Base load without fill (query per cell, 3 bytes more clearing): Crawl `run_crawl.py --fix` mean **17 024 / 19 117** (without / with ghost) against 16 888 / 18 978 (P6j): +≈ 135 (0.8 %).
+- `VCL` (VICE cost model P6g: entry 670, row type 2/3/5 187/281/237; demo world, 504 views without goblins): 228 views change, Δ mean **−1 650 cycles**, median −1 010, min −14 270, max +7 460, VCL list +9 bytes on average. Savings: filling instead of panorama copy (type 5 instead of type 3 per row) and no wallpaper in the columns of occluding sides of depth D; extra costs: separate entries for the horizon where it previously lay in one entry with ceiling or floor gaps of depth D, and several stretches for mixed rows. Grating d = 1 (17, 5, S): +330 (2 entries more, abyss at depth D); corridor east (4, 14): −5 790.
+- VICE (`vice_demo.py --only i`, tour 74 keys, new version, lib `2757b277`): interpreted 1 MHz VIEW mean 48 255, VCL 161 765; 2 MHz VIEW 22 975, VCL 98 761. Grating d = 1 (image 70, 1 MHz): VIEW 54 060, VCL 292 778.
 
 ### Tests
 
-- `python3 -m unittest discover -s test/tools`: neu `TestFernsicht` (Pixel gegen `paint_reference` für `fern_map` – langer Gang mit Decke und Fenster nach draußen, Fenster mitten im Gang mit Wand dahinter, langer Gang ohne Decke, Gitter, FERN-Kacheln, gemischte Reihe –, `demo/demo.toml` und die Beispielkarte, mit/ohne DBG; Spaltenzuordnung; aus = unverändert; 120 Zufallsszenen mit Füllung und FERN), `test_dbemap` (Flag `fern`, Bit 7 reserviert).
-- `run_sim.py`: P6c prüft `hs` nach jedem `GEOMSET` und `ffon`/`ffill` nach `BGSET`; neuer Satz **P6l** 2 488 Ansichten bytegleich (fern_map, `demo/demo.toml`, Beispielkarte, je Standard und `VMS_COPY`, zufällig mit Objekten, zwei Fronten, Überlauf 64 … 1 024 Byte mit und ohne feste Listenadresse); alle älteren Sätze unverändert bytegleich.
-- `run_crawl.py --no-cycles`: 19 136 Ansichten bytegleich (Crawl ohne Füllung unverändert).
-- VICE: `vice_demo.py --only i` (Demo mit Füllung `$11`, 75 Prompts gleich dem Modell, 1 und 2 MHz); `vice_smoke` und `vice_zp` (Testbuild verschoben), interpretiert und Blitz!.
-- Befund Demo: In der Kammer mit Abgrund zeigt die Bodenlücke der Tiefe D unter der Füllung einen Streifen Landschaft (Panoramazeilen unter dem Horizont, `bg.toml`); das ist die Tapete im Abgrund, nicht die Fernsicht, und bleibt nach Regel 4 so.
+- `python3 -m unittest discover -s test/tools`: new `TestDistantView` (pixels against `paint_reference` for `distant_map` – long corridor with ceiling and window to the outside, window in the middle of the corridor with wall behind it, long corridor without ceiling, grating, DISTANT tiles, mixed row –, `demo/demo.toml` and the example map, with/without DBG; column assignment; off = unchanged; 120 random scenes with fill and DISTANT), `test_dbemap` (flag `distant`, bit 7 reserved).
+- `run_sim.py`: P6c checks `hs` after every `GEOMSET` and `ffon`/`ffill` after `BGSET`; new set **P6l** 2 488 views byte-identical (distant_map, `demo/demo.toml`, example map, each standard and `VMS_COPY`, random with objects, two fronts, overflow 64 … 1 024 bytes with and without fixed list address); all older sets unchanged byte-identical.
+- `run_crawl.py --no-cycles`: 19 136 views byte-identical (Crawl without fill unchanged).
+- VICE: `vice_demo.py --only i` (demo with fill `$11`, 75 prompts equal to the model, 1 and 2 MHz); `vice_smoke` and `vice_zp` (test build moved), interpreted and Blitz!.
+- Demo finding: In the chamber with the abyss, the floor gap of depth D shows a strip of landscape below the fill (panorama rows below the horizon, `bg.toml`); this is the wallpaper in the abyss, not the distance view, and stays so according to rule 4.
 

@@ -1,7 +1,7 @@
 format  = "dbebg"
 version = 1
 
-# Tapete "Landschaft": Panorama aus mkbg.py (280 x 36 Pixel, P = 140 Byte = 2 * VW), Himmel = above, Abgrund = below
+# Wallpaper "landscape": panorama from mkbg.py (280 x 36 pixels, P = 140 bytes = 2 * VW), sky = above, abyss = below
 [background]
 name    = "land"
 geom    = "../build/demo/geom/west140.geom.json"

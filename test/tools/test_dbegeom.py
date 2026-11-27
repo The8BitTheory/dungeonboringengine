@@ -1,6 +1,6 @@
-"""Tests fuer tools/dbegeom.py (docs/specs/P3-geometry.md, Abschnitt 10).
+"""Tests for tools/dbegeom.py (docs/specs/P3-geometry.md, section 10).
 
-Aufruf: python3 -m unittest discover -s test/tools -v   (im Repo-Wurzelverzeichnis)
+Usage: python3 -m unittest discover -s test/tools -v   (in the repo root directory)
 """
 import binascii
 import json
@@ -46,7 +46,7 @@ def all_geos():
 
 
 def geo_176():
-    # width_px ist auf 160 begrenzt; 176 x 120 nur ueber die Geometrie direkt (ohne Validierung der Breite)
+    # width_px is limited to 160; 176 x 120 only directly via the geometry (without width validation)
     if "176" not in _cache:
         conf = conf_for(160, 100)
         conf.update(width=176, height=120)
@@ -180,7 +180,7 @@ class Properties(unittest.TestCase):
                 for r in range(ky, ky + kh):
                     for c in range(kx, kx + kw):
                         self.assertTrue(full[r][c], im.name)
-                # unabhaengig: maximales Rechteck per Histogramm je Zeile (Stapelverfahren)
+                # independent: maximum rectangle via histogram per row (stack method)
                 best, hist = 0, [0] * w
                 for row in full:
                     hist = [hh + 1 if f else 0 for hh, f in zip(hist, row)]
@@ -247,7 +247,7 @@ class Properties(unittest.TestCase):
                 self.assertLessEqual(x + w, g.VW)
                 self.assertLessEqual(y + h, g.height)
                 self.assertTrue(any(c != "." for l in im.mask for c in l))
-                # Rechteck eng: erste/letzte Zeile und Spalte belegt
+                # rectangle tight: first/last row and column occupied
                 self.assertTrue(any(c != "." for c in im.mask[0]) and any(c != "." for c in im.mask[-1]))
                 self.assertTrue(any(l[0] != "." for l in im.mask) and any(l[-1] != "." for l in im.mask))
 
@@ -292,7 +292,7 @@ class Dvg(unittest.TestCase):
         c = bytearray(self.raw[2:])
         gid = struct.unpack("<H", c[12:14])[0]
         c[12:14] = b"\0\0"
-        c[10:12] = b"\0\0"       # origin zaehlt nicht zur ID
+        c[10:12] = b"\0\0"       # origin does not count toward the ID
         exp = binascii.crc_hqx(bytes(c), 0xFFFF) or 1
         self.assertEqual(gid, exp)
         self.assertEqual(self.js["geometry_id"], gid)
@@ -317,7 +317,7 @@ class Dvg(unittest.TestCase):
     def test_tables_match_json(self):
         c = self.raw[2:]
         js = self.js
-        # Tiefentabelle
+        # depth table
         for d in range(4):
             e = c[24 + 8 * d: 32 + 8 * d]
             (c0, c1), (f0, f1) = js["bands"][d]["ceil"], js["bands"][d]["floor"]
@@ -330,7 +330,7 @@ class Dvg(unittest.TestCase):
                 self.assertEqual((e[6], e[7]), (js["planes"][d]["W"] // 2, fr["rect"][0]))
             else:
                 self.assertEqual((e[6], e[7]), (0, 0))
-        # Elementtabelle
+        # element table
         base = 24 + 32
         arts = {"front": 0, "side": 1, "floor": 2, "ceil": 3, "obj": 4}
         for i, el in enumerate(js["elements"]):
@@ -375,7 +375,7 @@ class Dvg(unittest.TestCase):
         self.assertEqual(el["rect"], [3, 83, 64, 13])
         self.assertEqual(el["kernel"], [7, 0, 50, 13])
         self.assertIn("clipped", el["flags"])
-        self.assertEqual(el["polygon"], [[20, 83], [120, 83], [152, 115], [-12, 115]])  # Reihenfolge nach Spec 3.1
+        self.assertEqual(el["polygon"], [[20, 83], [120, 83], [152, 115], [-12, 115]])  # order per spec 3.1
 
     def test_budget_in_json(self):
         self.assertEqual(self.js["budget"]["wall_style"], 11094)
@@ -440,7 +440,7 @@ class Dvg(unittest.TestCase):
                 self.assertIsNone(nine)
             info = json.loads(ud[4 + 2:].decode())
             self.assertEqual(info["d"], e["d"])
-        # Mannigfaltigkeit: Anzahl Atlasbilder = alle ausser Teilfronten, Objektplaetzen
+        # consistency: number of atlas images = all except partial fronts, object slots
         n_imgs = sum(1 for e in self.js["elements"] if e.get("atlas")) + len(self.js["band_images"])
         self.assertEqual(len(slices), n_imgs)
         self.assertEqual(sum(1 for e in self.js["elements"] if e["art"] == "front" and e.get("atlas")), 3)
@@ -453,7 +453,7 @@ class Dvg(unittest.TestCase):
         self.assertEqual(list(atlas.size), self.js["atlas_size"])
         self.assertGreaterEqual(atlas.width, 148)
         ap = atlas.load()
-        # Alpha 0 genau ausserhalb der Maske
+        # alpha 0 exactly outside the mask
         inside = set()
         for e in self.js["elements"] + self.js["band_images"]:
             if not e.get("atlas"):
@@ -527,12 +527,12 @@ class Validation(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         lines = r.stdout.splitlines()
         self.assertEqual(len(lines), 79)
-        self.assertIn("d=1 s=-1 front x=0 y=6 w=10 h=77 kern=0,0,10,77 cov=0..10 src_dx=40", lines)
+        self.assertIn("d=1 s=-1 front x=0 y=6 w=10 h=77 core=0,0,10,77 cov=0..10 src_dx=40", lines)
         r = self.run_cli(os.path.join(ROOT, "docs/specs/examples/view-west136.toml"), "--check")
         self.assertEqual(r.returncode, 0)
 
     def test_wide_160(self):
-        # Spec 4.3: Anker-Spalten d = 0, s = +-1 liegen bei width_px >= 144 ausserhalb -128 ... 127 -> Saettigung
+        # spec 4.3: anchor columns d = 0, s = +-1 lie outside -128 ... 127 at width_px >= 144 -> saturation
         with tempfile.TemporaryDirectory() as t:
             g, _ = dbegeom.generate(conf_for(160, 100), t, "w160")
             with open(os.path.join(t, "w160.dvg"), "rb") as f:
@@ -560,7 +560,7 @@ if __name__ == "__main__":
 
 
 class BandCoverAndByteEdges(unittest.TestCase):
-    """P6h: DVG-Flag Bit 3 (Bandabdeckung) und view.toml-Schalter byte_edges."""
+    """P6h: DVG flag bit 3 (band cover) and view.toml switch byte_edges."""
 
     @staticmethod
     def pixels(im):
@@ -615,17 +615,17 @@ class BandCoverAndByteEdges(unittest.TestCase):
             self.assertEqual(len(g.images), len(exact.images))
             for im in g.images:
                 self.assertFalse(any(c in "LR" for line in im.mask for c in line), im.name)
-            # Rundung: ganze Bytes und leere Bytes bleiben, ein halbes Byte wird ganz oder leer (hoechstens 1 Pixel Unterschied)
+            # rounding: whole bytes and empty bytes stay, a half byte becomes full or empty (at most 1 pixel difference)
             for im in g.images:
                 ex = next(e for e in exact.images if e.name == im.name)
                 a, b = self.pixels(ex), self.pixels(im)
                 for p in a - b:
-                    self.assertNotIn((p[0] ^ 1, p[1]), a, im.name)    # entfaellt nur, wenn es ein halbes Byte war
+                    self.assertNotIn((p[0] ^ 1, p[1]), a, im.name)    # dropped only if it was a half byte
                 for p in b - a:
-                    self.assertIn((p[0] ^ 1, p[1]), a, im.name)       # kommt nur dazu: das Partnerpixel war das halbe Byte
+                    self.assertIn((p[0] ^ 1, p[1]), a, im.name)       # only added: the partner pixel was the half byte
 
     def test_byte_edges_tiling(self):
-        """Gleiche Art und Tiefe, verschiedene Zellen s: keine Ueberlappung (Nachbarflaechen teilen sich die Kante)."""
+        """Same kind and depth, different cells s: no overlap (neighbouring faces share the edge)."""
         conf = dbegeom.parse_config({"viewport": {"width_px": 140, "height": 96, "byte_edges": True}})
         g = dbegeom.Geometry(conf)
         for d in range(g.D + 1):
@@ -634,7 +634,7 @@ class BandCoverAndByteEdges(unittest.TestCase):
                 for im in g.images:
                     if im.d == d and im.art == art:
                         for p in self.pixels(im):
-                            self.assertNotIn(p, seen, f"{im.name} und {seen.get(p)} ueberlappen")
+                            self.assertNotIn(p, seen, f"{im.name} and {seen.get(p)} overlap")
                             seen[p] = im.name
 
     def test_byte_edges_fewer_half_bytes_and_new_id(self):
@@ -647,8 +647,8 @@ class BandCoverAndByteEdges(unittest.TestCase):
         self.assertEqual(conf_for(140, 96)["load"], 0xE800)
         with tempfile.TemporaryDirectory() as td:
             conf = conf_for(140, 96)
-            conf["load"] = 0xEC00                    # DVG (1,5 KB) reicht ueber $EDFF hinaus
+            conf["load"] = 0xEC00                    # DVG (1.5 KB) extends beyond $EDFF
             with self.assertRaises(dbegeom.GeomError) as cm:
                 dbegeom.generate(conf, td, "x")
-            self.assertIn("Bereichsende", str(cm.exception))
+            self.assertIn("area end", str(cm.exception))
             self.assertFalse(os.path.exists(os.path.join(td, "x.dvg")))

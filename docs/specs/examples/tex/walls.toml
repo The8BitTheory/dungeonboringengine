@@ -12,19 +12,19 @@ vrl_load   = 0x4000
 pool_bytes = 26624
 
 [[style]]
-name = "ziegel"
-png  = "ziegel_atlas.png"
+name = "brick"
+png  = "brick_atlas.png"
 
 [[style]]
-name = "gitter"
-png  = "gitter_atlas.png"
+name = "grating"
+png  = "grating_atlas.png"
 
 [[style]]
-name     = "fenster"
-aseprite = "fenster.json"
-tag      = "fenster"
+name     = "window"
+aseprite = "window.json"
+tag      = "window"
 
 [[style]]
-name     = "bogen"
-aseprite = "fenster.json"
-tag      = "bogen"
+name     = "arch"
+aseprite = "window.json"
+tag      = "arch"

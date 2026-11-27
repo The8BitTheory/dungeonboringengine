@@ -1,4 +1,4 @@
-"""Tests fuer tools/dbespr.py und tools/dbesprdemo.py (docs/specs/P5b-sprites.md, Abschnitt 9)."""
+"""Tests for tools/dbespr.py and tools/dbesprdemo.py (docs/specs/P5b-sprites.md, section 9)."""
 import binascii
 import copy
 import json
@@ -54,7 +54,7 @@ class Env:
 
 
 def vms_cmds(lst):
-    """Liste -> [(typ, ofs_oder_n, laenge)]"""
+    """List -> [(type, ofs_or_n, length)]"""
     out, p = [], 3
     n = lst[1] | lst[2] << 8
     for _ in range(n):
@@ -71,7 +71,7 @@ def vms_cmds(lst):
 
 
 def expected_fb(bg, img, x0, y0, stride, clip=None):
-    """Erwartungsbild: deckende Pixel aus img.pix (Palettenindex | None), nur innerhalb clip (cx0, cx1, cy0, cy1)."""
+    """Expected image: opaque pixels from img.pix (palette index | None), only inside clip (cx0, cx1, cy0, cy1)."""
     fb = bytearray(bg)
     for r, row in enumerate(img.pix):
         for bx in range(img.w):
@@ -95,10 +95,10 @@ def mem_for(ss, seed=1):
     return mem
 
 
-# ---------------------------------------------------------------- Hilfen fuer kleine Quellen
+# ---------------------------------------------------------------- Helpers for small sources
 
 def mk_ase(tmp, name, cells, slices=None, tags=None, fmt="array", cw=16, ch=16, extra=None):
-    """Aseprite-artiger Export. cells {(layer, frame): {(x, y): palidx}}; liefert Pfad der JSON."""
+    """Aseprite-like export. cells {(layer, frame): {(x, y): palidx}}; returns the path of the JSON."""
     keys = sorted(cells)
     sheet = Image.new("RGBA", (cw * len(keys), ch), (0, 0, 0, 0))
     frames = []
@@ -157,8 +157,8 @@ class TestAseprite(Tmp):
               "v0_d2": [{"frame": 0, "bounds": {"x": 2, "y": 3, "w": 5, "h": 4}}]}
         ss, w, i, _ = self.build(c, sl)
         a, b = ss.images[ss.index[0]], ss.images[ss.index[1]]
-        self.assertEqual((a.w, a.h, a.fx, a.fy), (3, 4, 0, 2))        # 5 Pixel -> 3 Byte, Pivot (1, 2) -> Byte 0
-        # Slice ohne Pivot: Mitte der untersten Zeile (x = w_px // 2 = 2 -> Byte 1, y = h - 1)
+        self.assertEqual((a.w, a.h, a.fx, a.fy), (3, 4, 0, 2))        # 5 pixels -> 3 bytes, pivot (1, 2) -> byte 0
+        # Slice without pivot: middle of the bottom row (x = w_px // 2 = 2 -> Byte 1, y = h - 1)
         self.assertEqual((b.fx, b.fy), (1, 3))
 
     def test_key_selection_per_frame(self):
@@ -167,21 +167,21 @@ class TestAseprite(Tmp):
                         {"frame": 2, "bounds": {"x": 2, "y": 2, "w": 6, "h": 3}}]}
         ss, w, i, _ = self.build(c, sl)
         ws = [ss.images[ss.index[f * 4 * 3]].w for f in range(3)]
-        self.assertEqual(ws, [2, 2, 3])       # Frame 1 -> Key 0 (4 Pixel), Frame 2 -> Key 2 (6 Pixel)
-        self.assertTrue(any("außerhalb der Slice" in x for x in w))
+        self.assertEqual(ws, [2, 2, 3])       # frame 1 -> key 0 (4 pixels), frame 2 -> key 2 (6 pixels)
+        self.assertTrue(any("outside the slice" in x for x in w))
 
     def test_bbox_without_slice_and_info(self):
         ss, w, infos, _ = self.build({("v0_d1", 0): rect(3, 5, 4, 6)})
         im = ss.images[0]
-        self.assertEqual((im.w, im.h, im.fx, im.fy), (3, 6, 1, 5))     # x=3 ungerade -> Byte-Raster ab 2
-        self.assertTrue(any("Fusspunkt automatisch" in x for x in infos))
+        self.assertEqual((im.w, im.h, im.fx, im.fy), (3, 6, 1, 5))     # x=3 odd -> byte raster from 2
+        self.assertTrue(any("foot point automatic" in x for x in infos))
 
     def test_empty_cel_unknown_layer_phase0_warning(self):
         c = {("v0_d1", 0): rect(1, 1, 4, 4), ("v0_d1", 1): {}, ("ref", 0): rect(0, 0, 2, 2), ("v1_d1", 1): rect(1, 1, 4, 4)}
         ss, w, infos, src = self.build(c, angles=2, phases=2)
-        self.assertEqual(ss.index[(1 * 2 + 0) * 3], dbespr.FALLBACK)           # leere Cel -> $FF
-        self.assertEqual(ss.index[(0 * 2 + 1) * 3], dbespr.NOIMG)              # Phase 0 ohne Bild -> $FE
-        self.assertTrue(any("Phase 0 ohne Bild" in x for x in w))
+        self.assertEqual(ss.index[(1 * 2 + 0) * 3], dbespr.FALLBACK)           # empty cel -> $FF
+        self.assertEqual(ss.index[(0 * 2 + 1) * 3], dbespr.NOIMG)              # phase 0 without image -> $FE
+        self.assertTrue(any("phase 0 without image" in x for x in w))
         self.assertTrue(any("'ref'" in x for x in infos))
 
     def test_errors(self):
@@ -209,7 +209,7 @@ class TestAseprite(Tmp):
         self.assertEqual((t[0].name, t[0].first, t[0].count, t[0].mode), ("WALK_CYC", 0, 3, 2))
         self.assertEqual(t[0].dur, round((100 + 100 + 200) / 3 * 60 / 1000))
         self.assertEqual((t[1].mode, t[1].dur), (0, 6))
-        self.assertTrue(any("gekuerzt" in x for x in w) and any("ungleiche Dauern" in x for x in w))
+        self.assertTrue(any("shortened" in x for x in w) and any("unequal durations" in x for x in w))
 
 
 class TestPng(Tmp):
@@ -232,22 +232,22 @@ class TestPng(Tmp):
         im = ss.images[0]
         self.assertEqual((im.w, im.h, im.fx, im.fy), (2, 4, 1, 3))     # x_e = 2, w = ceil((3+3-2)/2) = 2, fx = (3+2-2)//2
         self.assertEqual(im.pix[0], [None, 5, 5, 5])
-        self.assertTrue(any("Bytegrenze" in x for x in infos))
+        self.assertTrue(any("byte boundary" in x for x in infos))
 
     def test_errors(self):
         self.png([(3, 2, 3, 4)])
-        with self.assertRaises(dbetex.TexError):          # doppelt
+        with self.assertRaises(dbetex.TexError):          # duplicated
             dbespr.build_spriteset(self.conf([([3, 2, 3, 4], 0, 1, ""), ([3, 2, 3, 4], 0, 1, "")]))
-        with self.assertRaises(dbetex.TexError):          # Tiefe > D
+        with self.assertRaises(dbetex.TexError):          # depth > D
             dbespr.build_spriteset(self.conf([([3, 2, 3, 4], 0, 4, "")]))
         self.png([(0, 0, 8, 4)], (8, 4))
-        with self.assertRaises(dbetex.TexError):          # Fusspunkt ausserhalb
+        with self.assertRaises(dbetex.TexError):          # foot point outside
             dbespr.build_spriteset(self.conf([([0, 0, 8, 4], 0, 1, "foot = [9, 1]")]))
 
     def test_height_warning(self):
         self.png([(0, 0, 8, 80)], (8, 80))
         ss, w, _, _ = dbespr.build_spriteset(self.conf([([0, 0, 8, 80], 0, 1, "")]))
-        self.assertTrue(any("Wandoberkante" in x for x in w))
+        self.assertTrue(any("wall top edge" in x for x in w))
 
     def test_unknown_key_and_conflicts(self):
         p = mk_toml(self.tmp, "k", 'png = "p.png"', self.env.geom_path, bogus=1)
@@ -275,8 +275,8 @@ class TestPng(Tmp):
             self.assertEqual((im.w, im.h), ((nw + 1) // 2, nh))
             self.assertEqual(len(im.pix[0]), 2 * im.w)
             self.assertTrue(all(v == 5 for row in im.pix for v in row[:nw]))
-        self.assertTrue(any("aus Tiefe 1 abgeleitet" in x for x in w))
-        self.assertFalse(any("Phase 0 ohne Bild" in x for x in w))
+        self.assertTrue(any("derived from depth 1" in x for x in w))
+        self.assertFalse(any("phase 0 without image" in x for x in w))
 
 
 class TestBuild(unittest.TestCase):
@@ -290,7 +290,7 @@ class TestBuild(unittest.TestCase):
         for i, im in enumerate(ss.images):
             fb = bytearray(mem)
             self.assertTrue(dbespr.render_image(ss, i, fb, fb, X0, Y0, self.env.vp, vb=VB))
-            self.assertEqual(fb, expected_fb(mem, im, X0, Y0, st), f"Bild {i}")
+            self.assertEqual(fb, expected_fb(mem, im, X0, Y0, st), f"image {i}")
 
     def test_clipping_exhaustive(self):
         ss, st = self.ss, self.env.stride
@@ -307,7 +307,7 @@ class TestBuild(unittest.TestCase):
                             n += 1
                             fb = bytearray(mem)
                             dbespr.render_image(ss, i, fb, fb, X0, Y0, self.env.vp, vb=VB, clip=clip)
-                            self.assertEqual(fb, expected_fb(mem, im, X0, Y0, st, clip), f"Bild {i} {L, R, T, B}")
+                            self.assertEqual(fb, expected_fb(mem, im, X0, Y0, st, clip), f"image {i} {L, R, T, B}")
                             c = dbespr.clip_image(im, X0, Y0, *clip[:2], *clip[2:], st)
                             if c.vms:
                                 cmds = vms_cmds(c.vms)
@@ -315,7 +315,7 @@ class TestBuild(unittest.TestCase):
                                 self.assertNotEqual(cmds[-1][0], 3)
                                 self.assertTrue(all(not (a[0] == 3 and b[0] == 3) for a, b in zip(cmds, cmds[1:])))
                                 used = sum(ln if t == 1 else n if t == 3 else 1 for t, n, ln in cmds)
-                                self.assertLessEqual(used, im.rand_len)
+                                self.assertLessEqual(used, im.edge_len)
                                 self.assertTrue(any(t != 3 for t, _, _ in cmds))
         self.assertGreater(n, 1000)
 
@@ -325,12 +325,12 @@ class TestBuild(unittest.TestCase):
             self.assertEqual(c.vms, im.vms or None)
             self.assertEqual(c.ref, (X0, Y0))
 
-    def test_kern_srcstep_rule(self):
-        im = dbespr.Img(8, 6, 0, 0, [dbetex.Kern(100, 0, 0, 8, 6, 0), dbetex.Kern(500, 0, 0, 8, 6, 20)])
-        c = dbespr.clip_image(im, 0, 0, 0, 8, 2, 6, 80)            # volle Breite, T > 0
-        self.assertEqual(c.kerns, [(100 + 16, 0, 2, 8, 4, 0), (500 + 40, 0, 2, 8, 4, 20)])
-        c = dbespr.clip_image(im, 0, 0, 1, 5, 0, 6, 80)            # schmaler: Typ 3 mit Schritt kw bzw. srcstep
-        self.assertEqual(c.kerns, [(101, 1, 0, 4, 6, 8), (501, 1, 0, 4, 6, 20)])
+    def test_core_srcstep_rule(self):
+        im = dbespr.Img(8, 6, 0, 0, [dbetex.Core(100, 0, 0, 8, 6, 0), dbetex.Core(500, 0, 0, 8, 6, 20)])
+        c = dbespr.clip_image(im, 0, 0, 0, 8, 2, 6, 80)            # full width, T > 0
+        self.assertEqual(c.cores, [(100 + 16, 0, 2, 8, 4, 0), (500 + 40, 0, 2, 8, 4, 20)])
+        c = dbespr.clip_image(im, 0, 0, 1, 5, 0, 6, 80)            # narrower: type 3 with step kw or srcstep
+        self.assertEqual(c.cores, [(101, 1, 0, 4, 6, 8), (501, 1, 0, 4, 6, 20)])
         self.assertIsNone(c.vms)
 
     def test_vms_format_rules(self):
@@ -342,22 +342,22 @@ class TestBuild(unittest.TestCase):
                 prev = -1
                 for t, ofs, ln in cmds:
                     self.assertIn(t, (1, 8))
-                    self.assertGreaterEqual(ofs, prev)          # steigend, ohne Überlappung
+                    self.assertGreaterEqual(ofs, prev)          # ascending, without overlap
                     prev = ofs + (ln or 1)
                     col = ofs % ss.stride
                     self.assertLess(ofs // ss.stride, im.h)
                     self.assertLessEqual(col + (ln or 1), im.w)
 
     def test_check_vms(self):
-        """Formatregeln 4.6 beim Lesen (from_s2 / dbetex.check_vms): Verstöße werden abgewiesen."""
-        ok = bytes((0, 2, 0, 1, 2, 0, 3, 8, 5, 0))          # Typ 1 (2, 3), Typ 8 (5): w = 6, stride 10
+        """Format rules 4.6 when reading (from_s2 / dbetex.check_vms): violations are rejected."""
+        ok = bytes((0, 2, 0, 1, 2, 0, 3, 8, 5, 0))          # type 1 (2, 3), type 8 (5): w = 6, stride 10
         dbetex.check_vms(ok, 6, 1, 10)
-        bad = [bytes((0, 2, 0, 1, 2, 0, 3, 8, 4, 0)),        # Typ 8 im Lauf (Überlappung)
-               bytes((0, 1, 0, 1, 4, 0, 3)),                 # Spalte + len > w
-               bytes((0, 1, 0, 8, 10, 0)),                   # Zeile >= h
-               bytes((0, 1, 0, 3, 2, 0)),                    # Typ 3
-               bytes((0, 2, 0, 8, 5, 0, 8, 2, 0)),           # fallend
-               bytes((0, 2, 0, 8, 5, 0))]                    # Anzahl passt nicht
+        bad = [bytes((0, 2, 0, 1, 2, 0, 3, 8, 4, 0)),        # type 8 in a run (overlap)
+               bytes((0, 1, 0, 1, 4, 0, 3)),                 # column + len > w
+               bytes((0, 1, 0, 8, 10, 0)),                   # row >= h
+               bytes((0, 1, 0, 3, 2, 0)),                    # type 3
+               bytes((0, 2, 0, 8, 5, 0, 8, 2, 0)),           # descending
+               bytes((0, 2, 0, 8, 5, 0))]                    # count does not match
         for b in bad:
             with self.assertRaises(dbetex.TexError):
                 dbetex.check_vms(b, 6, 1, 10)
@@ -406,8 +406,8 @@ class TestBuild(unittest.TestCase):
                 self.assertEqual(a.pix, [r[::-1] for r in b.pix])
                 self.assertEqual((a.w, a.h, a.fy), (b.w, b.h, b.fy))
                 self.assertEqual(a.fx, b.w - 1 - b.fx)
-                self.assertIn("gespiegelt", src[(f, 3, d)])
-        # Rundlauf der gespiegelten Bilder
+                self.assertIn("mirrored", src[(f, 3, d)])
+        # round trip of the mirrored images
         mem = mem_for(ss, 3)
         for i_, im in enumerate(ss.images):
             fb = bytearray(mem)
@@ -417,14 +417,14 @@ class TestBuild(unittest.TestCase):
     def test_blob_properties(self):
         ss = self.ss
         self.assertEqual((ss.na, ss.np, ss.depth, len(ss.tags)), (4, 2, 3, 2))
-        self.assertEqual(ss.index[(1 * 4 + 0) * 3 + 2], dbespr.FALLBACK)     # v0_d3 Frame 1 leer
+        self.assertEqual(ss.index[(1 * 4 + 0) * 3 + 2], dbespr.FALLBACK)     # v0_d3 frame 1 empty
         self.assertEqual([t.name for t in ss.tags], ["IDLE", "WALK"])
         self.assertEqual(ss.tags[1].mode, 2)
         self.assertEqual(ss.tags[1].dur, round(150 * 60 / 1000))
         self.assertTrue(any("ref" in x for x in self.infos))
-        # halbe Bytes am Rand und ein Loch: es gibt Typ-8-Befehle, im Koerper transparente Pixel
+        # half bytes at the edge and a hole: there are type 8 commands, transparent pixels in the body
         self.assertTrue(any(t == 8 for im in ss.images if im.vms for t, _, _ in vms_cmds(im.vms)))
-        front = ss.images[ss.index[0]]      # Vorderseite d = 1: Auge = transparentes Loch im Koerper
+        front = ss.images[ss.index[0]]      # front side d = 1: eye = transparent hole in the body
         self.assertTrue(any(row[c] is None and any(v is not None for v in row[:c]) and any(v is not None for v in row[c:])
                             for row in front.pix for c in range(len(row))))
 
@@ -451,13 +451,13 @@ class TestBuild(unittest.TestCase):
         _, _, uu, stream = vrl.unpack_file(vrl.pack_file(vrl.encode(list(ss.vram)), 0x4000))
         self.assertEqual(uu, u)
         self.assertEqual(bytes(vrl.decode(stream)), ss.vram)
-        # Rundlauf
+        # round trip
         back = dbespr.from_s2(data, ss.vram)
         self.assertEqual(back.images, ss.images)
         self.assertEqual((back.index, back.tags, back.angle_map, back.np, back.na, back.depth, back.stride),
                          (ss.index, ss.tags, ss.angle_map, ss.np, ss.na, ss.depth, ss.stride))
         self.assertEqual(dbespr.to_s2(back, 0x6000), data)
-        # Determinismus
+        # determinism
         ss2 = dbespr.build_spriteset(dbespr.load_conf(os.path.join(env.dir, "blob.toml")))[0]
         self.assertEqual(dbespr.to_s2(ss2), data)
         self.assertEqual(ss2.vram, ss.vram)
@@ -480,7 +480,7 @@ class TestBuild(unittest.TestCase):
         ss.images = [self.ss.images[0]] * 255
         with self.assertRaises(dbetex.TexError):
             dbespr.to_s2(ss)
-        big = dbespr.Img(4, 4, 0, 0, vms=b"\x00" * 9000, rand_len=1)
+        big = dbespr.Img(4, 4, 0, 0, vms=b"\x00" * 9000, edge_len=1)
         ss = copy.copy(self.ss)
         ss.images, ss.index = [big], [0] * len(self.ss.index)
         with self.assertRaises(dbetex.TexError):
@@ -517,8 +517,8 @@ class TestBuild(unittest.TestCase):
         fb = bytearray([0xA0]) * 512
         lst = bytes((5, 3, 0, 3, 3, 0, 1, 0, 0, 2, 8, 9, 0))        # skip 3, copy 2, mix 1
         dbetex.sim_vms(vram, 10, 100, lst, fb)
-        self.assertEqual(fb[100:102], bytes((13, 14)))               # Quelle 10 + 3
-        self.assertEqual(fb[109], 0xAF)                              # Quelle 15, rechtes Pixel != Alpha
+        self.assertEqual(fb[100:102], bytes((13, 14)))               # source 10 + 3
+        self.assertEqual(fb[109], 0xAF)                              # source 15, right pixel != alpha
         self.assertEqual(fb[102], 0xA0)
 
 
@@ -546,7 +546,7 @@ class TestCli(unittest.TestCase):
             r = self.run_cli("budget", os.path.join(out, "blob.s2"), "--pool", "10000")
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn("sprite", r.stdout)
-            # P5-Werkzeug liest S2 im Budget ebenfalls
+            # the P5 tool also reads S2 in budget
             r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "dbetex.py"), "budget",
                                 os.path.join(out, "blob.s2"), "--pool", "10000"], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)

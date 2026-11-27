@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""sim65-Messung und -Pruefung der Lib mit der Crawl-Szene (P7a, docs/specs/P7-crawl.md 6.2).
+"""sim65 measurement and verification of the lib with the crawl scene (P7a, docs/specs/P7-crawl.md 6.2).
 
-Aufruf:  run_crawl.py (--d81 IMAGE.d81 | --dir DIR) [--quick] [--workers N] [--no-verify] [--no-cycles] [--fix] [--json OUT]
-  --fix:   feste Listenadresse wie Crawl 1.1 ab P6j (BUFSET X = 1: VCL-Liste ab B0, VIEW kopiert sie dorthin)
-  verify:  alle Ansichten (freie Zellen x 4 Richtungen x kein Geist/Geist in jeder Zelle (d, s) x 4 Richtungen) im
-           Simulator ausfuehren und bytegenau mit dbeview.view vergleichen (A, X, VCL, VMS, OBJVIS)
-  cycles:  Zyklen von VIEW wie run_sim.time_view (Lauf mit F = 4 minus Lauf mit F = 7), Mittel und Maximum
-           ohne und mit Geist, Ziel aus P6 8: <= 2 x 0.1 = 28 382 Takte (Befund, kein Abnahmehindernis)
-Baut den Harness (run_sim.build) nur, wenn build/sim/viewsim.prg fehlt.
+Usage:  run_crawl.py (--d81 IMAGE.d81 | --dir DIR) [--quick] [--workers N] [--no-verify] [--no-cycles] [--fix] [--json OUT]
+  --fix:   fixed list address like crawl 1.1 from P6j (BUFSET X = 1: VCL list from B0, VIEW copies it there)
+  verify:  all views (free cells x 4 directions x no ghost/ghost in every cell (d, s) x 4 directions) run in the
+           simulator and compared byte for byte with dbeview.view (A, X, VCL, VMS, OBJVIS)
+  cycles:  cycles of VIEW as in run_sim.time_view (run with F = 4 minus run with F = 7), mean and maximum
+           without and with ghost, target from P6 8: <= 2 x 0.1 = 28 382 cycles (finding, not an acceptance blocker)
+Builds the harness (run_sim.build) only if build/sim/viewsim.prg is missing.
 """
 import argparse
 import json
@@ -38,7 +38,7 @@ def _init(files, fix=False):
 
 
 def configs(e, pos, v, quick=False, variants=(0, 1)):
-    """Alle Konfigurationen einer Ansicht: (variant, ghost)."""
+    """All configurations of a view: (variant, ghost)."""
     cells = e.visible_cells(pos, v)
     for variant in variants:
         yield variant, None
@@ -104,8 +104,8 @@ def cycles(files, quick=False, workers=1):
     jobs = [(p, v, quick) for p in e.free for v in range(4)]
     res = [x for r in _map(_cycle_job, jobs, files, workers) for x in r]
     rep = {}
-    for name, sel in (("ohne Geist", [r for r in res if not r[0]]), ("mit Geist", [r for r in res if r[0]]),
-                      ("alle", res)):
+    for name, sel in (("no ghost", [r for r in res if not r[0]]), ("with ghost", [r for r in res if r[0]]),
+                      ("all", res)):
         c = [r[1] for r in sel]
         worst = max(sel, key=lambda r: r[1])
         rep[name] = dict(n=len(c), mean=round(statistics.mean(c)), max=max(c), min=min(c),
@@ -132,7 +132,7 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--no-verify", action="store_true")
     ap.add_argument("--no-cycles", action="store_true")
-    ap.add_argument("--fix", action="store_true", help="feste Listenadresse (BUFSET X = 1, P6j)")
+    ap.add_argument("--fix", action="store_true", help="fixed list address (BUFSET X = 1, P6j)")
     ap.add_argument("--json")
     a = ap.parse_args(argv)
     global FIX
@@ -153,7 +153,7 @@ def main(argv=None):
         for r in res:
             for k, c in r[2].items():
                 codes[k] = codes.get(k, 0) + c
-        print(f"sim65 gegen dbeview.view: {nview} Ansichten, Abweichungen {len(fails)}, Fehlercodes {codes}")
+        print(f"sim65 vs dbeview.view: {nview} views, mismatches {len(fails)}, error codes {codes}")
         for f in fails[:10]:
             print("  ", f)
         out["verify"] = dict(views=nview, fails=len(fails), codes={str(k): v for k, v in codes.items()})
@@ -161,8 +161,8 @@ def main(argv=None):
     if not a.no_cycles:
         rep = cycles(files, a.quick, a.workers)
         for k, v in rep.items():
-            print(f"Zyklen VIEW {k}: {v['n']} Ansichten, Mittel {v['mean']}, min {v['min']}, max {v['max']} "
-                  f"(Ziel {TARGET}, darueber: {v['over_target']}); teuerste: {v['worst']}")
+            print(f"VIEW cycles {k}: {v['n']} views, mean {v['mean']}, min {v['min']}, max {v['max']} "
+                  f"(target {TARGET}, above: {v['over_target']}); most expensive: {v['worst']}")
         out["cycles"] = rep
     if a.json:
         with open(a.json, "w") as f:

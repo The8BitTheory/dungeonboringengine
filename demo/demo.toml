@@ -1,63 +1,63 @@
 format  = "dbemap"
 version = 1
 
-# Demo-Karte 20 x 16 (Dungeon Boring Engine, docs/specs/P7-crawl.md 8.3).
-# Wandstile: 1 ziegel, 2 gitter, 3 fenster, 4 bogen; Bodenstil 1 stein; Deckenstil 1 holz (Reihenfolge wie in walls.toml).
+# Demo map 20 x 16 (Dungeon Boring Engine, docs/specs/P7-crawl.md 8.3).
+# Wall styles: 1 brick, 2 grating, 3 window, 4 arch; floor style 1 stone; ceiling style 1 wood (order as in walls.toml).
 #
-#   Hof (Himmel, Fenster nach Norden und Osten)  x 11-18, y 1-5      Kammer mit Abgrund  x 11-18, y 7-9
-#   Tuer (Torbogen, durchgehbar) bei (13, 6)       Gitter mit Edelstein bei (17, 6)
-#   Zimmer im Südwesten (Start; Fenster nach Westen und Süden)  x 1-6, y 10-14
+#   Courtyard (sky, windows to the north and east)  x 11-18, y 1-5      Chamber with abyss  x 11-18, y 7-9
+#   Door (archway, walkable) at (13, 6)       Grate with gem at (17, 6)
+#   Room in the southwest (start; windows to the west and south)  x 1-6, y 10-14
 [map]
 name    = "demo"
 start   = [2, 11]
 dir     = "W"
-outside = "draussen"      # alles ausserhalb der Karte: keine Wände, kein Boden, keine Decke -> hinter Fenstern nur Tapete
+outside = "outside"      # everything outside the map: no walls, no floor, no ceiling -> only wallpaper behind windows
 
-[tiles.wand]
+[tiles.wall]
 walls   = 1
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 
-[tiles.gang]
+[tiles.corridor]
 floor   = 1
 ceiling = 1
 
-[tiles.hof]               # Himmel: Deckenstil 0
+[tiles.courtyard]               # sky: ceiling style 0
 floor   = 1
 
-[tiles.abgrund]           # Abgrund: Bodenstil 0, nicht betretbar
+[tiles.abyss]           # abyss: floor style 0, not enterable
 ceiling = 1
-flags   = ["weg"]
+flags   = ["solid"]
 
-[tiles.fenster]           # Wandstil fenster, nicht deckend: dahinter die Aussenkachel (nur Tapete)
+[tiles.window]           # wall style window, not opaque: outside tile behind it (wallpaper only)
 walls   = 3
-flags   = ["weg", "automap"]
+flags   = ["solid", "automap"]
 
-[tiles.gitter]            # nicht deckend, INHALT: dahinter (in der Zelle) ein Gegenstand
+[tiles.grating]            # not opaque, CONTENT: an item behind it (in the cell)
 walls   = 2
 floor   = 1
 ceiling = 1
-flags   = ["weg", "inhalt", "automap"]
+flags   = ["solid", "content", "automap"]
 
-[tiles.tuer]              # Torbogen mit INHALT, ohne WEG: durchgehbar, Goblins gehen hindurch
+[tiles.door]              # archway with CONTENT, without SOLID: walkable, goblins pass through
 walls   = 4
 floor   = 1
 ceiling = 1
-flags   = ["inhalt", "tuer"]
+flags   = ["content", "door"]
 
-[tiles.draussen]
-# keine Wände, kein Boden, keine Decke
+[tiles.outside]
+# no walls, no floor, no ceiling
 
 [legend]
-"#" = "wand"
-"." = "gang"
-"," = "hof"
-":" = "abgrund"
-"F" = "fenster"
-"+" = "gitter"
-"D" = "tuer"
-"m" = { tile = "gang", item = 1 }
-"h" = { tile = "hof", item = 1 }
-"G" = { tile = "gitter", item = 1 }
+"#" = "wall"
+"." = "corridor"
+"," = "courtyard"
+":" = "abyss"
+"F" = "window"
+"+" = "grating"
+"D" = "door"
+"m" = { tile = "corridor", item = 1 }
+"h" = { tile = "courtyard", item = 1 }
+"G" = { tile = "grating", item = 1 }
 
 [layers]
 tiles = """
@@ -79,17 +79,17 @@ F......#############
 ##F#F###############
 """
 
-[[events]]                # Startpunkte der Goblins (Route je Goblin in demo.bas)
+[[events]]                # start points of the goblins (route per goblin in demo.bas)
 at    = [13, 2]
-type  = "gegner"
+type  = "enemy"
 param = 1
 
 [[events]]
 at    = [15, 5]
-type  = "gegner"
+type  = "enemy"
 param = 2
 
 [[events]]
 at    = [12, 1]
-type  = "gegner"
+type  = "enemy"
 param = 3

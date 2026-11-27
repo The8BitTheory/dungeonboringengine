@@ -4,7 +4,7 @@ version = 1
 [background]
 name    = "demo_sky"
 geom    = "west140.geom.json"
-png     = "himmel.png"
+png     = "sky.png"
 y0      = "horizon"
 offsets = "auto"
 wrap    = true

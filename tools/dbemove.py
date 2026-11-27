@@ -1,46 +1,47 @@
 #!/usr/bin/env python3
-"""Python-Referenz der Engine-Funktion MOVE (P6f): Schritte und Drehungen mit Kollision und Ereignissen.
+"""Python reference of the engine function MOVE (P6f): steps and turns with collision and events.
 
-Spezifikation: docs/specs/P6-engine.md 3.4 und "Ergebnis P6f". Die 6502-Fassung (engine/lib.s, f_move) muss
-move() bytegleich nachbilden (A, X, Y, P0, P1, P2 und Zustand pos/Richtung).
+Specification: docs/specs/P6-engine.md 3.4 and "Result P6f". The 6502 version (engine/lib.s, f_move) must
+reproduce move() byte for byte (A, X, Y, P0, P1, P2 and the state pos/direction).
 
-Der Automap-Teil (Bit 6 der Inhaltsebene) gehoert zu VIEW und steht in tools/dbeview.py (Scene.automap); dieses
-Modul behandelt nur MOVE, weil es keine DVG, DTS oder Sprites braucht.
+The automap part (bit 6 of the content plane) belongs to VIEW and lives in tools/dbeview.py (Scene.automap); this
+module only covers MOVE, because it needs no DVG, DTS or sprites.
 
 API:
   move(m, pos, v, objects, action, objn=None) -> MoveResult
       m        dbemap.Map (cells, content, tiles, events, width, height, outside)
-      pos, v   Zellindex und Blickrichtung (0 N, 1 O, 2 S, 3 W)
-      objects  Objektliste (dbeview.Obj: cell, hidden, noblock); objn = OBJN (Standard len(objects)), gelesen
-               werden hoechstens 16
-      action   0 vor, 1 zurueck, 2 seitwaerts links, 3 rechts, 4 drehen links, 5 drehen rechts, 6 umdrehen
+      pos, v   cell index and viewing direction (0 N, 1 E, 2 S, 3 W)
+      objects  object list (dbeview.Obj: cell, hidden, noblock); objn = OBJN (default len(objects)), at most 16
+               are read
+      action   0 forward, 1 back, 2 strafe left, 3 right, 4 turn left, 5 turn right, 6 turn around
   MoveResult(a, x, y, p0, p1, p2, pos, dir)
-      a   0, 5 bei fehlender Karte entfaellt hier; 6 (E_RANGE) bei action >= 7 (Zustand unveraendert, x = y = 0)
-      x   0 ok (Schritt/Drehung), 1 Karte/Kachel versperrt, 2 Objekt versperrt
-      y   Kachel der neuen Position (x = 0), Kachel des Ziels (WEG), Aussenkachel (ausserhalb), Objektindex (x = 2);
-          bei Drehungen die Kachel der Position
-      p0  Position, p1 Inhaltsbyte der Position (mit Automap-Bits), p2 Index des ersten Ereignisses der Position
-          in m.events oder 0xFFFF
-Reihenfolge der Pruefungen beim Schritt: ausserhalb der Karte, Kachel-Flag WEG, Objekt (nicht hidden, nicht
-noblock, kleinster Index). Ereignisse: die Liste ist nach (Zelle, Typ, Parameter) sortiert (DMP 2.5); gesucht
-wird der erste Eintrag mit gleicher Zelle, Abbruch beim ersten Eintrag mit groesserer Zelle (wie die 6502-Fassung).
+      a   0; 5 for a missing map does not apply here; 6 (E_RANGE) for action >= 7 (state unchanged, x = y = 0)
+      x   0 ok (step/turn), 1 map/tile blocked, 2 object blocked
+      y   tile of the new position (x = 0), tile of the target (SOLID), outside tile (outside the map), object index
+          (x = 2); for turns the tile of the position
+      p0  position, p1 content byte of the position (with automap bits), p2 index of the first event of the position
+          in m.events or 0xFFFF
+Order of the checks for a step: outside the map, tile flag SOLID, object (not hidden, not noblock, smallest index).
+Events: the list is sorted by (cell, type, parameter) (DMP 2.5); the first entry with the same cell is searched,
+aborting at the first entry with a greater cell (like the 6502 version).
 """
 from collections import namedtuple
 
-FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # Schritt je Richtung (N, O, S, W)
-TURN = (0, 2, 3, 1, 3, 1, 2)                    # Richtungszuwachs je Aktion 0 ... 6: vor, zurueck, links, rechts,
-                                                # drehen links, drehen rechts, umdrehen
+FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # step per direction (N, E, S, W)
+TURN = (0, 2, 3, 1, 3, 1, 2)                    # direction increment per action 0 ... 6: forward, back, left, right,
+                                                # turn left, turn right, turn around
 T_WEG = 1
 E_OK, E_RANGE = 0, 6
 MoveResult = namedtuple("MoveResult", "a x y p0 p1 p2 pos dir")
 
 
 def first_event(m, pos):
-    """Index des ersten Ereignisses der Zelle pos in m.events oder 0xFFFF."""
+    """Index of the first event of cell pos in m.events, or 0xFFFF."""
     for i, e in enumerate(m.events):
         if e.cell == pos:
             return i
-        if e.cell > pos:            # sortiert (DMP 2.5): kein weiteres Ereignis
+        if e.cell > pos:            # sorted (DMP 2.5): no further event
+
             break
     return 0xFFFF
 

@@ -9,5 +9,5 @@ out  = "build"
 load = 0xF600
 
 [[style]]
-name = "holz"
-png  = "holz_atlas.png"
+name = "wood"
+png  = "wood_atlas.png"

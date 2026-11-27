@@ -1,4 +1,4 @@
-# 136 x 92 (2 Textzeilen frei): wie view-west140.toml, nur Groesse und Name anders
+# 136 x 92 (2 text rows free): like view-west140.toml, only size and name differ
 [viewport]
 preset = "westwood"
 width_px = 136

@@ -1,123 +1,123 @@
-# P1: VRL – RLE-Strom für `RXV`, Werkzeug `tools/vrl.py`
+# P1: VRL – RLE stream for `RXV`, tool `tools/vrl.py`
 
-Stand: 2026-11-25. Detailspezifikation zu Schritt P1 aus `docs/plan-0.2.md` (Abschnitt 6). Umsetzung: Sonnet. Review: Opus. Abhängigkeiten: nur Python-Standardbibliothek (≥ 3.11).
+As of 2026-11-25. Detailed specification for step P1 of `docs/plan-0.2.md` (section 6). Implementation: Sonnet. Review: Opus. Dependencies: Python standard library only (≥ 3.11).
 
-## 1. Zweck
+## 1. Purpose
 
-VRL beschreibt, was `RXV src,dst` (VDC-BASIC v3, P2b) ins VRAM schreibt: Literale, Läufe und Lücken (Skip). Einsatz:
+VRL describes what `RXV src,dst` (VDC-BASIC v3, P2b) writes into VRAM: literals, runs and gaps (skip). Uses:
 
-- Assets dicht in den VRAM-Pool entpacken (keine Skips).
-- Rechtecke mit Stride direkt in einen Bildpuffer schreiben (Skip am Zeilenende).
-- Bilder mit Transparenz pro Byte (Skip über transparente Bytes).
+- Unpack assets densely into the VRAM pool (no skips).
+- Write rectangles with a stride directly into an image buffer (skip at the end of a line).
+- Images with per-byte transparency (skip over transparent bytes).
 
-Transparenz pro **Pixel** (ein Nibble) kann VRL nicht; das bleibt `VMS` Typ 8 (P5 entscheidet je Byte, ob es in VRL geschrieben, übersprungen oder per `VMS` gezeichnet wird).
+VRL cannot do transparency per **pixel** (one nibble); that remains `VMS` type 8 (P5 decides per byte whether it is written in VRL, skipped or drawn via `VMS`).
 
-## 2. Token
+## 2. Tokens
 
-Alle Wörter Low/High.
+All words are low/high.
 
-| Byte b | Folgebytes | Bedeutung | Länge im Strom |
+| Byte b | Following bytes | Meaning | Length in stream |
 |---|---|---|---|
-| `$00` | – | Ende | 1 |
-| `$01–$7F` | n = b Bytes | n Literale (1 … 127) an das Ziel schreiben | 1 + n |
-| `$80–$FD` | v | Lauf: L = b − `$80` + 2 (2 … 127) mal v | 2 |
-| `$FE` | lo, hi | Skip: Ziel um n = hi·256 + lo weiter, nichts schreiben; n = 0 bedeutet 65536 | 3 |
-| `$FF` | lo, hi, v | langer Lauf: L = hi·256 + lo mal v; L = 0 bedeutet 65536 | 4 |
+| `$00` | – | End | 1 |
+| `$01–$7F` | n = b bytes | write n literals (1 … 127) to the destination | 1 + n |
+| `$80–$FD` | v | Run: L = b − `$80` + 2 (2 … 127) times v | 2 |
+| `$FE` | lo, hi | Skip: advance the destination by n = hi·256 + lo, write nothing; n = 0 means 65536 | 3 |
+| `$FF` | lo, hi, v | long run: L = hi·256 + lo times v; L = 0 means 65536 | 4 |
 
-- Das Ziel ist ein Byte-Zeiger in den VRAM, der nach jedem geschriebenen oder übersprungenen Byte um 1 weiterläuft (16 Bit, Überlauf von `$FFFF` nach `$0000` ist ein Fehler des Erzeugers; der Encoder verhindert ihn über die entpackte Länge, 4.4).
-- **Decoder (`RXV`, Information für P2b):** Literale per CPU über Reg 31; Lauf mit L < T per CPU, mit L ≥ T per Block fill (erstes Byte per CPU, Reg 30 = L − 1, bei L > 256 in Stücken zu 256); Skip setzt Reg 18/19 neu. Nach einem Block fill steht Reg 18/19 bereits hinter dem Ende, es ist keine neue Adresse nötig. T kommt aus P0.
-- Der Decoder muss jede gültige Tokenfolge annehmen, auch solche, die der Encoder nie erzeugt (z. B. `$FF` mit L = 1, zwei Läufe hintereinander mit gleichem Wert, Skip direkt vor dem Ende).
+- The destination is a byte pointer into VRAM that advances by 1 after every written or skipped byte (16 bits; overflow from `$FFFF` to `$0000` is an error of the producer; the encoder prevents it via the unpacked length, 4.4).
+- **Decoder (`RXV`, information for P2b):** literals via CPU through reg 31; run with L < T via CPU, with L ≥ T via block fill (first byte via CPU, reg 30 = L − 1, in pieces of 256 if L > 256); skip sets reg 18/19 anew. After a block fill, reg 18/19 already points past the end, so no new address is needed. T comes from P0.
+- The decoder must accept every valid token sequence, including ones the encoder never produces (e.g. `$FF` with L = 1, two runs in a row with the same value, skip directly before the end).
 
-## 3. Dateirahmen
+## 3. File frame
 
-Eine VRL-Datei ist eine PRG-Datei:
+A VRL file is a PRG file:
 
-| Offset | Größe | Inhalt |
+| Offset | Size | Content |
 |---|---|---|
-| 0 | 2 | Ladeadresse (Standard `$2000`, `--load`) |
+| 0 | 2 | load address (default `$2000`, `--load`) |
 | 2 | 2 | `"V" "R"` (`$56 $52`) |
-| 4 | 1 | Version = 1 |
-| 5 | 2 | entpackte Länge U (Wort, 0 … 65535) |
-| 7 | … | Strom (Token bis einschließlich `$00`) |
+| 4 | 1 | version = 1 |
+| 5 | 2 | unpacked length U (word, 0 … 65535) |
+| 7 | … | stream (tokens up to and including `$00`) |
 
-- **U** = Anzahl Zielbytes vom Start bis hinter das letzte geschriebene Byte, also Summe aller Literal-, Lauf- und Skip-Längen. Ein Skip am Ende wird nicht kodiert (4.3) und zählt nicht mit. U > 65535 ist ein Fehler.
-- Nach der Ladeadresse beginnt der Kopf; der Strom liegt bei Ladeadresse + 5. Aufruf in BASIC: `BLOAD"BILD.VRL",B0,P(BE):RXV BE+5,ZIEL` (Vorschlag; ob `RXV` stattdessen den Kopf selbst prüft, entscheidet P2b, siehe `review-notes.md`).
-- Rohe Ströme ohne Kopf (z. B. eingebettet in DTS, P5): `--raw`.
+- **U** = number of destination bytes from the start to just past the last written byte, i.e. the sum of all literal, run and skip lengths. A skip at the end is not encoded (4.3) and does not count. U > 65535 is an error.
+- The header begins after the load address; the stream is at load address + 5. Call in BASIC: `BLOAD"IMAGE.VRL",B0,P(BE):RXV BE+5,DEST` (proposal; whether `RXV` checks the header itself instead is decided by P2b, see `review-notes.md`).
+- Raw streams without a header (e.g. embedded in DTS, P5): `--raw`.
 
 ## 4. Encoder
 
-### 4.1 Eingabe
+### 4.1 Input
 
-Eine Folge von Zielpositionen; jede ist entweder ein Bytewert 0–255 (schreiben) oder **`SKIP`** (`None`: nicht schreiben, Zielinhalt bleibt). Für `encode_rect` wird die Folge aus Rechteck, Stride und Maske gebildet (4.5).
+A sequence of destination positions; each is either a byte value 0–255 (write) or **`SKIP`** (`None`: do not write, destination content remains). For `encode_rect` the sequence is built from rectangle, stride and mask (4.5).
 
-### 4.2 Größenoptimal
+### 4.2 Size-optimal
 
-Der Encoder sucht unter allen gültigen Tokenfolgen eine mit minimaler Stromlänge. Verfahren: dynamische Programmierung rückwärts über die Positionen i = n … 0.
+Among all valid token sequences, the encoder searches for one with minimal stream length. Method: dynamic programming backwards over positions i = n … 0.
 
-`best[i]` = (Bytes, Token) minimal für den Rest ab i; Vergleich lexikographisch (erst Bytes, dann Anzahl Token). Übergänge ab Position i:
+`best[i]` = (bytes, tokens) minimal for the rest from i; compared lexicographically (bytes first, then number of tokens). Transitions from position i:
 
-| Übergang | Bedingung | Kosten (Bytes) | weiter bei |
+| Transition | Condition | Cost (bytes) | continue at |
 |---|---|---|---|
-| Skip k | Positionen i … i+k−1 sind `SKIP`; k = ganze Skip-Strecke ab i | 3 | i + k |
-| Lauf L | Positionen i … i+L−1 gleich, kein `SKIP`; L ∈ {2 … min(127, R)}, dazu L = R, wenn R > 127 (R = Länge der Wiederholung ab i) | 2 für L ≤ 127, sonst 4 | i + L |
-| Literal n | Positionen i … i+n−1 ohne `SKIP`; 1 ≤ n ≤ 127 | 1 + n | i + n |
+| Skip k | positions i … i+k−1 are `SKIP`; k = the whole skip span from i | 3 | i + k |
+| Run L | positions i … i+L−1 equal, no `SKIP`; L ∈ {2 … min(127, R)}, plus L = R if R > 127 (R = length of the repetition from i) | 2 for L ≤ 127, otherwise 4 | i + L |
+| Literal n | positions i … i+n−1 without `SKIP`; 1 ≤ n ≤ 127 | 1 + n | i + n |
 
-- Eine `SKIP`-Strecke wird immer ganz übersprungen (es gibt keine Alternative), Läufe und Literale enden spätestens vor dem nächsten `SKIP`.
-- Läufe der Länge 2 sind erlaubt; die DP nimmt sie nur, wenn sie wirklich kürzer sind (z. B. allein stehendes Paar zwischen Skips). Läufe ab 3 sind nie länger als die gleichen Bytes im Literal; ob sie gewählt werden, entscheidet ebenfalls die DP.
-- **Gleichstand** (gleiche Bytes und Token): Beim Aufbau von vorne (Rekonstruktion ab i = 0) wird unter den optimalen Übergängen der gewählt, der **die meisten Positionen abdeckt**; bei gleicher Abdeckung Lauf vor Literal. Damit ist die Ausgabe eindeutig.
-- Lange Läufe 128 … R − 1 müssen nicht geprüft werden: Der lange Lauf über die ganze Wiederholung kostet dieselben 4 Byte und lässt keinen Rest. Kurze Läufe ≤ 127 dagegen schon (Beispiel `[7]*128 + [1,2]` → `FD 07 03 07 01 02 00`, kürzer als der lange Lauf).
-- Laufzeit: O(n × 127), alle Hilfstabellen (Wiederholungslänge, Skip-Länge, längstes Literal ab i) vorab rückwärts in O(n) berechnen – eine Schleife je Position über die Skip-Strecke macht den Encoder quadratisch. Ziel: 64 KB in unter 10 s (CPython).
+- A `SKIP` span is always skipped entirely (there is no alternative); runs and literals end before the next `SKIP` at the latest.
+- Runs of length 2 are allowed; the DP takes them only if they are actually shorter (e.g. a lone pair between skips). Runs of 3 or more are never longer than the same bytes as literals; whether they are chosen is likewise decided by the DP.
+- **Tie** (same bytes and tokens): when building from the front (reconstruction from i = 0), among the optimal transitions the one that **covers the most positions** is chosen; with equal coverage, run before literal. This makes the output unambiguous.
+- Long runs 128 … R − 1 need not be checked: the long run over the whole repetition costs the same 4 bytes and leaves no remainder. Short runs ≤ 127, however, do (example `[7]*128 + [1,2]` → `FD 07 03 07 01 02 00`, shorter than the long run).
+- Running time: O(n × 127); compute all helper tables (repetition length, skip length, longest literal from i) in advance backwards in O(n) – a loop over the skip span per position makes the encoder quadratic. Goal: 64 KB in under 10 s (CPython).
 
 ### 4.3 Skips
 
-- Führende Skips werden kodiert (Zielversatz am Anfang).
-- **Skips am Ende werden weggelassen**: Der Strom endet nach dem letzten geschriebenen Byte mit `$00`.
-- Wegen U ≤ 65535 (4.4) ist jeder kodierte Skip ≤ 65534 und jeder Lauf ≤ 65535; die Formen mit Länge 0 (= 65536) erzeugt der Encoder nie, der Decoder nimmt sie an.
-- Eine Folge nur aus `SKIP` ergibt den Strom `$00` und U = 0.
+- Leading skips are encoded (destination offset at the start).
+- **Skips at the end are omitted**: the stream ends with `$00` after the last written byte.
+- Because U ≤ 65535 (4.4), every encoded skip is ≤ 65534 and every run ≤ 65535; the encoder never produces the forms with length 0 (= 65536), the decoder accepts them.
+- A sequence consisting only of `SKIP` yields the stream `$00` and U = 0.
 
-### 4.4 Grenzen
+### 4.4 Limits
 
-- U ≤ 65535, sonst `ValueError("VRL: entpackte Länge über 65535")`.
-- Werte außerhalb 0 … 255 → `ValueError`.
+- U ≤ 65535, otherwise `ValueError("VRL: unpacked length exceeds 65535")`.
+- Values outside 0 … 255 → `ValueError`.
 
-### 4.5 Rechteck mit Stride und Maske
+### 4.5 Rectangle with stride and mask
 
 `encode_rect(data, width, height, stride, mask=None)`:
 
-- `data`: `width × height` Bytes, zeilenweise.
-- `mask`: `None` (alles schreiben) oder Folge gleicher Länge; wahr/≠ 0 = schreiben, 0/falsch = `SKIP`.
-- Zielfolge: Zeile r beginnt bei r × stride. Zwischen Zeilenende (r × stride + width) und nächster Zeile liegen stride − width `SKIP`-Positionen; sie verschmelzen mit maskierten Bytes am Zeilenende und -anfang zu einem Skip.
-- Bedingungen: width ≥ 1, height ≥ 1, stride ≥ width, sonst `ValueError`. stride ≤ 65535.
-- Das Ergebnis ist der Strom; die Startadresse (Ziel des ersten Bytes, Zeile 0, Spalte 0) übergibt der Aufrufer an `RXV`. Ist das erste Byte maskiert, beginnt der Strom mit einem Skip.
+- `data`: `width × height` bytes, row by row.
+- `mask`: `None` (write everything) or a sequence of the same length; true/≠ 0 = write, 0/false = `SKIP`.
+- Destination sequence: row r begins at r × stride. Between the end of a row (r × stride + width) and the next row lie stride − width `SKIP` positions; they merge with masked bytes at the end and start of the rows into one skip.
+- Conditions: width ≥ 1, height ≥ 1, stride ≥ width, otherwise `ValueError`. stride ≤ 65535.
+- The result is the stream; the caller passes the start address (destination of the first byte, row 0, column 0) to `RXV`. If the first byte is masked, the stream begins with a skip.
 
 ## 5. Decoder
 
 `decode(stream, base=None)`:
 
-- Liest Token bis `$00`. Liefert `bytearray`: Kopie von `base` (oder leer), bei Bedarf mit 0 auf U verlängert; geschriebene Positionen überschrieben, übersprungene unverändert.
-- Fehler (`ValueError` mit Byte-Offset im Strom): Ende ohne `$00` („unerwartetes Ende bei Offset n“), Literal/Lauf über das Stromende hinaus, Ziel über 65536 hinaus.
-- `decode_tokens(stream)` liefert die Token als Liste `Token(kind, length, value, offset)`; `kind` ∈ `"lit"`, `"run"`, `"lrun"`, `"skip"`, `"end"`; `value` bei `lit` die Bytes, bei Läufen der Wert, sonst `None`; `offset` = Position im Strom.
+- Reads tokens up to `$00`. Returns a `bytearray`: copy of `base` (or empty), extended with 0 to U if needed; written positions overwritten, skipped ones unchanged.
+- Errors (`ValueError` with byte offset in the stream): end without `$00` (“unerwartetes Ende bei Offset n”), literal/run beyond the end of the stream, destination beyond 65536.
+- `decode_tokens(stream)` returns the tokens as a list `Token(kind, length, value, offset)`; `kind` ∈ `"lit"`, `"run"`, `"lrun"`, `"skip"`, `"end"`; `value` is the bytes for `lit`, the value for runs, otherwise `None`; `offset` = position in the stream.
 
-## 6. Python-API (`tools/vrl.py`)
+## 6. Python API (`tools/vrl.py`)
 
 ```python
 SKIP = None
 VERSION = 1
 
-def encode(data) -> bytes                       # Folge aus int | None; Strom inkl. $00
+def encode(data) -> bytes                       # sequence of int | None; stream incl. $00
 def encode_rect(data, width, height, stride, mask=None) -> bytes
 def decode(stream, base=None) -> bytearray
 def decode_tokens(stream) -> list[Token]
 def unpacked_length(stream) -> int              # U
-def pack_file(stream, load=0x2000) -> bytes      # PRG mit Kopf (U aus dem Strom)
-def unpack_file(data) -> tuple[int, int, int, bytes]   # (load, version, U, stream); prüft "VR", Version, U;
-                                                       # stream endet mit dem ersten Ende-Token, Bytes danach werden ignoriert
-def threshold(params) -> int                     # T aus dem Kostenmodell (8.2)
-def load_bench(path) -> dict                     # Schlüssel "engine" aus der P0-JSON
+def pack_file(stream, load=0x2000) -> bytes      # PRG with header (U taken from the stream)
+def unpack_file(data) -> tuple[int, int, int, bytes]   # (load, version, U, stream); checks "VR", version, U;
+                                                       # stream ends with the first end token, bytes after it are ignored
+def threshold(params) -> int                     # T from the cost model (8.2)
+def load_bench(path) -> dict                     # key "engine" from the P0 JSON
 def stats(stream, T=None, params=None) -> dict
 ```
 
-`encode(b"")` → `b"\x00"`. `bytes`, `bytearray` und Listen sind als Eingabe erlaubt.
+`encode(b"")` → `b"\x00"`. `bytes`, `bytearray` and lists are allowed as input.
 
 ## 7. CLI
 
@@ -128,64 +128,64 @@ vrl.py decode IN OUT [--raw] [--base BASE] [--out-prg ADDR]
 vrl.py stats  IN [--raw] [-T N] [--bench P0.json] [--json]
 ```
 
-- `--in-prg`: Eingabedatei hat 2 Byte Ladeadresse, die übersprungen werden.
-- `--mask`: Datei mit width × height Bytes (≠ 0 = schreiben).
-- `decode` schreibt U Bytes (bzw. `len(base)`, falls größer); mit `--out-prg` als PRG.
-- `stats` gibt eine Tabelle aus (8.1); mit `--json` als JSON.
-- Ladeadressen als Zahl mit Präfix (`0x2000`, `$2000` und `8192` werden akzeptiert).
-- Exitcode 0 = ok, 1 = Formatfehler (Meldung auf stderr, ohne Traceback), 2 = falscher Aufruf (argparse).
+- `--in-prg`: the input file has a 2-byte load address, which is skipped.
+- `--mask`: file with width × height bytes (≠ 0 = write).
+- `decode` writes U bytes (or `len(base)` if larger); with `--out-prg` as a PRG.
+- `stats` prints a table (8.1); with `--json` as JSON.
+- Load addresses as a number with prefix (`0x2000`, `$2000` and `8192` are accepted).
+- Exit code 0 = ok, 1 = format error (message on stderr, without traceback), 2 = wrong invocation (argparse).
 
-## 8. Statistik und Zyklenschätzung
+## 8. Statistics and cycle estimate
 
-### 8.1 `stats` liefert
+### 8.1 `stats` returns
 
-| Schlüssel | Inhalt |
+| Key | Content |
 |---|---|
-| `stream_bytes` | Länge des Stroms |
+| `stream_bytes` | length of the stream |
 | `unpacked` | U |
-| `written` | geschriebene Bytes (Literale + Läufe) |
-| `skipped` | übersprungene Bytes |
+| `written` | written bytes (literals + runs) |
+| `skipped` | skipped bytes |
 | `ratio` | `stream_bytes / written` |
-| `tokens` | Anzahl je Art (`lit`, `run`, `lrun`, `skip`) |
-| `bytes_by_kind` | geschriebene Bytes je Art (`lit`, `run_cpu`, `run_fill`) bei Schwelle T |
-| `run_hist` | Läufe nach Länge in Klassen 2, 3–4, 5–8, 9–16, 17–32, 33–64, 65–128, 129–256, > 256 |
-| `T` | verwendete Schwelle |
-| `cycles` | geschätzte Zyklen (8.2), gerundet |
+| `tokens` | count per kind (`lit`, `run`, `lrun`, `skip`) |
+| `bytes_by_kind` | written bytes per kind (`lit`, `run_cpu`, `run_fill`) at threshold T |
+| `run_hist` | runs by length in classes 2, 3–4, 5–8, 9–16, 17–32, 33–64, 65–128, 129–256, > 256 |
+| `T` | threshold used |
+| `cycles` | estimated cycles (8.2), rounded |
 
-### 8.2 Kostenmodell (CPU-Zyklen bei 2 MHz)
+### 8.2 Cost model (CPU cycles at 2 MHz)
 
-| Parameter | Bedeutung | Platzhalter bis P0 |
+| Parameter | Meaning | Placeholder until P0 |
 |---|---|---|
-| `tok` | Token lesen und verzweigen | 30 |
-| `cpu_lit_byte` | Literalbyte per CPU | 22 |
-| `cpu_byte` | Laufbyte per CPU | 15 |
-| `cpu_run_fixed` | Laufbeginn per CPU | 10 |
-| `new_addr` | Skip (Reg 18/19 neu) | 80 |
-| `fill_fixed` | Block fill bis fertig, fester Anteil | 200 |
-| `fill_byte` | Block fill je Byte | 1 |
-| `fill_chunk` | jedes weitere 256er-Stück eines langen Laufs | 30 |
+| `tok` | read token and branch | 30 |
+| `cpu_lit_byte` | literal byte via CPU | 22 |
+| `cpu_byte` | run byte via CPU | 15 |
+| `cpu_run_fixed` | start of a run via CPU | 10 |
+| `new_addr` | skip (reg 18/19 anew) | 80 |
+| `fill_fixed` | block fill until done, fixed part | 200 |
+| `fill_byte` | block fill per byte | 1 |
+| `fill_chunk` | each further 256 piece of a long run | 30 |
 
 ```
-cycles = Σ Token außer Ende: tok
-       + Literal n:            n · cpu_lit_byte
-       + Lauf L, L < T:        cpu_run_fixed + L · cpu_byte
-       + Lauf L, L ≥ T:        fill_fixed + L · fill_byte + (ceil(L/256) − 1) · fill_chunk
-       + Skip:                 new_addr
+cycles = Σ tokens except end: tok
+       + literal n:           n · cpu_lit_byte
+       + run L, L < T:        cpu_run_fixed + L · cpu_byte
+       + run L, L ≥ T:        fill_fixed + L · fill_byte + (ceil(L/256) − 1) · fill_chunk
+       + skip:                new_addr
 ```
 
-`threshold(params)` = kleinstes L ≥ 2 mit `fill(L') < cpu(L')` für alle L' ∈ [L, 65536]; da beide linear sind, genügt: kleinstes L ≥ 2 mit `fill(L) < cpu(L)` und `fill_byte < cpu_byte`, sonst 65537. Mit den Platzhaltern: T = 14 (L = 14: fill 214 < CPU 220; L = 13: fill 213 > CPU 205).
+`threshold(params)` = smallest L ≥ 2 with `fill(L') < cpu(L')` for all L' ∈ [L, 65536]; since both are linear, it suffices: smallest L ≥ 2 with `fill(L) < cpu(L)` and `fill_byte < cpu_byte`, otherwise 65537. With the placeholders: T = 14 (L = 14: fill 214 < CPU 220; L = 13: fill 213 > CPU 205).
 
-`stats(stream, T=None, params=None)`: fehlende Parameter aus den Platzhaltern; T = `threshold(params)`, wenn nicht angegeben. `load_bench(path)` liest `engine` aus der P0-JSON (`docs/v3/P0-bench.md`, Abschnitt 10.4); dort fehlende Schlüssel bleiben Platzhalter; `T` aus der Datei wird übernommen, wenn vorhanden (Rückgabe: Parameter-Dict inkl. optional `T`; unbekannte Schlüssel werden ignoriert). `stats` nimmt `T` aus `params`, wenn das Argument `T` fehlt.
+`stats(stream, T=None, params=None)`: missing parameters come from the placeholders; T = `threshold(params)` if not given. `load_bench(path)` reads `engine` from the P0 JSON (`docs/v3/P0-bench.md`, section 10.4); keys missing there remain placeholders; `T` from the file is adopted if present (return value: parameter dict incl. optional `T`; unknown keys are ignored). `stats` takes `T` from `params` if the argument `T` is missing.
 
 ## 9. Tests (`test/tools/test_vrl.py`, unittest)
 
-Aufruf: `python3 -m unittest discover -s test/tools -v` im Repo-Wurzelverzeichnis. Der Test fügt `<repo>/tools` zu `sys.path` hinzu. Kein pytest (nicht installiert).
+Invocation: `python3 -m unittest discover -s test/tools -v` in the repo root directory. The test adds `<repo>/tools` to `sys.path`. No pytest (not installed).
 
-### 9.1 Feste Vektoren (Strom ohne Dateirahmen)
+### 9.1 Fixed vectors (stream without file frame)
 
-Alle Vektoren sind mit einem Prototyp nach 4.2 nachgerechnet.
+All vectors have been recomputed with a prototype according to 4.2.
 
-| Eingabe | Erwarteter Strom |
+| Input | Expected stream |
 |---|---|
 | `[]` | `00` |
 | `[5]` | `01 05 00` |
@@ -194,61 +194,61 @@ Alle Vektoren sind mit einem Prototyp nach 4.2 nachgerechnet.
 | `[7]*127` | `FD 07 00` |
 | `[7]*128` | `FF 80 00 07 00` |
 | `[7]*65535` | `FF FF FF 07 00` |
-| `[7]*65536` | Fehler: U = 65536 > 65535 |
+| `[7]*65536` | error: U = 65536 > 65535 |
 | `[7]*128 + [1,2]` | `FD 07 03 07 01 02 00` |
 | `[1,2,3]` | `03 01 02 03 00` |
 | `[1,1,1,2]` | `81 01 01 02 00` |
-| `[1,1,2,2,3]` | `05 01 01 02 02 03 00` (gleich lang wie zwei Läufe + Literal, weniger Token) |
-| `list(range(128))` | `7F 00 01 … 7E 01 7F 00` (131 Byte; 127 + 1, längste Abdeckung zuerst) |
+| `[1,1,2,2,3]` | `05 01 01 02 02 03 00` (same length as two runs + literal, fewer tokens) |
+| `list(range(128))` | `7F 00 01 … 7E 01 7F 00` (131 bytes; 127 + 1, longest coverage first) |
 | `[None, 5]` | `FE 01 00 01 05 00` |
 | `[5, None]` | `01 05 00` |
 | `[None]*3` | `00` |
 | `[5, None, None, 5]` | `01 05 FE 02 00 01 05 00` |
 | `[None]*65534 + [1]` | `FE FE FF 01 01 00` |
-| `[None]*65535 + [1]` | Fehler: U = 65536 > 65535 |
-| `[None]*70000` | `00` (Skip am Ende entfällt) |
+| `[None]*65535 + [1]` | error: U = 65536 > 65535 |
+| `[None]*70000` | `00` (skip at the end is dropped) |
 | `[9,9,None,9,9]` | `80 09 FE 01 00 80 09 00` |
 
 `encode_rect`:
 
-| Aufruf | Erwarteter Strom |
+| Call | Expected stream |
 |---|---|
 | `encode_rect([1,2,3,4], 2, 2, 80)` | `02 01 02 FE 4E 00 02 03 04 00` |
-| `encode_rect([5]*8, 4, 2, 4)` | `86 05 00` (Stride = Breite: ein Lauf über beide Zeilen) |
+| `encode_rect([5]*8, 4, 2, 4)` | `86 05 00` (stride = width: one run across both rows) |
 | `encode_rect([5,5,5,5], 4, 1, 4, mask=[1,0,0,1])` | `01 05 FE 02 00 01 05 00` |
-| `encode_rect([1,2,3,4], 2, 2, 10, mask=[1,0,0,1])` | `01 01 FE 0A 00 01 04 00` (Skip = 1 + 8 + 1) |
+| `encode_rect([1,2,3,4], 2, 2, 10, mask=[1,0,0,1])` | `01 01 FE 0A 00 01 04 00` (skip = 1 + 8 + 1) |
 | `encode_rect([1,2], 2, 1, 80, mask=[0,0])` | `00` |
 | `encode_rect(..., stride=1, width=2)` | `ValueError` |
 
-### 9.2 Eigenschaften
+### 9.2 Properties
 
-- **Rundlauf:** Für 2000 Zufallsfolgen (Seed fest, `random.Random(1)`; Länge 0 … 600; Alphabet je Folge zufällig aus {2 Werte, 5 Werte, 256 Werte}; `SKIP`-Anteil 0 %, 10 % oder 50 %; lange Läufe eingestreut) gilt `decode(encode(x), base)` == erwartetes Bild (geschriebene Positionen = Wert, `SKIP` = `base`; `base` = Zufallsbytes der Länge U + 5).
-- **Optimalität:** Für 300 kurze Zufallsfolgen (Länge ≤ 12, Alphabet {0,1,2}, `SKIP` erlaubt) ist `len(encode(x))` gleich dem Minimum einer im Test unabhängig geschriebenen erschöpfenden Suche (Rekursion über alle Tokenaufteilungen, ohne die DP-Hilfsfunktionen von `vrl.py`).
-- **Determinismus:** zweimal kodiert = gleiche Bytes.
-- **Grenzen:** Literal 127/128, Lauf 127/128/129, 255/256/257, 65534/65535 (Länge und Rundlauf), Skip 65533/65534 mit nachfolgendem Byte (Rundlauf), U = 65536 → Fehler.
-- **Decoder-Fehler:** `b""`, `b"\x03\x01"` (Literal abgeschnitten), `b"\x81"`, `b"\xFE\x01"`, `b"\xFF\x00\x00"`, `b"\x01\x05"` (kein Ende) → `ValueError`.
-- **Decoder nimmt Fremdes an:** `FF 01 00 07 00` → `[7]`; `80 07 80 07 00` → `[7]*4`; `FE 05 00 00` → U = 5, nichts geschrieben.
-- **Datei:** `unpack_file(pack_file(s, 0x3000))` == `(0x3000, 1, U, s)`; falsches Magic, Version 2, U ungleich Strom → `ValueError`.
-- **stats:** für `[7]*300 + [1,2,3] + [None]*10 + [4]` (Strom `FF 2C 01 07 03 01 02 03 FE 0A 00 01 04 00`): `tokens` = `{"lrun":1, "lit":2, "skip":1, "run":0}`, `written` = 304, `skipped` = 10, `unpacked` = 314; mit T = 15 (oder 14) und Platzhaltern `cycles` = 4·30 + (200 + 300 + 30) + 3·22 + 80 + 1·22 = 818.
-- **threshold:** Platzhalter → 14; `fill_byte ≥ cpu_byte` → 65537; `load_bench` mit einer im Test erzeugten JSON überschreibt nur vorhandene Schlüssel.
-- **CLI:** `encode`/`decode` über `subprocess` mit temporären Dateien (`tempfile.TemporaryDirectory`), Rundlauf bytegleich; `stats --json` ist gültiges JSON; Formatfehler → Exitcode 1 ohne Traceback.
+- **Round trip:** for 2000 random sequences (fixed seed, `random.Random(1)`; length 0 … 600; alphabet chosen randomly per sequence from {2 values, 5 values, 256 values}; `SKIP` share 0 %, 10 % or 50 %; long runs interspersed), `decode(encode(x), base)` == expected image (written positions = value, `SKIP` = `base`; `base` = random bytes of length U + 5).
+- **Optimality:** for 300 short random sequences (length ≤ 12, alphabet {0,1,2}, `SKIP` allowed), `len(encode(x))` equals the minimum of an exhaustive search written independently in the test (recursion over all token partitions, without the DP helper functions of `vrl.py`).
+- **Determinism:** encoded twice = same bytes.
+- **Limits:** literal 127/128, run 127/128/129, 255/256/257, 65534/65535 (length and round trip), skip 65533/65534 followed by a byte (round trip), U = 65536 → error.
+- **Decoder errors:** `b""`, `b"\x03\x01"` (literal truncated), `b"\x81"`, `b"\xFE\x01"`, `b"\xFF\x00\x00"`, `b"\x01\x05"` (no end) → `ValueError`.
+- **Decoder accepts foreign streams:** `FF 01 00 07 00` → `[7]`; `80 07 80 07 00` → `[7]*4`; `FE 05 00 00` → U = 5, nothing written.
+- **File:** `unpack_file(pack_file(s, 0x3000))` == `(0x3000, 1, U, s)`; wrong magic, version 2, U not matching the stream → `ValueError`.
+- **stats:** for `[7]*300 + [1,2,3] + [None]*10 + [4]` (stream `FF 2C 01 07 03 01 02 03 FE 0A 00 01 04 00`): `tokens` = `{"lrun":1, "lit":2, "skip":1, "run":0}`, `written` = 304, `skipped` = 10, `unpacked` = 314; with T = 15 (or 14) and placeholders `cycles` = 4·30 + (200 + 300 + 30) + 3·22 + 80 + 1·22 = 818.
+- **threshold:** placeholders → 14; `fill_byte ≥ cpu_byte` → 65537; `load_bench` with a JSON generated in the test overrides only existing keys.
+- **CLI:** `encode`/`decode` via `subprocess` with temporary files (`tempfile.TemporaryDirectory`), round trip byte-identical; `stats --json` is valid JSON; format error → exit code 1 without traceback.
 
-## 10. Grenzfälle (Zusammenfassung)
+## 10. Edge cases (summary)
 
-| Fall | Verhalten |
+| Case | Behavior |
 |---|---|
-| leere Eingabe, nur Skips | Strom `00`, U = 0 |
-| Skip am Anfang | kodiert |
-| Skip am Ende | weggelassen |
-| Skip ≥ 65535 vor Daten, Lauf ≥ 65536 | nicht möglich (U ≤ 65535) |
-| U > 65535 | Fehler |
-| Wert 0 als Daten | normal (Token `$00` steht nur an Tokenposition) |
-| Literal mit einem Byte zwischen zwei Läufen | DP entscheidet (`[1,1,1,2,3,3,3]` → `81 01 01 02 81 03 00`) |
-| stride = width | Zeilen verschmelzen, kein Skip |
-| Maske komplett 0 | Strom `00` |
+| empty input, only skips | stream `00`, U = 0 |
+| skip at the start | encoded |
+| skip at the end | omitted |
+| skip ≥ 65535 before data, run ≥ 65536 | not possible (U ≤ 65535) |
+| U > 65535 | error |
+| value 0 as data | normal (token `$00` occurs only at a token position) |
+| literal with one byte between two runs | DP decides (`[1,1,1,2,3,3,3]` → `81 01 01 02 81 03 00`) |
+| stride = width | rows merge, no skip |
+| mask entirely 0 | stream `00` |
 
-## 11. Abnahme
+## 11. Acceptance
 
-- `tools/vrl.py` mit Docstring im Stil von `tools/wallconv.py` (Format kurz beschrieben, Aufruf).
-- Alle Tests in `test/tools/test_vrl.py` grün, Laufzeit der Testdatei < 30 s.
-- `docs/formats.md` bekommt den Abschnitt „VRL v1“ (Tokentabelle 2, Dateirahmen 3) – kurz, mit Verweis auf diese Spezifikation.
+- `tools/vrl.py` with a docstring in the style of `tools/wallconv.py` (format briefly described, usage).
+- All tests in `test/tools/test_vrl.py` green, run time of the test file < 30 s.
+- `docs/formats.md` gets the section “VRL v1” (token table 2, file frame 3) – short, with a reference to this specification.

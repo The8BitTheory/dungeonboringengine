@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""DBE-Karte (DMP v1) aus TOML bauen, als TOML ausgeben oder als Text zeigen.
+"""Build a DBE map (DMP v1) from TOML, write it as TOML, or show it as text.
 
-DMP: PRG-Datei, 2 Byte Ladeadresse (Standard $8000), dann ein 24-Byte-Kopf,
-Kachelebene (W*H), Inhaltsebene (W*H), Kacheltabelle (NT * 8), Ereignisse (NE * 4).
-Das Format steht in docs/formats.md ("DMP v1"), das Textformat in docs/specs/P4-map.md, Abschnitt 3.
+DMP: PRG file, 2 bytes load address (default $8000), then a 24-byte header,
+tile plane (W*H), content plane (W*H), tile table (NT * 8), events (NE * 4).
+The format is described in docs/formats.md ("DMP v1"), the text format in docs/specs/P4-map.md, section 3.
 
-Aufruf:
+Usage:
   dbemap.py build MAP.toml OUT.dmp [--load ADDR]
-  dbemap.py dump  IN.dmp [--toml OUT.toml]     (ohne --toml: Textuebersicht)
+  dbemap.py dump  IN.dmp [--toml OUT.toml]     (without --toml: text overview)
   dbemap.py check MAP.toml
 
-Zellindex i = y * W + x; Richtungen 0 N, 1 O, 2 S, 3 W (Norden = kleineres y).
+Cell index i = y * W + x; directions 0 N, 1 E, 2 S, 3 W (north = smaller y).
 """
 import argparse
 import os
@@ -22,10 +22,10 @@ from dataclasses import dataclass, field
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dbemem  # noqa: E402
 
-FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32, "fern": 64}
-EVENT_TYPES = {"gegner": 1, "teleport": 2, "ausgang": 3, "text": 4}
+FLAGS = {"solid": 1, "blocksight": 2, "occluding": 4, "door": 8, "automap": 16, "content": 32, "distant": 64}
+EVENT_TYPES = {"enemy": 1, "teleport": 2, "exit": 3, "text": 4}
 SUBPOS_VIEW = [[0, 1, 3, 4, 2], [3, 0, 4, 1, 2], [4, 3, 1, 0, 2], [1, 4, 0, 3, 2]]  # [v][q] -> p (2.6)
-DIRS = "NOSW"
+DIRS = "NESW"
 HEADER = 24
 MAX_CELLS = 16384
 WARN_CELLS = 4096
@@ -68,67 +68,67 @@ def null_tile():
 
 
 def face(view_dir, s, front):
-    """Kachelflaeche (0 N, 1 O, 2 S, 3 W), die in Blickrichtung view_dir sichtbar ist (2.4)."""
+    """Tile face (0 N, 1 E, 2 S, 3 W) that is visible in viewing direction view_dir (2.4)."""
     if front:
         return (view_dir + 2) & 3
     return (view_dir + 1) & 3 if s < 0 else (view_dir + 3) & 3
 
 
 def validate(m):
-    """Prueft eine Karte; ValueError mit Meldung bei Fehler."""
+    """Check a map; ValueError with a message on error."""
     if not 1 <= m.width <= 255 or not 1 <= m.height <= 255:
-        raise ValueError(f"Breite/Hoehe {m.width} x {m.height} ausserhalb 1 ... 255")
+        raise ValueError(f"width/height {m.width} x {m.height} outside 1 ... 255")
     n = m.width * m.height
     if n > MAX_CELLS:
-        raise ValueError(f"Karte zu gross: {m.width} x {m.height} = {n} > {MAX_CELLS} Zellen")
+        raise ValueError(f"map too large: {m.width} x {m.height} = {n} > {MAX_CELLS} cells")
     nt = len(m.tiles)
     if not 1 <= nt <= 256:
-        raise ValueError(f"Anzahl Kacheln {nt} ausserhalb 1 ... 256")
+        raise ValueError(f"number of tiles {nt} outside 1 ... 256")
     if len(m.cells) != n or len(m.content) != n:
-        raise ValueError("Ebenen haben nicht W*H Eintraege")
+        raise ValueError("planes do not have W*H entries")
     for i, t in enumerate(m.tiles):
         if len(t.walls) != 4 or any(not 0 <= v <= 255 for v in tuple(t.walls) + (t.floor, t.ceiling, t.automap_char)):
-            raise ValueError(f"Kachel {i}: Stil oder Zeichen ausserhalb 0 ... 255")
+            raise ValueError(f"tile {i}: style or character outside 0 ... 255")
         if not 0 <= t.flags <= 127:
-            raise ValueError(f"Kachel {i}: ungueltige Flags {t.flags} (Bit 7 ist reserviert)")
+            raise ValueError(f"tile {i}: invalid flags {t.flags} (bit 7 is reserved)")
     for i, c in enumerate(m.cells):
         if not 0 <= c < nt:
-            raise ValueError(f"Zelle {i}: Kachelindex {c} >= NT {nt}")
+            raise ValueError(f"cell {i}: tile index {c} >= NT {nt}")
     for i, c in enumerate(m.content):
         if not 0 <= c <= 255:
-            raise ValueError(f"Zelle {i}: ungueltiger Inhalt {c}")
+            raise ValueError(f"cell {i}: invalid content {c}")
     if len(m.events) > 65535:
-        raise ValueError("zu viele Ereignisse")
+        raise ValueError("too many events")
     for e in m.events:
         if not 0 <= e.cell < n:
-            raise ValueError(f"Ereignis: Zelle {e.cell} ausserhalb der Karte")
+            raise ValueError(f"event: cell {e.cell} outside the map")
         if not 1 <= e.type <= 255:
-            raise ValueError(f"Ereignis in Zelle {e.cell}: Typ {e.type} ungueltig (1 ... 255)")
+            raise ValueError(f"event in cell {e.cell}: type {e.type} invalid (1 ... 255)")
         if not 0 <= e.param <= 255:
-            raise ValueError(f"Ereignis in Zelle {e.cell}: Parameter {e.param} ausserhalb 0 ... 255")
+            raise ValueError(f"event in cell {e.cell}: parameter {e.param} outside 0 ... 255")
     if not 0 <= m.start < n:
-        raise ValueError(f"Startzelle {m.start} ausserhalb der Karte")
+        raise ValueError(f"start cell {m.start} outside the map")
     if not 0 <= m.direction <= 3:
-        raise ValueError(f"Startrichtung {m.direction} ausserhalb 0 ... 3")
+        raise ValueError(f"start direction {m.direction} outside 0 ... 3")
     if not 0 <= m.outside < nt:
-        raise ValueError(f"Kachel ausserhalb {m.outside} >= NT {nt}")
-    if m.tiles[m.cells[m.start]].flags & FLAGS["weg"]:
-        raise ValueError(f"Start (Zelle {m.start}) liegt auf einer Kachel mit WEG")
+        raise ValueError(f"outside tile {m.outside} >= NT {nt}")
+    if m.tiles[m.cells[m.start]].flags & FLAGS["solid"]:
+        raise ValueError(f"start (cell {m.start}) lies on a tile with SOLID")
 
 
 def warnings_for(m):
-    """Liste von Warnungen (kein Abbruch)."""
+    """List of warnings (no abort)."""
     w = []
     if m.width * m.height > WARN_CELLS:
-        w.append(f"{m.width * m.height} Zellen > {WARN_CELLS}: die Lib haelt die Karte in Bank 1")
+        w.append(f"{m.width * m.height} cells > {WARN_CELLS}: the lib keeps the map in bank 1")
     for i, t in enumerate(m.tiles):
-        if t.flags & FLAGS["inhalt"] and not any(t.walls):
-            w.append(f"Kachel {i} ({t.name or i}): Flag inhalt ohne Wandflaechen hat keine Wirkung")
+        if t.flags & FLAGS["content"] and not any(t.walls):
+            w.append(f"tile {i} ({t.name or i}): flag content without wall faces has no effect")
     return w
 
 
 def to_dmp(m, load=None):
-    """Karte als DMP-PRG (mit Ladeadresse) erzeugen."""
+    """Create the map as a DMP PRG (with load address)."""
     validate(m)
     if load is None:
         load = dbemem.default_load("dmp")
@@ -154,43 +154,43 @@ def to_dmp(m, load=None):
 
 
 def check_bank1(load, length):
-    """Abbruch (ValueError), wenn die Karte ueber ihren Bereich der Bank-1-Speicherkarte hinausreicht."""
+    """Abort (ValueError) if the map extends beyond its area of the bank 1 memory map."""
     err = dbemem.range_error("dmp", load, length)
     if err:
         raise ValueError(err)
 
 
 def from_dmp(data):
-    """DMP-PRG (mit Ladeadresse) einlesen; ValueError bei Formatfehlern."""
+    """Read a DMP PRG (with load address); ValueError on format errors."""
     if len(data) < 2 + HEADER:
-        raise ValueError("Datei kuerzer als der Kopf")
+        raise ValueError("file shorter than the header")
     b = data[2:]
     if b[0:2] != b"DM":
-        raise ValueError("falsches Magic (erwartet 'DM')")
+        raise ValueError("wrong magic ('DM' expected)")
     if b[2] != 1:
-        raise ValueError(f"Version {b[2]} nicht unterstuetzt (erwartet 1)")
+        raise ValueError(f"Version {b[2]} not supported (1 expected)")
     w, h, nt = b[3], b[4], b[5] or 256
     ne, start, direction, outside = struct.unpack_from("<HHBB", b, 6)
     o_cells, o_content, o_tiles, o_events, total, res = struct.unpack_from("<HHHHHH", b, 12)
     if w < 1 or h < 1:
-        raise ValueError("Breite/Hoehe 0")
+        raise ValueError("width/height 0")
     n = w * h
     if n > MAX_CELLS:
-        raise ValueError(f"Karte zu gross: {n} Zellen")
+        raise ValueError(f"map too large: {n} cells")
     if (o_cells, o_content, o_tiles, o_events, total) != (
             HEADER, HEADER + n, HEADER + 2 * n, HEADER + 2 * n + 8 * nt, HEADER + 2 * n + 8 * nt + 4 * ne):
-        raise ValueError("Offsets im Kopf passen nicht zu W, H, NT, NE")
+        raise ValueError("offsets in the header do not match W, H, NT, NE")
     if res:
-        raise ValueError("reservierte Kopfbytes ungleich 0")
+        raise ValueError("reserved header bytes not 0")
     if len(b) < total:
-        raise ValueError(f"Datei zu kurz: {len(b)} < {total} Byte Inhalt")
+        raise ValueError(f"file too short: {len(b)} < {total} bytes of content")
     cells = list(b[o_cells:o_cells + n])
     content = list(b[o_content:o_content + n])
     tiles = []
     for i in range(nt):
         r = b[o_tiles + 8 * i:o_tiles + 8 * i + 8]
         if r[6] & 0x80:
-            raise ValueError(f"Kachel {i}: reserviertes Flag-Bit 7 gesetzt ({r[6]:#04x})")
+            raise ValueError(f"tile {i}: reserved flag bit 7 set ({r[6]:#04x})")
         tiles.append(Tile(tuple(r[0:4]), r[4], r[5], r[6], r[7], f"k{i}"))
     events = []
     for i in range(ne):
@@ -199,23 +199,23 @@ def from_dmp(data):
     m = Map("", w, h, tiles, cells, content, events, start, direction, outside)
     for i, c in enumerate(cells):
         if c >= nt:
-            raise ValueError(f"Zelle {i}: Kachelindex {c} >= NT {nt}")
+            raise ValueError(f"cell {i}: tile index {c} >= NT {nt}")
     if start >= n:
-        raise ValueError(f"Startzelle {start} >= W*H {n}")
+        raise ValueError(f"start cell {start} >= W*H {n}")
     if direction > 3:
-        raise ValueError(f"Startrichtung {direction} ungueltig")
+        raise ValueError(f"start direction {direction} invalid")
     if outside >= nt:
-        raise ValueError(f"Kachel ausserhalb {outside} >= NT {nt}")
+        raise ValueError(f"outside tile {outside} >= NT {nt}")
     for e in events:
         if e.cell >= n or e.type == 0:
-            raise ValueError(f"ungueltiges Ereignis in Zelle {e.cell}, Typ {e.type}")
+            raise ValueError(f"invalid event in cell {e.cell}, type {e.type}")
     keys = [(e.cell, e.type, e.param) for e in events]
     if keys != sorted(keys):
-        raise ValueError("Ereignisse nicht sortiert")
+        raise ValueError("events not sorted")
     return m
 
 
-# ---------------------------------------------------------------- TOML lesen
+# ---------------------------------------------------------------- read TOML
 
 def _err(src, msg):
     return ValueError(f"{src}: {msg}")
@@ -223,22 +223,22 @@ def _err(src, msg):
 
 def _int(src, where, v, lo, hi):
     if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
-        raise _err(src, f"{where}: {v!r} ausserhalb {lo} ... {hi}")
+        raise _err(src, f"{where}: {v!r} outside {lo} ... {hi}")
     return v
 
 
 def _event(src, where, d):
     if not isinstance(d, dict):
-        raise _err(src, f"{where}: Tabelle erwartet")
+        raise _err(src, f"{where}: table expected")
     extra = set(d) - {"type", "param", "at"}
     if extra:
-        raise _err(src, f"{where}: unbekannter Schluessel {sorted(extra)[0]!r}")
+        raise _err(src, f"{where}: unknown key {sorted(extra)[0]!r}")
     if "type" not in d:
-        raise _err(src, f"{where}: 'type' fehlt")
+        raise _err(src, f"{where}: 'type' missing")
     t = d["type"]
     if isinstance(t, str):
         if t not in EVENT_TYPES:
-            raise _err(src, f"{where}: unbekannter Ereignistyp {t!r}")
+            raise _err(src, f"{where}: unknown event type {t!r}")
         t = EVENT_TYPES[t]
     else:
         t = _int(src, f"{where} type", t, 1, 255)
@@ -246,38 +246,38 @@ def _event(src, where, d):
 
 
 def loads_toml(text, src="<string>"):
-    """Karte aus TOML-Text lesen; Fehlermeldungen beginnen mit src."""
+    """Read a map from TOML text; error messages begin with src."""
     try:
         d = tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
-        raise _err(src, f"TOML-Syntaxfehler: {e}")
+        raise _err(src, f"TOML syntax error: {e}")
     if d.get("format", "dbemap") != "dbemap":
-        raise _err(src, f"format {d['format']!r} ist nicht 'dbemap'")
+        raise _err(src, f"format {d['format']!r} is not 'dbemap'")
     if d.get("version", 1) != 1:
-        raise _err(src, f"version {d['version']!r} nicht unterstuetzt")
+        raise _err(src, f"version {d['version']!r} not supported")
     extra = set(d) - {"format", "version", "map", "tiles", "legend", "layers", "events", "marks"}
     if extra:
-        raise _err(src, f"unbekannter Schluessel {sorted(extra)[0]!r}")
+        raise _err(src, f"unknown key {sorted(extra)[0]!r}")
     mp = d.get("map", {})
     if not isinstance(mp, dict):
-        raise _err(src, "[map] muss eine Tabelle sein")
+        raise _err(src, "[map] must be a table")
     extra = set(mp) - {"name", "start", "dir", "outside"}
     if extra:
-        raise _err(src, f"map: unbekannter Schluessel {sorted(extra)[0]!r}")
-    # Kacheln
+        raise _err(src, f"map: unknown key {sorted(extra)[0]!r}")
+    # tiles
     tdefs = d.get("tiles")
     if not isinstance(tdefs, dict) or not tdefs:
-        raise _err(src, "Abschnitt [tiles.<name>] fehlt")
+        raise _err(src, "section [tiles.<name>] missing")
     has_index = ["index" in t for t in tdefs.values()]
     if any(has_index) and not all(has_index):
-        raise _err(src, "'index' muss bei allen Kacheln oder bei keiner stehen")
+        raise _err(src, "'index' must be present on all tiles or on none")
     tiles, names = [], {}
     if all(has_index):
         used = {}
         for name, t in tdefs.items():
             idx = _int(src, f"tiles.{name}.index", t["index"], 0, 255)
             if idx in used:
-                raise _err(src, f"tiles.{name}: index {idx} doppelt (auch {used[idx]})")
+                raise _err(src, f"tiles.{name}: index {idx} duplicate (also {used[idx]})")
             used[idx] = name
         tiles = [null_tile() for _ in range(max(used) + 1)]
         order = [(t["index"], n) for n, t in tdefs.items()]
@@ -285,80 +285,80 @@ def loads_toml(text, src="<string>"):
         order = list(enumerate(tdefs))
         tiles = [None] * len(order)
     if len(tiles) > 256:
-        raise _err(src, "mehr als 256 Kacheln")
+        raise _err(src, "more than 256 tiles")
     for idx, name in order:
         t = tdefs[name]
         where = f"tiles.{name}"
         extra = set(t) - {"walls", "floor", "ceiling", "flags", "automap_char", "index"}
         if extra:
-            raise _err(src, f"{where}: unbekannter Schluessel {sorted(extra)[0]!r}")
+            raise _err(src, f"{where}: unknown key {sorted(extra)[0]!r}")
         w = t.get("walls", 0)
         if isinstance(w, list):
             if len(w) != 4:
-                raise _err(src, f"{where}.walls: genau 4 Zahlen erwartet")
+                raise _err(src, f"{where}.walls: exactly 4 numbers expected")
             w = tuple(_int(src, f"{where}.walls", v, 0, 255) for v in w)
         else:
             w = (_int(src, f"{where}.walls", w, 0, 255),) * 4
         fl = 0
         fv = t.get("flags", [])
         if not isinstance(fv, list):
-            raise _err(src, f"{where}.flags: Liste erwartet")
+            raise _err(src, f"{where}.flags: list expected")
         for f in fv:
             if f not in FLAGS:
-                raise _err(src, f"{where}.flags: unbekanntes Flag {f!r}")
+                raise _err(src, f"{where}.flags: unknown flag {f!r}")
             fl |= FLAGS[f]
         tiles[idx] = Tile(w, _int(src, f"{where}.floor", t.get("floor", 0), 0, 255),
                           _int(src, f"{where}.ceiling", t.get("ceiling", 0), 0, 255), fl,
                           _int(src, f"{where}.automap_char", t.get("automap_char", 0), 0, 255), name)
         names[name] = idx
-    # Legende
+    # legend
     legend = {}
     for ch, v in d.get("legend", {}).items():
         if len(ch) != 1 or ch.isspace():
-            raise _err(src, f"legend: Schluessel {ch!r} muss genau ein sichtbares Zeichen sein")
+            raise _err(src, f"legend: key {ch!r} must be exactly one visible character")
         if isinstance(v, str):
             v = {"tile": v}
         if not isinstance(v, dict) or "tile" not in v:
-            raise _err(src, f"legend {ch!r}: Kachelname oder Tabelle mit 'tile' erwartet")
+            raise _err(src, f"legend {ch!r}: tile name or table with 'tile' expected")
         extra = set(v) - {"tile", "item", "events"}
         if extra:
-            raise _err(src, f"legend {ch!r}: unbekannter Schluessel {sorted(extra)[0]!r}")
+            raise _err(src, f"legend {ch!r}: unknown key {sorted(extra)[0]!r}")
         if v["tile"] not in names:
-            raise _err(src, f"legend {ch!r}: unbekannte Kachel {v['tile']!r}")
+            raise _err(src, f"legend {ch!r}: unknown tile {v['tile']!r}")
         item = _int(src, f"legend {ch!r} item", v.get("item", 0), 0, 63)
         evs = [_event(src, f"legend {ch!r} events", e) for e in v.get("events", [])]
         legend[ch] = (names[v["tile"]], item, evs)
-    # Karte
+    # map
     layers = d.get("layers", {})
     if not isinstance(layers, dict):
-        raise _err(src, "[layers] muss eine Tabelle sein")
+        raise _err(src, "[layers] must be a table")
     extra = set(layers) - {"tiles"}
     if extra:
-        raise _err(src, f"layers: unbekannter Schluessel {sorted(extra)[0]!r}")
+        raise _err(src, f"layers: unknown key {sorted(extra)[0]!r}")
     if not isinstance(layers.get("tiles"), str):
-        raise _err(src, "layers.tiles fehlt")
+        raise _err(src, "layers.tiles missing")
     rows = layers["tiles"].split("\n")
     if rows and rows[0] == "":
         rows.pop(0)
     if rows and rows[-1] == "":
         rows.pop()
     if not rows:
-        raise _err(src, "Karte ist leer")
+        raise _err(src, "map is empty")
     width, height = len(rows[0]), len(rows)
     if not 1 <= width <= 255 or not 1 <= height <= 255:
-        raise _err(src, f"Karte {width} x {height}: Breite/Hoehe ausserhalb 1 ... 255")
+        raise _err(src, f"map {width} x {height}: width/height outside 1 ... 255")
     if width * height > MAX_CELLS:
-        raise _err(src, f"Karte {width} x {height} = {width * height} > {MAX_CELLS} Zellen")
+        raise _err(src, f"map {width} x {height} = {width * height} > {MAX_CELLS} cells")
     cells, content, events = [], [], []
     for y, row in enumerate(rows):
         if row != row.rstrip(" \t"):
             col = len(row.rstrip(" \t")) + 1
-            raise _err(src, f"Karte Zeile {y + 1}, Spalte {col}: Leerzeichen am Zeilenende")
+            raise _err(src, f"map row {y + 1}, column {col}: trailing whitespace")
         if len(row) != width:
-            raise _err(src, f"Karte Zeile {y + 1}: Laenge {len(row)} statt {width}")
+            raise _err(src, f"map row {y + 1}: length {len(row)} instead of {width}")
         for x, ch in enumerate(row):
             if ch not in legend:
-                raise _err(src, f"Karte Zeile {y + 1}, Spalte {x + 1}: Zeichen {ch!r} nicht in der Legende")
+                raise _err(src, f"map row {y + 1}, column {x + 1}: character {ch!r} not in the legend")
             t, item, evs = legend[ch]
             cells.append(t)
             content.append(item)
@@ -367,7 +367,7 @@ def loads_toml(text, src="<string>"):
     def at(tbl, where):
         a = tbl.get("at")
         if not (isinstance(a, list) and len(a) == 2):
-            raise _err(src, f"{where}: 'at' = [x, y] erwartet")
+            raise _err(src, f"{where}: 'at' = [x, y] expected")
         x = _int(src, f"{where} at x", a[0], 0, width - 1)
         y = _int(src, f"{where} at y", a[1], 0, height - 1)
         return y * width + x
@@ -380,25 +380,25 @@ def loads_toml(text, src="<string>"):
         where = f"marks[{i + 1}]"
         extra = set(mk) - {"at", "seen", "mark"}
         if extra:
-            raise _err(src, f"{where}: unbekannter Schluessel {sorted(extra)[0]!r}")
+            raise _err(src, f"{where}: unknown key {sorted(extra)[0]!r}")
         for k in ("seen", "mark"):
             if not isinstance(mk.get(k, False), bool):
-                raise _err(src, f"{where}.{k}: true oder false erwartet")
+                raise _err(src, f"{where}.{k}: true or false expected")
         c = at(mk, where)
         content[c] |= (0x80 if mk.get("mark", True) else 0) | (0x40 if mk.get("seen") else 0)
-    # Kopf
+    # header
     for k in ("start", "dir", "outside"):
         if k not in mp:
-            raise _err(src, f"map.{k} fehlt")
+            raise _err(src, f"map.{k} missing")
     st = mp["start"]
     if not (isinstance(st, list) and len(st) == 2):
-        raise _err(src, "map.start = [x, y] erwartet")
+        raise _err(src, "map.start = [x, y] expected")
     sx = _int(src, "map.start x", st[0], 0, width - 1)
     sy = _int(src, "map.start y", st[1], 0, height - 1)
     if mp["dir"] not in tuple(DIRS):
-        raise _err(src, f"map.dir {mp['dir']!r}: N, O, S oder W erwartet")
+        raise _err(src, f"map.dir {mp['dir']!r}: N, E, S or W expected")
     if mp["outside"] not in names:
-        raise _err(src, f"map.outside: unbekannte Kachel {mp['outside']!r}")
+        raise _err(src, f"map.outside: unknown tile {mp['outside']!r}")
     m = Map(str(mp.get("name", "")), width, height, tiles, cells, content, events,
             sy * width + sx, DIRS.index(mp["dir"]), names[mp["outside"]])
     m.events.sort(key=lambda e: (e.cell, e.type, e.param))
@@ -414,10 +414,10 @@ def load_toml(path):
         return loads_toml(f.read(), str(path))
 
 
-# ---------------------------------------------------------------- TOML schreiben
+# ---------------------------------------------------------------- write TOML
 
 def q(s):
-    """TOML-Basisstring mit Maskierung."""
+    """TOML basic string with escaping."""
     out = []
     for c in s:
         if c == '"':
@@ -432,15 +432,15 @@ def q(s):
 
 
 def to_toml(m, legend=None):
-    """Karte als TOML (Kacheln k<index> mit index, Legende automatisch).
+    """Map as TOML (tiles k<index> with index, legend automatic).
 
-    legend: optional {Zeichen: (Kachelindex, Gegenstand)}; muss alle vorkommenden Paare abdecken.
+    legend: optional {character: (tile index, item)}; must cover all occurring pairs.
     """
     validate(m)
     pairs = sorted({(c, it & 0x3F) for c, it in zip(m.cells, m.content)})
     if legend is None:
         if len(pairs) > len(LEGEND_POOL):
-            raise ValueError("zu viele Kombinationen fuer eine ASCII-Karte")
+            raise ValueError("too many combinations for an ASCII map")
         legend = {ch: p for ch, p in zip(LEGEND_POOL, pairs)}
     rev = {p: ch for ch, p in legend.items()}
     L = ['format  = "dbemap"', "version = 1", "", "[map]", f"name    = {q(m.name)}",
@@ -481,25 +481,25 @@ def to_toml(m, legend=None):
     return "\n".join(L)
 
 
-# ---------------------------------------------------------------- Textuebersicht
+# ---------------------------------------------------------------- text overview
 
 def describe(m):
     tname = {v: k for k, v in EVENT_TYPES.items()}
-    L = [f"Karte {m.width} x {m.height}, {len(m.tiles)} Kacheln, {len(m.events)} Ereignisse",
-         f"Start: Zelle {m.start} ({m.start % m.width}, {m.start // m.width}), Richtung {DIRS[m.direction]}",
-         f"Kachel ausserhalb: {m.outside}", "", "Kacheln (Nr: N O S W Boden Decke Flags Automap):"]
+    L = [f"map {m.width} x {m.height}, {len(m.tiles)} tiles, {len(m.events)} events",
+         f"start: cell {m.start} ({m.start % m.width}, {m.start // m.width}), direction {DIRS[m.direction]}",
+         f"outside tile: {m.outside}", "", "tiles (no.: N E S W floor ceiling flags automap):"]
     for i, t in enumerate(m.tiles):
         fl = ",".join(n for n, b in FLAGS.items() if t.flags & b) or "-"
         L.append(f"  {i:3}: {' '.join(f'{v:3}' for v in t.walls)}  {t.floor:3} {t.ceiling:3}  {fl}  {t.automap_char}")
-    L += ["", "Kachelebene:"]
+    L += ["", "tile plane:"]
     for y in range(m.height):
         L.append(" ".join(f"{c:02x}" for c in m.cells[y * m.width:(y + 1) * m.width]))
     items = [(i, c) for i, c in enumerate(m.content) if c]
-    L += ["", f"Inhalt ({len(items)} Zellen):"]
+    L += ["", f"content ({len(items)} cells):"]
     for i, c in items:
-        L.append(f"  ({i % m.width}, {i // m.width}): Gegenstand {c & 63}"
-                 + (" gesehen" if c & 0x40 else "") + (" Marke" if c & 0x80 else ""))
-    L += ["", "Ereignisse:"]
+        L.append(f"  ({i % m.width}, {i // m.width}): item {c & 63}"
+                 + (" seen" if c & 0x40 else "") + (" mark" if c & 0x80 else ""))
+    L += ["", "events:"]
     for e in m.events:
         L.append(f"  ({e.cell % m.width}, {e.cell // m.width}): {tname.get(e.type, e.type)} {e.param}")
     return "\n".join(L)
@@ -513,7 +513,7 @@ def main(argv=None):
     b = sub.add_parser("build")
     b.add_argument("map")
     b.add_argument("out")
-    b.add_argument("--load", default="0x4000", help="Ladeadresse (Standard $4000, Bank 1)")
+    b.add_argument("--load", default="0x4000", help="load address (default $4000, bank 1)")
     d = sub.add_parser("dump")
     d.add_argument("input")
     d.add_argument("--toml")
@@ -532,19 +532,19 @@ def main(argv=None):
             return 0
         m = load_toml(a.map)
         for w in warnings_for(m):
-            print(f"Warnung: {w}", file=sys.stderr)
+            print(f"Warning: {w}", file=sys.stderr)
         if a.cmd == "build":
             load = int(a.load.replace("$", "0x"), 0)
             data = to_dmp(m, load)
             check_bank1(load, len(data) - 2)
             with open(a.out, "wb") as f:
                 f.write(data)
-            print(f"{a.out}: {len(data)} Byte, {m.width} x {m.height}, {len(m.tiles)} Kacheln, {len(m.events)} Ereignisse")
+            print(f"{a.out}: {len(data)} bytes, {m.width} x {m.height}, {len(m.tiles)} tiles, {len(m.events)} events")
         else:
-            print(f"{a.map}: in Ordnung ({m.width} x {m.height}, {len(m.tiles)} Kacheln)")
+            print(f"{a.map}: ok ({m.width} x {m.height}, {len(m.tiles)} tiles)")
         return 0
     except (ValueError, OSError) as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
 
 

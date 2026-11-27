@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Modell von VIEW 0.1 (Crawl 128 1.0f) und Offline-Vollvergleich mit Engine 0.2 (P7a, docs/specs/P7-crawl.md 6.2).
+"""Model of VIEW 0.1 (Crawl 128 1.0f) and offline full comparison with engine 0.2 (P7a, docs/specs/P7-crawl.md 6.2).
 
-Das Modell folgt `engine/lib.s` von Tag v0.1 (docs/formats.md, Abschnitt "VIEW" unter SPR v1): Clear
-`VMF AP+400,0,7600`, WSM-Eintraege von vorne nach hinten mit Spaltenabdeckung, Objektplaetze (erst Objekte, dann
-Gegenstand), Ausgabe rueckwaerts, Waende `VMC`, Sprites `VMS`/`VMC`. Die Zellenrechnung ist wie in der Lib linear
-(`pos + d * F + s * R` mit 16 Bit, ohne Spaltenumbruch; ausserhalb von W * H zaehlt als Wand), MAXVIS = 22 und der
-VMS-Puffer von 512 Byte sind nachgebildet.
+The model follows `engine/lib.s` of tag v0.1 (docs/formats.md, section "VIEW" under SPR v1): clear
+`VMF AP+400,0,7600`, WSM entries front to back with column coverage, object slots (first objects, then
+item), output backwards, walls `VMC`, sprites `VMS`/`VMC`. The cell computation is linear like in the lib
+(`pos + d * F + s * R` with 16 bits, without column wraparound; outside W * H counts as wall), MAXVIS = 22 and the
+VMS buffer of 512 bytes are reproduced.
 
-Der Vergleich (compare) zeichnet alle freien Zellen x 4 Richtungen x {kein Geist; Geist in jeder freien Zelle (d, s),
-d = 0 ... 3, |s| <= 1, mit jeder der 4 Richtungen} x {Edelsteine der Startkarte; alle eingesammelt, Ausgang 42} einmal mit dem
-0.1-Modell und einmal mit Engine 0.2 (dbeview.view + run_vcl, Crawl-Szene aus crawlconv) in ein VRAM mit Zufallsinhalt.
-Gleich sein muessen die Bytes der Zeilen 5-99 sowie 100, Spalten 6-73; ausserhalb des Fensters darf 0.2 nichts
-schreiben; A = 0 fuer jede Ansicht.
+The comparison (compare) draws all free cells x 4 directions x {no ghost; ghost in every free cell (d, s),
+d = 0 ... 3, |s| <= 1, with each of the 4 directions} x {gems of the start map; all collected, exit 42} once with the
+0.1 model and once with engine 0.2 (dbeview.view + run_vcl, Crawl scene from crawlconv) into a VRAM with random content.
+The bytes of rows 5-99 and 100, columns 6-73 must be equal; outside the window 0.2 must not write
+anything; A = 0 for every view.
 
-Aufruf:
+Usage:
   crawl01.py compare (--d81 IMAGE.d81 | --dir DIR) [--quick] [--workers N] [--json OUT.json]
-Exitcode 0 ohne Abweichung, 1 sonst.
+Exit code 0 without deviation, 1 otherwise.
 """
 import argparse
 import json
@@ -35,14 +35,14 @@ import dbeview  # noqa: E402
 MAXVIS, MAXOBJ, NSETS, NITEMS, COLS, SPRBUF_LEN = 22, 8, 4, 64, 128, 512
 CLEAR_OFF, CLEAR_LEN, CLEAR_VAL, ROWLEN = 400, 7600, 0, 80
 F_COVER, F_VMS, F_OBJ = 1, 1, 0x80
-QG = (2, 0, 1, 3)                  # absolute Unterposition q, die bei Blickrichtung v die Zeichenposition p = 3 ergibt
+QG = (2, 0, 1, 3)                  # absolute sub-position q that yields drawing position p = 3 for viewing direction v
 ITEM_GEM, ITEM_POWER = 2, 4
-EXIT_OPEN = 42                     # crawl.bas 5550: Ausgang offen
-CMP_ROWS = range(5, 101)           # Bildschirmzeilen 5-99 und 100
+EXIT_OPEN = 42                     # crawl.bas 5550: exit open
+CMP_ROWS = range(5, 101)           # screen rows 5-99 and 100
 CMP_COLS = (6, 74)
 
 
-# ---------------------------------------------------------------- Modell VIEW 0.1
+# ---------------------------------------------------------------- model VIEW 0.1
 
 class Model01:
     def __init__(self, files, ca, da, ga0):
@@ -50,17 +50,17 @@ class Model01:
         if b[:2] != b"WS":
             raise ValueError("walls.wsm: Magic")
         n = b[3]
-        self.clear = struct.unpack_from("<HHBB", b, 4)           # Offset, Laenge, Wert, Zeilenbreite
+        self.clear = struct.unpack_from("<HHBB", b, 4)           # offset, length, value, row width
         self.ents = [struct.unpack_from("<BbBBBHHB", b, 10 + 10 * i) for i in range(n)]  # d s fl w h src dest col
         self.sets = [crawlconv.parse_spr(files["ghost.spr"]), crawlconv.parse_spr(files["gem.spr"])]
         self.setvram = [ga0, ca]
         self.da = da
         self.itemtab = [0] * NITEMS
-        self.itemtab[ITEM_GEM] = 2                                # ITEMSET 2, 2: Gegenstand 2 -> Satz 1
+        self.itemtab[ITEM_GEM] = 2                                # ITEMSET 2, 2: item 2 -> set 1
         self.vram_src = {0: files["ghosts.vdc"][2:], 1: files["font3o.vdc"][2:], "walls": crawlconv.parse_walls(files["walls.vdc"])[1]}
 
     def view(self, cells, w, h, pos, v, objs):
-        """-> (Eintraege vorne -> hinten, Fehlercode). objs: [(Zelle, Satz, Richtung)]."""
+        """-> (entries front -> back, error code). objs: [(cell, set, direction)]."""
         fstep = (-w, 1, w, -1)[v]
         rstep = (1, w, -1, -w)[v]
         size = w * h
@@ -112,7 +112,7 @@ class Model01:
         return vis, err
 
     def render(self, vram, vis, ap=0):
-        """Ausgabe wie v_emit: Clear, dann von hinten nach vorne. Rueckgabe Fehlercode des Puffers (VMS-Platz)."""
+        """Output like v_emit: clear, then from back to front. Returns the error code of the buffer (VMS space)."""
         err = 0
         o, n, val, _rl = self.clear
         for i in range(n):
@@ -136,10 +136,10 @@ class Model01:
         return err
 
 
-# ---------------------------------------------------------------- Umgebung fuer den Vergleich
+# ---------------------------------------------------------------- environment for the comparison
 
 class Env:
-    """Alles fuer den Vergleich: Umwandlung, Karten, 0.1-Modell, 0.2-Szene, Ausgangs-VRAM."""
+    """Everything for the comparison: conversion, maps, 0.1 model, 0.2 scene, initial VRAM."""
 
     def __init__(self, files, font_bytes=1732, seed=1):
         self.conv = crawlconv.build(files, font_bytes=font_bytes)
@@ -147,9 +147,9 @@ class Env:
         self.m, _ = crawlmap.convert(files["crawl128.cd1"])
         self.w, self.h = self.m.width, self.m.height
         self.cells0 = list(self.m.cells)
-        # Alle eingesammelt: 1.0f SETCELL(pos, 0) je Edelstein und danach crawl.bas 5550 SETCELL(EX%, 42);
-        # 1.1 SETITEM (Inhalt 0, Kachel 2 bleibt) und dieselbe SETCELL(EX%, 42) auf die Kachelebene.
-        exits = [e.cell for e in self.m.events if e.type == dbemap.EVENT_TYPES["ausgang"]]
+        # All collected: 1.0f SETCELL(pos, 0) per gem and then crawl.bas 5550 SETCELL(EX%, 42);
+        # 1.1 SETITEM (content 0, tile 2 stays) and the same SETCELL(EX%, 42) on the tile plane.
+        exits = [e.cell for e in self.m.events if e.type == dbemap.EVENT_TYPES["exit"]]
         self.cells1 = [0 if c == ITEM_GEM else c for c in self.cells0]
         tiles1 = list(self.m.cells)
         for x in exits:
@@ -185,7 +185,7 @@ class Env:
         self.free = [i for i, v in enumerate(self.cells0) if not v & 1]
 
     def visible_cells(self, pos, v):
-        """Freie Zellen (d, s -> Zellindex) im Sichtgitter d = 0 ... 3, |s| <= 1 (2D, innerhalb der Karte)."""
+        """Free cells (d, s -> cell index) in the view grid d = 0 ... 3, |s| <= 1 (2D, inside the map)."""
         fx, fy = dbeview.FORE[v]
         rx, ry = dbeview.RIGHT[v]
         px, py = pos % self.w, pos // self.w
@@ -198,7 +198,7 @@ class Env:
         return out
 
     def window_diff(self, v1, v2):
-        """Liste (Zeile, Spalte, Wert 0.1, Wert 0.2) der abweichenden Fensterbytes (Zeilen 5-100, Spalten 6-73)."""
+        """List (row, column, value 0.1, value 0.2) of the deviating window bytes (rows 5-100, columns 6-73)."""
         out = []
         for r in CMP_ROWS:
             a = bytes(v1[r * 80 + CMP_COLS[0]:r * 80 + CMP_COLS[1]])
@@ -208,7 +208,7 @@ class Env:
         return out
 
     def outside_changed(self, v2):
-        """Hat 0.2 ausserhalb des Fensters (Zeilen 0-95 des Fensters, Spalten 0-67) geschrieben?"""
+        """Did 0.2 write outside the window (rows 0-95 of the window, columns 0-67)?"""
         g = self.sc.dvg
         o, st, vw, rows = g.origin, g.stride, g.vw, g.vh
         b = self.base2
@@ -218,7 +218,7 @@ class Env:
         return any(v2[o + r * st + vw:o + (r + 1) * st] != b[o + r * st + vw:o + (r + 1) * st] for r in range(rows - 1))
 
     def one(self, pos, v, variant, ghost):
-        """Eine Ansicht in beiden Fassungen. ghost = None oder (Zelle, Richtung). -> dict (diff, err, vcl...)."""
+        """One view in both versions. ghost = None or (cell, direction). -> dict (diff, err, vcl...)."""
         cells = self.cells1 if variant else self.cells0
         objs01 = [] if ghost is None else [(ghost[0], 0, ghost[1])]
         vis, err1 = self.model.view(cells, self.w, self.h, pos, v, objs01)
@@ -274,7 +274,7 @@ def _job(args):
 
 
 def compare(files, quick=False, workers=1, font_bytes=1732, progress=None):
-    """Vollvergleich. -> Bericht (dict): views, bad (Abweichungen), Maxima von VCL + VMS, A != 0 usw."""
+    """Full comparison. -> report (dict): views, bad (deviations), maxima of VCL + VMS, A != 0, etc."""
     env = Env(files, font_bytes)
     jobs = [(p, v, quick) for p in env.free for v in range(4)]
     if workers > 1:
@@ -307,7 +307,7 @@ def main(argv=None):
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--d81")
     g.add_argument("--dir")
-    ap.add_argument("--quick", action="store_true", help="Geist nur in Blick- und Gegenrichtung")
+    ap.add_argument("--quick", action="store_true", help="ghost only in viewing and opposite direction")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--json")
     a = ap.parse_args(argv)
@@ -319,12 +319,12 @@ def main(argv=None):
     else:
         files = crawlconv.read_dir(a.dir)
     rep = compare(files, a.quick, a.workers, progress=lambda i, n: print(f"  {i}/{n}", file=sys.stderr))
-    print(f"{rep['views']} Ansichten ({rep['positions']} Zellen x 4 Richtungen, davon {rep['ghost_views']} mit Geist), "
-          f"Abweichungen: {len(rep['bad'])}, A != 0: {rep['a_nonzero']}, Schreibzugriffe ausserhalb: {rep['outside']}")
-    print(f"VCL + VMS max {rep['max_total']} (VCL {rep['max_vcl']}, VMS {rep['max_vms']}) von 2304; "
-          f"0.1: Fehlercode != 0 in {rep['a01']} Ansichten, Eintraege max {rep['nvis01_max']}")
+    print(f"{rep['views']} views ({rep['positions']} cells x 4 directions, of which {rep['ghost_views']} with ghost), "
+          f"deviations: {len(rep['bad'])}, A != 0: {rep['a_nonzero']}, writes outside: {rep['outside']}")
+    print(f"VCL + VMS max {rep['max_total']} (VCL {rep['max_vcl']}, VMS {rep['max_vms']}) of 2304; "
+          f"0.1: error code != 0 in {rep['a01']} views, entries max {rep['nvis01_max']}")
     for b in rep["bad"][:20]:
-        print("  Abweichung:", b)
+        print("  deviation:", b)
     if a.json:
         with open(a.json, "w") as f:
             json.dump(rep, f, indent=1, default=list)

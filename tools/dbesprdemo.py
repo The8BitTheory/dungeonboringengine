@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Beispiel-Assets fuer dbespr (P5b, Abschnitt 9.1): deterministisch, ohne Zufall.
+"""Example assets for dbespr (P5b, section 9.1): deterministic, no randomness.
 
-Erzeugt in OUTDIR:
-  blob.json + blob.png   Aseprite-artiger Export (--split-layers-Namen): Ebenen v0_d1 ... v3_d3, 2 Frames,
-                         Tags idle (0-0) und walk (0-1, pingpong, 150 ms); Slices mit Pivot fuer d = 1,
-                         ohne Pivot fuer d = 3, keine Slice fuer d = 2; v0_d3 in Frame 1 leer; Ebene ref wird ignoriert
-  blob_m.json            wie blob.json ohne Bildwinkel 3 (fuer blob_m.toml: mirror = {3 = 1})
-  gem.png + gem.toml     PNG mit Bildliste, NA = 1, NP = 2 (Glitzern), Tiefen 1-3
-  blob.toml, blob_m.toml Projektdateien;  <geom>.geom.json (+ .dvg bei Standardgeometrie)
-Aufruf: dbesprdemo.py OUTDIR [--geom GEOM.json]
+Generates in OUTDIR:
+  blob.json + blob.png   Aseprite-like export (--split-layers names): layers v0_d1 ... v3_d3, 2 frames,
+                         tags idle (0-0) and walk (0-1, pingpong, 150 ms); slices with pivot for d = 1,
+                         without pivot for d = 3, no slice for d = 2; v0_d3 empty in frame 1; layer ref is ignored
+  blob_m.json            like blob.json without view angle 3 (for blob_m.toml: mirror = {3 = 1})
+  gem.png + gem.toml     PNG with image list, NA = 1, NP = 2 (sparkle), depths 1-3
+  blob.toml, blob_m.toml project files;  <geom>.geom.json (+ .dvg for the default geometry)
+Usage: dbesprdemo.py OUTDIR [--geom GEOM.json]
 """
 import argparse
 import json
@@ -20,15 +20,15 @@ import dbetexdemo  # noqa: E402
 from PIL import Image  # noqa: E402
 
 PAL = dbetexdemo.PAL
-CW, CH = 48, 64             # Leinwand in Pixeln (Aseprite)
-SIZES = {1: (31, 54), 2: (19, 34), 3: (11, 21)}     # Figur je Tiefe (Pixel)
+CW, CH = 48, 64             # canvas in pixels (Aseprite)
+SIZES = {1: (31, 54), 2: (19, 34), 3: (11, 21)}     # figure per depth (pixels)
 BODY = {0: PAL[5], 1: PAL[13], 2: PAL[10], 3: PAL[13]}
 OUTLINE = PAL[0]
 DURATION = 150
 
 
 def _inside(x, y, w, h, bob):
-    """Koerper (Ellipse) plus Kopf (kleinere Ellipse) einer Figur der Groesse w x h."""
+    """Body (ellipse) plus head (smaller ellipse) of a figure of size w x h."""
     y -= bob
     if y < 0:
         return False
@@ -39,7 +39,7 @@ def _inside(x, y, w, h, bob):
 
 
 def figure(ai, d, frame):
-    """RGBA-Leinwand CW x CH der Ansicht ai in Tiefe d, Phase frame; None = leere Zelle."""
+    """RGBA canvas CW x CH of view ai at depth d, phase frame; None = empty cell."""
     if (ai, d, frame) == (0, 3, 1):
         return Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
     w, h = SIZES[d]
@@ -118,7 +118,7 @@ def make_blob(outdir):
     js = {"frames": frames, "meta": meta}
     with open(os.path.join(outdir, "blob.json"), "w", encoding="utf-8") as fh:
         json.dump(js, fh, indent=1)
-    # Variante ohne Bildwinkel 3
+    # variant without view angle 3
     fm = [e for e in frames if not e["filename"].startswith("v3_")]
     mm = dict(meta, slices=[s for s in meta["slices"] if not s["name"].startswith("v3_")],
               layers=[l for l in meta["layers"] if not l["name"].startswith("v3_")])
@@ -165,8 +165,8 @@ load      = 0x6000
 vrl_load  = 0x4000
 angles    = 4
 phases    = 2
-max_kerns = 4
-kern_min  = 16
+max_cores = 4
+core_min  = 16
 {extra}
 [source]
 aseprite = "{src}"
@@ -181,8 +181,8 @@ geom      = "{geom}"
 {dvg}out       = "build"
 angles    = 1
 phases    = 2
-max_kerns = 2
-kern_min  = 8
+max_cores = 2
+core_min  = 8
 
 [source]
 png = "gem.png"
@@ -219,12 +219,12 @@ def generate(outdir, geom_path=None):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Beispiel-Assets fuer dbespr erzeugen")
+    ap = argparse.ArgumentParser(description="Generate example assets for dbespr")
     ap.add_argument("outdir")
     ap.add_argument("--geom")
     a = ap.parse_args(argv)
     generate(a.outdir, a.geom)
-    print(f"Beispiele in {a.outdir}")
+    print(f"Examples in {a.outdir}")
     return 0
 
 

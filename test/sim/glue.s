@@ -1,4 +1,4 @@
-; sim65-Harness: Aufruf der Lib wie der Stub (A = F, X, Y), Ergebnis A, X, Y in globalen Variablen
+; sim65 harness: calls the lib like the stub (A = F, X, Y), result A, X, Y in global variables
         .export _dbe_run, _dbe_f, _dbe_a, _dbe_x, _dbe_y
         .import dbe_entry, buf_b0
         .export _dbe_b0 := buf_b0

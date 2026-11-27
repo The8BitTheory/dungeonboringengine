@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""VICE-Rauchtest P6a (docs/specs/P6-engine.md 10): BOOT mit VDC-BASIC v3, Stub (8 KB gemeinsames RAM), Lib.
+"""VICE smoke test P6a (docs/specs/P6-engine.md 10): BOOT with VDC-BASIC v3, stub (8 KB shared RAM), lib.
 
-Aufruf: test/vice_smoke.py [--port N] [--timeout S] [--only i|c]
-Prüft (test/vice/smoke.bas, interpretiert und als Blitz!-Kompilat mit Runtime-Image 2):
-  INIT über den Stub; während des Aufrufs $D506 = x6 und $FF00 = $7F; Code unter I/O ($DBF8, BLOAD über $D000); die Lib sieht Bank 0 bis $1FFF (lesen und
-  schreiben); ein langer Aufruf (etwa 1 Mio. Zyklen) lässt die Jiffy-Uhr weiterzählen; BUFSET über den Stub;
-  Prüfsumme Bank 0 $1C00-$3FFF unverändert; danach funktionieren VMW und RXV.
-Ereignisgesteuert: Haltepunkt auf dem BASIC-Fehlervektor ($0300), Ende über die Debug-Cartridge ($D7FF);
--limitcycles und das Timeout sind nur Wächter. Portregel (review-notes A): --port, sonst DBE_VICE_PORT, sonst 6631,
-Bereich 6631-6649, bind-Test, nur der eigene VICE-Prozess wird beendet.
-Voraussetzung: VDC-BASIC v3 (Verzeichnis VDCBASIC_DIR, Vorgabe ~/git/vdc-basic, Branch v3) – dort wird nichts verändert;
-Blitz!-Lauf zusätzlich node und blitzc (sonst Meldung SKIP für diesen Lauf).
+Usage: test/vice_smoke.py [--port N] [--timeout S] [--only i|c]
+Checks (test/vice/smoke.bas, interpreted and as a Blitz! compilation with runtime image 2):
+  INIT via the stub; during the call $D506 = x6 and $FF00 = $7F; code under I/O ($DBF8, BLOAD over $D000); the lib sees bank 0 up to $1FFF (read and
+  write); a long call (about 1 M cycles) lets the jiffy clock keep counting; BUFSET via the stub;
+  checksum of bank 0 $1C00-$3FFF unchanged; afterwards VMW and RXV work.
+Event-driven: breakpoint on the BASIC error vector ($0300), end via the debug cartridge ($D7FF);
+-limitcycles and the timeout are only guards. Port rule (review-notes A): --port, else DBE_VICE_PORT, else 6631,
+range 6631-6649, bind test, only the own VICE process is terminated.
+Requirement: VDC-BASIC v3 (directory VDCBASIC_DIR, default ~/git/vdc-basic, branch v3) - nothing is changed there;
+Blitz! run additionally needs node and blitzc (otherwise message SKIP for this run).
 """
 import argparse, os, shutil, subprocess, sys
 
@@ -19,9 +19,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 VDC = os.environ.get('VDCBASIC_DIR', os.path.expanduser('~/git/vdc-basic'))
 if not os.path.exists(os.path.join(VDC, 'test', 'vicemon.py')):
-    sys.exit(f'VDC-BASIC nicht gefunden: {VDC}/test/vicemon.py (VDCBASIC_DIR setzen)')
+    sys.exit(f'VDC-BASIC not found: {VDC}/test/vicemon.py (set VDCBASIC_DIR)')
 sys.path.insert(0, os.path.join(VDC, 'test'))
-import vicemon as vm            # Monitor, Portwahl, run_vice (aus VDC-BASIC, nur gelesen)
+import vicemon as vm            # monitor, port choice, run_vice (from VDC-BASIC, read only)
 
 OUT = os.path.join(ROOT, 'build', 'vice')
 VERSION = open(os.path.join(ROOT, 'VERSION')).read().strip()
@@ -30,7 +30,7 @@ VERSION = open(os.path.join(ROOT, 'VERSION')).read().strip()
 def sh(cmd, **kw):
     r = subprocess.run(cmd, **kw)
     if r.returncode:
-        sys.exit(f'Fehler ({r.returncode}): {" ".join(cmd)}')
+        sys.exit(f'Error ({r.returncode}): {" ".join(cmd)}')
     return r
 
 
@@ -94,12 +94,12 @@ def main():
         d64 = os.path.join(OUT, 'smoke-i.d64')
         make_disk(d64, boot_prg, prg)
         rc, err = run_one('i', d64, boot_prg, port, a.timeout)
-        print(f'interpretiert: exit {rc}  BASIC-Fehler {err}', flush=True)
+        print(f'interpreted: exit {rc}  BASIC error {err}', flush=True)
         bad |= rc != 0
     if a.only != 'i':
         node, blitzc = vm.find_node(), vm.find_blitzc()
         if not node or not blitzc:
-            print('kompiliert: SKIP (blitzc nicht gefunden)')
+            print('compiled: SKIP (blitzc not found)')
             bad |= 3 << 8
         else:
             prep = os.path.join(OUT, 'smoke-b.bas')
@@ -111,19 +111,19 @@ def main():
             c = subprocess.run([node, blitzc, src, cdir, '--name', 'T'], capture_output=True, text=True)
             cprg = os.path.join(cdir, 'c.prg')
             if c.returncode or not os.path.exists(cprg):
-                print(f'kompiliert: Compiler rc {c.returncode}: {c.stdout.strip()}')
+                print(f'compiled: compiler rc {c.returncode}: {c.stdout.strip()}')
                 scr = os.path.join(cdir, 'screen.txt')
                 if os.path.exists(scr):
                     print(open(scr).read())
                 bad |= 1
             else:
                 if open(cprg, 'rb').read(2) != b'\x01\x40':
-                    print('kompiliert: kein Image 2 ($4001)')
+                    print('compiled: not image 2 ($4001)')
                     bad |= 1
                 d64 = os.path.join(OUT, 'smoke-c.d64')
                 make_disk(d64, boot_prg, cprg)
                 rc, err = run_one('c', d64, boot_prg, port, a.timeout)
-                print(f'kompiliert (Blitz!, Image 2): exit {rc}  BASIC-Fehler {err}', flush=True)
+                print(f'compiled (Blitz!, image 2): exit {rc}  BASIC error {err}', flush=True)
                 bad |= rc != 0
     sys.exit(1 if bad else 0)
 

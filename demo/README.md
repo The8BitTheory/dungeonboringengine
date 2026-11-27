@@ -1,62 +1,62 @@
-# Demo der Dungeon Boring Engine 0.2
+# Demo of the Dungeon Boring Engine 0.2
 
-Ein eigenes BASIC-Programm (`demo.bas`, interpretiert oder als Blitz!-Kompilat) zeigt die Engine mit der
-Westwood-Geometrie 140 × 96. Es ist kein zweites Crawl-Level: Fenster, Himmel und Abgrund brauchen Ebenen-Geometrie mit
-Boden und Decke, die Crawl nicht hat (`docs/specs/P7-crawl.md` 8.1).
+Its own BASIC program (`demo.bas`, interpreted or as a Blitz! compiled build) shows the engine with the
+Westwood geometry 140 × 96. It is not a second Crawl level: windows, sky and abyss need layer geometry with
+floor and ceiling, which Crawl does not have (`docs/specs/P7-crawl.md` 8.1).
 
-Tasten: **W** vor, **S** zurück, **A**/**D** seitwärts, **Q**/**E** drehen, **X** Ende. Unter dem Fenster zeigt ein
-Kompass (4 Rechtecke, Zeilen 96–99) die Blickrichtung. Drei Goblins gehen feste Routen, je gültiger Taste ein Schritt.
+Keys: **W** forward, **S** back, **A**/**D** sideways, **Q**/**E** turn, **X** end. Below the window a
+compass (4 rectangles, rows 96–99) shows the viewing direction. Three goblins follow fixed routes, one step per valid key press.
 
-## Was die Demo zeigt
+## What the demo shows
 
-| Element | Umsetzung |
+| Element | Implementation |
 |---|---|
-| Westwood-Geometrie 140 × 96 | `view.toml` (Preset `westwood`, `origin = 5`, stride 80, pixelgenau) |
-| 4 Wandstile | `ziegel`, `gitter`, `fenster`, `bogen` (`walls.toml`, Quellen `art/*_atlas.png`, `art/fenster.*` aus `docs/specs/examples/tex`; Muster perspektivisch von `tools/dbepersp.py` abgeleitet) |
-| Boden und Decke | je ein Stil (`stein`, `holz`) |
-| Himmel | Deckenstil 0 (Hof): die Tapete zeigt sich in der Deckenlücke |
-| Abgrund | Bodenstil 0 mit Flag WEG (Kammer): Lücke im Boden, darunter Tapete mit `below = 0` |
-| Fenster mit Landschaft | Wandstil `fenster` (nicht DECKEND) in der Außenwand, dahinter die Außenkachel `draussen` (nur Tapete) |
-| Tapete „Landschaft“ | `mkbg.py`: Bäume und Wasser aus `art/tree*.bmp`, `art/water*.bmp`, Himmel = `above`; 280 × 36 Pixel, zyklisch, je Blickrichtung ein Viertel versetzt |
-| Fernsicht-Füllung | `BGSET` Y = 1, P2 = `$11` (dunkelgrau; `demo.bas` 615, `build.py` `FARFILL`): Sichtlinien über die Tiefe 3 hinaus enden unter Decken (Gänge, Kammer hinter dem Gitter) im Dunkeln, unter freiem Himmel (Hof, Fenster nach draußen) in der Landschaft (`docs/specs/P6-engine.md` 5.7a) |
-| Goblins | `goblin.toml`: 4 Phasen (Bilder 0, 2, 4, 6 von `goblin1.bmp`, 2fach vergrößert), Tiefen 2 und 3 per `derive = "nearest"`; 3 Goblins mit Routen in `demo.bas` |
-| Gitter mit INHALT | Wandstil `gitter`, Flags WEG und INHALT, dahinter in der Zelle ein Edelstein |
-| Tür mit INHALT | Wandstil `bogen`, Flag INHALT ohne WEG: durchgehbar, ein Goblin geht hindurch |
-| Edelsteine | `gem.toml` (Beispiel `docs/specs/examples/spr/gem.png`), 4 Stück, `ITEMPH` lässt sie glitzern |
-| Karte | `demo.toml`, 20 × 16, Start im Zimmer im Südwesten (Fenster nach Westen und Süden) |
+| Westwood geometry 140 × 96 | `view.toml` (preset `westwood`, `origin = 5`, stride 80, pixel-exact) |
+| 4 wall styles | `brick`, `grating`, `window`, `arch` (`walls.toml`, sources `art/*_atlas.png`, `art/window.*` from `docs/specs/examples/tex`; patterns derived in perspective by `tools/dbepersp.py`) |
+| Floor and ceiling | one style each (`stone`, `wood`) |
+| Sky | ceiling style 0 (courtyard): the wallpaper shows through the gap in the ceiling |
+| Abyss | floor style 0 with flag SOLID (chamber): gap in the floor, below it wallpaper with `below = 0` |
+| Window with landscape | wall style `window` (not OCCLUDING) in the outer wall, behind it the outer tile `outside` (wallpaper only) |
+| Wallpaper "landscape" | `mkbg.py`: trees and water from `art/tree*.bmp`, `art/water*.bmp`, sky = `above`; 280 × 36 pixels, cyclic, offset by a quarter per viewing direction |
+| Far-view fill | `BGSET` Y = 1, P2 = `$11` (dark grey; `demo.bas` 615, `build.py` `FARFILL`): sight lines beyond depth 3 end under ceilings (corridors, chamber behind the grating) in darkness, under open sky (courtyard, window to the outside) in the landscape (`docs/specs/P6-engine.md` 5.7a) |
+| Goblins | `goblin.toml`: 4 phases (images 0, 2, 4, 6 of `goblin1.bmp`, scaled 2×), depths 2 and 3 via `derive = "nearest"`; 3 goblins with routes in `demo.bas` |
+| Grating with CONTENTS | wall style `grating`, flags SOLID and CONTENT, behind it in the cell a gem |
+| Door with CONTENTS | wall style `arch`, flag CONTENT without SOLID: passable, a goblin walks through it |
+| Gems | `gem.toml` (example `docs/specs/examples/spr/gem.png`), 4 pieces, `ITEMPH` makes them sparkle |
+| Map | `demo.toml`, 20 × 16, start in the room in the southwest (windows to the west and south) |
 
-Sichtlinien über 3 Zellen hinaus zeigen hinter überdachten Zellen das Füllbyte (lange Gänge, durch das Gitter in die
-Kammer), hinter Zellen ohne Decke die Tapete (Hof, Fenster nach draußen). Screenshots: `media/tour_70.png` (Gitter in die
-Kammer), `media/tour_01.png` (Fenster nach Westen), `media/tour_26.png` (Kammer mit Abgrund).
+Sight lines beyond 3 cells show the fill byte behind covered cells (long corridors, through the grating into the
+chamber), and the wallpaper behind cells without a ceiling (courtyard, window to the outside). Screenshots: `media/tour_70.png` (grating into the
+chamber), `media/tour_01.png` (window to the west), `media/tour_26.png` (chamber with abyss).
 
-## Dateien
+## Files
 
-| Datei | Zweck |
+| File | Purpose |
 |---|---|
-| `build.py` | baut alles nach `build/demo/` (Dateien in `files/`, Disk `dbe-demo.d81` und `.d64`, Bericht `report.md`, Belegung `layout.json`); `--budget` prüft alle Ansichten mit Goblins (A = 0), `--blitz` baut zusätzlich das Kompilat |
-| `view.toml`, `walls.toml`, `floor.toml`, `ceil.toml`, `bg.toml`, `goblin.toml`, `gem.toml`, `demo.toml` | Projektdateien für `dbegeom`, `dbetex`, `dbespr`, `dbemap` |
-| `mkbg.py` | Panorama der Tapete |
-| `demo.bas` | das Programm |
-| `tour.py` | Tour für den Test (Suche in Position, Richtung und Goblin-Zuständen) |
-| `art/` | Quellgrafiken (Kopien, siehe unten) |
-| `media/` | Bilder der Tour: `tour_NN.png` Screenshots aus dem VICE-Lauf (`--shots`), `szenen.png` Montage aller Bilder aus dem Modell (`--png`, pixelgleich zum VICE-Lauf) |
+| `build.py` | builds everything into `build/demo/` (files in `files/`, disks `dbe-demo.d81` and `.d64`, report `report.md`, layout `layout.json`); `--budget` checks all views with goblins (A = 0), `--blitz` additionally builds the compiled version |
+| `view.toml`, `walls.toml`, `floor.toml`, `ceil.toml`, `bg.toml`, `goblin.toml`, `gem.toml`, `demo.toml` | project files for `dbegeom`, `dbetex`, `dbespr`, `dbemap` |
+| `mkbg.py` | panorama of the wallpaper |
+| `demo.bas` | the program |
+| `tour.py` | tour for the test (search for position, direction and goblin states) |
+| `art/` | source graphics (copies, see below) |
+| `media/` | images of the tour: `tour_NN.png` screenshots from the VICE run (`--shots`), `scenes.png` montage of all images from the model (`--png`, pixel-identical to the VICE run) |
 
-Test: `test/vice_demo.py` (Tour mit 75 Tasten, ganzes VRAM an jedem Prompt gegen das Modell, interpretiert und
-kompiliert, 1 MHz und 2 MHz); `test/vice_demo.py --check` ohne Emulator.
+Test: `test/vice_demo.py` (tour with 75 keys, whole VRAM at every prompt against the model, interpreted and
+compiled, 1 MHz and 2 MHz); `test/vice_demo.py --check` without emulator.
 
-## Speicher
+## Memory
 
-Bank 1 wie `docs/formats.md`: DMP `$4000` (Arbeitskopie `$5000`), S2 `$6000` (Goblin) und `$6500` (Edelstein), Wand-DTS
-`$8000`, DVG `$E800`, Boden `$EE00`, Decke `$F600`, Tapete `$FB80`. VRAM-Pool 9600–46334 (36 735 Byte), belegt 36 291, in
-der Reihenfolge Wand 23 303, Boden 3 640, Decke 3 114, Tapete 5 040, Goblin 1 069, Edelstein 125. Zahlen und Ladeadressen
-stehen nach jedem Build in `build/demo/report.md`; die DATA-Zeilen 600–619 in `demo.bas` prüft `build.py` dagegen.
-Die VRL-Dateien liegen beim Laden in Bank 0 ab `$9000` (über dem Programm, unter `$D000`).
+Bank 1 as in `docs/formats.md`: DMP `$4000` (working copy `$5000`), S2 `$6000` (goblin) and `$6500` (gem), wall DTS
+`$8000`, DVG `$E800`, floor `$EE00`, ceiling `$F600`, wallpaper `$FB80`. VRAM pool 9600–46334 (36 735 bytes), used 36 291, in
+order: wall 23 303, floor 3 640, ceiling 3 114, wallpaper 5 040, goblin 1 069, gem 125. Numbers and load addresses
+are in `build/demo/report.md` after each build; `build.py` checks the DATA lines 600–619 in `demo.bas` against them.
+The VRL files are loaded into bank 0 starting at `$9000` (above the program, below `$D000`).
 
-Streichliste bei Überlauf des Pools (Reihenfolge): `bogen` (Tür dann mit `gitter` ohne WEG), Goblin-Phasen 4 → 2,
-Panoramahöhe.
+Cut list when the pool overflows (in order): `arch` (door then with `grating` without SOLID), goblin phases 4 → 2,
+panorama height.
 
-## Herkunft der Grafiken
+## Origin of the graphics
 
-`art/goblin1.bmp`, `art/tree1.bmp` bis `tree3.bmp`, `art/water1.bmp` bis `water4.bmp` stammen aus dem Spiel Crawl 128
-(`dungeoncrawlerjam2025/art/`, gleiche Autoren, MIT-Lizenz). `art/*_atlas.png`, `art/fenster.*` und `art/gem.png` sind
-Kopien der Beispiel-Assets in `docs/specs/examples/` (erzeugt von `tools/dbetexdemo.py` und `tools/dbesprdemo.py`).
+`art/goblin1.bmp`, `art/tree1.bmp` to `tree3.bmp`, `art/water1.bmp` to `water4.bmp` come from the game Crawl 128
+(`dungeoncrawlerjam2025/art/`, same authors, MIT license). `art/*_atlas.png`, `art/window.*` and `art/gem.png` are
+copies of the example assets in `docs/specs/examples/` (generated by `tools/dbetexdemo.py` and `tools/dbesprdemo.py`).

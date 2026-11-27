@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Sichtfenster-Geometrie (view.toml) in DVG, geom.json, Malvorlagen und Budgetbericht umwandeln.
+"""Convert the viewport geometry (view.toml) into DVG, geom.json, paint templates and a budget report.
 
-Eingabe: view.toml (docs/specs/P3-geometry.md, Abschnitt 2) oder Kommandozeilenparameter.
-Das Westwood-Preset (Eye of the Beholder / Lands of Lore, 176 x 120) wird proportional auf
-width_px x height skaliert; alle Rundungen exakt (fractions.Fraction, rund(v) = floor(v + 1/2)).
+Input: view.toml (docs/specs/P3-geometry.md, section 2) or command line parameters.
+The Westwood preset (Eye of the Beholder / Lands of Lore, 176 x 120) is scaled proportionally to
+width_px x height; all rounding is exact (fractions.Fraction, round(v) = floor(v + 1/2)).
 
-Ausgabe (Ordner [output].dir, Basisname [output].name):
-  <name>.dvg            PRG mit Ladeadresse: Kopf 24 Byte, Tiefentabelle, Elementtabelle (16 Byte je Element)
-  <name>.geom.json      alles aus der DVG plus Masken, Atlas-Lage, Anker in Pixeln, Budget
-  <name>_atlas.png      Malvorlage 1:1 (RGBA), <name>.aseprite  (indiziert, Slices je Bild)
-  <name>_view.png       Uebersicht, tpl/<element>.png  Einzelvorlagen (vergroessert mit zoom)
-  <name>.budget.md      VRAM und VMS-Listen je Stil
+Output (folder [output].dir, base name [output].name):
+  <name>.dvg            PRG with load address: header 24 bytes, depth table, element table (16 bytes per element)
+  <name>.geom.json      everything from the DVG plus masks, atlas position, anchors in pixels, budget
+  <name>_atlas.png      paint template 1:1 (RGBA), <name>.aseprite  (indexed, slices per image)
+  <name>_view.png       overview, tpl/<element>.png  single templates (enlarged by zoom)
+  <name>.budget.md      VRAM and VMS lists per style
 
-Aufruf:
+Usage:
   dbegeom.py view.toml [--out DIR] [--name NAME] [--check]
   dbegeom.py --preset westwood --width 140 --height 96 [--stride 80 --origin 0] [--out DIR]
-Exitcode 0 ok, 1 Validierungsfehler, 2 Aufruf.
+Exit code 0 ok, 1 validation error, 2 usage.
 """
 import argparse
 import binascii
@@ -33,7 +33,7 @@ import dbemem  # noqa: E402
 ART_FRONT, ART_SIDE, ART_FLOOR, ART_CEIL, ART_OBJ = 0, 1, 2, 3, 4
 ART_NAMES = {ART_FRONT: "front", ART_SIDE: "side", ART_FLOOR: "floor", ART_CEIL: "ceil", ART_OBJ: "obj"}
 FLAG_COVER, FLAG_PARTIAL, FLAG_CLIPPED, FLAG_BANDCOVER = 1, 2, 4, 8
-VMS_BUFFER = 1300       # Plan Abschnitt 3: VMS-Puffer 1,3 KB
+VMS_BUFFER = 1300       # plan section 3: VMS buffer 1.3 KB
 
 WESTWOOD = {
     "ref_size": (176, 120),
@@ -43,7 +43,7 @@ WESTWOOD = {
     "bottom": [144, 104, 80, 64, 56],
 }
 
-# Anker je Zelle: (Name, seitlich a, Tiefe t)
+# anchors per cell: (name, lateral a, depth t)
 SLOT_POS = [(Fraction(-1, 4), Fraction(3, 4)), (Fraction(1, 4), Fraction(3, 4)), (Fraction(0), Fraction(1, 2)),
             (Fraction(-1, 4), Fraction(1, 4)), (Fraction(1, 4), Fraction(1, 4))]
 
@@ -54,15 +54,15 @@ PALETTE = [(0x00, 0x00, 0x00), (0x55, 0x55, 0x55), (0x00, 0x00, 0xAA), (0x55, 0x
 
 
 class GeomError(Exception):
-    """Validierungsfehler (Exitcode 1)."""
+    """Validation error (exit code 1)."""
 
 
 def rnd(v):
-    """rund(v) = floor(v + 1/2), exakt."""
+    """round(v) = floor(v + 1/2), exact."""
     return int((Fraction(v) + Fraction(1, 2)) // 1)
 
 
-# ---------------------------------------------------------------- Konfiguration
+# ---------------------------------------------------------------- Configuration
 
 VIEWPORT_KEYS = {"preset", "width_px", "height", "origin", "stride", "depth", "byte_edges"}
 OUTPUT_KEYS = {"name", "dir", "load", "pool_bytes", "zoom"}
@@ -72,102 +72,102 @@ PLANE_KEYS = {"ref_size", "center_x", "width", "top", "bottom"}
 def _check_keys(section, data, allowed):
     for k in data:
         if k not in allowed:
-            raise GeomError(f"[{section}] unbekannter Schluessel '{k}'")
+            raise GeomError(f"[{section}] unknown key '{k}'")
 
 
 def _int(section, key, v):
     if isinstance(v, bool) or not isinstance(v, int):
-        raise GeomError(f"[{section}] {key}: ganze Zahl erwartet")
+        raise GeomError(f"[{section}] {key}: integer expected")
     return v
 
 
 def parse_config(cfg):
-    """Rohdaten (dict aus TOML) pruefen; liefert dict mit viewport, output, planes."""
+    """Validate raw data (dict from TOML); returns a dict with viewport, output, planes."""
     if not isinstance(cfg, dict):
-        raise GeomError("Konfiguration ungueltig")
+        raise GeomError("invalid configuration")
     for k in cfg:
         if k not in ("viewport", "output", "planes"):
-            raise GeomError(f"unbekannter Abschnitt '{k}'")
+            raise GeomError(f"unknown section '{k}'")
     vp = dict(cfg.get("viewport", {}))
     out = dict(cfg.get("output", {}))
     _check_keys("viewport", vp, VIEWPORT_KEYS)
     _check_keys("output", out, OUTPUT_KEYS)
     preset = vp.get("preset", "westwood")
     if preset not in ("westwood", "custom"):
-        raise GeomError(f"[viewport] preset: unbekannt '{preset}'")
+        raise GeomError(f"[viewport] preset: unknown '{preset}'")
     if "width_px" not in vp:
-        raise GeomError("[viewport] width_px fehlt")
+        raise GeomError("[viewport] width_px missing")
     if "height" not in vp:
-        raise GeomError("[viewport] height fehlt")
+        raise GeomError("[viewport] height missing")
     width = _int("viewport", "width_px", vp["width_px"])
     height = _int("viewport", "height", vp["height"])
     origin = _int("viewport", "origin", vp.get("origin", 0))
     stride = _int("viewport", "stride", vp.get("stride", 80))
     byte_edges = vp.get("byte_edges", False)
     if not isinstance(byte_edges, bool):
-        raise GeomError("[viewport] byte_edges: true oder false erwartet")
+        raise GeomError("[viewport] byte_edges: true or false expected")
     if width % 4 != 0:
-        raise GeomError("[viewport] width_px: muss ein Vielfaches von 4 sein")
+        raise GeomError("[viewport] width_px: must be a multiple of 4")
     if not 16 <= width <= 160:
-        raise GeomError("[viewport] width_px: Bereich 16 ... 160")
+        raise GeomError("[viewport] width_px: range 16 ... 160")
     if not 8 <= height <= 100:
-        raise GeomError("[viewport] height: Bereich 8 ... 100")
+        raise GeomError("[viewport] height: range 8 ... 100")
     if origin < 0:
-        raise GeomError("[viewport] origin: darf nicht negativ sein")
+        raise GeomError("[viewport] origin: must not be negative")
     if stride < width // 2:
-        raise GeomError("[viewport] stride: kleiner als width_px/2")
+        raise GeomError("[viewport] stride: smaller than width_px/2")
     if stride > 255:
-        raise GeomError("[viewport] stride: groesser als 255")
+        raise GeomError("[viewport] stride: greater than 255")
     if origin + (height - 1) * stride + width // 2 > 65535:
-        raise GeomError("[viewport] origin/stride/height: Puffer ueberschreitet 65535")
+        raise GeomError("[viewport] origin/stride/height: buffer exceeds 65535")
     if preset == "westwood":
         if "planes" in cfg:
-            raise GeomError("[planes] nur bei preset = \"custom\"")
+            raise GeomError("[planes] only with preset = \"custom\"")
         planes = dict(WESTWOOD)
     else:
         if "planes" not in cfg:
-            raise GeomError("[planes] fehlt (preset = \"custom\")")
+            raise GeomError("[planes] missing (preset = \"custom\")")
         planes = dict(cfg["planes"])
         _check_keys("planes", planes, PLANE_KEYS)
         for k in ("ref_size", "width", "top", "bottom"):
             if k not in planes:
-                raise GeomError(f"[planes] {k} fehlt")
+                raise GeomError(f"[planes] {k} missing")
         for k in ("width", "top", "bottom", "ref_size"):
             v = planes[k]
             if not isinstance(v, list) or any(isinstance(x, bool) or not isinstance(x, int) for x in v):
-                raise GeomError(f"[planes] {k}: Liste ganzer Zahlen erwartet")
+                raise GeomError(f"[planes] {k}: list of integers expected")
         if len(planes["ref_size"]) != 2 or planes["ref_size"][0] <= 0 or planes["ref_size"][1] <= 0:
-            raise GeomError("[planes] ref_size: zwei positive Werte erwartet")
+            raise GeomError("[planes] ref_size: two positive values expected")
         cx = planes.get("center_x", Fraction(planes["ref_size"][0], 2))
         if isinstance(cx, bool) or not isinstance(cx, (int, float, Fraction)) or \
                 Fraction(cx) != Fraction(planes["ref_size"][0], 2):
-            raise GeomError("[planes] center_x: muss ref_size[0] / 2 sein (Sichtfenster symmetrisch)")
+            raise GeomError("[planes] center_x: must be ref_size[0] / 2 (symmetric viewport)")
     n = len(planes["width"])
     if n < 3:
-        raise GeomError("[planes] width: mindestens 3 Werte")
+        raise GeomError("[planes] width: at least 3 values")
     if len(planes["top"]) != n:
-        raise GeomError("[planes] top: Laenge passt nicht zu width")
+        raise GeomError("[planes] top: length does not match width")
     if len(planes["bottom"]) != n:
-        raise GeomError("[planes] bottom: Laenge passt nicht zu width")
+        raise GeomError("[planes] bottom: length does not match width")
     if len(planes["ref_size"]) != 2 or planes["ref_size"][0] <= 0 or planes["ref_size"][1] <= 0:
-        raise GeomError("[planes] ref_size: zwei positive Werte erwartet")
+        raise GeomError("[planes] ref_size: two positive values expected")
     for a, b in zip(planes["width"], planes["width"][1:]):
         if not a > b:
-            raise GeomError("[planes] width: nicht streng fallend")
+            raise GeomError("[planes] width: not strictly decreasing")
     for a, b in zip(planes["top"], planes["top"][1:]):
         if not a < b:
-            raise GeomError("[planes] top: nicht steigend")
+            raise GeomError("[planes] top: not increasing")
     for a, b in zip(planes["bottom"], planes["bottom"][1:]):
         if not a > b:
-            raise GeomError("[planes] bottom: nicht fallend")
+            raise GeomError("[planes] bottom: not decreasing")
     for k in range(n):
         if planes["top"][k] >= planes["bottom"][k]:
             raise GeomError(f"[planes] top[{k}] >= bottom[{k}]")
     depth = n - 2
     if "depth" in vp and _int("viewport", "depth", vp["depth"]) != depth:
-        raise GeomError(f"[viewport] depth: {vp['depth']} passt nicht zu {n} Ebenen (erwartet {depth})")
+        raise GeomError(f"[viewport] depth: {vp['depth']} does not match {n} planes (expected {depth})")
     if preset == "westwood" and depth != 3:
-        raise GeomError("[viewport] depth: Westwood hat genau 3")
+        raise GeomError("[viewport] depth: Westwood has exactly 3")
     name = out.get("name", f"{preset}{width}")
     return {
         "preset": preset, "width": width, "height": height, "origin": origin, "stride": stride,
@@ -180,21 +180,21 @@ def parse_config(cfg):
     }
 
 
-# ---------------------------------------------------------------- Geometrie
+# ---------------------------------------------------------------- Geometry
 
 class Image:
-    """Ein Element oder Band mit Rechteck, Maske, Kern usw."""
+    """An element or band with rectangle, mask, kernel, etc."""
 
     def __init__(self, name, art, d, s):
         self.name, self.art, self.d, self.s = name, art, d, s
         self.polygon = []
-        self.rect = (0, 0, 0, 0)        # x, y, w, h (Byte, Zeilen)
-        self.mask = []                  # Strings '#', 'L', 'R', '.'
+        self.rect = (0, 0, 0, 0)        # x, y, w, h (bytes, rows)
+        self.mask = []                  # strings '#', 'L', 'R', '.'
         self.kernel = (0, 0, 0, 0)
         self.cover = (0, 0)
         self.flags = 0
         self.src_dx = 0
-        self.atlas = None               # (x, y) in Pixeln oder None
+        self.atlas = None               # (x, y) in pixels or None
         self.is_band = False
 
     @property
@@ -211,14 +211,14 @@ def elem_name(art, d, s):
 
 
 def anchor_byte(xp, yp):
-    """Anker in DVG-Form: Byte-Spalte auf -128 ... 127, Zeile auf 0 ... 255 gesaettigt (Spec 4.3).
-    Gesaettigte Anker liegen ganz ausserhalb des Fensters (VW <= 80, VH <= 100)."""
+    """Anchor in DVG form: byte column saturated to -128 ... 127, row to 0 ... 255 (spec 4.3).
+    Saturated anchors lie entirely outside the window (VW <= 80, VH <= 100)."""
     return max(-128, min(127, xp // 2)), min(255, yp)
 
 
 def best_rect(rows, w):
-    """Groesstes Rechteck aus Einsen in den Zeilenbitmasken (Spec 4.4): maximale Flaeche, dann groessere
-    Breite, kleineres ky, kleineres kx. Ergebnis (kx, ky, kw, kh) oder None. Auch von dbetex benutzt."""
+    """Largest rectangle of ones in the row bitmasks (spec 4.4): maximum area, then greater
+    width, smaller ky, smaller kx. Result (kx, ky, kw, kh) or None. Also used by dbetex."""
     h = len(rows)
     best = None
     for ky in range(h):
@@ -251,21 +251,21 @@ class Geometry:
         self.B = [rnd(Fraction(pl["bottom"][k]) * sy) for k in range(n)]
         for k in range(n - 1):
             if not self.Wp[k] > self.Wp[k + 1]:
-                raise GeomError(f"Ebene {k}: skalierte Breite nicht streng fallend")
+                raise GeomError(f"plane {k}: scaled width not strictly decreasing")
         if self.Wp[n - 1] <= 0:
-            raise GeomError("skalierte Breite der letzten Ebene <= 0")
+            raise GeomError("scaled width of the last plane <= 0")
         for k in range(n):
             if not self.T[k] < self.B[k]:
-                raise GeomError(f"Ebene {k}: T >= B nach Skalierung")
+                raise GeomError(f"plane {k}: T >= B after scaling")
         for d in range(1, self.D + 1):
             if self.Wp[d] > W:
-                raise GeomError("Vollfront breiter als das Fenster")
+                raise GeomError("full front wider than the window")
         self.S = self.D
-        self.images = []        # Front, Seite, Boden, Decke in Elementreihenfolge je Zelle
-        self.elements = []      # alles inkl. Objektplaetze (dicts oder Image)
+        self.images = []        # front, side, floor, ceiling in element order per cell
+        self.elements = []      # everything incl. object slots (dicts or Image)
         self.bands = []         # Image (is_band)
         self.horizon = (0, 0)
-        self.band_rows = []     # je Tiefe (ceil (y0,y1), floor (y0,y1))
+        self.band_rows = []     # per depth (ceil (y0,y1), floor (y0,y1))
         self._build()
 
     # X(k, u)
@@ -289,10 +289,10 @@ class Geometry:
         return res
 
     def _mask_pixels(self, poly):
-        """Menge (px, r) der Pixel, deren Mittelpunkt im konvexen Polygon liegt (exakt, ganzzahlig verdoppelt)."""
+        """Set (px, r) of the pixels whose center lies in the convex polygon (exact, integer-doubled)."""
         W, H = self.width, self.height
-        pts = [(int(x * 2), int(y * 2)) for x, y in poly]    # Eckpunkte sind ganzzahlig
-        # Flaeche (doppelt) -> degeneriert = leer
+        pts = [(int(x * 2), int(y * 2)) for x, y in poly]    # vertices are integers
+        # area (doubled) -> degenerate = empty
         area = 0
         for i in range(len(pts)):
             x1, y1 = pts[i]
@@ -327,9 +327,9 @@ class Geometry:
 
     @staticmethod
     def _round_bytes(res, edges, r0, r1, px0, px1):
-        """Halbe Bytes (nur ein Pixel im Polygon) auf ganze Bytes runden: das Byte gehoert zum Polygon, wenn sein
-        Mittelpunkt (zwischen den beiden Pixeln) innerhalb liegt. Liegt der Mittelpunkt genau auf einer Kante, gehoert
-        das Byte dem Polygon, das das linke Pixel besitzt (Nachbarpolygone bleiben luckenlos und ueberlappungsfrei)."""
+        """Round half bytes (only one pixel in the polygon) to whole bytes: the byte belongs to the polygon if its
+        midpoint (between the two pixels) lies inside. If the midpoint lies exactly on an edge, the byte belongs
+        to the polygon that owns the left pixel (neighbouring polygons stay gap-free and overlap-free)."""
         out = set()
         for r in range(r0, r1 + 1):
             cy = 2 * r + 1
@@ -355,7 +355,7 @@ class Geometry:
         return out
 
     def _fill_image(self, im, pix, poly):
-        """Rechteck, Maske, Kern, Beschnitt aus Pixelmenge."""
+        """Rectangle, mask, kernel, clipping from a pixel set."""
         im.polygon = [[int(x), int(y)] for x, y in poly]
         xs = [p[0] for p in im.polygon]
         ys = [p[1] for p in im.polygon]
@@ -378,7 +378,7 @@ class Geometry:
 
     @staticmethod
     def full_rows(mask):
-        """Bitmasken je Zeile: Bit i = Byte-Spalte i voll."""
+        """Bitmasks per row: bit i = byte column i full."""
         res = []
         for line in mask:
             v = 0
@@ -390,7 +390,7 @@ class Geometry:
 
     @staticmethod
     def longest_run(v, w):
-        """(Laenge, Start) des laengsten Einserlaufs in v (Breite w); bei Gleichstand der linkeste."""
+        """(length, start) of the longest run of ones in v (width w); on a tie the leftmost."""
         best = (0, 0)
         i = 0
         while i < w:
@@ -437,7 +437,7 @@ class Geometry:
             y = B[d] + Fraction(B[d + 1] - B[d]) * (Wp[d] - Wt) / (Wp[d] - Wp[d + 1])
             xp, yp = rnd(x), rnd(y)
             if yp < 0:
-                raise GeomError(f"Anker d={d} s={s}: Zeile {yp} oberhalb des Fensters")
+                raise GeomError(f"anchor d={d} s={s}: row {yp} above the window")
             res.append((xp, yp))
         return res
 
@@ -472,12 +472,12 @@ class Geometry:
                     elems.append({"art": ART_OBJ, "d": d, "s": s, "name": f"obj_d{d}_s{_sgn(s)}",
                                   "anchors": self._anchors(d, s)})
         if len(elems) > 255:
-            raise GeomError(f"zu viele Elemente: {len(elems)} (max. 255)")
+            raise GeomError(f"too many elements: {len(elems)} (max. 255)")
         self.elements = elems
         self.images = [e for e in elems if isinstance(e, Image)]
         if not any(i.art == ART_FRONT and i.s == 0 for i in self.images):
-            raise GeomError("keine Front vorhanden")
-        # Baender
+            raise GeomError("no front present")
+        # bands
         H = self.height
 
         def clip(a, b):
@@ -488,13 +488,13 @@ class Geometry:
         for d in range(D + 1):
             self.band_rows.append((clip(self.T[d], self.T[d + 1]), clip(self.B[d + 1], self.B[d])))
         self.horizon = clip(self.T[D + 1], self.B[D + 1])
-        # DVG-Flag Bit 3 (Bandabdeckung, P6 5.1): Fronten, deren Rechteck die Bandzeilen ihrer Tiefe enthaelt
+        # DVG flag bit 3 (band cover, P6 5.1): fronts whose rectangle contains the band rows of their depth
         for im in self.images:
             if im.art == ART_FRONT:
                 (c0, _), (_, f1) = self.band_rows[im.d]
                 if im.rect[1] <= c0 and im.rect[1] + im.rect[3] >= f1:
                     im.flags |= FLAG_BANDCOVER
-        # Luecken pruefen
+        # check for gaps
         cover = [0] * H
         for (c0, c1), (f0, f1) in self.band_rows:
             for r in list(range(c0, c1)) + list(range(f0, f1)):
@@ -502,7 +502,7 @@ class Geometry:
         for r in range(*self.horizon):
             cover[r] += 1
         if any(c != 1 for c in cover):
-            raise GeomError("Baender ueberdecken die Zeilen nicht luckenlos und ueberschneidungsfrei")
+            raise GeomError("bands do not cover the rows gap-free and overlap-free")
         for d in range(D + 1):
             for art, (y0, y1) in (("ceilband", self.band_rows[d][0]), ("floorband", self.band_rows[d][1])):
                 if y1 > y0:
@@ -513,7 +513,7 @@ class Geometry:
                     im.kernel = (0, 0, self.VW, y1 - y0)
                     self.bands.append(im)
 
-    # --- Zugriffe
+    # --- accessors
     def by_name(self, name):
         for im in self.images + self.bands:
             if im.name == name:
@@ -521,7 +521,7 @@ class Geometry:
         return None
 
     def atlas_images(self):
-        """Bilder in Atlas-Reihenfolge, gruppiert nach Zeilen (Liste von Listen)."""
+        """Images in atlas order, grouped by rows (list of lists)."""
         D = self.D
         rows = []
         fronts = [i for i in self.images if i.art == ART_FRONT and i.s == 0]
@@ -540,7 +540,7 @@ class Geometry:
 # ---------------------------------------------------------------- Atlas
 
 def layout_atlas(geo):
-    """Atlas-Lage berechnen; setzt im.atlas, liefert (breite, hoehe)."""
+    """Compute the atlas layout; sets im.atlas, returns (width, height)."""
     rows = geo.atlas_images()
     widest = 0
     for r in rows:
@@ -559,7 +559,7 @@ def layout_atlas(geo):
 
 
 def image_pixels(im):
-    """Liefert fuer jedes Pixel des Bildrechtecks 0 = leer, 1 = Maske, 2 = Kern (Liste von Zeilen)."""
+    """Returns for every pixel of the image rectangle 0 = empty, 1 = mask, 2 = kernel (list of rows)."""
     w = im.rect[2]
     kx, ky, kw, kh = im.kernel
     res = []
@@ -599,7 +599,7 @@ def write_pngs(geo, outdir, name, zoom, atlas_size):
             t = t.resize((t.width * zoom, t.height * zoom), PImage.NEAREST)
         t.save(os.path.join(tpl_dir, im.name + ".png"))
     atlas.save(os.path.join(outdir, f"{name}_atlas.png"))
-    # Uebersicht
+    # overview
     W, H = geo.width, geo.height
     from PIL import ImageDraw
     v = PImage.new("RGB", (W, H), (0, 0, 0))
@@ -648,9 +648,9 @@ def build_aseprite(geo, atlas_size):
         pal += struct.pack("<HBBBB", 0, r, g, b, 255)
     pal += struct.pack("<HBBBB", 0, 0, 0, 0, 0)
     chunks.append(_chunk(0x2019, pal))
-    chunks.append(_chunk(0x2004, struct.pack("<HHHHHHB3x", 1, 0, 0, 0, 0, 0, 128) + _str("Maske")))
-    chunks.append(_chunk(0x2004, struct.pack("<HHHHHHB3x", 1 | 2, 0, 0, 0, 0, 0, 255) + _str("Bild")))
-    # Cel Ebene 0: Maske
+    chunks.append(_chunk(0x2004, struct.pack("<HHHHHHB3x", 1, 0, 0, 0, 0, 0, 128) + _str("Mask")))
+    chunks.append(_chunk(0x2004, struct.pack("<HHHHHHB3x", 1 | 2, 0, 0, 0, 0, 0, 255) + _str("Image")))
+    # cel layer 0: mask
     buf = bytearray([16]) * (aw * ah)
     for im in geo.images + geo.bands:
         if im.atlas is None:
@@ -691,7 +691,7 @@ def build_aseprite(geo, atlas_size):
 # ---------------------------------------------------------------- DVG
 
 def build_dvg(geo):
-    """Liefert (inhalt, elementdaten) ; Inhalt ohne Ladeadresse, Geometrie-ID bereits eingesetzt."""
+    """Returns (content, element data); content without load address, geometry ID already inserted."""
     D = geo.D
     conf = geo.conf
     elems = geo.elements
@@ -738,7 +738,7 @@ def build_dvg(geo):
     content = bytearray(head) + depth + tab
     assert len(content) == total
     tmp = bytearray(content)
-    tmp[10:12] = b"\0\0"            # origin (Lage, nicht Form) fliesst nicht in die ID ein
+    tmp[10:12] = b"\0\0"            # origin (position, not shape) does not enter the ID
     gid = binascii.crc_hqx(bytes(tmp), 0xFFFF) or 1
     struct.pack_into("<H", content, 12, gid)
     return bytes(content), gid
@@ -747,7 +747,7 @@ def build_dvg(geo):
 # ---------------------------------------------------------------- Budget
 
 def image_budget(im):
-    """(kernbytes, randbytes, vms_laenge)."""
+    """(kernel bytes, edge bytes, vms length)."""
     kx, ky, kw, kh = im.kernel
     core = kw * kh
     edge = 0
@@ -808,23 +808,23 @@ def compute_budget(geo):
 def budget_markdown(geo, bud):
     c = geo.conf
     L = [f"# Budget {c['name']} ({geo.width} x {geo.height})", "",
-         "| Name | Rechteck | Kern | Rand | VRAM | VMS-Liste |", "|---|---|---|---|---|---|"]
+         "| Name | Rectangle | Kernel | Edge | VRAM | VMS list |", "|---|---|---|---|---|---|"]
     for r in bud["rows"]:
         L.append(f"| {r['name']} | {tuple(r['rect'])} | {r['core']} | {r['edge']} | {r['vram']} | {r['vms']} |")
-    L += ["", "## Summen je Stil", "",
-          f"- Vollfronten: {bud['sum_front']} Byte",
-          f"- Seiten: {bud['sum_side']} Byte",
-          f"- **Wandstil (Front + Seite): {bud['wall_style']} Byte**",
-          f"- Bodenbaender: {bud['floor_bands']} Byte (Kacheln zusaetzlich: {bud['floor_tiles']} Byte)",
-          f"- Deckenbaender: {bud['ceil_bands']} Byte (Kacheln zusaetzlich: {bud['ceil_tiles']} Byte)",
+    L += ["", "## Totals per style", "",
+          f"- Full fronts: {bud['sum_front']} bytes",
+          f"- Sides: {bud['sum_side']} bytes",
+          f"- **Wall style (front + side): {bud['wall_style']} bytes**",
+          f"- Floor bands: {bud['floor_bands']} bytes (tiles additionally: {bud['floor_tiles']} bytes)",
+          f"- Ceiling bands: {bud['ceil_bands']} bytes (tiles additionally: {bud['ceil_tiles']} bytes)",
           "", "## Pool", "",
-          f"- Pool: {bud['pool_bytes']} Byte; Boden- + Deckenstil (Baender): {bud['floor_bands'] + bud['ceil_bands']} Byte",
-          f"- Wandstile, die zusammen mit je 1 Boden- und Deckenstil in den Pool passen: {bud['wall_styles_in_pool']}",
-          "", "## VMS-Puffer", "",
-          f"- Summe der VMS-Listen aller Wandelemente eines Stils (obere Schranke): {bud['vms_wall_total']} Byte"
-          f" (Puffer {bud['vms_buffer']} Byte)"]
+          f"- Pool: {bud['pool_bytes']} bytes; floor + ceiling style (bands): {bud['floor_bands'] + bud['ceil_bands']} bytes",
+          f"- Wall styles that fit into the pool together with 1 floor and 1 ceiling style each: {bud['wall_styles_in_pool']}",
+          "", "## VMS buffer", "",
+          f"- Sum of the VMS lists of all wall elements of a style (upper bound): {bud['vms_wall_total']} bytes"
+          f" (buffer {bud['vms_buffer']} bytes)"]
     if bud["vms_overflow"]:
-        L.append("- WARNUNG: Summe ueberschreitet den VMS-Puffer.")
+        L.append("- WARNING: sum exceeds the VMS buffer.")
     return "\n".join(L) + "\n"
 
 
@@ -874,7 +874,7 @@ def build_json(geo, gid, bud):
     }
 
 
-# ---------------------------------------------------------------- Hauptprogramm
+# ---------------------------------------------------------------- Main program
 
 def check_lines(geo):
     out = []
@@ -883,7 +883,7 @@ def check_lines(geo):
             out.append(f"d={e['d']} s={e['s']} obj anchors=" + " ".join("({},{})".format(*anchor_byte(*a)) for a in e["anchors"]))
         else:
             x, y, w, h = e.rect
-            out.append(f"d={e.d} s={e.s} {ART_NAMES[e.art]} x={x} y={y} w={w} h={h} kern={','.join(map(str, e.kernel))}"
+            out.append(f"d={e.d} s={e.s} {ART_NAMES[e.art]} x={x} y={y} w={w} h={h} core={','.join(map(str, e.kernel))}"
                        f" cov={e.cover[0]}..{e.cover[1]} src_dx={e.src_dx}")
     return out
 
@@ -910,7 +910,7 @@ def generate(conf, outdir, name):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Sichtfenster-Geometrie erzeugen (DVG, JSON, Vorlagen, Budget)")
+    ap = argparse.ArgumentParser(description="Generate viewport geometry (DVG, JSON, templates, budget)")
     ap.add_argument("toml", nargs="?")
     ap.add_argument("--out")
     ap.add_argument("--name")
@@ -941,7 +941,7 @@ def main(argv=None):
                 vp["origin"] = args.origin
             cfg = {"viewport": vp}
         else:
-            print("Aufruf: dbegeom.py view.toml | --preset P --width W --height H", file=sys.stderr)
+            print("Usage: dbegeom.py view.toml | --preset P --width W --height H", file=sys.stderr)
             return 2
         conf = parse_config(cfg)
         name = args.name or conf["name"]
@@ -951,13 +951,13 @@ def main(argv=None):
             print("\n".join(check_lines(geo)))
             return 0
         geo, bud = generate(conf, outdir, name)
-        print(f"{name}: {len(geo.elements)} Elemente, Wandstil {bud['wall_style']} Byte -> {outdir}")
+        print(f"{name}: {len(geo.elements)} elements, wall style {bud['wall_style']} bytes -> {outdir}")
         return 0
     except GeomError as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
     except OSError as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
 
 

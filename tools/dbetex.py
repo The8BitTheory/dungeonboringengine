@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-"""Gemalte Texturen (PNG-Atlas / Aseprite-Export) in DTS, DBG und VRL-Daten umwandeln (P5).
+"""Convert painted textures (PNG atlas / Aseprite export) into DTS, DBG and VRL data (P5).
 
-Eingabe: tex.toml (Stile, Geometrie <name>.geom.json aus dbegeom.py) bzw. bg.toml (Tapete),
-Spezifikation docs/specs/P5-textures.md.
+Input: tex.toml (styles, geometry <name>.geom.json from dbegeom.py) or bg.toml (wallpaper),
+specification docs/specs/P5-textures.md.
 
-Ausgabe (Ordner [texset].out):
-  <name>.dts          Bank 1: Slotkarte, Stiltabelle, Bildverzeichnis, Kerne, VMS-Listen, Zeilenfuellungen
-  <name>.vrl          Bank 0: alle Bilddaten (VRL v1 mit Dateirahmen), danach per RXV an die VRAM-Basis
-  <name>.dbg + .vrl   Tapete (bg.toml)
-  <name>.tex.json, <name>.tex.md   Bericht (Verzeichnis, Groessen, Warnungen, Budget)
-  <name>_<stil>_preview.png  Probebild je Stil (Referenz-Renderer, x4)
+Output (directory [texset].out):
+  <name>.dts          bank 1: slot map, style table, image directory, cores, VMS lists, row fills
+  <name>.vrl          bank 0: all image data (VRL v1 with file frame), then moved to the VRAM base via RXV
+  <name>.dbg + .vrl   wallpaper (bg.toml)
+  <name>.tex.json, <name>.tex.md   report (directory, sizes, warnings, budget)
+  <name>_<style>_preview.png  preview image per style (reference renderer, x4)
 
-Aseprite-Export (Slices = Elementnamen der Malvorlage, Ebene "Maske" nicht mitexportieren):
-  aseprite -b zone1.aseprite --layer Bild --sheet zone1.png --data zone1.json \\
+Aseprite export (slices = element names of the paint template, do not export the layer "Maske"):
+  aseprite -b zone1.aseprite --layer Image --sheet zone1.png --data zone1.json \\
            --format json-array --list-slices --list-tags
 
-Aufruf:
+Usage:
   dbetex.py build  TEX.toml [--out DIR] [--strict] [--key RRGGBB] [--alpha-threshold N] [--no-preview]
   dbetex.py bg     BG.toml  [--out DIR] [--strict]
   dbetex.py dump   FILE.dts|FILE.dbg [--vrl FILE.vrl] [--json]
   dbetex.py budget FILE... --pool N [--pool-start ADDR] [--vms-buffer N] [--json]
   dbetex.py check  MAP.dmp|MAP.toml [--walls W.dts] [--floors F.dts] [--ceils C.dts] [--dvg G.dvg]
-Exitcode 0 ok, 1 Format-/Validierungsfehler, 2 Aufruf.
+Exit code 0 ok, 1 format/validation error, 2 usage.
 """
 import argparse
 import binascii
@@ -43,7 +43,7 @@ KINDS = {"wall": 0, "floor": 1, "ceiling": 2}
 KIND_NAMES = {v: k for k, v in KINDS.items()}
 KIND_ARTS = {"wall": ("front", "side"), "floor": ("floor",), "ceiling": ("ceil",)}
 BAND_ART = {"wall": None, "floor": "floorband", "ceiling": "ceilband"}
-F_DECKEND, F_AUSSCHNITT, F_ZEILEN, F_RAND = 1, 2, 4, 8
+F_OCCLUDING, F_CUTOUT, F_ROWS, F_EDGE = 1, 2, 4, 8
 HEAD = 32
 NOIMG, FALLBACK = 0xFE, 0xFF
 
@@ -52,10 +52,10 @@ class TexError(Exception):
     pass
 
 
-# ---------------------------------------------------------------- Datentypen
+# ---------------------------------------------------------------- Data types
 
 @dataclass
-class Kern:
+class Core:
     src: int
     dx: int
     dy: int
@@ -68,15 +68,15 @@ class Kern:
 class Entry:
     slot: int
     flags: int = 0
-    kerns: list = field(default_factory=list)
-    rand: bytes = b""
-    rand_ofs: int = 0
+    cores: list = field(default_factory=list)
+    edge: bytes = b""
+    edge_ofs: int = 0
     vms: bytes = b""
     fill: bytes = b""
     source: int = 0
     style_names: list = field(default_factory=list)
     h: int = 0
-    rand_len: int = 0
+    edge_len: int = 0
 
 
 @dataclass
@@ -92,7 +92,7 @@ class TexSet:
     vram: bytes = b""
 
 
-# ---------------------------------------------------------------- Geometrie
+# ---------------------------------------------------------------- Geometry
 
 def dvg_id(content):
     tmp = bytearray(content)
@@ -108,7 +108,7 @@ def load_geom(path, dvg=None):
     except (OSError, ValueError) as e:
         raise TexError(f"{path}: {e}")
     if g.get("format") != "dbegeom" or g.get("version") != 1:
-        raise TexError(f"{path}: keine dbegeom-JSON (format/version)")
+        raise TexError(f"{path}: not a dbegeom JSON (format/version)")
     if dvg:
         try:
             with open(dvg, "rb") as f:
@@ -117,19 +117,19 @@ def load_geom(path, dvg=None):
             raise TexError(f"{dvg}: {e}")
         c = data[2:]
         if len(c) < 24 or c[:2] != b"DV" or c[2] != 1:
-            raise TexError(f"{dvg}: keine DVG v1")
+            raise TexError(f"{dvg}: not a DVG v1")
         stored = struct.unpack_from("<H", c, 12)[0]
         if stored != dvg_id(c):
-            raise TexError(f"{dvg}: Geometrie-ID im Kopf passt nicht zum Inhalt")
+            raise TexError(f"{dvg}: geometry ID in the header does not match the content")
         if stored != g["geometry_id"]:
-            raise TexError(f"{dvg}: Geometrie-ID {stored} != {g['geometry_id']} in {path}")
+            raise TexError(f"{dvg}: geometry ID {stored} != {g['geometry_id']} in {path}")
         if c[7] != len(g["elements"]):
             raise TexError(f"{dvg}: NE {c[7]} != {len(g['elements'])} in {path}")
     return g
 
 
 def slot_infos(geom, kind):
-    """(slots, slot_map): Zeichenplaetze der Art in Slot-Reihenfolge (4.2)."""
+    """(slots, slot_map): drawing slots of the kind in slot order (4.2)."""
     ne = len(geom["elements"])
     D = geom["viewport"]["depth"]
     smap = [FALLBACK] * (ne + 2 * (D + 1))
@@ -176,7 +176,7 @@ def parse_key(k):
     try:
         v = int(k, 16)
     except ValueError:
-        raise TexError(f"key: ungueltige Farbe {k!r}")
+        raise TexError(f"key: invalid color {k!r}")
     return (v >> 16 & 255, v >> 8 & 255, v & 255)
 
 
@@ -196,10 +196,10 @@ def nearest(rgb):
 
 
 def to_indices(img, box, key=None, alpha_threshold=0, strict=False):
-    """Ausschnitt box = (x, y, breite_px, hoehe) -> (Zeilen aus int | None, Warnungen)."""
+    """Region box = (x, y, width_px, height) -> (rows of int | None, warnings)."""
     x0, y0, bw, bh = box
     if x0 < 0 or y0 < 0 or x0 + bw > img.width or y0 + bh > img.height:
-        raise TexError(f"Ausschnitt ({x0}, {y0}, {bw}x{bh}) liegt ausserhalb des Bildes {img.width}x{img.height}")
+        raise TexError(f"Region ({x0}, {y0}, {bw}x{bh}) lies outside the image {img.width}x{img.height}")
     key = parse_key(key)
     px = img.load()
     rows = []
@@ -229,14 +229,14 @@ def to_indices(img, box, key=None, alpha_threshold=0, strict=False):
             line.append(idx)
         rows.append(line)
     if half:
-        raise TexError(f"{len(half)} Pixel mit Halbtransparenz, erste bei {half[0]} - Halbtransparenz: "
-                       "Masken-Ebene der Vorlage mitexportiert? Aseprite: --layer Bild")
+        raise TexError(f"{len(half)} pixels with semi-transparency, first at {half[0]} - semi-transparency: "
+                       "mask layer of the template exported as well? Aseprite: --layer Image")
     warns = []
     if off:
         mx = max(off)
         first = min(off, key=lambda t: (t[2], t[1]))
-        msg = (f"{len(off)} Pixel nicht in der VDC-Palette, max. Abstand {round(mx[0] ** 0.5)} bei "
-               f"({mx[1]}, {mx[2]}), erstes bei ({first[1]}, {first[2]})")
+        msg = (f"{len(off)} pixels not in the VDC palette, max. distance {round(mx[0] ** 0.5)} at "
+               f"({mx[1]}, {mx[2]}), first at ({first[1]}, {first[2]})")
         if strict:
             raise TexError(msg)
         warns.append(msg)
@@ -248,7 +248,7 @@ def mask_allows(ch, side):
 
 
 def apply_mask(pix, mask):
-    """Pixel ausserhalb der Maske transparent; liefert (pix, anzahl verworfener deckender Pixel)."""
+    """Pixels outside the mask become transparent; returns (pix, number of discarded opaque pixels)."""
     out, n = [], 0
     for r, row in enumerate(pix):
         line = []
@@ -262,7 +262,7 @@ def apply_mask(pix, mask):
 
 
 def classify(pix, mask=None):
-    """Byte-Zustaende 'F' voll, 'L' nur links, 'R' nur rechts, '.' leer (2.4)."""
+    """Byte states 'F' full, 'L' left only, 'R' right only, '.' empty (2.4)."""
     if mask is not None:
         pix, _ = apply_mask(pix, mask)
     states = []
@@ -276,8 +276,8 @@ def classify(pix, mask=None):
 
 
 def resolve_alpha_conflict(pix, states):
-    """Sind alle 16 Farben in halb-R-Bytes belegt: halb-R-Bytes der seltensten Farbe werden voll (2.4).
-    Aendert pix/states in place; liefert Anzahl ersetzter Bytes."""
+    """If all 16 colors are used in half-R bytes: half-R bytes of the rarest color become full (2.4).
+    Modifies pix/states in place; returns the number of replaced bytes."""
     cnt = {}
     for r, row in enumerate(states):
         for bx, st in enumerate(row):
@@ -297,108 +297,108 @@ def resolve_alpha_conflict(pix, states):
     return n
 
 
-def choose_kerns(states, max_kerns, kern_min):
-    """Bis zu max_kerns disjunkte Rechtecke (kx, ky, kw, kh) aus vollen Bytes (5.4)."""
+def choose_cores(states, max_cores, core_min):
+    """Up to max_cores disjoint rectangles (kx, ky, kw, kh) of full bytes (5.4)."""
     h = len(states)
     w = len(states[0]) if h else 0
     free = [[st == "F" for st in row] for row in states]
-    kerns = []
-    while len(kerns) < max_kerns:
+    cores = []
+    while len(cores) < max_cores:
         rows = [sum(1 << i for i, v in enumerate(r) if v) for r in free]
         b = dbegeom.best_rect(rows, w)
         if not b:
             break
         kx, ky, kw, kh = b
-        if kerns and not (kh >= 2 and kw * kh >= kern_min):
+        if cores and not (kh >= 2 and kw * kh >= core_min):
             break
-        kerns.append(b)
+        cores.append(b)
         for r in range(ky, ky + kh):
             for c in range(kx, kx + kw):
                 free[r][c] = False
-    return kerns
+    return cores
 
 
-def in_kern(kerns, bx, r):
-    return any(kx <= bx < kx + kw and ky <= r < ky + kh for kx, ky, kw, kh in kerns)
+def in_core(cores, bx, r):
+    return any(kx <= bx < kx + kw and ky <= r < ky + kh for kx, ky, kw, kh in cores)
 
 
-def check_vms(vms, w, h, stride, what="VMS-Liste"):
-    """Formatregeln der gespeicherten Listen (P5b 4.6; VIEW setzt sie beim Beschneiden voraus, P6e-opt): nur Typ 1/8,
-    Laenge passt zur Anzahl, ofs = Zeile * stride + Spalte mit Zeile < h, Spalte + len <= w <= stride, Befehle in
-    ofs-Reihenfolge ohne Ueberlappung (ofs >= Ende des vorigen). TexError bei Verstoss."""
+def check_vms(vms, w, h, stride, what="VMS list"):
+    """Format rules of the stored lists (P5b 4.6; VIEW assumes them when clipping, P6e-opt): only type 1/8,
+    length matches the count, ofs = row * stride + column with row < h, column + len <= w <= stride, commands in
+    ofs order without overlap (ofs >= end of the previous one). TexError on violation."""
     if w > stride:
-        raise TexError(f"{what}: Breite {w} > stride {stride}")
+        raise TexError(f"{what}: width {w} > stride {stride}")
     if len(vms) < 3:
-        raise TexError(f"{what}: kuerzer als der Kopf")
+        raise TexError(f"{what}: shorter than the header")
     n, p, end = vms[1] | vms[2] << 8, 3, 0
     for _ in range(n):
         if p + 3 > len(vms) or vms[p] not in (1, 8) or (vms[p] == 1 and p + 4 > len(vms)):
-            raise TexError(f"{what}: Befehl bei {p} ungueltig (nur Typ 1/8) oder Liste zu kurz")
+            raise TexError(f"{what}: command at {p} invalid (only type 1/8) or list too short")
         ofs = vms[p + 1] | vms[p + 2] << 8
         ln = vms[p + 3] if vms[p] == 1 else 1
         r, col = divmod(ofs, stride)
         if ofs < end or r >= h or ln == 0 or col + ln > w:
-            raise TexError(f"{what}: Befehl bei {p} verletzt die Formatregeln (Reihenfolge, Zeile, Spalte + Laenge)")
+            raise TexError(f"{what}: command at {p} violates the format rules (order, row, column + length)")
         end = ofs + ln
         p += 4 if vms[p] == 1 else 3
     if p != len(vms):
-        raise TexError(f"{what}: Laenge passt nicht zur Befehlsanzahl")
+        raise TexError(f"{what}: length does not match the command count")
 
 
-def pack_image(pix, states, kerns, stride):
-    """(alpha, rand, vms): gepackte Randbytes und VMS-Liste (5.2); alpha nach 2.4."""
+def pack_image(pix, states, cores, stride):
+    """(alpha, edge, vms): packed edge bytes and VMS list (5.2); alpha per 2.4."""
     h = len(states)
     w = len(states[0]) if h else 0
     used = set()
     for r in range(h):
         for bx in range(w):
-            if states[r][bx] == "R" and not in_kern(kerns, bx, r):
+            if states[r][bx] == "R" and not in_core(cores, bx, r):
                 used.add(pix[r][2 * bx + 1])
     alpha = next(a for a in range(17) if a not in used)
     if alpha > 15:
-        raise TexError("interner Fehler: alle 16 Farben in halb-R-Bytes (resolve_alpha_conflict vergessen)")
-    rand = bytearray()
+        raise TexError("internal error: all 16 colors in half-R bytes (resolve_alpha_conflict forgotten)")
+    edge = bytearray()
     cmds = bytearray()
     ncmd = 0
     for r in range(h):
         bx = 0
         while bx < w:
             st = states[r][bx]
-            if st == "." or in_kern(kerns, bx, r):
+            if st == "." or in_core(cores, bx, r):
                 bx += 1
                 continue
             ofs = r * stride + bx
             if st == "F":
                 j = bx
-                while j < w and states[r][j] == "F" and not in_kern(kerns, j, r) and j - bx < 255:
-                    rand.append(pix[r][2 * j] << 4 | pix[r][2 * j + 1])
+                while j < w and states[r][j] == "F" and not in_core(cores, j, r) and j - bx < 255:
+                    edge.append(pix[r][2 * j] << 4 | pix[r][2 * j + 1])
                     j += 1
                 cmds += bytes((1, ofs & 255, ofs >> 8, j - bx))
                 ncmd += 1
                 bx = j
             else:
                 if st == "L":
-                    rand.append(pix[r][2 * bx] << 4 | alpha)
+                    edge.append(pix[r][2 * bx] << 4 | alpha)
                 else:
-                    rand.append(pix[r][2 * bx + 1])
+                    edge.append(pix[r][2 * bx + 1])
                 cmds += bytes((8, ofs & 255, ofs >> 8))
                 ncmd += 1
                 bx += 1
     if not ncmd:
         return 0, b"", b""
-    return alpha, bytes(rand), bytes((alpha, ncmd & 255, ncmd >> 8)) + bytes(cmds)
+    return alpha, bytes(edge), bytes((alpha, ncmd & 255, ncmd >> 8)) + bytes(cmds)
 
 
-def kern_bytes(pix, kerns):
+def core_bytes(pix, cores):
     out = bytearray()
-    for kx, ky, kw, kh in kerns:
+    for kx, ky, kw, kh in cores:
         for r in range(ky, ky + kh):
             for bx in range(kx, kx + kw):
                 out.append(pix[r][2 * bx] << 4 | pix[r][2 * bx + 1])
     return bytes(out)
 
 
-def is_deckend(slot, states, geom):
+def is_occluding(slot, states, geom):
     c0, c1 = slot["cover"]
     if "cover" not in slot["flags"] or c1 <= c0:
         return False
@@ -415,7 +415,7 @@ def is_deckend(slot, states, geom):
     return True
 
 
-# ---------------------------------------------------------------- Quellen
+# ---------------------------------------------------------------- Sources
 
 class PngSource:
     def __init__(self, path, geom, key, alpha_threshold):
@@ -424,7 +424,7 @@ class PngSource:
         self.key, self.thr = key, alpha_threshold
         aw, ah = geom["atlas_size"]
         if self.img.width < aw or self.img.height < ah:
-            raise TexError(f"{path}: Atlas {self.img.width}x{self.img.height} kleiner als {aw}x{ah}")
+            raise TexError(f"{path}: atlas {self.img.width}x{self.img.height} smaller than {aw}x{ah}")
 
     def box(self, slot, warns):
         if not slot["atlas"]:
@@ -444,33 +444,33 @@ class AseSource:
             raise TexError(f"{path}: {e}")
         meta = js.get("meta") or {}
         if "image" not in meta:
-            raise TexError(f"{path}: meta.image fehlt")
+            raise TexError(f"{path}: meta.image missing")
         self.img = read_rgba(os.path.join(os.path.dirname(path), meta["image"]))
         fr = js.get("frames")
         if isinstance(fr, dict):
             fr = list(fr.values())
         if not isinstance(fr, list) or not fr:
-            raise TexError(f"{path}: keine Frames")
+            raise TexError(f"{path}: no frames")
         for i, f in enumerate(fr):
             if f.get("rotated") or f.get("trimmed"):
-                raise TexError(f"{path}: Frame {i} ist rotated/trimmed - ohne --trim/--sheet-pack-Rotation exportieren")
+                raise TexError(f"{path}: frame {i} is rotated/trimmed - export without --trim/--sheet-pack rotation")
         self.warn = []
         if tag is not None:
             tg = [t for t in meta.get("frameTags", []) if t.get("name") == tag]
             if not tg:
-                raise TexError(f"{path}: Tag {tag!r} nicht gefunden")
+                raise TexError(f"{path}: tag {tag!r} not found")
             if tg[0]["to"] != tg[0]["from"]:
-                self.warn.append(f"{path}: Tag {tag!r} ueber mehrere Frames, der erste gilt")
+                self.warn.append(f"{path}: tag {tag!r} spans several frames, the first one is used")
             frame = tg[0]["from"]
         frame = frame or 0
         if not 0 <= frame < len(fr):
-            raise TexError(f"{path}: Frame {frame} nicht vorhanden")
+            raise TexError(f"{path}: frame {frame} does not exist")
         fx, fy = fr[frame]["frame"]["x"], fr[frame]["frame"]["y"]
         self.slices = {}
         for sl in meta.get("slices", []):
             name = sl["name"]
             if name in self.slices:
-                raise TexError(f"{path}: Slice {name!r} doppelt")
+                raise TexError(f"{path}: slice {name!r} duplicated")
             best = None
             for k in sl.get("keys", []):
                 if k["frame"] <= frame and (best is None or k["frame"] >= best["frame"]):
@@ -481,7 +481,7 @@ class AseSource:
         known = {e["name"] for e in geom["elements"]} | {b["name"] for b in geom["band_images"]}
         for n in self.slices:
             if n not in known:
-                self.warn.append(f"{path}: Slice {n!r} unbekannt")
+                self.warn.append(f"{path}: slice {n!r} unknown")
 
     def box(self, slot, warns):
         b = self.slices.get(slot["name"])
@@ -489,7 +489,7 @@ class AseSource:
             return None
         w2, h = slot["rect"][2] * 2, slot["rect"][3]
         if (b[2], b[3]) != (w2, h):
-            raise TexError(f"{self.path}: Slice {slot['name']}: Groesse {b[2]}x{b[3]}, erwartet {w2}x{h}")
+            raise TexError(f"{self.path}: slice {slot['name']}: size {b[2]}x{b[3]}, expected {w2}x{h}")
         return (b[0], b[1], w2, h)
 
 
@@ -509,9 +509,9 @@ def is_template(img, box, slot):
     return True
 
 
-# ---------------------------------------------------------------- Konfiguration
+# ---------------------------------------------------------------- Configuration
 
-TEXSET_KEYS = {"name", "kind", "geom", "dvg", "out", "load", "vrl_load", "pool_bytes", "max_kerns", "kern_min",
+TEXSET_KEYS = {"name", "kind", "geom", "dvg", "out", "load", "vrl_load", "pool_bytes", "max_cores", "core_min",
                "fill_rows", "key", "alpha_threshold"}
 STYLE_KEYS = {"name", "png", "aseprite", "tag", "frame", "empty"}
 
@@ -519,7 +519,7 @@ STYLE_KEYS = {"name", "png", "aseprite", "tag", "frame", "empty"}
 def _check_keys(where, d, allowed):
     for k in d:
         if k not in allowed:
-            raise TexError(f"{where}: unbekannter Schluessel {k!r}")
+            raise TexError(f"{where}: unknown key {k!r}")
 
 
 def _toml(path):
@@ -534,7 +534,7 @@ def _toml(path):
 
 def _int(where, v, lo, hi):
     if not isinstance(v, int) or isinstance(v, bool) or not lo <= v <= hi:
-        raise TexError(f"{where}: Ganzzahl {lo} ... {hi} erwartet, gefunden {v!r}")
+        raise TexError(f"{where}: integer {lo} ... {hi} expected, found {v!r}")
     return v
 
 
@@ -543,14 +543,14 @@ def load_tex_conf(path, out=None, strict=False, key=None, alpha_threshold=None):
     base = os.path.dirname(os.path.abspath(path))
     _check_keys(path, cfg, {"format", "version", "texset", "style"})
     if cfg.get("format") != "dbetex" or cfg.get("version") != 1:
-        raise TexError(f'{path}: format = "dbetex" und version = 1 erwartet')
+        raise TexError(f'{path}: format = "dbetex" and version = 1 expected')
     ts = dict(cfg.get("texset") or {})
     _check_keys(f"{path} [texset]", ts, TEXSET_KEYS)
     for k in ("name", "kind", "geom"):
         if k not in ts:
-            raise TexError(f"{path} [texset]: {k} fehlt")
+            raise TexError(f"{path} [texset]: {k} missing")
     if ts["kind"] not in KINDS:
-        raise TexError(f"{path} [texset] kind: wall, floor oder ceiling erwartet")
+        raise TexError(f"{path} [texset] kind: wall, floor or ceiling expected")
     c = {
         "name": str(ts["name"]), "kind": ts["kind"], "geom": os.path.join(base, ts["geom"]),
         "dvg": os.path.join(base, ts["dvg"]) if ts.get("dvg") else None,
@@ -558,8 +558,8 @@ def load_tex_conf(path, out=None, strict=False, key=None, alpha_threshold=None):
         "load": _int("load", ts.get("load", dbemem.default_load(ts["kind"])), 0, 0xFFFF),
         "vrl_load": _int("vrl_load", ts.get("vrl_load", 0x4000), 0, 0xFFFF),
         "pool_bytes": _int("pool_bytes", ts.get("pool_bytes", 26624), 0, 1 << 24),
-        "max_kerns": _int("max_kerns", ts.get("max_kerns", 4), 0, 4),
-        "kern_min": _int("kern_min", ts.get("kern_min", 16), 1, 65535),
+        "max_cores": _int("max_cores", ts.get("max_cores", 4), 0, 4),
+        "core_min": _int("core_min", ts.get("core_min", 16), 1, 65535),
         "fill_rows": bool(ts.get("fill_rows", True)),
         "key": key if key is not None else ts.get("key"),
         "alpha_threshold": _int("alpha_threshold", alpha_threshold if alpha_threshold is not None
@@ -568,19 +568,19 @@ def load_tex_conf(path, out=None, strict=False, key=None, alpha_threshold=None):
     }
     styles = cfg.get("style") or []
     if not 1 <= len(styles) <= 32:
-        raise TexError(f"{path}: 1 ... 32 Stile erwartet, gefunden {len(styles)}")
+        raise TexError(f"{path}: 1 ... 32 styles expected, found {len(styles)}")
     names = set()
     c["styles"] = []
     for i, st in enumerate(styles):
         where = f"{path} [[style]] {i}"
         _check_keys(where, st, STYLE_KEYS)
         if "name" not in st:
-            raise TexError(f"{where}: name fehlt")
+            raise TexError(f"{where}: name missing")
         if st["name"] in names:
-            raise TexError(f"{where}: Name {st['name']!r} doppelt")
+            raise TexError(f"{where}: name {st['name']!r} duplicated")
         names.add(st["name"])
         if ("png" in st) == ("aseprite" in st):
-            raise TexError(f"{where}: genau eine Quelle (png oder aseprite) erwartet")
+            raise TexError(f"{where}: exactly one source (png or aseprite) expected")
         s = {"name": st["name"], "empty": list(st.get("empty", [])), "tag": st.get("tag"),
              "frame": st.get("frame")}
         if "png" in st:
@@ -591,7 +591,7 @@ def load_tex_conf(path, out=None, strict=False, key=None, alpha_threshold=None):
     return c
 
 
-# ---------------------------------------------------------------- Aufbau des Texturset
+# ---------------------------------------------------------------- Building the texture set
 
 class _Builder:
     def __init__(self, conf, geom, slots, smap):
@@ -600,7 +600,7 @@ class _Builder:
         self.vram = bytearray()
         self.warns, self.infos = [], []
         self.stride = geom["viewport"]["stride"]
-        self.prep = {}      # (stil, slot) -> (pix, states, entry index)
+        self.prep = {}      # (style, slot) -> (pix, states, entry index)
 
     def add_entry(self, key, e):
         if key in self.keys:
@@ -614,13 +614,13 @@ class _Builder:
         w, h = slot["rect"][2], slot["rect"][3]
         pix, disc = apply_mask(pix, mask)
         if disc:
-            self.warns.append(f"{stylename}/{slot['name']}: {disc} Pixel ausserhalb der Maske, uebermalt, abgeschnitten")
+            self.warns.append(f"{stylename}/{slot['name']}: {disc} pixels outside the mask, painted over, clipped")
         states = classify(pix)
         if all(st == "." for row in states for st in row):
             return None
         n = resolve_alpha_conflict(pix, states)
         if n:
-            self.warns.append(f"{stylename}/{slot['name']}: alle 16 Farben in halb-R-Bytes, {n} Bytes voll gemacht")
+            self.warns.append(f"{stylename}/{slot['name']}: all 16 colors in half-R bytes, {n} bytes made full")
         key = (si, tuple(tuple(r) for r in pix))
         if key in self.keys:
             idx = self.keys[key]
@@ -628,8 +628,8 @@ class _Builder:
             self.prep[(stylename, si)] = (pix, states, idx)
             return idx
         e = Entry(slot=si, h=h, style_names=[stylename])
-        deck = is_deckend(slot, states, self.geom)
-        # Zeilenfuellung
+        occ = is_occluding(slot, states, self.geom)
+        # row fill
         if slot["band"] and self.conf["fill_rows"]:
             fills = []
             ok = True
@@ -643,26 +643,26 @@ class _Builder:
                     break
                 fills.append(bs.pop())
             if ok:
-                e.flags, e.fill = F_ZEILEN, bytes(fills)
+                e.flags, e.fill = F_ROWS, bytes(fills)
                 self.entries.append(e)
                 self.keys[key] = idx = len(self.entries) - 1
                 e.source = idx
                 self.prep[(stylename, si)] = (pix, states, idx)
                 return idx
-        kerns = choose_kerns(states, self.conf["max_kerns"], self.conf["kern_min"])
-        alpha, rand, vms = pack_image(pix, states, kerns, self.stride)
+        cores = choose_cores(states, self.conf["max_cores"], self.conf["core_min"])
+        alpha, edge, vms = pack_image(pix, states, cores, self.stride)
         ofs = len(self.vram)
-        for (kx, ky, kw, kh) in kerns:
-            e.kerns.append(Kern(len(self.vram), kx, ky, kw, kh, 0))
-            self.vram += kern_bytes(pix, [(kx, ky, kw, kh)])
-        e.rand_ofs, e.rand, e.rand_len, e.vms = len(self.vram), rand, len(rand), vms
-        self.vram += rand
-        if not rand:
-            e.rand_ofs = 0
+        for (kx, ky, kw, kh) in cores:
+            e.cores.append(Core(len(self.vram), kx, ky, kw, kh, 0))
+            self.vram += core_bytes(pix, [(kx, ky, kw, kh)])
+        e.edge_ofs, e.edge, e.edge_len, e.vms = len(self.vram), edge, len(edge), vms
+        self.vram += edge
+        if not edge:
+            e.edge_ofs = 0
         else:
-            e.flags |= F_RAND
-        if deck:
-            e.flags |= F_DECKEND
+            e.flags |= F_EDGE
+        if occ:
+            e.flags |= F_OCCLUDING
         self.entries.append(e)
         idx = self.keys[key] = len(self.entries) - 1
         e.source = idx
@@ -670,7 +670,7 @@ class _Builder:
         return idx
 
     def partial_entry(self, si, fsi, stylename):
-        """Ausschnitt der Vollfront (fsi) fuer Teilfront si (5.3)."""
+        """Crop of the full front (fsi) for partial front si (5.3)."""
         slot, fslot = self.slots[si], self.slots[fsi]
         fpix, fstates, fidx = self.prep[(stylename, fsi)]
         fe = self.entries[fidx]
@@ -683,13 +683,13 @@ class _Builder:
         fx, fy, fw, fh = fslot["rect"]
         sdx, ry = slot["src_dx"], y - fy
         if sdx < 0 or sdx + w > fw or ry < 0 or ry + h > fh:
-            raise TexError(f"{slot['name']}: Teilfront liegt nicht im Bild der Vollfront")
+            raise TexError(f"{slot['name']}: partial front does not lie within the image of the full front")
         cpix = [row[2 * sdx:2 * (sdx + w)] for row in fpix[ry:ry + h]]
         cpix, _ = apply_mask(cpix, slot["mask"])
         cstates = classify(cpix)
-        e = Entry(slot=si, flags=F_AUSSCHNITT, h=h, style_names=[stylename], source=fidx)
+        e = Entry(slot=si, flags=F_CUTOUT, h=h, style_names=[stylename], source=fidx)
         lk = []
-        for k in fe.kerns:
+        for k in fe.cores:
             a, b = max(k.dx, sdx), min(k.dx + k.w, sdx + w)
             r0, r1 = max(k.dy, ry), min(k.dy + k.h, ry + h)
             if a >= b or r0 >= r1:
@@ -697,28 +697,28 @@ class _Builder:
             for r in range(r0 - ry, r1 - ry):
                 for c in range(a - sdx, b - sdx):
                     if cstates[r][c] != "F":
-                        raise TexError(f"{slot['name']}: Kern der Vollfront liegt nicht voll in der Teilfront")
+                        raise TexError(f"{slot['name']}: core of the full front does not lie fully within the partial front")
             lk.append((a - sdx, r0 - ry, b - a, r1 - r0))
-            e.kerns.append(Kern(k.src + (r0 - k.dy) * k.w + (a - k.dx), a - sdx, r0 - ry, b - a, r1 - r0, k.w))
-        alpha, rand, vms = pack_image(cpix, cstates, lk, self.stride)
-        if rand:
-            e.rand_ofs, e.rand, e.rand_len, e.vms = len(self.vram), rand, len(rand), vms
-            e.flags |= F_RAND
-            self.vram += rand
-        if is_deckend(slot, cstates, self.geom):
-            e.flags |= F_DECKEND
+            e.cores.append(Core(k.src + (r0 - k.dy) * k.w + (a - k.dx), a - sdx, r0 - ry, b - a, r1 - r0, k.w))
+        alpha, edge, vms = pack_image(cpix, cstates, lk, self.stride)
+        if edge:
+            e.edge_ofs, e.edge, e.edge_len, e.vms = len(self.vram), edge, len(edge), vms
+            e.flags |= F_EDGE
+            self.vram += edge
+        if is_occluding(slot, cstates, self.geom):
+            e.flags |= F_OCCLUDING
         self.entries.append(e)
         idx = self.keys[key] = len(self.entries) - 1
         return idx
 
 
 def build_texset(conf):
-    """-> (TexSet, Warnungen, Infos); conf wie load_tex_conf."""
+    """-> (TexSet, warnings, infos); conf as in load_tex_conf."""
     geom = load_geom(conf["geom"], conf.get("dvg"))
     kind = conf["kind"]
     slots, smap = slot_infos(geom, kind)
     if not slots:
-        raise TexError(f"Geometrie hat keine Zeichenplaetze der Art {kind}")
+        raise TexError(f"Geometry has no drawing slots of kind {kind}")
     b = _Builder(conf, geom, slots, smap)
     key = conf.get("key")
     thr = conf["alpha_threshold"]
@@ -728,14 +728,14 @@ def build_texset(conf):
         sn = st["name"]
         for en in st["empty"]:
             if en not in names:
-                raise TexError(f"Stil {sn}: empty: {en!r} ist kein Zeichenplatz der Art {kind}")
+                raise TexError(f"Style {sn}: empty: {en!r} is not a drawing slot of kind {kind}")
         if "png" in st:
             src = PngSource(st["png"], geom, key, thr)
         else:
             src = AseSource(st["aseprite"], geom, st["tag"], st["frame"], key, thr)
             b.warns += src.warn
         vals = [None] * len(slots)
-        # nicht abgeleitete Bilder zuerst
+        # non-derived images first
         for si, slot in enumerate(slots):
             if slot["partial"]:
                 continue
@@ -748,11 +748,11 @@ def build_texset(conf):
             pix, w = to_indices(src.img, box, key, thr, conf["strict"])
             b.warns += [f"{sn}/{slot['name']}: {m}" for m in w]
             if "png" in st and is_template(src.img, box, slot):
-                b.infos.append(f"{sn}/{slot['name']}: nicht bemalt")
+                b.infos.append(f"{sn}/{slot['name']}: not painted")
                 continue
             idx = b.image_entry(si, pix, slot["mask"], sn)
             if idx is None:
-                b.infos.append(f"{sn}/{slot['name']}: nicht bemalt (leer)")
+                b.infos.append(f"{sn}/{slot['name']}: not painted (empty)")
                 continue
             vals[si] = idx
         for si, slot in enumerate(slots):
@@ -766,23 +766,23 @@ def build_texset(conf):
             elif fsi is not None and vals[fsi] == NOIMG:
                 vals[si] = NOIMG
         styles.append(vals)
-    # Stiltabelle: fehlend -> $FF (Stil >= 1) / $FE (Stil 0)
+    # Style table: missing -> $FF (style >= 1) / $FE (style 0)
     for sti, vals in enumerate(styles):
         for si, v in enumerate(vals):
             if v is None:
                 if sti == 0:
                     vals[si] = NOIMG
                     if not slots[si]["partial"]:
-                        b.warns.append(f"Stil 0 ohne Bild fuer {slots[si]['name']}")
+                        b.warns.append(f"Style 0 without image for {slots[si]['name']}")
                 else:
                     vals[si] = FALLBACK
     if len(b.entries) > 254:
-        raise TexError(f"zu viele Bilder: {len(b.entries)} > 254 - Stile auf zwei DTS verteilen")
+        raise TexError(f"too many images: {len(b.entries)} > 254 - split styles across two DTS files")
     if len(b.vram) > 65535:
-        raise TexError(f"VRAM-Daten {len(b.vram)} > 65535 Byte")
-    nk = sum(len(e.kerns) for e in b.entries)
+        raise TexError(f"VRAM data {len(b.vram)} > 65535 bytes")
+    nk = sum(len(e.cores) for e in b.entries)
     if nk > 255:
-        raise TexError(f"zu viele Kerne: {nk} > 255")
+        raise TexError(f"too many cores: {nk} > 255")
     vp = geom["viewport"]
     ts = TexSet(KINDS[kind], geom["geometry_id"], len(geom["elements"]), vp["depth"], vp["stride"], smap,
                 styles, b.entries, bytes(b.vram))
@@ -801,22 +801,22 @@ def to_dts(ts, load=None):
     ne, D = ts.ne, ts.depth
     ns = sum(1 for v in ts.slot_map if v != FALLBACK)
     nst, ni = len(ts.styles), len(ts.entries)
-    nk = sum(len(e.kerns) for e in ts.entries)
+    nk = sum(len(e.cores) for e in ts.entries)
     o_slot = HEAD
     o_style = o_slot + len(ts.slot_map)
     o_dir = o_style + nst * ns
-    o_kern = o_dir + 16 * ni
-    o_data = o_kern + 8 * nk
+    o_core = o_dir + 16 * ni
+    o_data = o_core + 8 * nk
     data = bytearray()
-    dirs, kerns = bytearray(), bytearray()
-    kpos = o_kern
+    dirs, cores = bytearray(), bytearray()
+    kpos = o_core
     for i, e in enumerate(ts.entries):
         kofs = 0
-        if e.kerns:
+        if e.cores:
             kofs = kpos
-            for k in e.kerns:
-                kerns += struct.pack("<HBBBBH", k.src, k.dx, k.dy, k.w, k.h, k.srcstep)
-            kpos += 8 * len(e.kerns)
+            for k in e.cores:
+                cores += struct.pack("<HBBBBH", k.src, k.dx, k.dy, k.w, k.h, k.srcstep)
+            kpos += 8 * len(e.cores)
         vofs = vlen = 0
         if e.fill:
             kofs = o_data + len(data)
@@ -824,81 +824,81 @@ def to_dts(ts, load=None):
         if e.vms:
             vofs, vlen = o_data + len(data), len(e.vms)
             data += e.vms
-        dirs += struct.pack("<BBBBHHHHHBB", e.flags, e.slot, len(e.kerns), len(e.fill) if e.fill else e.h, kofs,
-                            e.rand_ofs, e.rand_len, vofs, vlen, e.source if e.flags & F_AUSSCHNITT else i, 0)
+        dirs += struct.pack("<BBBBHHHHHBB", e.flags, e.slot, len(e.cores), len(e.fill) if e.fill else e.h, kofs,
+                            e.edge_ofs, e.edge_len, vofs, vlen, e.source if e.flags & F_CUTOUT else i, 0)
     total = o_data + len(data)
     if total > 65535:
-        raise TexError(f"DTS-Inhalt {total} > 65535 Byte")
+        raise TexError(f"DTS content {total} > 65535 bytes")
     head = bytearray(HEAD)
     head[0:3] = b"DT\x01"
     head[3] = ts.kind
     struct.pack_into("<H", head, 4, ts.geometry_id)
     head[6], head[7], head[8], head[9], head[10], head[11] = ne, D, ns, nst, ni, nk
-    struct.pack_into("<HHHHHH", head, 12, o_slot, o_style, o_dir, o_kern, o_data, total)
+    struct.pack_into("<HHHHHH", head, 12, o_slot, o_style, o_dir, o_core, o_data, total)
     struct.pack_into("<HHH", head, 24, len(ts.vram), binascii.crc_hqx(ts.vram, 0xFFFF), ts.stride)
     out = bytearray(head)
     out += bytes(ts.slot_map)
     for vals in ts.styles:
         out += bytes(vals)
-    out += dirs + kerns + data
+    out += dirs + cores + data
     assert len(out) == total
     return struct.pack("<H", load) + bytes(out)
 
 
 def from_dts(data, vram=None):
-    """DTS-PRG -> TexSet (vram optional; ohne bleiben die Randbytes leer). TexError bei Formatfehlern."""
+    """DTS PRG -> TexSet (vram optional; without it the edge bytes stay empty). TexError on format errors."""
     if len(data) < 2 + HEAD:
-        raise TexError("DTS: Datei kuerzer als der Kopf")
+        raise TexError("DTS: file shorter than the header")
     c = data[2:]
     if c[0:2] != b"DT":
-        raise TexError("DTS: falsches Magic (erwartet 'DT')")
+        raise TexError("DTS: wrong magic (expected 'DT')")
     if c[2] != 1:
-        raise TexError(f"DTS: Version {c[2]} nicht unterstuetzt")
+        raise TexError(f"DTS: version {c[2]} not supported")
     kind, gid, ne, D, ns, nst, ni, nk = c[3], *struct.unpack_from("<H", c, 4), c[6], c[7], c[8], c[9], c[10], c[11]
-    o_slot, o_style, o_dir, o_kern, o_data, total = struct.unpack_from("<HHHHHH", c, 12)
+    o_slot, o_style, o_dir, o_core, o_data, total = struct.unpack_from("<HHHHHH", c, 12)
     u, crc, stride = struct.unpack_from("<HHH", c, 24)
     nsm = ne + 2 * (D + 1)
     if kind > 2:
-        raise TexError(f"DTS: Art {kind} ungueltig")
+        raise TexError(f"DTS: kind {kind} invalid")
     exp = (HEAD, HEAD + nsm, HEAD + nsm + nst * ns, HEAD + nsm + nst * ns + 16 * ni,
            HEAD + nsm + nst * ns + 16 * ni + 8 * nk)
-    if (o_slot, o_style, o_dir, o_kern, o_data) != exp:
-        raise TexError("DTS: Offsets im Kopf passen nicht zu den Anzahlen (Bereiche nicht lueckenlos)")
+    if (o_slot, o_style, o_dir, o_core, o_data) != exp:
+        raise TexError("DTS: offsets in the header do not match the counts (ranges not contiguous)")
     if len(c) < total or total < o_data:
-        raise TexError(f"DTS: Datei zu kurz ({len(c)} < {total})")
+        raise TexError(f"DTS: file too short ({len(c)} < {total})")
     smap = list(c[o_slot:o_slot + nsm])
     styles = [list(c[o_style + i * ns:o_style + (i + 1) * ns]) for i in range(nst)]
     for i, vals in enumerate(styles):
         for v in vals:
             if v < NOIMG and v >= ni:
-                raise TexError(f"DTS: Stil {i} verweist auf Bild {v} >= NI {ni}")
+                raise TexError(f"DTS: style {i} refers to image {v} >= NI {ni}")
         if i == 0 and FALLBACK in vals:
-            raise TexError("DTS: $FF in Stil 0")
+            raise TexError("DTS: $FF in style 0")
     entries, kp = [], 0
     for i in range(ni):
         fl, slot, nkk, h, kofs, rofs, rlen, vofs, vlen, src, _ = struct.unpack_from("<BBBBHHHHHBB", c, o_dir + 16 * i)
-        e = Entry(slot=slot, flags=fl, h=h, rand_ofs=rofs, rand_len=rlen, source=src)
-        if fl & F_ZEILEN:
+        e = Entry(slot=slot, flags=fl, h=h, edge_ofs=rofs, edge_len=rlen, source=src)
+        if fl & F_ROWS:
             e.fill = bytes(c[kofs:kofs + h])
         else:
             for j in range(nkk):
                 a, dx, dy, w, hh, ss = struct.unpack_from("<HBBBBH", c, kofs + 8 * j)
-                e.kerns.append(Kern(a, dx, dy, w, hh, ss))
+                e.cores.append(Core(a, dx, dy, w, hh, ss))
         if vlen:
             e.vms = bytes(c[vofs:vofs + vlen])
-            check_vms(e.vms, stride, h, stride, f"DTS: Bild {i}")
+            check_vms(e.vms, stride, h, stride, f"DTS: image {i}")
         if vram is not None and rlen:
-            e.rand = bytes(vram[rofs:rofs + rlen])
+            e.edge = bytes(vram[rofs:rofs + rlen])
         entries.append(e)
     ts = TexSet(kind, gid, ne, D, stride, smap, styles, entries, bytes(vram) if vram is not None else b"")
     ts.u, ts.crc, ts.total, ts.ns, ts.nk = u, crc, total, ns, nk
     return ts
 
 
-# ---------------------------------------------------------------- Simulatoren (VDC-BASIC VMC / VMF / VMS)
+# ---------------------------------------------------------------- Simulators (VDC-BASIC VMC / VMF / VMS)
 
 def sim_vmc(vram, src, dst, count, reps=1, dststep=0, srcstep=0, fb=None):
-    """Kopiert reps Zeilen zu je count Byte; srcstep 0 = Quelle fortlaufend."""
+    """Copies reps rows of count bytes each; srcstep 0 = source contiguous."""
     fb = vram if fb is None else fb
     for r in range(reps):
         s = (src + r * (srcstep or count)) & 0xFFFF
@@ -913,10 +913,10 @@ def sim_vmf(vram, dst, byte, count):
 
 
 def sim_vms(vram, src, dst, vms_list, fb=None):
-    """VMS-Liste nach vms-format.md (Typ 1, 8 und 3 = source skip)."""
+    """VMS list per vms-format.md (type 1, 8 and 3 = source skip)."""
     fb = vram if fb is None else fb
     if len(vms_list) < 3:
-        raise TexError("VMS-Liste kuerzer als der Kopf")
+        raise TexError("VMS list shorter than the header")
     alpha = vms_list[0]
     n = vms_list[1] | vms_list[2] << 8
     p, rd = 3, src
@@ -942,13 +942,13 @@ def sim_vms(vram, src, dst, vms_list, fb=None):
             else:
                 fb[a] = (fb[a] & 0xF0) | (b & 15)
         else:
-            raise TexError(f"VMS: ungueltiger Befehl {t}")
+            raise TexError(f"VMS: invalid command {t}")
 
 
-# ---------------------------------------------------------------- Referenz-Renderer
+# ---------------------------------------------------------------- Reference renderer
 
 def render(ts, style, slot, vram, fb, ap=0, origin=0, stride=None, vb=0, geom=None, t0=None):
-    """Zeichnet Eintrag (style, slot) nach 4.4; $FF -> Stil 0, $FE -> nichts. vb = VRAM-Basis der Daten."""
+    """Draws entry (style, slot) per 4.4; $FF -> style 0, $FE -> nothing. vb = VRAM base of the data."""
     stride = stride or ts.stride
     v = ts.styles[style][slot]
     if v == FALLBACK:
@@ -960,15 +960,15 @@ def render(ts, style, slot, vram, fb, ap=0, origin=0, stride=None, vb=0, geom=No
     if t0 is None:
         x, y = slots[slot]["rect"][:2]
         t0 = ap + origin + y * stride + x
-    if e.flags & F_ZEILEN:
+    if e.flags & F_ROWS:
         w = slots[slot]["rect"][2]
         for i, b in enumerate(e.fill):
             sim_vmf(fb, t0 + i * stride, b, w)
         return True
-    for k in e.kerns:
+    for k in e.cores:
         sim_vmc(vram, vb + k.src, t0 + k.dy * stride + k.dx, k.w, k.h, stride, k.srcstep, fb=fb)
-    if e.flags & F_RAND:
-        sim_vms(vram, vb + e.rand_ofs, t0, e.vms, fb=fb)
+    if e.flags & F_EDGE:
+        sim_vms(vram, vb + e.edge_ofs, t0, e.vms, fb=fb)
     return True
 
 
@@ -987,18 +987,18 @@ def fb_to_image(fb, vw, h, stride, base=0, zoom=1):
 
 
 def preview(ts, geom, style, vb=0x4000):
-    """Probebild eines Stils (7.3) als PIL-Bild."""
+    """Preview image of a style (7.3) as a PIL image."""
     vp = geom["viewport"]
     vw, h, stride = vp["width_px"] // 2, vp["height"], vp["stride"]
     mem = bytearray(65536)
     if vb + len(ts.vram) > 65536:
-        raise TexError("Vorschau: VRAM-Daten passen nicht hinter die Vorschau-Basis")
+        raise TexError("Preview: VRAM data does not fit behind the preview base")
     mem[vb:vb + len(ts.vram)] = ts.vram
     slots = ts.slots
     D = ts.depth
     order = []
     if ts.kind == 0:
-        # Maleralgorithmus: Seite d liegt zwischen den Ebenen d und d + 1, also hinter der Front d
+        # Painter's algorithm: side d lies between planes d and d + 1, i.e. behind front d
         for d in range(D, -1, -1):
             order += [i for i, s in enumerate(slots) if s["art"] == "side" and s["d"] == d and abs(s["s"]) == 1]
             if d == D:
@@ -1012,7 +1012,7 @@ def preview(ts, geom, style, vb=0x4000):
     return fb_to_image(mem, vw, h, stride, 0, 4)
 
 
-# ---------------------------------------------------------------- DBG (Tapete)
+# ---------------------------------------------------------------- DBG (wallpaper)
 
 BG_KEYS = {"name", "geom", "png", "y0", "offsets", "wrap", "above", "below", "out", "load", "vrl_load", "key"}
 
@@ -1022,12 +1022,12 @@ def load_bg_conf(path, out=None, strict=False):
     base = os.path.dirname(os.path.abspath(path))
     _check_keys(path, cfg, {"format", "version", "background"})
     if cfg.get("format") != "dbebg" or cfg.get("version") != 1:
-        raise TexError(f'{path}: format = "dbebg" und version = 1 erwartet')
+        raise TexError(f'{path}: format = "dbebg" and version = 1 expected')
     bg = dict(cfg.get("background") or {})
     _check_keys(f"{path} [background]", bg, BG_KEYS)
     for k in ("name", "geom", "png"):
         if k not in bg:
-            raise TexError(f"{path} [background]: {k} fehlt")
+            raise TexError(f"{path} [background]: {k} missing")
     return {"name": str(bg["name"]), "geom": os.path.join(base, bg["geom"]), "png": os.path.join(base, bg["png"]),
             "y0": bg.get("y0", "horizon"), "offsets": bg.get("offsets", "auto"), "wrap": bool(bg.get("wrap", True)),
             "above": bg.get("above", 0), "below": bg.get("below", 0),
@@ -1041,42 +1041,42 @@ def _bg_fill(v, n, what):
     if isinstance(v, int):
         v = [v] * n
     if not isinstance(v, list) or len(v) != n or not all(isinstance(c, int) and 0 <= c <= 15 for c in v):
-        raise TexError(f"{what}: Farbe 0 ... 15 oder Liste mit {n} Farben erwartet")
+        raise TexError(f"{what}: color 0 ... 15 or list of {n} colors expected")
     return v
 
 
 def build_background(conf):
-    """-> (dbg PRG, vram, Warnungen)."""
+    """-> (dbg PRG, vram, warnings)."""
     geom = load_geom(conf["geom"], conf.get("dvg"))
     vp = geom["viewport"]
     VW, VH = vp["width_px"] // 2, vp["height"]
     img = read_rgba(conf["png"])
     if img.width % 2:
-        raise TexError(f"{conf['png']}: Breite {img.width} nicht gerade")
+        raise TexError(f"{conf['png']}: width {img.width} not even")
     P, h = img.width // 2, img.height
     pix, warns = to_indices(img, (0, 0, img.width, h), conf.get("key"), 0, conf.get("strict"))
     if any(v is None for row in pix for v in row):
-        raise TexError(f"{conf['png']}: Panorama hat transparente Pixel")
+        raise TexError(f"{conf['png']}: panorama has transparent pixels")
     if P < VW:
-        raise TexError(f"Panoramabreite {P} < Sichtfensterbreite {VW}")
+        raise TexError(f"Panorama width {P} < viewport width {VW}")
     if P * h > 65535:
-        raise TexError(f"Panorama {P} x {h} = {P * h} > 65535 Byte")
+        raise TexError(f"Panorama {P} x {h} = {P * h} > 65535 bytes")
     y0 = conf["y0"]
     if y0 == "horizon":
         hy0, hy1 = geom["horizon"]
         y0 = hy0 + (hy1 - hy0 - h) // 2
     y0 = _int("y0", y0, -1000, 1000)
     if y0 < 0 or y0 + h > VH:
-        raise TexError(f"y0 {y0} + h {h} liegt nicht im Sichtfenster (0 ... {VH})")
+        raise TexError(f"y0 {y0} + h {h} does not lie within the viewport (0 ... {VH})")
     off = conf["offsets"]
     if off == "auto":
         if P % 4:
-            raise TexError(f"offsets = auto: Panoramabreite {P} nicht durch 4 teilbar")
+            raise TexError(f"offsets = auto: panorama width {P} not divisible by 4")
         off = [v * P // 4 for v in range(4)]
     if not (isinstance(off, list) and len(off) == 4 and all(isinstance(o, int) and 0 <= o < P for o in off)):
-        raise TexError(f"offsets: 4 Werte 0 ... {P - 1} erwartet")
+        raise TexError(f"offsets: 4 values 0 ... {P - 1} expected")
     if not conf["wrap"] and any(o + VW > P for o in off):
-        raise TexError("ohne wrap muss o_v + VW <= P fuer alle Richtungen gelten")
+        raise TexError("without wrap, o_v + VW <= P must hold for all directions")
     above = _bg_fill(conf["above"], y0, "above")
     below = _bg_fill(conf["below"], VH - (y0 + h), "below")
     fill = [c * 17 for c in above] + [0] * h + [c * 17 for c in below]
@@ -1096,23 +1096,23 @@ def build_background(conf):
 
 def from_dbg(data):
     if len(data) < 2 + 24:
-        raise TexError("DBG: Datei kuerzer als der Kopf")
+        raise TexError("DBG: file shorter than the header")
     c = data[2:]
     if c[0:2] != b"DB":
-        raise TexError("DBG: falsches Magic (erwartet 'DB')")
+        raise TexError("DBG: wrong magic (expected 'DB')")
     if c[2] != 1:
-        raise TexError(f"DBG: Version {c[2]} nicht unterstuetzt")
+        raise TexError(f"DBG: version {c[2]} not supported")
     gid, P = struct.unpack_from("<HH", c, 5)
     u, crc = struct.unpack_from("<HH", c, 20)
     vw, vh = c[3], c[4]
     if len(c) != 24 + vh:
-        raise TexError(f"DBG: Laenge {len(c)} != {24 + vh}")
+        raise TexError(f"DBG: length {len(c)} != {24 + vh}")
     return {"vw": vw, "vh": vh, "geometry_id": gid, "P": P, "y0": c[9], "h": c[10], "wrap": bool(c[11] & 1),
             "offsets": list(struct.unpack_from("<4H", c, 12)), "u": u, "crc": crc, "fill": list(c[24:24 + vh])}
 
 
 def render_background(bg, vram, v, fb, vb=0, ap=0, stride=80):
-    """Horizontzeilen fuer Blickrichtung v mit sim_vmc/sim_vmf in fb (6.2)."""
+    """Horizon rows for view direction v into fb using sim_vmc/sim_vmf (6.2)."""
     vw, P, o = bg["vw"], bg["P"], bg["offsets"][v]
     for r in range(bg["vh"]):
         t0 = ap + r * stride
@@ -1122,17 +1122,17 @@ def render_background(bg, vram, v, fb, vb=0, ap=0, stride=80):
             sim_vmc(vram, src + o, t0, n1, 1, 0, 0, fb=fb)
             if n1 < vw:
                 if not bg["wrap"]:
-                    raise TexError("DBG: Zugriff ueber P ohne WRAP")
+                    raise TexError("DBG: access beyond P without WRAP")
                 sim_vmc(vram, src, t0 + n1, vw - n1, 1, 0, 0, fb=fb)
         else:
             sim_vmf(fb, t0, bg["fill"][r], vw)
 
 
-# ---------------------------------------------------------------- Bericht und Budget
+# ---------------------------------------------------------------- Report and budget
 
 def vms_bound(ts):
-    """Obere Schranke fuer die VMS-Listen eines Bildes: je Slot das Maximum ueber die Stile (8.1).
-    Rueckgabe (kacheln_oder_waende, baender)."""
+    """Upper bound for the VMS lists of a view: per slot the maximum over the styles (8.1).
+    Returns (tiles_or_walls, bands)."""
     tot = [0, 0]
     smap = ts.slot_map
     band_slots = {v for i, v in enumerate(smap) if i >= ts.ne and v != FALLBACK}
@@ -1158,35 +1158,35 @@ def build_report(ts, conf, warns, infos, vrl_stream, dts_len):
         for k, v in enumerate(vals):
             row = {"style": ts.style_names[si], "slot": slots[k]["name"], "value": v}
             if v >= NOIMG:
-                row["source"] = "$FF -> Stil 0" if v == FALLBACK else "$FE"
+                row["source"] = "$FF -> style 0" if v == FALLBACK else "$FE"
             else:
                 e = ts.entries[v]
                 own = e.style_names[0] if e.style_names else ""
                 row["entry"] = v
-                row["source"] = "eigen" if own == ts.style_names[si] else f"geteilt mit {own}"
-                if e.flags & F_AUSSCHNITT:
-                    row["source"] += f", Ausschnitt von {e.source}"
-                row["kerns"] = len(e.kerns)
-                row["kern_bytes"] = sum(kk.w * kk.h for kk in e.kerns) if not e.flags & F_AUSSCHNITT else 0
-                row["rand"] = e.rand_len
+                row["source"] = "own" if own == ts.style_names[si] else f"shared with {own}"
+                if e.flags & F_CUTOUT:
+                    row["source"] += f", crop of {e.source}"
+                row["cores"] = len(e.cores)
+                row["core_bytes"] = sum(kk.w * kk.h for kk in e.cores) if not e.flags & F_CUTOUT else 0
+                row["edge"] = e.edge_len
                 row["vms"] = len(e.vms)
                 row["alpha"] = e.vms[0] if e.vms else None
-                row["deckend"] = bool(e.flags & F_DECKEND)
-                row["zeilen"] = bool(e.flags & F_ZEILEN)
+                row["occluding"] = bool(e.flags & F_OCCLUDING)
+                row["rows"] = bool(e.flags & F_ROWS)
                 if v not in seen:
                     seen.add(v)
-                    vram += row["kern_bytes"] + e.rand_len
+                    vram += row["core_bytes"] + e.edge_len
                 vms += len(e.vms)
             rows.append(row)
         per_style.append({"style": ts.style_names[si], "vram": vram, "vms": vms})
     b0, b1 = vms_bound(ts)
     warns = list(warns)
     if b0 > VMS_BUFFER:
-        warns.append(f"VMS-Schranke {b0} > VMS-Puffer {VMS_BUFFER}")
+        warns.append(f"VMS bound {b0} > VMS buffer {VMS_BUFFER}")
     for i, e in enumerate(ts.entries):
         if len(e.vms) > VMS_BUFFER:
-            warns.append(f"Bild {i} ({slots[e.slot]['name']}, {'/'.join(e.style_names)}): VMS-Liste {len(e.vms)} Byte "
-                         f"> VMS-Puffer {VMS_BUFFER} - nicht zeichenbar, mehr Kerne oder breitere Laeufe malen")
+            warns.append(f"Image {i} ({slots[e.slot]['name']}, {'/'.join(e.style_names)}): VMS list {len(e.vms)} bytes "
+                         f"> VMS buffer {VMS_BUFFER} - not drawable, paint more cores or wider runs")
     return {"name": conf["name"], "kind": KIND_NAMES[ts.kind], "geometry_id": ts.geometry_id, "ns": ts.ns,
             "nst": len(ts.styles), "ni": len(ts.entries), "nk": ts.nk, "dts_bytes": dts_len,
             "vram": len(ts.vram), "vrl_bytes": st["stream_bytes"], "vrl_ratio": st["ratio"],
@@ -1197,26 +1197,26 @@ def build_report(ts, conf, warns, infos, vrl_stream, dts_len):
 
 def report_md(rp):
     L = [f"# {rp['name']} ({rp['kind']})", "",
-         f"Geometrie-ID {rp['geometry_id']}, NS {rp['ns']}, NST {rp['nst']}, NI {rp['ni']}, NK {rp['nk']}", "",
-         f"- DTS-Inhalt: {rp['dts_bytes']} Byte",
-         f"- VRAM U: {rp['vram']} Byte (Pool {rp['pool_bytes']})",
-         f"- VRL-Strom: {rp['vrl_bytes']} Byte, Verhaeltnis {rp['vrl_ratio']:.3f}" if rp["vrl_ratio"] is not None
-         else f"- VRL-Strom: {rp['vrl_bytes']} Byte",
-         f"- VMS-Schranke: {rp['vms_bound']} / {rp['vms_buffer']} (Baender getrennt: {rp['vms_bound_bands']})", "",
-         "## Summen je Stil", "", "| Stil | VRAM | VMS |", "|---|---|---|"]
+         f"Geometry ID {rp['geometry_id']}, NS {rp['ns']}, NST {rp['nst']}, NI {rp['ni']}, NK {rp['nk']}", "",
+         f"- DTS content: {rp['dts_bytes']} bytes",
+         f"- VRAM U: {rp['vram']} bytes (Pool {rp['pool_bytes']})",
+         f"- VRL stream: {rp['vrl_bytes']} bytes, ratio {rp['vrl_ratio']:.3f}" if rp["vrl_ratio"] is not None
+         else f"- VRL stream: {rp['vrl_bytes']} bytes",
+         f"- VMS bound: {rp['vms_bound']} / {rp['vms_buffer']} (bands separate: {rp['vms_bound_bands']})", "",
+         "## Totals per style", "", "| Style | VRAM | VMS |", "|---|---|---|"]
     for s in rp["styles"]:
         L.append(f"| {s['style']} | {s['vram']} | {s['vms']} |")
-    L += ["", "## Bilder", "", "| Stil | Slot | Wert | Eintrag | Quelle | Kerne | Kernbyte | Rand | VMS | Alpha | DECKEND | ZEILEN |",
+    L += ["", "## Images", "", "| Style | Slot | Value | Entry | Source | Cores | Core bytes | Edge | VMS | Alpha | OCCLUDING | ROWS |",
           "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rp["rows"]:
         if "entry" in r:
-            L.append(f"| {r['style']} | {r['slot']} | {r['value']} | {r['entry']} | {r['source']} | {r['kerns']} | "
-                     f"{r['kern_bytes']} | {r['rand']} | {r['vms']} | {r['alpha'] if r['alpha'] is not None else ''} | "
-                     f"{int(r['deckend'])} | {int(r['zeilen'])} |")
+            L.append(f"| {r['style']} | {r['slot']} | {r['value']} | {r['entry']} | {r['source']} | {r['cores']} | "
+                     f"{r['core_bytes']} | {r['edge']} | {r['vms']} | {r['alpha'] if r['alpha'] is not None else ''} | "
+                     f"{int(r['occluding'])} | {int(r['rows'])} |")
         else:
             L.append(f"| {r['style']} | {r['slot']} | ${r['value']:02X} |  | {r['source']} |  |  |  |  |  |  |  |")
     if rp["warnings"]:
-        L += ["", "## Warnungen", ""] + [f"- {w}" for w in rp["warnings"]]
+        L += ["", "## Warnings", ""] + [f"- {w}" for w in rp["warnings"]]
     if rp["infos"]:
         L += ["", "## Infos", ""] + [f"- {w}" for w in rp["infos"]]
     return "\n".join(L) + "\n"
@@ -1237,7 +1237,7 @@ def file_kind(data, path=""):
         return "dbg"
     if data[2:4] == b"S2":
         return "s2"
-    raise TexError(f"{path}: weder DTS, DBG noch S2")
+    raise TexError(f"{path}: neither DTS, DBG nor S2")
 
 
 def budget(paths, pool, vms_buffer=VMS_BUFFER, pool_start=None):
@@ -1275,7 +1275,7 @@ def _addr(s):
     s = str(s).strip()
     v = int(s[1:], 16) if s.startswith("$") else int(s, 0)
     if not 0 <= v <= 0xFFFF:
-        raise argparse.ArgumentTypeError("Adresse ausserhalb 0 ... 65535: " + s)
+        raise argparse.ArgumentTypeError("Address outside 0 ... 65535: " + s)
     return v
 
 
@@ -1286,7 +1286,7 @@ def write(path, data):
 
 
 def check_bank1(kind, load, length):
-    """Abbruch, wenn die Datei ueber ihren Bereich der Bank-1-Speicherkarte (dbemem) hinausreicht."""
+    """Abort if the file extends beyond its range of the bank 1 memory map (dbemem)."""
     err = dbemem.range_error(kind, load, length)
     if err:
         raise TexError(err)
@@ -1310,10 +1310,10 @@ def cmd_build(a):
         for i, sn in enumerate(ts.style_names):
             preview(ts, geom, i).save(os.path.join(out, f"{name}_{sn}_preview.png"))
     n = lambda v: f"{v:,}".replace(",", " ")
-    print(f"{name}: {len(ts.styles)} Stile, {len(ts.entries)} Bilder, VRAM {n(rp['vram'])} Byte, "
-          f"VRL {n(rp['vrl_bytes'])} Byte, VMS-Schranke {n(rp['vms_bound'])}/{VMS_BUFFER}")
+    print(f"{name}: {len(ts.styles)} styles, {len(ts.entries)} images, VRAM {n(rp['vram'])} bytes, "
+          f"VRL {n(rp['vrl_bytes'])} bytes, VMS bound {n(rp['vms_bound'])}/{VMS_BUFFER}")
     for w in warns:
-        print("Warnung: " + w, file=sys.stderr)
+        print("Warning: " + w, file=sys.stderr)
     return 0
 
 
@@ -1324,9 +1324,9 @@ def cmd_bg(a):
     stream = vrl.encode(list(vram))
     write(os.path.join(conf["out"], conf["name"] + ".dbg"), dbg)
     write(os.path.join(conf["out"], conf["name"] + ".vrl"), vrl.pack_file(stream, conf["vrl_load"]))
-    print(f"{conf['name']}: Tapete, VRAM {len(vram)} Byte, VRL {len(stream)} Byte")
+    print(f"{conf['name']}: wallpaper, VRAM {len(vram)} bytes, VRL {len(stream)} bytes")
     for w in warns:
-        print("Warnung: " + w, file=sys.stderr)
+        print("Warning: " + w, file=sys.stderr)
     return 0
 
 
@@ -1340,18 +1340,18 @@ def cmd_dump(a):
         vramdata = bytes(vrl.decode(stream))
         vinfo = {"u": u, "crc": binascii.crc_hqx(vramdata, 0xFFFF)}
     if k == "s2":
-        raise TexError(f"{a.file}: Sprite-Satz - dbespr.py dump verwenden")
+        raise TexError(f"{a.file}: sprite set - use dbespr.py dump")
     if k == "dbg":
         bg = from_dbg(data)
         if vinfo:
             bg["vrl_check"] = {"u_ok": vinfo["u"] == bg["u"], "crc_ok": vinfo["crc"] == bg["crc"]}
             if not (bg["vrl_check"]["u_ok"] and bg["vrl_check"]["crc_ok"]):
-                raise TexError("VRL passt nicht zum DBG (U/CRC)")
+                raise TexError("VRL does not match the DBG (U/CRC)")
         print(json.dumps(bg, indent=1) if a.json else "\n".join(f"{k}: {v}" for k, v in bg.items()))
         return 0
     ts = from_dts(data, vramdata)
     if vinfo and (vinfo["u"] != ts.u or vinfo["crc"] != ts.crc):
-        raise TexError(f"VRL passt nicht zum DTS: U {vinfo['u']} / {ts.u}, CRC {vinfo['crc']:04X} / {ts.crc:04X}")
+        raise TexError(f"VRL does not match the DTS: U {vinfo['u']} / {ts.u}, CRC {vinfo['crc']:04X} / {ts.crc:04X}")
     names = None
     gj = os.path.splitext(a.file)[0] + ".geom.json"
     for cand in (gj, ):
@@ -1366,20 +1366,20 @@ def cmd_dump(a):
          "nst": len(ts.styles), "ni": len(ts.entries), "nk": ts.nk, "u": ts.u, "crc": ts.crc, "stride": ts.stride,
          "length": ts.total, "slot_map": ts.slot_map, "styles": ts.styles,
          "entries": [{"index": i, "slot": e.slot, "name": names[e.slot]["name"] if names else None, "flags": e.flags,
-                      "h": e.h, "source": e.source, "rand_ofs": e.rand_ofs, "rand_len": e.rand_len,
-                      "vms_len": len(e.vms), "kerns": [vars(kk) for kk in e.kerns], "fill": list(e.fill)}
+                      "h": e.h, "source": e.source, "edge_ofs": e.edge_ofs, "edge_len": e.edge_len,
+                      "vms_len": len(e.vms), "cores": [vars(kk) for kk in e.cores], "fill": list(e.fill)}
                      for i, e in enumerate(ts.entries)]}
     if a.json:
         print(json.dumps(d, indent=1))
     else:
         print(f"DTS {d['kind']} ID {d['geometry_id']} NE {d['ne']} D {d['depth']} NS {d['ns']} NST {d['nst']} "
-              f"NI {d['ni']} NK {d['nk']} U {d['u']} CRC {d['crc']:04X} stride {d['stride']} Laenge {d['length']}")
-        print("Slotkarte:", ts.slot_map)
+              f"NI {d['ni']} NK {d['nk']} U {d['u']} CRC {d['crc']:04X} stride {d['stride']} length {d['length']}")
+        print("Slot map:", ts.slot_map)
         for i, s in enumerate(ts.styles):
-            print(f"Stil {i}:", " ".join(f"{v:02X}" for v in s))
+            print(f"Style {i}:", " ".join(f"{v:02X}" for v in s))
         for e in d["entries"]:
-            print(f"Bild {e['index']}: slot {e['slot']} {e['name'] or ''} flags {e['flags']:X} h {e['h']} "
-                  f"kerne {len(e['kerns'])} rand {e['rand_len']} vms {e['vms_len']}")
+            print(f"Image {e['index']}: slot {e['slot']} {e['name'] or ''} flags {e['flags']:X} h {e['h']} "
+                  f"cores {len(e['cores'])} edge {e['edge_len']} vms {e['vms_len']}")
     return 0
 
 
@@ -1389,12 +1389,12 @@ def cmd_budget(a):
         print(json.dumps(r, indent=1))
     else:
         for f in r["files"]:
-            base = f"  Basis {f['base']:04X}" if "base" in f else ""
-            print(f"{f['file']}: {f['kind']}, U {f['u']}, {100 * f['share']:.1f} % des Pools{base}")
-        print(f"Summe {r['sum']} / Pool {r['pool']}, frei fuer Sprites: {r['free']}")
-        print(f"VMS-Schranke {r['vms_sum']} / {r['vms_buffer']}" + (" - Warnung: Puffer zu klein" if r["vms_over"] else ""))
+            base = f"  base {f['base']:04X}" if "base" in f else ""
+            print(f"{f['file']}: {f['kind']}, U {f['u']}, {100 * f['share']:.1f} % of the pool{base}")
+        print(f"Sum {r['sum']} / Pool {r['pool']}, free for sprites: {r['free']}")
+        print(f"VMS bound {r['vms_sum']} / {r['vms_buffer']}" + (" - warning: buffer too small" if r["vms_over"] else ""))
     if r["over"]:
-        print(f"Pool ueberschritten um {r['over']} Byte", file=sys.stderr)
+        print(f"Pool exceeded by {r['over']} bytes", file=sys.stderr)
         return 1
     return 0
 
@@ -1410,7 +1410,7 @@ def cmd_check(a):
         c = read_file(a.dvg)[2:]
         gid = struct.unpack_from("<H", c, 12)[0]
         if gid != dvg_id(c):
-            raise TexError(f"{a.dvg}: Geometrie-ID passt nicht zum Inhalt")
+            raise TexError(f"{a.dvg}: geometry ID does not match the content")
     errs = []
     sets = {}
     for kind, path in ((0, a.walls), (1, a.floors), (2, a.ceils)):
@@ -1418,35 +1418,35 @@ def cmd_check(a):
             continue
         ts = from_dts(read_file(path))
         if ts.kind != kind:
-            errs.append(f"{path}: Art {KIND_NAMES[ts.kind]}, erwartet {KIND_NAMES[kind]}")
+            errs.append(f"{path}: kind {KIND_NAMES[ts.kind]}, expected {KIND_NAMES[kind]}")
             continue
         sets[kind] = (ts, path)
         if gid is None:
             gid = ts.geometry_id
         if ts.geometry_id != gid:
-            errs.append(f"{path}: Geometrie-ID {ts.geometry_id} != {gid}")
+            errs.append(f"{path}: geometry ID {ts.geometry_id} != {gid}")
     used = sorted({c for c in m.cells} | {m.outside})
     for ti in used:
         t = m.tiles[ti]
-        nm = f"{t.name} (Kachel {ti})"
-        for kind, vals, label in ((0, [(v, f"Wandstil {'NOSW'[i]}") for i, v in enumerate(t.walls)], "walls"),
-                                  (1, [(t.floor, "Bodenstil")], "floors"), (2, [(t.ceiling, "Deckenstil")], "ceils")):
+        nm = f"{t.name} (tile {ti})"
+        for kind, vals, label in ((0, [(v, f"wall style {'NESW'[i]}") for i, v in enumerate(t.walls)], "walls"),
+                                  (1, [(t.floor, "floor style")], "floors"), (2, [(t.ceiling, "ceiling style")], "ceils")):
             if kind not in sets:
                 continue
             nst = len(sets[kind][0].styles)
             for v, what in vals:
                 if v >= 1 and v - 1 >= nst:
-                    errs.append(f"Kachel {nm}: {what} {v} > NST {nst} in {sets[kind][1]}")
+                    errs.append(f"Tile {nm}: {what} {v} > NST {nst} in {sets[kind][1]}")
     if errs:
         for e in errs:
-            print("Fehler: " + e, file=sys.stderr)
+            print("Error: " + e, file=sys.stderr)
         return 1
-    print(f"check: ok ({len(used)} Kacheln geprueft)")
+    print(f"check: ok ({len(used)} tiles checked)")
     return 0
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Texturen in DTS/DBG/VRL umwandeln")
+    ap = argparse.ArgumentParser(description="Convert textures to DTS/DBG/VRL")
     sp = ap.add_subparsers(dest="cmd", required=True)
     b = sp.add_parser("build")
     b.add_argument("toml")
@@ -1482,10 +1482,10 @@ def main(argv=None):
     try:
         return {"build": cmd_build, "bg": cmd_bg, "dump": cmd_dump, "budget": cmd_budget, "check": cmd_check}[a.cmd](a)
     except (TexError, ValueError, KeyError) as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
     except OSError as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
 
 

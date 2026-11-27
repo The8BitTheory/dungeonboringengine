@@ -1,533 +1,533 @@
-# P7: Crawl 128 auf Engine 0.2 und VDC-BASIC v3, Demo-Karte, Zeitvergleich
+# P7: Crawl 128 on Engine 0.2 and VDC-BASIC v3, demo map, timing comparison
 
-Stand: 2026-11-26. Detailspezifikation zu Schritt P7 aus `docs/plan-0.2.md` (Abschnitt 8: „Crawl auf 0.2 (pixelgleich), Demo-Karte mit Fenstern, Himmel, Abgrund und Gegnern, Zeitvergleich“; Abschnitt 9). Umsetzung: Sonnet (Code, Konverter, Harness), Haiku (Builds, Messläufe). Review: Opus.
+As of: 2026-11-26. Detailed specification for step P7 of `docs/plan-0.2.md` (section 8: "Crawl on 0.2 (pixel-identical), demo map with windows, sky, abyss and enemies, timing comparison"; section 9). Implementation: Sonnet (code, converter, harness), Haiku (builds, measurement runs). Review: Opus.
 
-Grundlagen: `P6-engine.md` (Speicherkarte G in 2.4, Funktionen 3, `VIEW` 5, Ergebnisse P6a–P6h), `P3-geometry.md` (DVG), `P4-map.md` (DMP, `crawlmap.py`), `P5-textures.md` (DTS, DBG), `P5b-sprites.md` (S2), `review-notes.md` (D.9, G.5, G.6, G.11), VDC-BASIC v3 (`vdc-basic` Branch `v3`: `docs/v3/P2a-relocate.md`, `docs/reference/commands.md` `RXV`), Spiel `dungeoncrawlerjam2025` Branch `dbe-0.2` (`README.md`, `game/crawl.bas`, `art/dbe/README.md`).
+Foundations: `P6-engine.md` (memory map G in 2.4, functions 3, `VIEW` 5, results P6a–P6h), `P3-geometry.md` (DVG), `P4-map.md` (DMP, `crawlmap.py`), `P5-textures.md` (DTS, DBG), `P5b-sprites.md` (S2), `review-notes.md` (D.9, G.5, G.6, G.11), VDC-BASIC v3 (`vdc-basic` branch `v3`: `docs/v3/P2a-relocate.md`, `docs/reference/commands.md` `RXV`), game `dungeoncrawlerjam2025` branch `dbe-0.2` (`README.md`, `game/crawl.bas`, `art/dbe/README.md`).
 
-Repos und Kurznamen in dieser Spec:
+Repos and short names in this spec:
 
-| Kurzname | Pfad | Branch |
+| Short name | Path | Branch |
 |---|---|---|
 | Engine | `~/git/dungeonboringengine` | `step2/textures-0.2` |
 | VB3 | `~/git/vdc-basic` | `v3` |
-| Spiel | `~/git/dungeoncrawlerjam2025` | `dbe-0.2` |
+| Game | `~/git/dungeoncrawlerjam2025` | `dbe-0.2` |
 | Blitz | `~/git/blitz-compiler` | – (`blitz128/blitzc/js/cli.js`) |
 
-Die Skripte finden die Nachbar-Repos über `DBE_DIR`, `VDCBASIC_DIR`, `BLITZC` (Standard: die Pfade oben).
+The scripts find the neighboring repos via `DBE_DIR`, `VDCBASIC_DIR`, `BLITZC` (default: the paths above).
 
-## 1. Überblick und Ergebnis der Machbarkeitsprüfung
+## 1. Overview and result of the feasibility check
 
-### 1.1 Ziele
+### 1.1 Goals
 
-1. **Crawl 128 Version 1.1:** dasselbe Spiel auf Engine 0.2 (`dbe0.2.stub`, `dbe0.2.lib`) und VDC-BASIC v3 (`$1C00–$3FFF`, Programm ab `$4001`). Die Spielbilder sind **pixelgleich zu 1.0f** (Abschnitt 6). WALLSET und Sprite-Sätze v1 entfallen, die Daten kommen per Konverter als DVG, DTS und S2.
-2. **Demo-Programm** der Engine mit Westwood-Geometrie: Fenster mit Landschaftstapete, Himmel als Decke, Abgrund, Goblins als animierte Gegner, Gitter und Tür mit INHALT (Abschnitt 8).
-3. **Zeitvergleich** 1.0f und 1.1 mit demselben Lauf aus 39 Tasten, kompiliert und interpretiert, bei 1 MHz und 2 MHz, in VICE und Z64K (Abschnitt 7).
+1. **Crawl 128 version 1.1:** the same game on Engine 0.2 (`dbe0.2.stub`, `dbe0.2.lib`) and VDC-BASIC v3 (`$1C00–$3FFF`, program from `$4001`). The game frames are **pixel-identical to 1.0f** (section 6). WALLSET and sprite sets v1 are dropped; the data comes from the converter as DVG, DTS and S2.
+2. **Demo program** of the engine with Westwood geometry: windows with landscape wallpaper, sky as ceiling, abyss, goblins as animated enemies, grille and door with CONTENT (section 8).
+3. **Timing comparison** of 1.0f and 1.1 with the same run of 39 keys, compiled and interpreted, at 1 MHz and 2 MHz, in VICE and Z64K (section 7).
 
-### 1.2 Wie weit „pixelgleich“ geht (Prüfung)
+### 1.2 How far "pixel-identical" goes (check)
 
-Die 19 Wandbilder von 1.0f (`walls.vdc`, Lage aus `walls.wsm`, siehe `tools/wallconv.py -v`) bilden **keine Ebenen-Geometrie**:
+The 19 wall images of 1.0f (`walls.vdc`, layout from `walls.wsm`, see `tools/wallconv.py -v`) do **not** form a **plane geometry**:
 
-- Alle Bilder sind **ganze Spaltenstreifen** mit 96 Zeilen. Decke und Boden sind als schwarze Pixel in den Bildern enthalten. Die Ausnahme ist Slot 9 mit 85 Zeilen, und dieses Bild deckt nicht ab.
-- Die Zellen (2, ±1) und (3, ±1) haben je **zwei Frontbilder** (Slots 8/9, 11/12, 15/16, 18/19).
-- Das Bild ist **asymmetrisch**: Slot 9 hat 85 Zeilen, Slot 12 hat 96. Die Geisterspalten liegen bei 9/36/59, das ergibt Abstände von 27 und 23. Die Edelsteinspalten liegen bei 12/40/62.
-- Das Sichtfenster ist 68 Byte (136 Pixel) breit und 96 Zeilen hoch, links oben bei AP + 406 (Zeile 5, Spalte 6), Zeilenbreite 80.
+- All images are **whole column strips** with 96 rows. Ceiling and floor are contained in the images as black pixels. The exception is slot 9 with 85 rows, and this image does not cover.
+- The cells (2, ±1) and (3, ±1) each have **two front images** (slots 8/9, 11/12, 15/16, 18/19).
+- The image is **asymmetric**: slot 9 has 85 rows, slot 12 has 96. The ghost columns are at 9/36/59, which gives spacings of 27 and 23. The gem columns are at 12/40/62.
+- The viewport is 68 bytes (136 pixels) wide and 96 rows high, top left at AP + 406 (row 5, column 6), row width 80.
 
-Folgerungen:
+Consequences:
 
-| Weg | pixelgleich? | Begründung |
+| Approach | pixel-identical? | Reason |
 |---|---|---|
-| Westwood-Preset (140 × 96 oder 136 × 92) | nein | andere Perspektive; die Wände müssten neu gemalt werden. Das ist neue Grafik, kein Port |
-| `custom`-Preset (`[planes]`) | nein | Die Frontbreiten 100/60/40 Pixel ließen sich nachbilden. Die Seiten wären aber Trapeze mit Maske, die Crawl-Seiten sind volle Rechtecke mit schwarzen Ecken. Die geteilten Fronten (2, ±1)/(3, ±1), das 85-Zeilen-Bild und die schwarzen Decken-/Bodenteile in den Streifen passen in kein Ebenenmodell |
-| **Freie Crawl-DVG** (review-notes G.6) | **ja** | Jedes 1.0f-Bild wird genau ein DVG-Element mit seinem Rechteck. Das DTS enthält nur Kerne (Bild = ein Kern = volles Rechteck, deckend wie 1.0f). Die Geister und Edelsteine kommen als S2-Bilder mit Ankern auf den 1.0f-Positionen. Die Tapete ist das Füllbyte 0 und ersetzt den Clear von 1.0f |
+| Westwood preset (140 × 96 or 136 × 92) | no | different perspective; the walls would have to be repainted. That is new artwork, not a port |
+| `custom` preset (`[planes]`) | no | The front widths 100/60/40 pixels could be reproduced. But the sides would be trapezoids with a mask, whereas the Crawl sides are full rectangles with black corners. The split fronts (2, ±1)/(3, ±1), the 85-row image and the black ceiling/floor parts in the strips fit no plane model |
+| **Free Crawl DVG** (review-notes G.6) | **yes** | Each 1.0f image becomes exactly one DVG element with its rectangle. The DTS contains only cores (image = one core = full rectangle, occluding like 1.0f). The ghosts and gems come as S2 images with anchors at the 1.0f positions. The wallpaper is the fill byte 0 and replaces the clear of 1.0f |
 
-**Entscheidung:** freie Crawl-DVG, erzeugt vom neuen Konverter `tools/crawlconv.py` (Abschnitt 3). `dbegeom` wird für Crawl nicht benutzt.
+**Decision:** free Crawl DVG, generated by the new converter `tools/crawlconv.py` (section 3). `dbegeom` is not used for Crawl.
 
-Warum das Ergebnis gleich ist (Begründung für die Umsetzung, geprüft wird nach Abschnitt 6):
+Why the result is identical (rationale for the implementation; it is verified per section 6):
 
-- Wände: 0.1 und 0.2 lassen eine Wand nur weg, wenn alle ihre Spalten verdeckt sind. Fronten decken in beiden Fassungen sofort ab. Seiten decken in 0.2 erst am Ende ihrer Tiefe ab (P6 5.2). Seiten überdecken sich in Crawl gegenseitig nicht, und in 0.1 standen sie innerhalb einer Tiefe ohnehin hinter den Fronten und Objektplätzen. 0.2 zeichnet deshalb dieselbe Wandmenge. Alle deckenden Bilder sind volle, deckende 96-Zeilen-Rechtecke. Darum bleibt die Malreihenfolge (in 0.2 Zellen von außen nach innen, in 0.1 Seiten, dann Objekte, dann Fronten) ohne sichtbare Wirkung. Überschneidungen zwischen Elementen derselben Tiefe gibt es nur zwischen (d, 0)-Front und (d, ±1)-Seite. Dort deckt die Front zuerst ab, und die Seite entfällt in beiden Fassungen.
-- Sprites: 0.1 zeichnete sie ganz, und nähere Wände übermalten sie. 0.2 schnitt zunächst verdeckte Spalten weg (P6 5.8); seit P6i (Nutzerentscheidung 2026-11-26) wird gar nicht mehr gegen `cover` beschnitten, sondern wie in 0.1 vollständig gezeichnet und von den näheren Wänden übermalt (P6 5.8a). Das Ergebnis ist gleich (Pixelprüfung).
-- Clear: 1.0f löscht in jedem Bild Zeilen 5–99 über die volle Breite (`VMF AP+400,0,7600`). 0.2 füllt im Fenster die freien Spalten der Zeilen 0–94 (= Bildschirmzeilen 5–99) mit Füllbyte 0 als Tapete. Abgedeckte Spalten übermalen ohnehin deckende Wände. Die Randspalten 0–5 und 74–79 schreibt im Spiel außer dem Vorhang beim Start niemand (geprüft: Automap, Pause-Menü, KO- und Gewinnrahmen, Texte über `7700` liegen alle in den Spalten 6–73). Siehe 4.3 Punkt 9.
-- Zeile 100 (AP + 8000 …, erste Zeile des Textbereichs): Die Wandbilder schreiben dort ihre letzte Zeile (immer 0), der Clear von 1.0f nicht. Die DVG übernimmt genau das: VH = 96, Horizontband [0, 95) und keine Bänder. Die Tapete schreibt Zeile 95 des Fensters nie, die Wände schon. So bleibt auch dieses Verhalten von 1.0f erhalten.
+- Walls: 0.1 and 0.2 omit a wall only if all of its columns are covered. Fronts cover immediately in both versions. Sides cover in 0.2 only at the end of their depth (P6 5.2). Sides do not overlap each other in Crawl, and in 0.1 they were within one depth behind the fronts and object positions anyway. 0.2 therefore draws the same set of walls. All opaque images are full, opaque 96-row rectangles. Hence the paint order (in 0.2 cells from outside to inside, in 0.1 sides, then objects, then fronts) has no visible effect. Overlaps between elements of the same depth exist only between the (d, 0) front and the (d, ±1) side. There the front covers first, and the side is dropped in both versions.
+- Sprites: 0.1 drew them whole, and nearer walls painted over them. 0.2 initially cut away covered columns (P6 5.8); since P6i (user decision 2026-11-26), clipping against `cover` no longer happens at all; instead, as in 0.1, sprites are drawn completely and painted over by the nearer walls (P6 5.8a). The result is identical (pixel check).
+- Clear: 1.0f clears rows 5–99 across the full width in every frame (`VMF AP+400,0,7600`). 0.2 fills the free columns of rows 0–94 (= screen rows 5–99) in the window with fill byte 0 as wallpaper. Covered columns are painted over by occluding walls anyway. The edge columns 0–5 and 74–79 are written by nobody in the game except the curtain at start (checked: automap, pause menu, KO and win frames, texts above `7700` all lie in columns 6–73). See 4.3 point 9.
+- Row 100 (AP + 8000 …, first row of the text area): the wall images write their last row there (always 0), the clear of 1.0f does not. The DVG adopts exactly that: VH = 96, horizon band [0, 95) and no bands. The wallpaper never writes row 95 of the window, the walls do. This way this behavior of 1.0f is preserved as well.
 
-## 2. Speicher (Crawl 1.1)
+## 2. Memory (Crawl 1.1)
 
 ### 2.1 Bank 0
 
-| Bereich | 1.0f | 1.1 |
+| Area | 1.0f | 1.1 |
 |---|---|---|
-| `$0B00–$0BFF` | VCL-Liste | Reserve der Engine (Abfall beim Zählen beschnittener Listen) |
-| `$0C00–$0CFF` | Parameterblock, Objektliste `$0C10` | Parameterblock, Objektliste `$0C50` (P6 2.3), Testbereich `$0C40–$0C4F` |
-| `$0D00–$0DFF` | Stub 0.1 | Stub 0.2 |
-| `$0E00–$0FFF` | VMS-Puffer 0.1 | frei |
-| `$1300–$1BFF` | VDC-BASIC v2h | Puffer der Engine (VCL + VMS, Standard von `BUFSET`) |
-| `$1C00–$3FFF` | Programm (Blitz! Image 1 ab `$1C01`) | VDC-BASIC v3 |
-| `$4001–` | Programm | Programm: interpretiert (etwa `$4001–$7D2x`) bzw. Blitz!-Kompilat Image 2 (Runtime `$4001–$6C36`, danach Bytecode) |
-| `BE` … | Ladepuffer `walls.vdc` (`$94E8–$ECC0`) | Ladepuffer für `CRAWL128.CD1`, `FONT3O.VDC` und die VRL-Teile; **Grenze `$CFFF`**, weil `RXV` aus `$D000–$DFFF` nicht lesen kann (VB3 `commands.md`) |
-| `$F2DE–$FBFF` | Titelpuffer (62174) | unverändert |
-| `$FC00–$FEFF` | Blitz!-Runtime | unverändert |
+| `$0B00–$0BFF` | VCL list | Engine reserve (scrap when counting clipped lists) |
+| `$0C00–$0CFF` | parameter block, object list `$0C10` | parameter block, object list `$0C50` (P6 2.3), test area `$0C40–$0C4F` |
+| `$0D00–$0DFF` | stub 0.1 | stub 0.2 |
+| `$0E00–$0FFF` | VMS buffer 0.1 | free |
+| `$1300–$1BFF` | VDC-BASIC v2h | engine buffer (VCL + VMS, default of `BUFSET`) |
+| `$1C00–$3FFF` | program (Blitz! image 1 from `$1C01`) | VDC-BASIC v3 |
+| `$4001–` | program | program: interpreted (about `$4001–$7D2x`) or Blitz! compilation image 2 (runtime `$4001–$6C36`, then bytecode) |
+| `BE` … | load buffer `walls.vdc` (`$94E8–$ECC0`) | load buffer for `CRAWL128.CD1`, `FONT3O.VDC` and the VRL parts; **limit `$CFFF`**, because `RXV` cannot read from `$D000–$DFFF` (VB3 `commands.md`) |
+| `$F2DE–$FBFF` | title buffer (62174) | unchanged |
+| `$FC00–$FEFF` | Blitz! runtime | unchanged |
 
-`BE` = `PEEK(4624)+PEEK(4625)*256` (Textende). Der Wert für 1.1 wird in P7b gemessen, interpretiert und kompiliert (Haltepunkt am ersten GETIN, Monitor liest `$1210/$1211`). Die größte VRL-Datei muss in `[BE, $D000)` passen. Ist das für die Wand-VRL nicht so, teilt `crawlconv` sie in Teile (3.5). Das Programm prüft vor jedem `RXV`, dass `BE+FL <= 53248` gilt (sonst `STOP`, wie heute Zeile 10181), und vor dem Titel, dass `BE+FL <= 62174` gilt.
+`BE` = `PEEK(4624)+PEEK(4625)*256` (end of text). The value for 1.1 is measured in P7b, interpreted and compiled (breakpoint at the first GETIN, monitor reads `$1210/$1211`). The largest VRL file must fit in `[BE, $D000)`. If that is not the case for the wall VRL, `crawlconv` splits it into parts (3.5). Before every `RXV` the program checks that `BE+FL <= 53248` holds (otherwise `STOP`, as today at line 10181), and before the title that `BE+FL <= 62174` holds.
 
-### 2.2 Bank 1 (Speicherkarte G, P6 2.4)
+### 2.2 Bank 1 (memory map G, P6 2.4)
 
-| Bereich | Inhalt | Datei | Größe etwa |
+| Area | Content | File | Size approx. |
 |---|---|---|---|
-| `$0400–$3FFF` | Variablen; erste Anweisung `POKE 57,0:POKE 58,64:CLR` | – | 1.0f: 3,5 KB benutzt |
-| `$4000` | DMP | `crawl.dmp` (`crawlmap`, Standard `$4000`) | 24 + 2·220 + 43·8 + 4·3 = 820 Byte |
-| `$5000` | Arbeitskopie der Karte (MAPINIT P1) | – | 2·W·H = 440 Byte |
-| `$6000` | S2 Geist | `ghost.s2` | < 4 KB (Konverter prüft) |
-| `$7000` | S2 Edelstein | `gem.s2` | < 4 KB |
-| `$8000` | DTS Wand | `walls.dts` | etwa 0,6 KB (19 Bilder, nur Kerne) |
-| `$B000–$E7FF` | Lib, LIBTAB, BSS | `dbe0.2.lib` | – |
-| `$E800` | DVG | `crawl.dvg` | 24 + 32 + 28·16 = 504 Byte |
-| `$FC00–$FEFF` | gesperrt (Runtime) | – | – |
+| `$0400–$3FFF` | variables; first statement `POKE 57,0:POKE 58,64:CLR` | – | 1.0f: 3.5 KB used |
+| `$4000` | DMP | `crawl.dmp` (`crawlmap`, default `$4000`) | 24 + 2·220 + 43·8 + 4·3 = 820 bytes |
+| `$5000` | working copy of the map (MAPINIT P1) | – | 2·W·H = 440 bytes |
+| `$6000` | S2 ghost | `ghost.s2` | < 4 KB (converter checks) |
+| `$7000` | S2 gem | `gem.s2` | < 4 KB |
+| `$8000` | DTS wall | `walls.dts` | about 0.6 KB (19 images, cores only) |
+| `$B000–$E7FF` | lib, LIBTAB, BSS | `dbe0.2.lib` | – |
+| `$E800` | DVG | `crawl.dvg` | 24 + 32 + 28·16 = 504 bytes |
+| `$FC00–$FEFF` | locked (runtime) | – | – |
 
-Boden-DTS, Decken-DTS und DBG gibt es in Crawl nicht.
+Floor DTS, ceiling DTS and DBG do not exist in Crawl.
 
-`VE` (die Kartenvorlage für `M%` bei jedem Spielstart, Zeile 3720) zeigt jetzt auf die **Kachelebene der DMP**: `VE = 16408` (`$4000 + 24`). Die Kachelindizes sind die Crawl-Zellwerte (P4 5.2, verlustfrei). Die Kopie nach `$8000` (Zeile 66 `POKE VE+X,MV`) entfällt, denn dort liegt jetzt das Wand-DTS.
+`VE` (the map template for `M%` at every game start, line 3720) now points to the **tile layer of the DMP**: `VE = 16408` (`$4000 + 24`). The tile indices are the Crawl cell values (P4 5.2, lossless). The copy to `$8000` (line 66 `POKE VE+X,MV`) is dropped, because the wall DTS now lives there.
 
 ### 2.3 VRAM
 
-Die Lage bleibt wie in 1.0f; nur die Größen kommen jetzt aus den Dateiköpfen:
+The layout stays as in 1.0f; only the sizes now come from the file headers:
 
-| Name | Adresse | Inhalt |
+| Name | Address | Content |
 |---|---|---|
-| AP(0) | 0 | Attribut-Puffer (sichtbar), Zeilen 100–119 Textbereich |
-| AP(1), TA | 9600 | Hintergrundpuffer beim Start, Titelbild |
-| CA | 19200 | Zeichensatz (`font.vrl`, entpackt **1730 Byte**: `FONT3O.VDC` hat 1732 Byte mit Ladeadresse) |
-| DA | CA + 1730 = 20930 | Wand-DTS-Daten, U aus DTS-Kopf (Offset 24–25) = 22 354 (die Bytes von `walls.vdc` in derselben Reihenfolge) |
-| GA(0) | DA + U | Geist-S2-Daten, U aus S2-Kopf (Offset 30–31), etwa 1,9 KB |
-| GA(1) | GA(0) + U | Edelstein-S2-Daten (2 Bilder × 36 Byte = 72) |
-| GA(2) = MA | GA(1) + U | Automap (2·W·H = 440) |
-| VR(0) | 46335 | Bildschirm-RAM (Bitmap) |
+| AP(0) | 0 | attribute buffer (visible), rows 100–119 text area |
+| AP(1), TA | 9600 | background buffer at start, title image |
+| CA | 19200 | character set (`font.vrl`, unpacked **1730 bytes**: `FONT3O.VDC` has 1732 bytes with load address) |
+| DA | CA + 1730 = 20930 | wall DTS data, U from DTS header (offset 24–25) = 22 354 (the bytes of `walls.vdc` in the same order) |
+| GA(0) | DA + U | ghost S2 data, U from S2 header (offset 30–31), about 1.9 KB |
+| GA(1) | GA(0) + U | gem S2 data (2 images × 36 bytes = 72) |
+| GA(2) = MA | GA(1) + U | automap (2·W·H = 440) |
+| VR(0) | 46335 | screen RAM (bitmap) |
 
-Grenze: MA + 440 ≤ 46335. Erwartet sind etwa 45 680, also rund 650 Byte Reserve. `crawlconv` gibt die Summe aus und bricht ab, wenn sie über der Grenze liegt (Parameter `--font-bytes`, Standard noch 1732, also 2 Byte zu viel; die Reserve ist tatsächlich 2 Byte größer). `POOLSET(DA, MA)` (F 11) wird gesetzt, damit TEXSET und SPRITESET Bereichsfehler melden.
+Limit: MA + 440 ≤ 46335. About 45 680 is expected, i.e. roughly 650 bytes of reserve. `crawlconv` prints the sum and aborts if it is above the limit (parameter `--font-bytes`, default still 1732, i.e. 2 bytes too many; the reserve is actually 2 bytes larger). `POOLSET(DA, MA)` (F 11) is set so that TEXSET and SPRITESET report range errors.
 
-## 3. Konverter `tools/crawlconv.py` (Engine)
+## 3. Converter `tools/crawlconv.py` (Engine)
 
-### 3.1 Eingaben (1.0f-Dateien, unverändert von `crawl128-100f.d81` bzw. `Spiel/art/dbe/`)
+### 3.1 Inputs (1.0f files, unchanged from `crawl128-100f.d81` or `Game/art/dbe/`)
 
-| Datei | Verwendung |
+| File | Use |
 |---|---|
-| `walls.vdc` | Pixel der 19 Wandbilder (Kopf: Anzahl, je 7 Byte src/w/h/size/col; Daten ab 1 + 7·n) |
-| `walls.wsm` | d, s, Fläche (über die Slot-Tabelle `SLOTS` aus `wallconv.py`), Flags (deckend = volle Höhe), Spalte |
-| `ghost.spr` + `ghosts.vdc` | Geisterbilder als gepackte VMS-Daten, je (d, s, Winkel) ein Teil mit Ziel |
-| `gem.spr` + `font3o.vdc` | Edelstein: zwei Font-Zeichen (3 × 6 Byte, `VMC`, deckend) je (d, s) |
+| `walls.vdc` | pixels of the 19 wall images (header: count, 7 bytes each src/w/h/size/col; data from 1 + 7·n) |
+| `walls.wsm` | d, s, area (via the slot table `SLOTS` from `wallconv.py`), flags (occluding = full height), column |
+| `ghost.spr` + `ghosts.vdc` | ghost images as packed VMS data, one part with target per (d, s, angle) |
+| `gem.spr` + `font3o.vdc` | gem: two font characters (3 × 6 bytes, `VMC`, opaque) per (d, s) |
 
-Aufruf:
+Invocation:
 
 ```
 crawlconv.py --d81 crawl128-100f.d81 OUT_DIR [--max-part N] [--font-bytes 1732] [--json]
-crawlconv.py --dir DIR_MIT_DEN_DATEIEN OUT_DIR [...]
+crawlconv.py --dir DIR_WITH_THE_FILES OUT_DIR [...]
 ```
 
-`--d81` liest die Dateien per `c1541 -read` in ein temporäres Verzeichnis unterhalb von `OUT_DIR` (nicht `/tmp` direkt). Ausgabe: `crawl.dvg`, `walls.dts`, `walls.vrl` bzw. `walls1.vrl` … `wallsN.vrl`, `ghost.s2`, `ghost.vrl`, `gem.s2`, `gem.vrl`, `crawlconv.md` (Bericht: Elemente, Anker, Größen, VRAM-Summe, Ladeadressen), optional `crawlconv.json`.
+`--d81` reads the files via `c1541 -read` into a temporary directory below `OUT_DIR` (not directly `/tmp`). Output: `crawl.dvg`, `walls.dts`, `walls.vrl` or `walls1.vrl` … `wallsN.vrl`, `ghost.s2`, `ghost.vrl`, `gem.s2`, `gem.vrl`, `crawlconv.md` (report: elements, anchors, sizes, VRAM sum, load addresses), optionally `crawlconv.json`.
 
-Wiederverwendung: `dbeview.Dvg`/`Elem`/`DepthRow` und `dbeview.dvg_bytes` (danach ID neu nach P3 5.5 mit `dbetex.dvg_id`, weil `dvg_bytes` sie nur übernimmt), `dbetex.TexSet`/`Entry`/`Kern`/`to_dts`, `dbeview.make_s2` (oder `dbespr`-Bausteine), `vrl.encode`, `dbemem.range_error` für die Bereichsprüfung. Die 0.1-Werkzeuge `wallconv.py` und `crawlsprites.py` bleiben unverändert (sie dienen nur noch als Quelle der 0.1-Dateien und für das 0.1-Modell in 6.2).
+Reuse: `dbeview.Dvg`/`Elem`/`DepthRow` and `dbeview.dvg_bytes` (afterwards recompute the ID per P3 5.5 with `dbetex.dvg_id`, because `dvg_bytes` merely adopts it), `dbetex.TexSet`/`Entry`/`Core`/`to_dts`, `dbeview.make_s2` (or `dbespr` building blocks), `vrl.encode`, `dbemem.range_error` for the range check. The 0.1 tools `wallconv.py` and `crawlsprites.py` remain unchanged (they now serve only as the source of the 0.1 files and for the 0.1 model in 6.2).
 
 ### 3.2 DVG
 
-| Feld | Wert |
+| Field | Value |
 |---|---|
 | VW, VH | 68, 96 |
 | D, S | 3, 1 |
 | stride, origin | 80, 406 |
-| Horizont hy0, hy1 | 0, **95** (Zeile 95 bleibt den Wänden, 1.2) |
-| Bänder je Tiefe | alle leer (cy0 = cy1 = fy0 = fy1 = 0) |
-| Tiefentabelle fw/fx | Breite und Spalte der Front (d, 0) für d ≥ 1, sonst 0 (nur Kontrolle, Teilfronten gibt es keine) |
+| Horizon hy0, hy1 | 0, **95** (row 95 stays with the walls, 1.2) |
+| Bands per depth | all empty (cy0 = cy1 = fy0 = fy1 = 0) |
+| Depth table fw/fx | width and column of the front (d, 0) for d ≥ 1, otherwise 0 (check only, there are no partial fronts) |
 
-Elemente (28): je Tiefe die Zellen in der Reihenfolge s = 0, −1, +1; je Zelle die Fronten in Slot-Reihenfolge, dann die Seiten, dann der Objektplatz. Tiefe 0 hat nur die Seiten (0, −1) und (0, +1), ohne Objektplätze.
+Elements (28): per depth the cells in the order s = 0, −1, +1; per cell the fronts in slot order, then the sides, then the object position. Depth 0 has only the sides (0, −1) and (0, +1), without object positions.
 
-| Tiefe | s = 0 | s = −1 | s = +1 |
+| Depth | s = 0 | s = −1 | s = +1 |
 |---|---|---|---|
-| 0 | – | Seite Slot 1 | Seite Slot 2 |
-| 1 | Front 4, Obj | Front 3, Seite 6, Obj | Front 5, Seite 7, Obj |
-| 2 | Front 10, Obj | Front 8, Front 9, Seite 13, Obj | Front 11, Front 12, Seite 14, Obj |
-| 3 | Front 17, Obj | Front 15, Front 16, Obj | Front 18, Front 19, Obj |
+| 0 | – | side slot 1 | side slot 2 |
+| 1 | front 4, obj | front 3, side 6, obj | front 5, side 7, obj |
+| 2 | front 10, obj | front 8, front 9, side 13, obj | front 11, front 12, side 14, obj |
+| 3 | front 17, obj | front 15, front 16, obj | front 18, front 19, obj |
 
-Wandelement aus WSM-Eintrag (w, h, col): x = col (relativ zum Fenster, `wallconv` gibt `col` schon relativ aus), y = 0, w, h, Kern kx = ky = 0, kw = w, kh = h. Bei h = 96 gilt: Flags Bit 0 (Spaltenbereich gültig), c0 = x, c1 = x + w, und bei Fronten zusätzlich Bit 3 (Bandabdeckung). Bei h ≠ 96 (Slot 9) sind die Flags 0 und c0 = c1 = 0. Kein Element ist beschnitten (Bit 2 = 0).
+Wall element from a WSM entry (w, h, col): x = col (relative to the window, `wallconv` already outputs `col` relative), y = 0, w, h, core kx = ky = 0, kw = w, kh = h. For h = 96: flags bit 0 (column range valid), c0 = x, c1 = x + w, and for fronts additionally bit 3 (band coverage). For h ≠ 96 (slot 9) the flags are 0 and c0 = c1 = 0. No element is clipped (bit 2 = 0).
 
-Objektplätze (d = 1 … 3, s = −1 … +1), Anker als Byte-Spalte und Zeile relativ zum Fenster:
+Object positions (d = 1 … 3, s = −1 … +1), anchor as byte column and row relative to the window:
 
-- **p = 3 (vorne links) = Geist:** linke obere Ecke des 1.0f-Geistteils (d, s): Ziel aus `ghost.spr` → (Ziel mod 80 − 6, Ziel div 80 − 5). Das S2-Bild hat den Fußpunkt fx = fy = 0. Tiefe 3: Werte der Tiefe 2 (dort gibt es kein Bild).
-- **p = 2 (Mitte) = Edelstein:** linke obere Ecke des ersten der beiden Font-Zeichen aus `gem.spr` (gleiche Rechnung). Der Konverter prüft, dass das zweite Zeichen genau 3 Byte rechts daneben in derselben Zeile liegt.
-- p = 0, 1, 4: Werte von p = 2 (werden nicht benutzt).
+- **p = 3 (front left) = ghost:** top-left corner of the 1.0f ghost part (d, s): target from `ghost.spr` → (target mod 80 − 6, target div 80 − 5). The S2 image has foot point fx = fy = 0. Depth 3: values of depth 2 (there is no image there).
+- **p = 2 (middle) = gem:** top-left corner of the first of the two font characters from `gem.spr` (same calculation). The converter checks that the second character lies exactly 3 bytes to the right in the same row.
+- p = 0, 1, 4: values of p = 2 (not used).
 
-Warum zwei Unterpositionen: Geist und Edelstein haben je Seite verschiedene Abstände (27/23 gegen 28/22) und je Tiefe verschiedene Zeilen. Ein gemeinsamer Anker geht deshalb nicht. Gegenstände der Inhaltsebene stehen immer auf p = 2 (P6 5.8). Der Geist steht auf p = 3 und wird damit **nach** dem Edelstein derselben Zelle gemalt, wie in 0.1. Dort wurden die vorgemerkten Teile rückwärts ausgegeben: Edelstein, dann Geist. Bei d = 1 überschneiden sich beide (Geist Zeilen 53–82, Edelstein ab 80).
+Why two sub-positions: ghost and gem have different spacings per side (27/23 versus 28/22) and different rows per depth. A shared anchor therefore does not work. Items of the content layer always stand at p = 2 (P6 5.8). The ghost stands at p = 3 and is thus painted **after** the gem of the same cell, as in 0.1. There, the deferred parts were output in reverse: gem, then ghost. At d = 1 the two overlap (ghost rows 53–82, gem from 80).
 
-Prüfungen: `dbeview.parse_dvg` ohne Fehler (das entspricht GEOMSET), Geometrie-ID ≠ 0, Datei ≤ `$EDFF`.
+Checks: `dbeview.parse_dvg` without errors (this corresponds to GEOMSET), geometry ID ≠ 0, file ≤ `$EDFF`.
 
-### 3.3 DTS (Wand, nur Kerne)
+### 3.3 DTS (wall, cores only)
 
-Art 0, NE = 28, D = 3, NS = 19 Slots (die Wandelemente in DVG-Reihenfolge), NST = 1, NI = 19, NK = 19. Je Bild: Flags DECKEND genau bei h = 96 (sonst 0), nk = 1, Kern (src, 0, 0, w, h, srcstep 0), kein Rand und keine VMS-Liste. **VRAM-Daten = die Bilddaten von `walls.vdc` in Dateireihenfolge**, src = Offset dort. Damit sind sie bytegleich zu 1.0f, und U = 22 354. Stiltabelle: Stil 0 → Bild des Slots. Kachel-Wandstil 1 in der DMP ist Stil 0 (D.4).
+Kind 0, NE = 28, D = 3, NS = 19 slots (the wall elements in DVG order), NST = 1, NI = 19, NK = 19. Per image: flag OCCLUDING exactly when h = 96 (otherwise 0), nk = 1, core (src, 0, 0, w, h, srcstep 0), no edge and no VMS list. **VRAM data = the image data of `walls.vdc` in file order**, src = offset there. This makes them byte-identical to 1.0f, and U = 22 354. Style table: style 0 → image of the slot. Tile wall style 1 in the DMP is style 0 (D.4).
 
-### 3.4 S2 Geist und Edelstein
+### 3.4 S2 ghost and gem
 
-- **Geist** (`ghost.s2`, Ladeadresse `$6000`): NA = 4, NP = 1, D = 3, `angle_map` 0, 1, 2, 3. Je (Winkel a, d ∈ {1, 2}) ein Bild, Tiefe 3 hat `$FE`. Die Pixel und die **Transparenzmaske kommen aus dem, was 1.0f zeichnet:** Der Teil (d, 0, a) aus `ghost.spr` wird mit `dbetex.sim_vms` zweimal auf zwei verschiedene Hintergrundmuster gerendert. Ein Pixel ist deckend genau dann, wenn es in beiden Läufen den Quellwert hat, sonst transparent. So bleibt auch die 0.1-Eigenheit erhalten: Ein Byte mit transparentem linkem Pixel und schwarzem rechtem Pixel wurde dort ganz geschrieben (`crawlsprites.vms_rows`), das linke Pixel ist dann deckend schwarz. Prüfung: Die Teile (d, ±1, a) haben dieselbe Liste und dieselben Daten wie (d, 0, a), sonst Abbruch. `max_kerns` 16 an `dbeview.make_s2` (`dbetex` erlaubt höchstens 4), `kern_min` wie Standard. Die VRL kommt aus den VRAM-Daten.
-- **Edelstein** (`gem.s2`, Ladeadresse `$7000`): NA = 1, NP = 1. Ein Bild 6 × 6 Byte aus den Font-Zeichen 4 und 5 (`font3o.vdc` ab 4·18 bzw. 5·18, je 3 Byte × 6 Zeilen), **ganz deckend**. Es ist dasselbe Bild für d = 1 und d = 2, d = 3 hat `$FE`. Die Geometrie-ID ist die der Crawl-DVG.
-- Beide Dateien prüft der Konverter auf Länge ≤ `$1000` (Bereich bis zur nächsten Ladeadresse).
+- **Ghost** (`ghost.s2`, load address `$6000`): NA = 4, NP = 1, D = 3, `angle_map` 0, 1, 2, 3. One image per (angle a, d ∈ {1, 2}); depth 3 has `$FE`. The pixels and the **transparency mask come from what 1.0f draws:** the part (d, 0, a) from `ghost.spr` is rendered twice with `dbetex.sim_vms` onto two different background patterns. A pixel is opaque exactly if it has the source value in both runs, otherwise transparent. This also preserves the 0.1 quirk: a byte with a transparent left pixel and a black right pixel was written entirely there (`crawlsprites.vms_rows`), so the left pixel is then opaque black. Check: the parts (d, ±1, a) have the same list and the same data as (d, 0, a), otherwise abort. `max_cores` 16 passed to `dbeview.make_s2` (`dbetex` allows at most 4), `core_min` as default. The VRL comes from the VRAM data.
+- **Gem** (`gem.s2`, load address `$7000`): NA = 1, NP = 1. One image of 6 × 6 bytes from font characters 4 and 5 (`font3o.vdc` from 4·18 and 5·18, each 3 bytes × 6 rows), **fully opaque**. It is the same image for d = 1 and d = 2, d = 3 has `$FE`. The geometry ID is that of the Crawl DVG.
+- The converter checks both files for length ≤ `$1000` (range up to the next load address).
 
-### 3.5 VRL und Teile
+### 3.5 VRL and parts
 
-`vrl.encode` je Satz. `--max-part N` (Standard 0 = ungeteilt): Ist eine VRL-Datei größer als N, zerlegt der Konverter die VRAM-Daten an Bildgrenzen in Teile. Teil k beginnt mit einem **Skip-Token** (`$FE lo hi`) auf seinen Offset. Darum laufen alle Teile mit demselben Ziel: `RXV BE+5,DA` je Teil. Dateinamen `walls1.vrl` … `wallsN.vrl`, N steht im Bericht. P7b setzt N fest, und die Lade-Schleife im Spiel benutzt diese Konstante. Erst wird gemessen (Wand-VRL-Größe, BE), dann `--max-part` gewählt: N = 1, wenn `walls.vrl` ≤ `$D000 − BE_max − 5` gilt.
+`vrl.encode` per set. `--max-part N` (default 0 = not split): if a VRL file is larger than N, the converter splits the VRAM data at image boundaries into parts. Part k begins with a **skip token** (`$FE lo hi`) to its offset. Therefore all parts go to the same target: `RXV BE+5,DA` per part. File names `walls1.vrl` … `wallsN.vrl`, N is in the report. P7b fixes N, and the load loop in the game uses this constant. First measure (wall VRL size, BE), then choose `--max-part`: N = 1 if `walls.vrl` ≤ `$D000 − BE_max − 5` holds.
 
-### 3.6 Tests `test/tools/test_crawlconv.py` (unittest, ohne Emulator)
+### 3.6 Tests `test/tools/test_crawlconv.py` (unittest, without emulator)
 
-- DVG/DTS/S2 aus `test/tools/data/` (neu: die 1.0f-Dateien `walls.vdc`, `walls.wsm`, `ghost.spr`, `ghosts.vdc`, `gem.spr`, `font3o.vdc`, zusammen etwa 28 KB). Geprüft werden Kopffelder, Elementzahl 28, Anker gegen die Tabelle aus `crawlsprites.py` (GHOST_POS, GEM_POS), Geometrie-ID gleich in DVG/DTS/S2, die VRAM-Daten des DTS gleich den `walls.vdc`-Daten, VRL-Rundlauf (`vrl.decode` = VRAM-Daten, auch mit Teilen und Skip), Bereichsgrenzen.
-- Geistmaske: Jedes Bild mit `dbespr.render_image` auf beide Hintergründe gerendert ergibt dasselbe wie `sim_vms` des 0.1-Teils.
+- DVG/DTS/S2 from `test/tools/data/` (new: the 1.0f files `walls.vdc`, `walls.wsm`, `ghost.spr`, `ghosts.vdc`, `gem.spr`, `font3o.vdc`, together about 28 KB). Checked are header fields, element count 28, anchors against the table from `crawlsprites.py` (GHOST_POS, GEM_POS), geometry ID equal in DVG/DTS/S2, the VRAM data of the DTS equal to the `walls.vdc` data, VRL round trip (`vrl.decode` = VRAM data, also with parts and skip), range limits.
+- Ghost mask: each image rendered with `dbespr.render_image` onto both backgrounds gives the same as `sim_vms` of the 0.1 part.
 
-## 4. Port `game/crawl.bas` (Spiel)
+## 4. Port `game/crawl.bas` (game)
 
-### 4.1 Zeilen, die sich ändern (Nummern aus `crawl.bas` 1.0f)
+### 4.1 Lines that change (numbers from `crawl.bas` 1.0f)
 
-| Zeile | 1.0f | 1.1 |
+| Line | 1.0f | 1.1 |
 |---|---|---|
-| 1–3 | Blitz!-Erkennung `PEEK(DEC("1C25")+X)` | `PEEK(DEC("4025")+X)` (Image 2: Kennung „BLITZ!“ bei `$4026`, gemessen an `blitz128/perf/out/v/ri2/o/c.prg`) |
-| neu 0 oder 1 | – | Prüfung auf VB3, vor allem anderen: `IF PEEK(7171)<>48 THEN PRINT"RUN"CHR$(34)"BOOT"CHR$(34)" FIRST":END` (`$1C03` = `$30`, wie `boot.bas` Zeile 40) |
-| 20 | `BANK15:POKE 58,128:CLR` | `BANK15:POKE 57,0:POKE 58,64:CLR` (MEMSIZ `$4000`). Die Zeilen 1–5 vor dem CLR legen nur temporäre Strings an, Daten werden erst ab 10052 geladen. Das ist unkritisch, wird aber in P7c mit `vice_blitzvars`-Methodik nicht eigens geprüft, nur im Bericht vermerkt |
-| 25 | `VE=128*256` | `VE=16408` (Kachelebene der DMP) |
-| 30/31 | DIM | zusätzlich `QG%(3)`; Werte `QG%(0)=2:QG%(1)=0:QG%(2)=1:QG%(3)=3` (absolute Unterposition q, die bei Blickrichtung v die Zeichenposition p = 3 ergibt, Tabelle P4 2.6) |
-| 66–68 | `BANK1:POKE VE+X,MV …` + `VMF` Automap | `POKE VE+X,MV` entfällt. Automap siehe 4.2 |
+| 1–3 | Blitz! detection `PEEK(DEC("1C25")+X)` | `PEEK(DEC("4025")+X)` (image 2: signature "BLITZ!" at `$4026`, measured on `blitz128/perf/out/v/ri2/o/c.prg`) |
+| new 0 or 1 | – | Check for VB3, before everything else: `IF PEEK(7171)<>48 THEN PRINT"RUN"CHR$(34)"BOOT"CHR$(34)" FIRST":END` (`$1C03` = `$30`, as in `boot.bas` line 40) |
+| 20 | `BANK15:POKE 58,128:CLR` | `BANK15:POKE 57,0:POKE 58,64:CLR` (MEMSIZ `$4000`). Lines 1–5 before the CLR only create temporary strings; data is not loaded until 10052. This is uncritical, but is not specifically verified in P7c with the `vice_blitzvars` methodology, only noted in the report |
+| 25 | `VE=128*256` | `VE=16408` (tile layer of the DMP) |
+| 30/31 | DIM | additionally `QG%(3)`; values `QG%(0)=2:QG%(1)=0:QG%(2)=1:QG%(3)=3` (absolute sub-position q that yields draw position p = 3 for viewing direction v, table P4 2.6) |
+| 66–68 | `BANK1:POKE VE+X,MV …` + `VMF` automap | `POKE VE+X,MV` is dropped. Automap see 4.2 |
 | 3500 | `TX$="1.0F"` | `TX$="1.1"` |
-| 3700/3720 | M% aus VE | unverändert (VE jetzt DMP). Bei `AM%=1` (Nebel-Automap, optional) zusätzlich `::VMF MA,0,MP%(2)` |
-| 3721 | MAPINIT 0.1 | `POKE3072,0:POKE3073,64:POKE3074,0:POKE3075,80:SYS3331,1,1:POKE3152,1:POKE3155,0:POKE3157,0` (DMP `$4000`, Arbeitskopie `$5000`, X = 1 Automap-Bit; danach OBJN = 1, Satz 0, Phase 0; MAPINIT setzt OBJN auf 0) |
-| 3800 | `AP=9600` | `AP=9600:C1=AP+400:::VMF C1,0,7600` (einmaliger Clear des Hintergrundpuffers wie das erste Bild von 1.0f; sonst stünden Reste des Titels in den Randspalten, und der Vorhang kopierte sie, 1.2) |
-| 4600 | SETPOS | unverändert `BANK0:POKE3072,PP%(0) AND 255:POKE3073,PP%(0)/256:SYS3331,2,PF%(0)`. Neue Zeile 4602 (hinter 4600, denn die Aufrufer springen mit `GOSUB 4600` an; eine Zeile davor würde nie ausgeführt): `IF AM% THEN BANK1:C9=WI+PP%(0):POKE C9,PEEK(C9)OR64:BANK0` (WI = 20480 + W%·H%, Inhaltsebene der Arbeitskopie: Zelle besucht) |
-| 4605 | Objekt 0.1 bei `$0C10` | `POKE3153,PP%(1) AND 255:POKE3154,PP%(1)/256:POKE3156,PF%(1):POKE3158,QG%(PF%(0))` |
-| 4610 | VIEW | `POKE3072,AP AND 255:POKE3073,AP/256:SYS3331,4:VA=PEEK(3072)+256*PEEK(3073):BANK15` (P0 = VCLADR nach VIEW, P6 3) |
+| 3700/3720 | M% from VE | unchanged (VE is now the DMP). With `AM%=1` (fog automap, optional) additionally `::VMF MA,0,MP%(2)` |
+| 3721 | MAPINIT 0.1 | `POKE3072,0:POKE3073,64:POKE3074,0:POKE3075,80:SYS3331,1,1:POKE3152,1:POKE3155,0:POKE3157,0` (DMP `$4000`, working copy `$5000`, X = 1 automap bit; afterwards OBJN = 1, set 0, phase 0; MAPINIT sets OBJN to 0) |
+| 3800 | `AP=9600` | `AP=9600:C1=AP+400:::VMF C1,0,7600` (one-time clear of the background buffer like the first frame of 1.0f; otherwise remnants of the title would remain in the edge columns, and the curtain would copy them, 1.2) |
+| 4600 | SETPOS | unchanged `BANK0:POKE3072,PP%(0) AND 255:POKE3073,PP%(0)/256:SYS3331,2,PF%(0)`. New line 4602 (after 4600, because the callers jump in with `GOSUB 4600`; a line before it would never be executed): `IF AM% THEN BANK1:C9=WI+PP%(0):POKE C9,PEEK(C9)OR64:BANK0` (WI = 20480 + W%·H%, content layer of the working copy: cell visited) |
+| 4605 | object 0.1 at `$0C10` | `POKE3153,PP%(1) AND 255:POKE3154,PP%(1)/256:POKE3156,PF%(1):POKE3158,QG%(PF%(0))` |
+| 4610 | VIEW | `POKE3072,AP AND 255:POKE3073,AP/256:SYS3331,4:VA=PEEK(3072)+256*PEEK(3073):BANK15` (P0 = VCLADR after VIEW, P6 3) |
 | 4620 | `::VCL 2816` | `::VCL VA` |
-| 5500 | `SETCELL(pos,0)` | `SYS3331,16,64` statt `SYS3331,6,0` (SETITEM: Gegenstand weg, Bit 6 „gesehen/besucht“ bleibt). Zur Doppelung D.9: Die Spiellogik prüft `M%()`, gezeichnet wird nur der Gegenstand. Die Kachel 2 der Engine bleibt stehen, sie hat keine Flächen und sieht aus wie 0 |
-| 5550 | `SETCELL(EX%,42)` | unverändert (Kachel 42 legt `crawlmap` immer an) |
-| 6600–6630 | Automap aus MA | 4.2 |
-| 10050–10051 | VDC-BASIC v2h laden, `SYS $1300` | entfallen (BOOT hat v3 installiert) |
-| 10052 | 0.1 laden | `BLOAD"DBE0.2.STUB",B0,U(DD):BLOAD"DBE0.2.LIB",B1,U(DD):SYS3328` |
-| 10053 | WSM/SPR laden | `BLOAD"CRAWL.DMP",B1,U(DD):BLOAD"CRAWL.DVG",B1,U(DD):BLOAD"WALLS.DTS",B1,U(DD):BLOAD"GHOST.S2",B1,U(DD):BLOAD"GEM.S2",B1,U(DD)`, danach GEOMSET `POKE3072,0:POKE3073,232:POKE3074,255:POKE3075,255:SYS3331,12` (DVG `$E800`, origin aus der DVG) |
-| 10170–10225 | `WALLS.VDC` laden, RTV, WALLSET | je Teil k = 1 … N: `BLOAD"WALLSk.VRL",B0,P(BE),U(DD)`, Prüfung `BE+FL<=53248`, `C1=BE+5:::RXV C1,DA`; dann `BANK1:FL=PEEK(32792)+256*PEEK(32793):BANK0:GA(0)=DA+FL`; TEXSET `POKE3072,0:POKE3073,128:POKE3074,DA-INT(DA/256)*256:POKE3075,DA/256:SYS3331,13,0`; BGSET `POKE3072,0:POKE3073,0:SYS3331,14,0` (keine DBG, Füllbyte 0) |
-| 10320–10336 | Geister 0.1 | `GHOST.VRL` laden, `RXV` nach GA(0), U aus `$6000+30` (24606/24607) → GA(1); SPRITESET X = 0, P0 = `$6000`, P1 = GA(0). `GEM.VRL` nach GA(1), U aus `$7000+30` (28702/28703) → GA(2); SPRITESET X = 1, P0 = `$7000`, P1 = GA(1); `SYS3331,10,2,2` (ITEMSET Gegenstand 2 → Satz 1, wie 0.1); POOLSET `P0=DA, P1=GA(2)+2·W%·H%`, F 11 |
-| 10390 | `MA=GA(2)` | unverändert |
+| 5500 | `SETCELL(pos,0)` | `SYS3331,16,64` instead of `SYS3331,6,0` (SETITEM: item gone, bit 6 "seen/visited" stays). On the duplication D.9: the game logic checks `M%()`, only the item is drawn. Engine tile 2 stays in place, it has no surfaces and looks like 0 |
+| 5550 | `SETCELL(EX%,42)` | unchanged (tile 42 is always created by `crawlmap`) |
+| 6600–6630 | automap from MA | 4.2 |
+| 10050–10051 | load VDC-BASIC v2h, `SYS $1300` | dropped (BOOT has installed v3) |
+| 10052 | load 0.1 | `BLOAD"DBE0.2.STUB",B0,U(DD):BLOAD"DBE0.2.LIB",B1,U(DD):SYS3328` |
+| 10053 | load WSM/SPR | `BLOAD"CRAWL.DMP",B1,U(DD):BLOAD"CRAWL.DVG",B1,U(DD):BLOAD"WALLS.DTS",B1,U(DD):BLOAD"GHOST.S2",B1,U(DD):BLOAD"GEM.S2",B1,U(DD)`, then GEOMSET `POKE3072,0:POKE3073,232:POKE3074,255:POKE3075,255:SYS3331,12` (DVG `$E800`, origin from the DVG) |
+| 10170–10225 | load `WALLS.VDC`, RTV, WALLSET | per part k = 1 … N: `BLOAD"WALLSk.VRL",B0,P(BE),U(DD)`, check `BE+FL<=53248`, `C1=BE+5:::RXV C1,DA`; then `BANK1:FL=PEEK(32792)+256*PEEK(32793):BANK0:GA(0)=DA+FL`; TEXSET `POKE3072,0:POKE3073,128:POKE3074,DA-INT(DA/256)*256:POKE3075,DA/256:SYS3331,13,0`; BGSET `POKE3072,0:POKE3073,0:SYS3331,14,0` (no DBG, fill byte 0) |
+| 10320–10336 | ghosts 0.1 | load `GHOST.VRL`, `RXV` to GA(0), U from `$6000+30` (24606/24607) → GA(1); SPRITESET X = 0, P0 = `$6000`, P1 = GA(0). `GEM.VRL` to GA(1), U from `$7000+30` (28702/28703) → GA(2); SPRITESET X = 1, P0 = `$7000`, P1 = GA(1); `SYS3331,10,2,2` (ITEMSET item 2 → set 1, as in 0.1); POOLSET `P0=DA, P1=GA(2)+2·W%·H%`, F 11 |
+| 10390 | `MA=GA(2)` | unchanged |
 
-Regeln:
+Rules:
 
-- Low-Bytes über `X-INT(X/256)*256` rechnen, wo X > 32767 sein kann (wie 1.0f, `AND` geht nur bis 32767).
-- Die Funktionen prüfen keine Rückgabewerte, wie 1.0f. Die Fehlerfreiheit weist P7a offline nach (A = 0 für alle Ansichten).
-- Alle anderen Zeilen bleiben **unverändert**: Spiellogik, KI, HUD, Menüs, Sound, Highscores. Kein Umbau auf `MOVE` (die KI braucht `M%()` ohnehin, und Bewegung gehört nicht zum Port).
-- Der Test-Hook (6.3) benutzt die in 1.0f freien Zeilen 4596/4597 und wird als `GOSUB4596:` an den Anfang von Zeile 4600 gesetzt.
+- Compute low bytes via `X-INT(X/256)*256` where X can be > 32767 (as in 1.0f, `AND` only goes up to 32767).
+- The functions do not check return values, as in 1.0f. P7a proves freedom from errors offline (A = 0 for all views).
+- All other lines stay **unchanged**: game logic, AI, HUD, menus, sound, high scores. No conversion to `MOVE` (the AI needs `M%()` anyway, and movement is not part of the port).
+- The test hook (6.3) uses the lines 4596/4597, which are free in 1.0f, and is placed as `GOSUB4596:` at the start of line 4600.
 
-### 4.2 Automap über die Engine
+### 4.2 Automap via the engine
 
-**Entscheidung des Nutzers (2026-11-26):** Die Automap zeigt wie 1.0f **immer den ganzen Dungeon** (`AM%=0`, Standard). Die Nebel-Variante (nur Erkundetes) bleibt als Option mit `AM%=1` im Quelltext, sie ist nicht Teil von 1.1 und nicht Teil der Abnahme. Die ursprüngliche Annahme (Nebel als Standard, Frage 2) ist damit verworfen.
+**Decision by the user (2026-11-26):** like 1.0f, the automap **always shows the entire dungeon** (`AM%=0`, default). The fog variant (explored areas only) remains as an option with `AM%=1` in the source; it is not part of 1.1 and not part of the acceptance. The original assumption (fog as default, question 2) is thus discarded.
 
-- `AM%=0`: Die Karte wird beim Start wie in 1.0f vollständig nach MA gezeichnet (Zeilen 61 ff.). Zeile 4602 (`POKE` Bit 6) und die Unterroutine 6550 tun nichts (`IF AM% …`).
-- `AM%=1`: Die folgenden Punkte gelten nur dann.
-- Wände: `VIEW` setzt Bit 6 der Inhaltsebene in der Arbeitskopie für jede gezeichnete Wand (MAPINIT X = 1, P6f).
-- Freie Zellen: Die Crawl-DVG hat keine Bodenelemente, darum markiert `VIEW` dort nichts. Das Spiel setzt Bit 6 der Zelle, auf der der Spieler steht, in Zeile 4602 (direkter `POKE` in die Arbeitskopie; die Lib läuft dabei nicht).
-- Anzeige (M, Zeile 6600 ff.) mit der Unterroutine 6550: Für alle Zellen X gilt: Ist Bit 6 gesetzt und Bit 7 noch nicht, dann `VMF MA+2X` mit der Farbe von 1.0f (ungerader Wert → `FNCL(1)`, sonst 255) und Bit 7 setzen. Bit 7 bedeutet hier „in MA gezeichnet“. Die Automap-Marke aus P4 2.3 benutzt Crawl sonst nicht. Danach weiter wie 1.0f (`VMC MA,…`, Spielermarke).
-- Kosten (nur `AM%=1`): Beim Öffnen der Karte werden alle 220 Zellen geprüft (kompiliert unter 0,1 s, interpretiert etwa 1 s). Je Bild kommt ein `POKE` dazu.
-- Neustart (3700): MAPINIT löscht die Bits (frische Arbeitskopie), `VMF MA,0,…` löscht die Anzeige.
+- `AM%=0`: the map is drawn completely to MA at start as in 1.0f (lines 61 ff.). Line 4602 (`POKE` bit 6) and the subroutine 6550 do nothing (`IF AM% …`).
+- `AM%=1`: the following points apply only then.
+- Walls: `VIEW` sets bit 6 of the content layer in the working copy for every drawn wall (MAPINIT X = 1, P6f).
+- Free cells: the Crawl DVG has no floor elements, so `VIEW` marks nothing there. The game sets bit 6 of the cell the player stands on in line 4602 (direct `POKE` into the working copy; the lib does not run in the process).
+- Display (M, line 6600 ff.) with subroutine 6550: for all cells X: if bit 6 is set and bit 7 is not yet, then `VMF MA+2X` with the color of 1.0f (odd value → `FNCL(1)`, otherwise 255) and set bit 7. Bit 7 here means "drawn in MA". Crawl does not otherwise use the automap mark from P4 2.3. Afterwards continue as 1.0f (`VMC MA,…`, player marker).
+- Cost (`AM%=1` only): when opening the map all 220 cells are checked (compiled under 0.1 s, interpreted about 1 s). One `POKE` per frame is added.
+- Restart (3700): MAPINIT clears the bits (fresh working copy), `VMF MA,0,…` clears the display.
 
-### 4.3 Bewusste Abweichungen von 1.0f
+### 4.3 Deliberate deviations from 1.0f
 
-| # | Abweichung | Grund |
+| # | Deviation | Reason |
 |---|---|---|
-| 1 | Versionstext im Menü „1.1“ | Version |
-| 2 | (entfallen) Automap zeigt wie 1.0f den ganzen Dungeon, `AM%=0` (4.2). Nebel nur optional mit `AM%=1` | Entscheidung des Nutzers 2026-11-26; keine Abweichung von 1.0f |
-| 3 | Start nur über `BOOT` (Autoboot bzw. `RUN"BOOT"`), nicht mehr `RUN"CRAWL128"` von Hand | VB3 muss vor dem Programm bei `$1C00` liegen (P2a 3) |
-| 4 | Ladetexte (z. B. „LOADING WALLS…“) dürfen sich ändern | nur während des Ladens sichtbar. Der Textbereich wird vor dem Spiel gelöscht (4000 GOSUB 8900) |
-| 5 | (entfallen mit P6i) Sprites werden nicht mehr gegen verdeckte Spalten beschnitten, sondern wie in 1.0f vollständig gezeichnet und von den näheren Wänden übermalt | 1.2, P6 5.8a. Nur am Fensterrand wird beschnitten (in Crawl nie sichtbar) |
-| 6 | Randspalten 0–5/74–79 nur einmal gelöscht (3800) statt in jedem Bild | unsichtbar, solange niemand dort schreibt. Prüfung 6 vergleicht den ganzen Bildschirm |
-| 7 | Edelstein hat eigene VRAM-Daten (72 Byte) statt der Font-Zeichen | gleiche Bytes, nur andere Quelle |
-| 8 | Kraft-Edelstein (Wert 4) steht als Gegenstand 4 in der Inhaltsebene, wird aber wie in 1.0f nicht gezeichnet (kein ITEMSET für 4) | unverändert |
-| 9 | Interpretiert nicht mehr aus der IDE startbar (Ladeadresse `$4001`) | VB3. `bas2prg.py --start 0x4001` für die Diskettenfassung |
-| 10 | Font und Titel liegen als VRL (`font.vrl` 1406 Byte statt 1732, `title.vrl` 1021 statt 2340 Byte, jeweils mit Ladeadresse). Der Titel bleibt gepackt im RAM ab 63493 und wird bei jeder Anzeige des Menüs per `RXV` entpackt (Zeile 3430) | Nutzerwunsch (Platz auf der Disk). Gleiche Bytes im VRAM |
+| 1 | Version text in the menu "1.1" | Version |
+| 2 | (dropped) Automap shows the entire dungeon like 1.0f, `AM%=0` (4.2). Fog only optional with `AM%=1` | Decision by the user 2026-11-26; no deviation from 1.0f |
+| 3 | Start only via `BOOT` (autoboot or `RUN"BOOT"`), no longer `RUN"CRAWL128"` by hand | VB3 must lie at `$1C00` before the program (P2a 3) |
+| 4 | Loading texts (e.g. "LOADING WALLS…") may change | visible only while loading. The text area is cleared before the game (4000 GOSUB 8900) |
+| 5 | (dropped with P6i) Sprites are no longer clipped against covered columns but drawn completely as in 1.0f and painted over by the nearer walls | 1.2, P6 5.8a. Clipping only at the window edge (never visible in Crawl) |
+| 6 | Edge columns 0–5/74–79 cleared only once (3800) instead of in every frame | invisible as long as nobody writes there. Check 6 compares the whole screen |
+| 7 | Gem has its own VRAM data (72 bytes) instead of the font characters | same bytes, only a different source |
+| 8 | Power gem (value 4) stands as item 4 in the content layer, but, as in 1.0f, is not drawn (no ITEMSET for 4) | unchanged |
+| 9 | Interpreted no longer startable from the IDE (load address `$4001`) | VB3. `bas2prg.py --start 0x4001` for the disk version |
+| 10 | Font and title lie as VRL (`font.vrl` 1406 bytes instead of 1732, `title.vrl` 1021 instead of 2340 bytes, each with load address). The title stays packed in RAM from 63493 and is unpacked via `RXV` at every display of the menu (line 3430) | User request (space on the disk). Same bytes in VRAM |
 
-Nicht als Abweichung zulässig: jeder andere Unterschied im VRAM des sichtbaren Bildschirms in den Prüfbildern von 6.3.
+Not permitted as a deviation: any other difference in the VRAM of the visible screen in the check images of 6.3.
 
-### 4.4 Werkzeuge und Disk (Spiel)
+### 4.4 Tools and disk (game)
 
-- `tools/bas2prg.py`: neue Option `--start ADDR` (wird an `bastok.py --start` weitergegeben, Standard `$1C01`). Der Compiler bekommt `$1C01`, die interpretierte Diskettenfassung `$4001`.
-- Neu `tools/mkdisk.py [--interp] [--d64|--d81] OUT`: baut die Dateien neu und schreibt eine Disk. Ablauf: `bas2prg` → `blitzc … --runtime improved --fastmath off` (prüft Ladeadresse `$4001` von `c.prg`, sonst Abbruch „kein Image 2“) → `crawlconv` (nur wenn `--rebuild-assets`, sonst die eingecheckten Dateien aus `art/dbe02/`) → `boot.prg` aus VB3 `boot/boot.bas` mit `50 RUN"CRAWL128"` (tokenisiert mit `bastok`, Start `$1C01`) → `c1541`: `boot` als **erste** Datei, `vdcbasic3` (VB3 `vdcbasic3.bin` als PRG mit Ladeadresse `$1C00`; Format wie in VB3 `test/run.sh`), `crawl128`, `dbe0.2.stub`, `dbe0.2.lib`, `crawl.dmp`, `crawl.dvg`, `walls.dts`, `walls*.vrl`, `ghost.s2`, `ghost.vrl`, `gem.s2`, `gem.vrl`, `crawl128.cd1`, `title.vdc`, `font3o.vdc`, `greatestcrawl128` (die vier letzten von der 1.0f-Disk) → Bootsektor mit `VB3/tools/mkboot.py --name BOOT --message "CRAWL 128" --disk`.
-- Arbeitsverzeichnis `build/` im Spiel-Repo (in `.gitignore` aufnehmen). Keine Dateien direkt in `/tmp`.
-- Eingecheckt werden `libs/dbe0.2.stub.prg`, `libs/dbe0.2.lib.prg`, `libs/vdcbasic3.prg`, `libs/boot.prg` und die Assets in **`art/dbe02/`**. `.gitignore` enthält `/art/**`, daher die Ausnahmen `!/art/dbe02/` und `!/art/dbe02/**` eintragen und mit `git check-ignore` prüfen. Dazu `art/dbe02/README.md` (wie `art/dbe/README.md`: Datei, Diskname, Ladeort, erzeugt mit, Eingaben).
-- Release-Images `crawl128-110.d81` und `crawl128-110.d64` (die d64 braucht Z64K, Abschnitt 7).
+- `tools/bas2prg.py`: new option `--start ADDR` (passed to `bastok.py --start`, default `$1C01`). The compiler gets `$1C01`, the interpreted disk version `$4001`.
+- New `tools/mkdisk.py [--interp] [--d64|--d81] OUT`: rebuilds the files and writes a disk. Flow: `bas2prg` → `blitzc … --runtime improved --fastmath off` (checks load address `$4001` of `c.prg`, otherwise abort "kein Image 2") → `crawlconv` (only with `--rebuild-assets`, otherwise the checked-in files from `art/dbe02/`) → `boot.prg` from VB3 `boot/boot.bas` with `50 RUN"CRAWL128"` (tokenized with `bastok`, start `$1C01`) → `c1541`: `boot` as the **first** file, `vdcbasic3` (VB3 `vdcbasic3.bin` as PRG with load address `$1C00`; format as in VB3 `test/run.sh`), `crawl128`, `dbe0.2.stub`, `dbe0.2.lib`, `crawl.dmp`, `crawl.dvg`, `walls.dts`, `walls*.vrl`, `ghost.s2`, `ghost.vrl`, `gem.s2`, `gem.vrl`, `crawl128.cd1`, `title.vdc`, `font3o.vdc`, `greatestcrawl128` (the last four from the 1.0f disk) → boot sector with `VB3/tools/mkboot.py --name BOOT --message "CRAWL 128" --disk`.
+- Working directory `build/` in the game repo (add to `.gitignore`). No files directly in `/tmp`.
+- Checked in are `libs/dbe0.2.stub.prg`, `libs/dbe0.2.lib.prg`, `libs/vdcbasic3.prg`, `libs/boot.prg` and the assets in **`art/dbe02/`**. `.gitignore` contains `/art/**`, so add the exceptions `!/art/dbe02/` and `!/art/dbe02/**` and verify with `git check-ignore`. Plus `art/dbe02/README.md` (like `art/dbe/README.md`: file, disk name, load location, generated with, inputs).
+- Release images `crawl128-110.d81` and `crawl128-110.d64` (the d64 needs Z64K, section 7).
 
-## 5. Ladefolge (1.1)
+## 5. Load sequence (1.1)
 
-1. Autoboot (Bootsektor) oder `RUN"BOOT"`: BOOT Lauf 1 setzt `$2D/$2E = $4001` und lädt sich neu. Lauf 2 lädt `VDCBASIC3` nach `$1C00`, `SYS 7168`, prüft `$1C03`, dann `RUN"CRAWL128"`.
-2. Crawl: Prüfung VB3 und Blitz!, `POKE57,0:POKE58,64:CLR`, Kartendaten `CRAWL128.CD1` nach BE (Spiellogik, Automap-Farben), Stub/Lib/INIT, DMP/DVG/DTS/S2 nach Bank 1, GEOMSET, Bildschirm (wie 1.0f), Titel, Font, Wand-VRL → `RXV`, TEXSET, BGSET, Geist/Edelstein → `RXV`, SPRITESET ×2, ITEMSET, POOLSET, Texte, Highscores.
-3. Spielstart (3700): M% aus DMP, MAPINIT mit Arbeitskopie, Objektliste, Startbild nach AP = 9600, Vorhang.
+1. Autoboot (boot sector) or `RUN"BOOT"`: BOOT run 1 sets `$2D/$2E = $4001` and reloads itself. Run 2 loads `VDCBASIC3` to `$1C00`, `SYS 7168`, checks `$1C03`, then `RUN"CRAWL128"`.
+2. Crawl: check VB3 and Blitz!, `POKE57,0:POKE58,64:CLR`, map data `CRAWL128.CD1` to BE (game logic, automap colors), stub/lib/INIT, DMP/DVG/DTS/S2 to bank 1, GEOMSET, screen (as 1.0f), title, font, wall VRL → `RXV`, TEXSET, BGSET, ghost/gem → `RXV`, SPRITESET ×2, ITEMSET, POOLSET, texts, high scores.
+3. Game start (3700): M% from DMP, MAPINIT with working copy, object list, start frame to AP = 9600, curtain.
 
-## 6. Pixelgleichheit: Abnahmekriterium
+## 6. Pixel identity: acceptance criterion
 
-### 6.1 Was verglichen wird
+### 6.1 What is compared
 
-**VDC-RAM des sichtbaren Bildschirms**: Attribut-RAM `[0, 9600)` (Fenster, HUD, Textbereich-Attribute) und Bitmap `[46335, 65535)` (Textbereich, Muster). Dazu kommen die **VDC-Register 0–36**. Verglichen wird an **jedem Tastenprompt im Spiel**, also wenn das Bild fertig ist. Die Bytes werden über den Monitor gelesen (`bank vdc`, `save "<abs. Pfad>" 0 <von> <bis>` in das Arbeitsverzeichnis), danach `bank default`. Screenshots (`screenshot … 2`) werden nur für Menschen mitgeschrieben, nicht verglichen.
+**VDC RAM of the visible screen**: attribute RAM `[0, 9600)` (window, HUD, text area attributes) and bitmap `[46335, 65535)` (text area, patterns). In addition the **VDC registers 0–36**. The comparison happens at **every key prompt in the game**, i.e. when the frame is finished. The bytes are read via the monitor (`bank vdc`, `save "<abs. path>" 0 <from> <to>` into the working directory), then `bank default`. Screenshots (`screenshot … 2`) are written only for humans, not compared.
 
-Die Referenz ist **1.0f kompiliert**, gebaut aus `git show main:game/crawl.bas` (das ist 1.0f) mit demselben Test-Hook (6.3), Blitz! Image 1, VDC-BASIC v2h und den 0.1-Dateien der 1.0f-Disk. Vorab wird geprüft, dass das ohne Hook neu gebaute `c.prg` gleich `crawl128` der 1.0f-Disk ist. Weicht es ab, kommt das in den Bericht, und als Referenz dient dann das Disk-Original ohne Hook plus die Hook-Fassung nur für die Szenen.
+The reference is **1.0f compiled**, built from `git show main:game/crawl.bas` (that is 1.0f) with the same test hook (6.3), Blitz! image 1, VDC-BASIC v2h and the 0.1 files of the 1.0f disk. Beforehand it is checked that the `c.prg` rebuilt without the hook equals `crawl128` of the 1.0f disk. If it deviates, that goes into the report, and the reference is then the disk original without hook plus the hook version only for the scenes.
 
-### 6.2 Offline-Vollvergleich (P7a, ohne Emulator)
+### 6.2 Offline full comparison (P7a, without emulator)
 
-Neues Modul `tools/crawl01.py` (Engine): **Modell von `VIEW` 0.1** nach `docs/formats.md` (Abschnitt „VIEW“ unter SPR v1): Clear `VMF AP+400,0,7600`, WSM-Einträge vorne → hinten mit Spaltenabdeckung, Objektplätze (erst Objekte, dann Gegenstand), Ausgabe rückwärts, Wände `VMC`, Sprites `VMS`/`VMC`. Eingaben sind die 0.1-Dateien und die Crawl-Karte.
+New module `tools/crawl01.py` (Engine): **model of `VIEW` 0.1** per `docs/formats.md` (section "VIEW" under SPR v1): clear `VMF AP+400,0,7600`, WSM entries front → back with column coverage, object positions (first objects, then item), output in reverse, walls `VMC`, sprites `VMS`/`VMC`. Inputs are the 0.1 files and the Crawl map.
 
-Vergleich für **alle** freien Zellen × 4 Richtungen × {kein Geist; Geist in jeder sichtbaren freien Zelle (d, s), d ∈ {1, 2, 3}, mit jeder der 4 Geistrichtungen} × {Edelsteine wie in der Startkarte; alle eingesammelt}:
+Comparison for **all** free cells × 4 directions × {no ghost; ghost in every visible free cell (d, s), d ∈ {1, 2, 3}, with each of the 4 ghost directions} × {gems as in the start map; all collected}:
 
-- Startzustand des VRAM: Zufallsinhalt außerhalb der Assets. Assets an ihren Adressen (2.3) für beide Fassungen.
-- 0.2: `dbeview.view` + `run_vcl` mit der Crawl-Szene (DVG/DTS/S2/DMP aus `crawlconv`/`crawlmap`, BGSET-Füllbyte 0, ITEMSET 2 → Satz 1, Objekt mit q = `QG%(v)`, AP = 0).
-- Gleich sein müssen: alle Bytes der Zeilen 5–99, Spalten 6–73, sowie Zeile 100 in Spalten 6–73. Außerhalb des Fensters darf 0.2 nichts schreiben. Die Randspalten 0–5/74–79 der Zeilen 5–99 zählen nicht (0.1 löscht sie, 0.2 lässt sie; im Spiel sind sie 0, 6.3 prüft das).
-- Zusätzlich: A = 0 für alle Ansichten. `VCLLEN + VMSLEN` ≤ 2304 mit Bericht des Maximums (`dbeview budget`).
-- Das Modell selbst wird in P7c gegen echte 1.0f-Bilder geprüft: Die Fenster-Bytes von `crawl01` müssen den VICE-Dumps von 1.0f an allen Prüfbildern gleichen.
+- Initial state of the VRAM: random content outside the assets. Assets at their addresses (2.3) for both versions.
+- 0.2: `dbeview.view` + `run_vcl` with the Crawl scene (DVG/DTS/S2/DMP from `crawlconv`/`crawlmap`, BGSET fill byte 0, ITEMSET 2 → set 1, object with q = `QG%(v)`, AP = 0).
+- These must be equal: all bytes of rows 5–99, columns 6–73, and row 100 in columns 6–73. Outside the window 0.2 must write nothing. The edge columns 0–5/74–79 of rows 5–99 do not count (0.1 clears them, 0.2 leaves them; in the game they are 0, 6.3 checks this).
+- In addition: A = 0 for all views. `VCLLEN + VMSLEN` ≤ 2304 with a report of the maximum (`dbeview budget`).
+- The model itself is checked against real 1.0f frames in P7c: the window bytes of `crawl01` must equal the VICE dumps of 1.0f at all check frames.
 
-sim65-Zyklen von `VIEW` (wie `run_sim.time_view`, Lauf mit F = 4 minus F = 7) für alle Ansichten ohne und mit Geist: Mittel und Maximum gegen das Ziel aus P6 8 (≤ 2 × 0.1, also ≤ 28 382). Das ist ein Befund, kein Abnahmehindernis.
+sim65 cycles of `VIEW` (like `run_sim.time_view`, run with F = 4 minus F = 7) for all views without and with ghost: mean and maximum against the target from P6 8 (≤ 2 × 0.1, i.e. ≤ 28 382). This is a finding, not an acceptance blocker.
 
 ### 6.3 Emulator (P7c)
 
-`Spiel/test/vice_crawl.py` (neu), VICE `x128 -default -80col -VDC64KB -warp -sounddev dummy`, Disk per `-8`, Start per `-autostart` der Disk. Zwei Abläufe je Fassung:
+`Game/test/vice_crawl.py` (new), VICE `x128 -default -80col -VDC64KB -warp -sounddev dummy`, disk via `-8`, start via `-autostart` of the disk. Two runs per version:
 
-1. **Rundgang:** die 39 Tasten `WWEWWEWWQWWQWWQWWWWWQAAAAAEAAWWWWWQWWWQ` (TD$ aus `crawl.bas` Zeile 115). Verglichen wird an 40 Prompts (Startbild + 39).
-2. **Szenen** über den Test-Hook: Zeilen 4596/4597, aufgerufen am Anfang von 4600 (`GOSUB4596:`). Er übernimmt Spieler- und Geistposition aus `$0C44–$0C4A` wie `patch_crawl.py --hook`, wenn `$0C44` = 165, und setzt zusätzlich `PH%(0)=9` (gegen KO durch Treffer in den Szenen; gleich in beiden Fassungen). Szenenliste (vom Harness aus der Karte berechnet und im Bericht aufgeführt): Geist in jeder Zelle (d, s), d ∈ {1, 2}, s ∈ {−1, 0, +1}, mit jeder der 4 Richtungen (24 Szenen); Geist auf Edelsteinzelle bei (1, 0), (1, ±1), (2, ±1) (5); Geist bei (1, +1) mit Seitenwand (0, +1) davor und bei (1, −1) hinter Front (1, 0) (2); Geist bei d = 3 (unsichtbar in beiden). Die Szenen laufen nach dem Rundgang (Edelsteinzellen wählen, die der Rundgang nicht eingesammelt hat).
-3. **Automap** (`AM%=0`, Standard, wie 1.0f): Die Karte in MA (Bereich im VRAM-Vergleich 6.1) ist bytegleich zu 1.0f, geprüft über den VRAM-Vergleich nach dem Druck auf `M`. Der Nebel-Modus `AM%=1` ist nicht Teil der Abnahme (4.2); sein Erwartungswert wäre Bit 6 der Zellen nach `dbeview` mit `Scene.automap` plus die besuchten Zellen. Die blinkende Spielermarke wird ausgenommen.
+1. **Walkthrough:** the 39 keys `WWEWWEWWQWWQWWQWWWWWQAAAAAEAAWWWWWQWWWQ` (TD$ from `crawl.bas` line 115). Compared at 40 prompts (start frame + 39).
+2. **Scenes** via the test hook: lines 4596/4597, called at the start of 4600 (`GOSUB4596:`). It takes player and ghost position from `$0C44–$0C4A` like `patch_crawl.py --hook` when `$0C44` = 165, and additionally sets `PH%(0)=9` (against KO from hits in the scenes; same in both versions). Scene list (computed by the harness from the map and listed in the report): ghost in every cell (d, s), d ∈ {1, 2}, s ∈ {−1, 0, +1}, with each of the 4 directions (24 scenes); ghost on gem cell at (1, 0), (1, ±1), (2, ±1) (5); ghost at (1, +1) with side wall (0, +1) in front and at (1, −1) behind front (1, 0) (2); ghost at d = 3 (invisible in both). The scenes run after the walkthrough (choose gem cells that the walkthrough did not collect).
+3. **Automap** (`AM%=0`, default, like 1.0f): the map in MA (range in the VRAM comparison 6.1) is byte-identical to 1.0f, checked via the VRAM comparison after pressing `M`. The fog mode `AM%=1` is not part of the acceptance (4.2); its expected value would be bit 6 of the cells according to `dbeview` with `Scene.automap` plus the visited cells. The blinking player marker is excluded.
 
-Fassungen: 1.0f kompiliert (Referenz), **1.1 interpretiert** und **1.1 kompiliert**, je mit Hook gebaut (Hook-Zeilen per Textpatch vor dem Tokenisieren: `Spiel/test/patchbas.py`, ändert keine Quelle im Repo).
+Versions: 1.0f compiled (reference), **1.1 interpreted** and **1.1 compiled**, each built with hook (hook lines by text patch before tokenizing: `Game/test/patchbas.py`, changes no source in the repo).
 
-**Abnahme P7c:** In beiden 1.1-Fassungen sind an allen Prompts von Rundgang und Szenen das VRAM nach 6.1 und die Register 0–36 bytegleich zu 1.0f. Die Automap-Prüfung ist grün. `crawl01` gleicht den 1.0f-Dumps im Fenster. Es gibt keinen BASIC-Fehler (Haltepunkt Fehlervektor). Die Gegenprobe `--control` (ein Byte des Referenzdumps verfälschen) meldet genau dieses Bild.
+**Acceptance P7c:** In both 1.1 versions, at all prompts of walkthrough and scenes, the VRAM per 6.1 and the registers 0–36 are byte-identical to 1.0f. The automap check is green. `crawl01` matches the 1.0f dumps in the window. There is no BASIC error (breakpoint on error vector). The control run `--control` (corrupt one byte of the reference dump) reports exactly this frame.
 
-Ablaufregeln (wie `vice_drive.py`, mit den Korrekturen der Testregeln):
+Procedure rules (like `vice_drive.py`, with the corrections of the test rules):
 
-- **Ereignisgesteuert:** Haltepunkt auf GETIN `$FFE4`. Ist der Tastaturpuffer leer (`$D0` = 0), wartet das Programm. Dann erst zwei Interrupts abwarten (Haltepunkt auf den IRQ-Vektor `($0314)`, bis die Anzeige steht), dann vergleichen bzw. Taste einspeisen (`$034A`, `$D0` = 1). Haltepunkt auf den BASIC-Fehlervektor `($0300)` → Abbruch mit Zeilennummer. `-limitcycles` und ein Gesamt-Timeout nur als Wächter. **Kein `sleep`.**
-- Erkennung des Spielprompts: über die BASIC-Zeile `$3B/$3C` (5 = Diskprompt → Leertaste, 3560–3630 Menü → RETURN, 4040 Spiel, 6710 Automap). P7c prüft einmal, ob das Blitz!-Kompilat `$3B/$3C` pflegt. Wenn nicht, gilt die Folge: Der erste Prompt mit leerem Puffer in der Menü-`GET`-Schleife bekommt RETURN; jeder weitere Prompt mit leerem Puffer nach dem RETURN ist der Spielprompt (die Menüschleife ruft nach dem RETURN kein GETIN mehr). Bei M ist es der Kartenprompt.
-- **Monitorport:** `--port`, sonst `DBE_VICE_PORT`, sonst 6631, Bereich 6631–6649, bind-Test vor dem Start (belegt und nicht ausdrücklich angegeben: nächster freier mit Meldung; ausdrücklich angegeben: Abbruch). `-remotemonitor -remotemonitoraddress ip4://127.0.0.1:<port>`, kein `-binarymonitor`. Wiederverwenden: `VB3/test/vicemon.py` (`choose_port`) über `DBE_DIR/test/vice_smoke.py` oder direkt.
-- **Prozesse:** Nur den eigenen `Popen` beenden (`terminate`, nach Frist `kill`). Kein `pkill`/`killall`. Warteschleifen auf Hintergrundläufe nie per `pgrep -f <Muster>`, das die eigene Kommandozeile enthält; besser `wait` auf die PID oder das Prozessende.
-- Eine Monitorverbindung je Lauf offen halten (jede Trennung lässt die Emulation weiterlaufen). Vor jedem Befehl den Socket leeren.
-- Dateien: `Spiel/build/test/<lauf>/` (gitignored) oder ein vom Aufrufer genannter Scratchpad. Nicht direkt nach `/tmp`.
+- **Event-driven:** breakpoint on GETIN `$FFE4`. If the keyboard buffer is empty (`$D0` = 0), the program is waiting. Only then wait for two interrupts (breakpoint on the IRQ vector `($0314)`, until the display is stable), then compare or feed a key (`$034A`, `$D0` = 1). Breakpoint on the BASIC error vector `($0300)` → abort with line number. `-limitcycles` and an overall timeout only as a guard. **No `sleep`.**
+- Detection of the game prompt: via the BASIC line `$3B/$3C` (5 = disk prompt → space, 3560–3630 menu → RETURN, 4040 game, 6710 automap). P7c checks once whether the Blitz! compilation maintains `$3B/$3C`. If not, the following sequence applies: the first prompt with an empty buffer in the menu `GET` loop gets RETURN; every further prompt with an empty buffer after the RETURN is the game prompt (the menu loop no longer calls GETIN after the RETURN). For M it is the map prompt.
+- **Monitor port:** `--port`, otherwise `DBE_VICE_PORT`, otherwise 6631, range 6631–6649, bind test before the start (taken and not explicitly specified: next free one with a message; explicitly specified: abort). `-remotemonitor -remotemonitoraddress ip4://127.0.0.1:<port>`, no `-binarymonitor`. Reuse: `VB3/test/vicemon.py` (`choose_port`) via `DBE_DIR/test/vice_smoke.py` or directly.
+- **Processes:** terminate only your own `Popen` (`terminate`, after a deadline `kill`). No `pkill`/`killall`. Never wait on background runs via `pgrep -f <pattern>`, which contains its own command line; better `wait` on the PID or the process end.
+- Keep one monitor connection open per run (every disconnect lets the emulation continue running). Drain the socket before every command.
+- Files: `Game/build/test/<run>/` (gitignored) or a scratchpad named by the caller. Not directly in `/tmp`.
 
-## 7. Zeitvergleich (P7d)
+## 7. Timing comparison (P7d)
 
-### 7.1 Messgröße
+### 7.1 Measured quantity
 
-Wie im README: **Summe der Zeit von jedem Tastendruck bis zum nächsten Tastenprompt** über die 39 Tasten des Rundgangs (ohne Startbild). Die Messung läuft **auf unveränderten Release-Builds** (ohne Hook), damit nichts misst, was nicht ausgeliefert wird.
+As in the README: **sum of the time from each key press to the next key prompt** over the 39 keys of the walkthrough (without start frame). The measurement runs on **unmodified release builds** (without hook), so that nothing measures what is not shipped.
 
 ### 7.2 VICE
 
-`vice_crawl.py --timing`: Stoppuhr des Monitors (`r` bzw. `stopwatch`) beim Einspeisen und am nächsten Prompt (ereignisgesteuert wie 6.3; die zwei Interrupts zum Anzeigen gehören nicht zur Zeit, die Stoppuhr wird vorher gelesen). Je Lauf: 39 Einzelwerte, Summe, getrennt nach Schritt, Drehung und Wand-Stoß.
+`vice_crawl.py --timing`: monitor stopwatch (`r` or `stopwatch`) when feeding the key and at the next prompt (event-driven as in 6.3; the two interrupts for displaying are not part of the time, the stopwatch is read beforehand). Per run: 39 individual values, sum, separated by step, turn and wall bump.
 
-**Umrechnung in Sekunden:** Kalibrieren statt annehmen. In jedem Lauf wird einmal die Stoppuhrdifferenz zwischen zwei aufeinanderfolgenden IRQ-Haltepunkten gemessen (ein VIC-Bild, PAL 50,125 Hz). Damit gilt: Stoppuhr-Takte je Sekunde = Δ · 50,125. Das klärt auch, ob die Stoppuhr bei FAST 1-MHz- oder 2-MHz-Takte zählt (P6h sagt „1 MHz“; die README-Zahl 216 000 Takte je Schritt passt nur zu 2-MHz-Takten). Ausgegeben werden Takte und Sekunden.
+**Conversion to seconds:** calibrate instead of assume. In each run the stopwatch difference between two consecutive IRQ breakpoints is measured once (one VIC frame, PAL 50.125 Hz). Thus: stopwatch cycles per second = Δ · 50.125. This also clarifies whether the stopwatch counts FAST 1 MHz or 2 MHz cycles (P6h says "1 MHz"; the README number 216 000 cycles per step only fits 2 MHz cycles). Cycles and seconds are output.
 
-**Läufe (8):** {1.0f, 1.1} × {kompiliert, interpretiert} × {2 MHz, 1 MHz}.
+**Runs (8):** {1.0f, 1.1} × {compiled, interpreted} × {2 MHz, 1 MHz}.
 
-- 2 MHz = Standard des Spiels (Zeile 35 `FAST`).
-- 1 MHz: Vor dem Rundgang wird die Taste `1` gedrückt (Zeile 4240 `SLOW`, zählt nicht mit).
-- 1.0f interpretiert: Auf einer Kopie der 1.0f-Disk wird `crawl128` durch die tokenisierte 1.0f-Quelle (`$1C01`) ersetzt. 1.1 interpretiert: `mkdisk.py --interp`.
-- Jeder Lauf wird zweimal ausgeführt. Gemeldet wird der Mittelwert, die Spanne kommt in den Bericht (VCL schwankt um bis zu 3 000 Takte, P6g).
-- Die README-Werte von 1.0f (4,69 s / 22,96 s) dienen nur zur Plausibilitätsprüfung. In der neuen Tabelle stehen die neu gemessenen 1.0f-Werte desselben Harness.
+- 2 MHz = default of the game (line 35 `FAST`).
+- 1 MHz: before the walkthrough the key `1` is pressed (line 4240 `SLOW`, does not count).
+- 1.0f interpreted: on a copy of the 1.0f disk, `crawl128` is replaced by the tokenized 1.0f source (`$1C01`). 1.1 interpreted: `mkdisk.py --interp`.
+- Each run is executed twice. The mean is reported, the spread goes into the report (VCL fluctuates by up to 3 000 cycles, P6g).
+- The README values of 1.0f (4.69 s / 22.96 s) serve only as a plausibility check. The new table contains the newly measured 1.0f values of the same harness.
 
-### 7.3 Z64K (genauerer VDC)
+### 7.3 Z64K (more accurate VDC)
 
-Z64K hat keinen Monitor. Deshalb gibt es eine **Timedemo-Fassung** (Textpatch `patchbas.py --timedemo [--slow]` auf die Quelle von 1.0f bzw. 1.1):
+Z64K has no monitor. Therefore there is a **timedemo version** (text patch `patchbas.py --timedemo [--slow]` on the source of 1.0f or 1.1):
 
-- `5 REM` (kein Diskprompt), `3400 GOSUB 8900:GOTO 3700` (Menü überspringen), `115 TD$="…39 Tasten…"`.
-- In 4040 statt `GETKEY I$`: `IF TX=1 THEN T0=TI`, `IF TX>39 THEN T9=TI-T0:GOTO 63100`, `I$=MID$(TD$,TX,1):TX=TX+1` (TX = 1 setzt Zeile 3870 schon).
+- `5 REM` (no disk prompt), `3400 GOSUB 8900:GOTO 3700` (skip menu), `115 TD$="…39 keys…"`.
+- In 4040 instead of `GETKEY I$`: `IF TX=1 THEN T0=TI`, `IF TX>39 THEN T9=TI-T0:GOTO 63100`, `I$=MID$(TD$,TX,1):TX=TX+1` (TX = 1 is already set by line 3870).
 - `63100 OPEN2,DD,2,"@0:TIMES,S,W":PRINT#2,T9:CLOSE2:BANK15:POKE DEC("D7FF"),0`.
 - `--slow`: `3701 SLOW`.
-- Weil zwischen zwei Tasten nichts anderes läuft, ist T9 die Summe nach 7.1 (Auflösung ±1 Jiffy über den ganzen Lauf).
+- Because nothing else runs between two keys, T9 is the sum per 7.1 (resolution ±1 jiffy over the whole run).
 
-Start: `VB3/test/z64k.py` als Modul (`run(prg, d64=…, save=…)`, eigener Xvfb per `-displayfd`, nur eigene PIDs, Ereignis = Prozessende über `-debugcart`, `-limitcycles`/Timeout nur Wächter). Die gesicherte Disk wird per `c1541 -read times` gelesen. Disk-Images als **d64** (1.0f: `crawl128-100f.d64` mit ersetztem Programm; 1.1: `mkdisk.py --d64`). Läufe: {1.0f, 1.1} kompiliert × {2 MHz, 1 MHz}. Interpretiert ist optional (Laufzeit).
+Start: `VB3/test/z64k.py` as a module (`run(prg, d64=…, save=…)`, own Xvfb via `-displayfd`, only own PIDs, event = process end via `-debugcart`, `-limitcycles`/timeout only as a guard). The saved disk is read via `c1541 -read times`. Disk images as **d64** (1.0f: `crawl128-100f.d64` with replaced program; 1.1: `mkdisk.py --d64`). Runs: {1.0f, 1.1} compiled × {2 MHz, 1 MHz}. Interpreted is optional (runtime).
 
-**Jiffy-Takt:** Derselbe Timedemo-Build läuft einmal auch in VICE mit `-debugcart`. Dort wird T9 gegen die kalibrierte Stoppuhrsumme gestellt, das ergibt Jiffies je Sekunde (C128 PAL: IRQ je VIC-Bild). Ausgabe in Sekunden mit diesem Faktor.
+**Jiffy rate:** The same timedemo build also runs once in VICE with `-debugcart`. There T9 is compared against the calibrated stopwatch sum, which gives jiffies per second (C128 PAL: IRQ per VIC frame). Output in seconds with this factor.
 
-### 7.4 Bericht und Erwartung
+### 7.4 Report and expectation
 
-Die Tabelle (Sekunden, 2 Nachkommastellen) kommt in den Ergebnisabschnitt dieser Spec und ins Crawl-README (Abschnitt 9). Erwartung, nicht Abnahme: `VIEW` 0.2 kostet mehr CPU als 0.1 (0.1: 10,8–14,2 k Takte). Die VCL-Liste ist meist kürzer, weil es keinen Clear über 7 600 Byte mehr gibt. In Gängen deckt das Fenster vor Tiefe 3 ganz ab, dann gibt es gar keine Tapete. Ist 1.1 kompiliert bei 2 MHz um mehr als 10 % langsamer als 1.0f, gehört eine Zerlegung mit `DBE_DIR/test/vice_vclprof.py` (VIEW, VCL, BASIC) dazu. Es gibt **keine** Änderung an Lib oder VDC-BASIC in P7 (Lib-Reserve seit P6i 282 Byte; VDC-BASIC-Optimierung ist „später“ laut Entscheidung nach der VCL-Analyse).
+The table (seconds, 2 decimal places) goes into the results section of this spec and into the Crawl README (section 9). Expectation, not acceptance: `VIEW` 0.2 costs more CPU than 0.1 (0.1: 10.8–14.2 k cycles). The VCL list is usually shorter, because there is no longer a clear over 7 600 bytes. In corridors the window covers completely before depth 3, then there is no wallpaper at all. If 1.1 compiled at 2 MHz is more than 10 % slower than 1.0f, a breakdown with `DBE_DIR/test/vice_vclprof.py` (VIEW, VCL, BASIC) belongs with it. There is **no** change to lib or VDC-BASIC in P7 (lib reserve since P6i 282 bytes; VDC-BASIC optimization is "later" according to the decision after the VCL analysis).
 
-## 8. Demo-Programm (P7e, Engine)
+## 8. Demo program (P7e, Engine)
 
-### 8.1 Entscheidung: eigenes Programm im Engine-Repo
+### 8.1 Decision: a separate program in the engine repo
 
-`Engine/demo/`: eigenes BASIC-Programm `DEMO` mit eigener Disk `build/demo/dbe-demo.d81` (+ d64). **Kein zweites Crawl-Level.** Gründe:
+`Engine/demo/`: separate BASIC program `DEMO` with its own disk `build/demo/dbe-demo.d81` (+ d64). **No second Crawl level.** Reasons:
 
-- Crawl 1.1 bleibt ein treuer, pixelgleicher Port.
-- Fenster, Himmel und Abgrund brauchen eine Ebenen-Geometrie mit Boden und Decke (Westwood). Crawl hat keine.
-- Ein Levelwechsel in Crawl mit zweiter Geometrie, eigenem Asset-Pool und neuer Spiellogik wäre ein Spielumbau.
-- Die Demo zeigt die Engine und gehört zu ihren Werkzeugen und Beispiel-Assets.
+- Crawl 1.1 remains a faithful, pixel-identical port.
+- Windows, sky and abyss need a plane geometry with floor and ceiling (Westwood). Crawl has none.
+- A level change in Crawl with a second geometry, its own asset pool and new game logic would be a game rework.
+- The demo shows the engine and belongs among its tools and example assets.
 
-Die genutzten Crawl-Grafiken (`goblin1.bmp`, `tree1-3.bmp`, `water1-4.bmp`) kommen als Kopie nach `demo/art/`, mit Herkunft in `demo/README.md` (gleiche Autoren, MIT).
+The used Crawl graphics (`goblin1.bmp`, `tree1-3.bmp`, `water1-4.bmp`) come as a copy to `demo/art/`, with provenance in `demo/README.md` (same authors, MIT).
 
-### 8.2 Geometrie und Bildschirm
+### 8.2 Geometry and screen
 
-- `demo/view.toml`: Westwood 140 × 96, `origin = 5` (Spalten 5–74, Zeile 0), stride 80, `byte_edges = false` (Annahme, Frage 4), DVG `$E800`.
-- Bildschirm wie Crawl (Chunky 160 × 100, Register wie `test/vice/view.bas` Zeilen 100–170), Textbereich darunter ungenutzt. Kein Font: Die Demo hat kein HUD außer einem kleinen Kompass mit `VDB` (4 Rechtecke über dem Fenster, Zeile 96–99).
+- `demo/view.toml`: Westwood 140 × 96, `origin = 5` (columns 5–74, row 0), stride 80, `byte_edges = false` (assumption, question 4), DVG `$E800`.
+- Screen like Crawl (chunky 160 × 100, registers like `test/vice/view.bas` lines 100–170), text area below unused. No font: the demo has no HUD except a small compass with `VDB` (4 rectangles above the window, rows 96–99).
 
-### 8.3 Karte `demo/demo.toml` (dbemap, `$4000`)
+### 8.3 Map `demo/demo.toml` (dbemap, `$4000`)
 
-Grundlage ist die P6g-Karte (`test/vice_view.py build_map`, 15 × 11). Sie wird zu höchstens 20 × 16 erweitert und muss enthalten:
+The basis is the P6g map (`test/vice_view.py build_map`, 15 × 11). It is extended to at most 20 × 16 and must contain:
 
-| Element | Kachel |
+| Element | Tile |
 |---|---|
-| Gang | Wand `ziegel`, Boden `stein`, Decke `holz` |
-| Hof mit **Himmel** | Boden `stein`, Decke 0 |
-| **Abgrund** | Boden 0, Decke `holz`, Flag WEG (nicht betretbar), Rand zum Gang |
-| **Fenster** in der Außenwand | Wandstil `fenster` an der Fläche nach außen, nicht DECKEND |
-| **Außenkachel** `draussen` | keine Wände, Boden 0, Decke 0: Hinter den Fenstern liegt nur Tapete (Landschaft) |
-| **Gitter** mit INHALT | Wandstil `gitter`, Flags WEG, INHALT; dahinter (in der Zelle) ein Gegenstand |
-| **Tür** mit INHALT | Wandstil `bogen` (Torbogen), INHALT, ohne WEG (durchgehbar), Goblin-Route führt hindurch |
-| Gegenstände | Edelstein (Beispiel `spr/gem`), 3–5 Stück, `ITEMPH` glitzert |
-| Gegner | 2–3 Goblins (Objektliste), Startpunkte als Ereignis `gegner` |
+| Corridor | wall `brick`, floor `stone`, ceiling `wood` |
+| Courtyard with **sky** | floor `stone`, ceiling 0 |
+| **Abyss** | floor 0, ceiling `wood`, flag SOLID (not walkable), edge toward the corridor |
+| **Window** in the outer wall | wall style `window` on the surface facing outward, not OCCLUDING |
+| **Outside tile** `outside` | no walls, floor 0, ceiling 0: behind the windows there is only wallpaper (landscape) |
+| **Grille** with CONTENT | wall style `grating`, flags SOLID, CONTENT; behind it (in the cell) an item |
+| **Door** with CONTENT | wall style `arch` (archway), CONTENT, without SOLID (passable), goblin route leads through |
+| Items | gem (example `spr/gem`), 3–5 pieces, `ITEMPH` sparkles |
+| Enemies | 2–3 goblins (object list), start points as event `enemy` |
 
-### 8.4 Assets und Budget (Lösung für „mehrere Boden-/Deckenstile passen nicht“)
+### 8.4 Assets and budget (solution for "several floor/ceiling styles do not fit")
 
-**Lösung:** Je **ein** Boden- und **ein** Deckenstil. Abgrund und Himmel entstehen über Stil 0 (Lücke im Band → Tapete, P6 5.6/5.7) und kosten keinen zusätzlichen Stil. So passen Boden (≈ 1,9 KB in `$EE00–$F5FF`) und Decke (≈ 1,3 KB in `$F600–$FB7F`) in ihre Bereiche. Ein weiterer Bodenstil (z. B. Wasser aus `water*.bmp`) wäre nur mit dichter Packung möglich: Boden-DTS ins untere Fenster legen, etwa `$7800` hinter kleinen S2-Sätzen (die Adresse ist Parameter von TEXSET, `dbemem` prüft das Fensterende). Das ist nicht Teil von P7.
+**Solution:** one floor style and one ceiling style each. Abyss and sky arise via style 0 (gap in the band → wallpaper, P6 5.6/5.7) and cost no additional style. This way floor (≈ 1.9 KB in `$EE00–$F5FF`) and ceiling (≈ 1.3 KB in `$F600–$FB7F`) fit in their areas. A further floor style (e.g. water from `water*.bmp`) would be possible only with dense packing: put the floor DTS in the lower window, around `$7800` behind small S2 sets (the address is a parameter of TEXSET, `dbemem` checks the window end). This is not part of P7.
 
-| Asset | Quelle | Werkzeug | Bank 1 | VRAM etwa |
+| Asset | Source | Tool | Bank 1 | VRAM approx. |
 |---|---|---|---|---|
-| Wand: ziegel, gitter, fenster, bogen (4 Stile) | `docs/specs/examples/tex` | `dbetex build`, `max_kerns` höchstens 4 (Standard 4; mehr erlaubt `dbetex` nicht) | `$8000`, ≤ 12 KB (8,7 KB bei 4 Stilen) | aus Bericht |
-| Boden stein, Decke holz (je 1 Stil) | Beispiele | `dbetex build` | `$EE00`, `$F600` | ≈ 3,2 KB |
-| Tapete „Landschaft“ | neu aus `tree1-3.bmp`, `water1-4.bmp`, Himmel als `above`-Farbe, Abgrund `below` = 0 | Skript `demo/mkbg.py` → PNG 2·P Pixel × h, `dbetex bg`, P = 2·VW (wie P6g), `wrap`, `offsets = "auto"`, `y0 = "horizon"` | `$FB80` | P·h |
-| Goblin | `goblin1.bmp` (10 Bilder 32 × 32, Hintergrund = `key`) | `dbespr build`, NA = 1, NP = 4 (Bilder 0, 2, 4, 6), **kein Tag** (die Phase wählt das Programm über die Objektliste), 2fach vergrößert (64 × 64 je Phase), `max_kerns` 4, `derive = "nearest"` für d = 2, 3, Fußpunkt Mitte unten | `$6000` | ≈ 3 KB |
-| Edelstein | `docs/specs/examples/spr/gem` | `dbespr build` | dicht dahinter (16-Byte-Ausrichtung) | klein |
+| Wall: brick, grating, window, arch (4 styles) | `docs/specs/examples/tex` | `dbetex build`, `max_cores` at most 4 (default 4; `dbetex` allows no more) | `$8000`, ≤ 12 KB (8.7 KB with 4 styles) | from report |
+| Floor stone, ceiling wood (1 style each) | examples | `dbetex build` | `$EE00`, `$F600` | ≈ 3.2 KB |
+| Wallpaper "landscape" | new from `tree1-3.bmp`, `water1-4.bmp`, sky as `above` color, abyss `below` = 0 | script `demo/mkbg.py` → PNG 2·P pixels × h, `dbetex bg`, P = 2·VW (as P6g), `wrap`, `offsets = "auto"`, `y0 = "horizon"` | `$FB80` | P·h |
+| Goblin | `goblin1.bmp` (10 images 32 × 32, background = `key`) | `dbespr build`, NA = 1, NP = 4 (images 0, 2, 4, 6), **no tag** (the program selects the phase via the object list), enlarged 2× (64 × 64 per phase), `max_cores` 4, `derive = "nearest"` for d = 2, 3, foot point bottom center | `$6000` | ≈ 3 KB |
+| Gem | `docs/specs/examples/spr/gem` | `dbespr build` | densely behind (16-byte alignment) | small |
 
-Pool: VRAM 9600 bis 46334 (36,7 KB; kein zweiter Puffer). Budgetprüfung mit `dbetex budget` und den `dbespr`-Berichten in `demo/build.py`. Bei Überlauf wird in dieser Reihenfolge gestrichen: `bogen` (Tür dann mit `gitter` ohne WEG), Goblin-Phasen 4 → 2, Panorama-Höhe. Alle Dateien müssen die `dbemem`-Prüfung bestehen. `dbeview budget` über alle Ansichten der Demo-Karte (mit 0–3 Goblins): A = 0 überall, sonst Karte oder Assets ändern.
+Pool: VRAM 9600 to 46334 (36.7 KB; no second buffer). Budget check with `dbetex budget` and the `dbespr` reports in `demo/build.py`. On overflow, things are cut in this order: `arch` (door then with `grating` without SOLID), goblin phases 4 → 2, panorama height. All files must pass the `dbemem` check. `dbeview budget` over all views of the demo map (with 0–3 goblins): A = 0 everywhere, otherwise change the map or assets.
 
-### 8.5 Programm `demo/demo.bas`
+### 8.5 Program `demo/demo.bas`
 
-- Erste Zeile: `POKE 57,0:POKE 58,64:CLR`, Prüfung auf VB3. Laden und Setzen wie `test/vice/view.bas` (INIT, Bildschirm, BLOAD, RXV, POOLSET, GEOMSET, TEXSET ×3, BGSET, SPRITESET ×2, ITEMSET, MAPINIT mit Arbeitskopie `$5000` und Automap-Bit).
-- Schleife: `GETKEY` (W/S vor/zurück, A/D seitwärts, Q/E drehen, X Ende), **`MOVE`** (F 3, Aktionen nach P6 3.4; X = 1 Wand, X = 2 Goblin, beides einfach ignorieren).
-- Goblin-Zug in BASIC: je Taste ein Schritt entlang einer festen Route je Goblin (Liste von Zellen im Programm). Ist die Zielzelle die Spielerzelle, wartet er.
-- Objektliste: Zelle, Satz 0, Richtung `$FF`, Phase = (Bildzähler + i) AND 3, q = 4. `ITEMPH` = Bildzähler AND 1. Danach `VIEW`, `VCL PEEK(3072)+256*PEEK(3073)`.
-- Testmarke: Am Prompt läuft `GETKEY` über GETIN, der Harness erkennt das an `$FFE4` (wie Crawl). Eine Hilfsvariable ist nicht nötig.
-- Läuft interpretiert und als Blitz!-Kompilat (Image 2, `GRAPHIC 0` in einer nie ausgeführten letzten Zeile wie `blitzprep.py`).
+- First line: `POKE 57,0:POKE 58,64:CLR`, check for VB3. Loading and setting as `test/vice/view.bas` (INIT, screen, BLOAD, RXV, POOLSET, GEOMSET, TEXSET ×3, BGSET, SPRITESET ×2, ITEMSET, MAPINIT with working copy `$5000` and automap bit).
+- Loop: `GETKEY` (W/S forward/back, A/D sideways, Q/E turn, X end), **`MOVE`** (F 3, actions per P6 3.4; X = 1 wall, X = 2 goblin, simply ignore both).
+- Goblin move in BASIC: one step per key along a fixed route per goblin (list of cells in the program). If the target cell is the player cell, it waits.
+- Object list: cell, set 0, direction `$FF`, phase = (frame counter + i) AND 3, q = 4. `ITEMPH` = frame counter AND 1. Then `VIEW`, `VCL PEEK(3072)+256*PEEK(3073)`.
+- Test marker: at the prompt `GETKEY` runs via GETIN, the harness recognizes this at `$FFE4` (like Crawl). A helper variable is not needed.
+- Runs interpreted and as a Blitz! compilation (image 2, `GRAPHIC 0` in a never-executed last line like `blitzprep.py`).
 
 ### 8.6 Test `test/vice_demo.py`
 
-- Aufbau wie `vice_view.py`: Disk aus `demo/build.py`, BOOT mit `50 RUN"DEMO"`.
-- Feste Tour mit etwa 40 Tasten: Fenster von innen in alle 4 Richtungen, Hof mit Himmel, Blick in den Abgrund, Goblin vor dem Gitter und in der Tür, Edelstein hinter dem Gitter, Goblin an den Fensterrändern (beschnitten), Stöße gegen Wand und Goblin.
-- An jedem Prompt (GETIN, leerer Puffer): ganzes 64-KB-VRAM gegen das fortgeschriebene Modell (`dbeview.run_vcl` je Schritt). Die Szene baut der Harness aus dem echten Zustand: Position und Richtung über `MOVE`-Ergebnisse aus `dbemove`, Objektliste aus `$0C50–$0CB0`, `ITEMPH` aus `$0C08`, Inhaltsebene aus Bank 1 `$5000+W·H`.
-- Fenster gegen `paint_reference`; A, VCLLEN, VMSLEN gegen `dbeview.view`.
-- Interpretiert und kompiliert, Zyklen je Bild bei 1 und 2 MHz wie P6h. Gleiche Port- und Prozessregeln wie 6.3, keine festen Wartezeiten.
+- Structure like `vice_view.py`: disk from `demo/build.py`, BOOT with `50 RUN"DEMO"`.
+- Fixed tour with about 40 keys: window from inside in all 4 directions, courtyard with sky, look into the abyss, goblin in front of the grille and in the door, gem behind the grille, goblin at the window edges (clipped), bumps against wall and goblin.
+- At every prompt (GETIN, empty buffer): the entire 64 KB VRAM against the continuously updated model (`dbeview.run_vcl` per step). The harness builds the scene from the real state: position and direction via `MOVE` results from `dbemove`, object list from `$0C50–$0CB0`, `ITEMPH` from `$0C08`, content layer from bank 1 `$5000+W·H`.
+- Window against `paint_reference`; A, VCLLEN, VMSLEN against `dbeview.view`.
+- Interpreted and compiled, cycles per frame at 1 and 2 MHz as in P6h. Same port and process rules as 6.3, no fixed wait times.
 
-**Abnahme P7e:** alle Tour-Bilder in beiden Fassungen gleich dem Modell; Budget und Bereiche ohne Fehler; Screenshots der Tour (PNG) für die Doku unter `demo/media/`.
+**Acceptance P7e:** all tour frames in both versions equal to the model; budget and ranges without errors; screenshots of the tour (PNG) for the docs under `demo/media/`.
 
-## 9. Doku (P7f)
+## 9. Documentation (P7f)
 
-### 9.1 Crawl-README (Version 1.1)
+### 9.1 Crawl README (version 1.1)
 
-- Download-Tabelle: `crawl128-110.d81/.d64`, Start über Autoboot bzw. `RUN"BOOT"`.
-- „How it works“, Bibliotheken: VDC-BASIC **v3** (`vdcbasic3`, `$1C00–$3FFF`, geladen von `BOOT`), dungeonboringengine **0.2** (Stub `$0D00`, Lib Bank 1 `$B000–$DBFF`, Daten DVG/DTS/S2/DMP, VRL über `RXV`), Blitz! Image 2 (Programm ab `$4001`, Runtime `$FC00–$FEFF`).
-- Memory map 1.1 (gemessen im laufenden Kompilat, Werte aus P7b/P7c): Tabelle wie 2.1/2.2/2.3.
-- Performance: neue Tabelle aus 7 (1.0f und 1.1, kompiliert/interpretiert, 1/2 MHz, VICE und Z64K) mit dem Hinweis, dass 1.0f mit demselben Harness neu gemessen wurde.
-- Versionshistorie: „1.1 – dungeonboringengine 0.2 und VDC-BASIC v3: Bilder pixelgleich, Automap unverändert (ganzer Dungeon), neue Speicheraufteilung“ (so im README umgesetzt).
+- Download table: `crawl128-110.d81/.d64`, start via autoboot or `RUN"BOOT"`.
+- "How it works", libraries: VDC-BASIC **v3** (`vdcbasic3`, `$1C00–$3FFF`, loaded by `BOOT`), dungeonboringengine **0.2** (stub `$0D00`, lib bank 1 `$B000–$DBFF`, data DVG/DTS/S2/DMP, VRL via `RXV`), Blitz! image 2 (program from `$4001`, runtime `$FC00–$FEFF`).
+- Memory map 1.1 (measured in the running compilation, values from P7b/P7c): table as in 2.1/2.2/2.3.
+- Performance: new table from 7 (1.0f and 1.1, compiled/interpreted, 1/2 MHz, VICE and Z64K) with the note that 1.0f was re-measured with the same harness.
+- Version history: "1.1 – dungeonboringengine 0.2 and VDC-BASIC v3: frames pixel-identical, automap unchanged (entire dungeon), new memory layout" (implemented this way in the README).
 - Building: `tools/mkdisk.py`, `bas2prg.py --start`, `crawlconv` (Engine).
-- Repository layout: `art/dbe02/`, `test/`, `build/` (ignoriert).
-- `art/dbe02/README.md` (4.4). `art/dbe/README.md` bekommt einen Satz: „0.1-Daten von 1.0f; 1.1 siehe `art/dbe02/`“.
+- Repository layout: `art/dbe02/`, `test/`, `build/` (ignored).
+- `art/dbe02/README.md` (4.4). `art/dbe/README.md` gets one sentence: "0.1 data of 1.0f; for 1.1 see `art/dbe02/`".
 
 ### 9.2 Engine
 
-- Diese Spec: Ergebnisabschnitte je Teilschritt.
-- `README.md`: „Stand“ (P7: Crawl 1.1 pixelgleich, Demo), Werkzeugliste (`crawlconv.py`, `crawl01.py`), Tests (`test_crawlconv.py`, `vice_demo.py`).
-- `plan-0.2.md` Abschnitt 9: neue Entscheidungen aus P7.
-- `docs/formats.md` ändert sich nicht (keine Formatänderung).
+- This spec: result sections per sub-step.
+- `README.md`: "Status" (P7: Crawl 1.1 pixel-identical, demo), tool list (`crawlconv.py`, `crawl01.py`), tests (`test_crawlconv.py`, `vice_demo.py`).
+- `plan-0.2.md` section 9: new decisions from P7.
+- `docs/formats.md` does not change (no format change).
 
-## 10. Teilschritte
+## 10. Sub-steps
 
-| Schritt | Inhalt | Dateien | Abnahme | Modell | Risiken |
+| Step | Content | Files | Acceptance | Model | Risks |
 |---|---|---|---|---|---|
-| **P7a** Konverter und Offline-Beweis | `crawlconv.py` (3), `crawlmap` für `crawl.dmp` (Standard `$4000`, `--items 2,4`), `crawl01.py` (6.2), Vollvergleich, sim65-Zyklen, Budget | Engine: `tools/crawlconv.py`, `tools/crawl01.py`, `test/tools/test_crawlconv.py`, `test/tools/test_crawl01.py` (Vollvergleich als Test, ≤ 2 min), `test/tools/data/` (1.0f-Dateien) | Unittests grün; Vollvergleich ohne Abweichung; A = 0 für alle Ansichten; VRAM-Summe ≤ 46335; Bericht mit Größen, VRL-Größen, Zyklen | Sonnet | Geistmaske (0.1-Eigenheit, 3.4); Anker p = 2/p = 3; DVG-Prüfungen in GEOMSET (`parse_dvg` = Referenz); Tiefe 0 ohne s = 0 |
-| **P7b** Port und Disk | `crawl.bas` nach 4.1/4.2, `bas2prg --start`, `mkdisk.py`, Libs und Assets einchecken, BE messen, `--max-part` festlegen | Spiel: `game/crawl.bas`, `tools/bas2prg.py`, `tools/mkdisk.py`, `libs/*`, `art/dbe02/*`, `.gitignore` | Disk bootet in VICE interpretiert und kompiliert bis zum Spielprompt; Rundgang (39 Tasten) ohne BASIC-Fehler (Rauchtest mit dem Harness aus P7c im Modus `--smoke`, oder minimal eigenständig); Speicher gemessen (BE, Programmende, Variablenende Bank 1) | Sonnet | BE im Kompilat höher als erwartet → VRL-Teile; Blitz!-Kennung `$4025`; `::RXV` im Kompilat (Ausdrücke als Variable übergeben); `AND 255` > 32767 |
-| **P7c** Pixeltest | `vice_crawl.py` (6.3), `patchbas.py` (Hook), Referenzbau 1.0f, Szenenliste, Automap-Prüfung, `--control` | Spiel: `test/vice_crawl.py`, `test/patchbas.py`, `test/README.md` | 6.3 Abnahme in beiden 1.1-Fassungen | Sonnet (Skript), Haiku (Läufe) | `$3B/$3C` im Kompilat; Ghost-KI zwischen Szenen (Hook setzt Position nach der KI); 1.0f-Neubau nicht bytegleich zum Disk-Original |
-| **P7d** Zeitvergleich | `--timing` mit Kalibrierung (7.2), Timedemo-Patch und Z64K-Läufe (7.3), Tabelle | Spiel: `test/vice_crawl.py`, `test/patchbas.py`, `test/z64k_crawl.py` | 8 VICE-Läufe ×2 und 4 Z64K-Läufe mit Ergebnis; Tabelle im Bericht; bei > 10 % langsamer eine Zerlegung | Haiku (Läufe), Sonnet nur für Skriptfehler | Takt der Stoppuhr bei FAST (Kalibrierung); Z64K braucht d64 und `-vdc64kb`; Z64K-RAM nicht genullt (keine Annahmen im Patch) |
-| **P7e** Demo | Karte, Tapete, Goblin, Programm, Build, Test (8) | Engine: `demo/*` (`view.toml`, `demo.toml`, `mkbg.py`, `goblin.toml`, `build.py`, `demo.bas`, `art/`, `README.md`), `test/vice_demo.py` | 8.6 Abnahme; Budget und Bereiche ok | Sonnet (Skripte, Programm), Haiku (Läufe) | VRAM-Pool (Streichliste 8.4); Goblin aus Bitmap mit `key`; `derive` bei 32 × 32 → kleine Tiefen unschön (Warnung ist ok); Fenster-/Außenkachel-Logik in der Karte |
-| **P7f** Doku | 9.1, 9.2, Ergebnisse in diese Spec | Spiel `README.md`, `art/dbe02/README.md`, `art/dbe/README.md`; Engine `README.md`, `plan-0.2.md`, diese Spec | Doku stimmt mit Messwerten überein; Review Opus | Sonnet | – |
+| **P7a** Converter and offline proof | `crawlconv.py` (3), `crawlmap` for `crawl.dmp` (default `$4000`, `--items 2,4`), `crawl01.py` (6.2), full comparison, sim65 cycles, budget | Engine: `tools/crawlconv.py`, `tools/crawl01.py`, `test/tools/test_crawlconv.py`, `test/tools/test_crawl01.py` (full comparison as a test, ≤ 2 min), `test/tools/data/` (1.0f files) | Unit tests green; full comparison without deviation; A = 0 for all views; VRAM sum ≤ 46335; report with sizes, VRL sizes, cycles | Sonnet | Ghost mask (0.1 quirk, 3.4); anchors p = 2/p = 3; DVG checks in GEOMSET (`parse_dvg` = reference); depth 0 without s = 0 |
+| **P7b** Port and disk | `crawl.bas` per 4.1/4.2, `bas2prg --start`, `mkdisk.py`, check in libs and assets, measure BE, fix `--max-part` | Game: `game/crawl.bas`, `tools/bas2prg.py`, `tools/mkdisk.py`, `libs/*`, `art/dbe02/*`, `.gitignore` | Disk boots in VICE interpreted and compiled to the game prompt; walkthrough (39 keys) without BASIC error (smoke test with the harness from P7c in `--smoke` mode, or minimal standalone); memory measured (BE, program end, variable end bank 1) | Sonnet | BE in the compilation higher than expected → VRL parts; Blitz! signature `$4025`; `::RXV` in the compilation (pass expressions as a variable); `AND 255` > 32767 |
+| **P7c** Pixel test | `vice_crawl.py` (6.3), `patchbas.py` (hook), reference build 1.0f, scene list, automap check, `--control` | Game: `test/vice_crawl.py`, `test/patchbas.py`, `test/README.md` | 6.3 acceptance in both 1.1 versions | Sonnet (script), Haiku (runs) | `$3B/$3C` in the compilation; ghost AI between scenes (hook sets position after the AI); 1.0f rebuild not byte-identical to the disk original |
+| **P7d** Timing comparison | `--timing` with calibration (7.2), timedemo patch and Z64K runs (7.3), table | Game: `test/vice_crawl.py`, `test/patchbas.py`, `test/z64k_crawl.py` | 8 VICE runs ×2 and 4 Z64K runs with result; table in the report; if > 10 % slower a breakdown | Haiku (runs), Sonnet only for script errors | Stopwatch rate at FAST (calibration); Z64K needs d64 and `-vdc64kb`; Z64K RAM not zeroed (no assumptions in the patch) |
+| **P7e** Demo | Map, wallpaper, goblin, program, build, test (8) | Engine: `demo/*` (`view.toml`, `demo.toml`, `mkbg.py`, `goblin.toml`, `build.py`, `demo.bas`, `art/`, `README.md`), `test/vice_demo.py` | 8.6 acceptance; budget and ranges ok | Sonnet (scripts, program), Haiku (runs) | VRAM pool (cut list 8.4); goblin from bitmap with `key`; `derive` at 32 × 32 → small depths ugly (warning is ok); window/outside-tile logic in the map |
+| **P7f** Documentation | 9.1, 9.2, results into this spec | Game `README.md`, `art/dbe02/README.md`, `art/dbe/README.md`; Engine `README.md`, `plan-0.2.md`, this spec | Docs match the measured values; review Opus | Sonnet | – |
 
-Reihenfolge: P7a → P7b → P7c → P7d → P7f. **P7e** hängt nicht an P7a–P7d und kann parallel zu P7a beginnen (anderes Repo-Verzeichnis, eigener VICE-Port). Parallele VICE-Läufe brauchen je einen eigenen Port aus 6631–6649.
+Order: P7a → P7b → P7c → P7d → P7f. **P7e** does not depend on P7a–P7d and can start in parallel with P7a (different repo directory, own VICE port). Parallel VICE runs each need their own port from 6631–6649.
 
-Commits: Erst nach dem Review und auf Anweisung des Nutzers (Spiel auf `dbe-0.2`, Engine auf `step2/textures-0.2`). Die Teilschritte committen nicht von selbst.
+Commits: only after the review and on the user's instruction (game on `dbe-0.2`, engine on `step2/textures-0.2`). The sub-steps do not commit on their own.
 
-## 11. Fragen an den Nutzer (mit Annahme, nach der spezifiziert ist)
+## 11. Questions to the user (with assumption, after specification)
 
-1. **Demo als eigenes Programm im Engine-Repo** statt als zweites Crawl-Level? *Annahme: ja* (8.1). Soll die Demo zusätzlich auf die Crawl-1.1-Disk?
-2. **Automap mit Nebel** (nur Erkundetes, über die Automap-Bits der Engine) als Standard in 1.1? *Annahme war: ja.* **Entschieden (2026-11-26): nein.** Standard ist `AM%=0` wie 1.0f (ganzer Dungeon); Nebel nur optional mit `AM%=1` (4.2).
-3. **Abweichung 3/9:** Crawl 1.1 startet nur noch über `BOOT`, interpretiert nicht mehr direkt aus der IDE. *Annahme: in Ordnung.*
-4. **Demo mit `byte_edges`** (schneller, Kanten in 2-Pixel-Stufen)? *Annahme: nein, pixelgenau (Standard)*. Bei Zeitproblemen umstellen.
-5. **Zweiter Bodenstil (Wasser)** in der Demo über dichte Packung? *Annahme: nein*, Abgrund und Himmel über Stil 0 reichen (8.4).
-6. **Release-Dateiname** `crawl128-110.d81/.d64` und Versionstext „1.1“? *Annahme: ja.*
+1. **Demo as a separate program in the engine repo** instead of as a second Crawl level? *Assumption: yes* (8.1). Should the demo additionally go onto the Crawl 1.1 disk?
+2. **Automap with fog** (explored areas only, via the engine's automap bits) as default in 1.1? *Assumption was: yes.* **Decided (2026-11-26): no.** Default is `AM%=0` like 1.0f (entire dungeon); fog only optional with `AM%=1` (4.2).
+3. **Deviation 3/9:** Crawl 1.1 starts only via `BOOT` now, interpreted no longer directly from the IDE. *Assumption: fine.*
+4. **Demo with `byte_edges`** (faster, edges in 2-pixel steps)? *Assumption: no, pixel-exact (default)*. Switch if there are timing problems.
+5. **Second floor style (water)** in the demo via dense packing? *Assumption: no*, abyss and sky via style 0 are enough (8.4).
+6. **Release file name** `crawl128-110.d81/.d64` and version text "1.1"? *Assumption: yes.*
 
-## 12. Ergebnis P7 (2026-11-26)
+## 12. Result P7 (2026-11-26)
 
-Nichts davon ist committet (Spiel `dbe-0.2`, Engine `step2/textures-0.2`).
+None of this is committed (game `dbe-0.2`, engine `step2/textures-0.2`).
 
-### 12.1 P7a: Konverter und Offline-Beweis
+### 12.1 P7a: Converter and offline proof
 
-- `tools/crawlconv.py` (Abschnitt 3), `tools/crawl01.py` (6.2), Tests `test/tools/test_crawlconv.py`, `test/tools/test_crawl01.py`, `test/sim/run_crawl.py`, Daten `test/tools/data/`.
-- **Offline-Vollvergleich:** 19 136 Ansichten des Crawl-Levels bytegleich zu 1.0f (sim65 gegen `dbeview.view` gegen das 0.1-Modell), alle A = 0.
-- VRAM: Der Edelstein belegt 36 statt 72 Byte (die zwei Font-Zeichen werden dedupliziert). Ende der Daten 45 644 (mit 1732 Byte Font), Reserve **691 Byte** bis 46335; mit dem tatsächlichen Font von 1730 Byte 693 Byte.
-- DVG 68 × 96, 28 Elemente, 506 Byte; Wand-DTS 545 Byte, 19 Bilder; `walls.vrl` 6050 Byte (entpackt 22 354), nicht geteilt (N = 1).
+- `tools/crawlconv.py` (section 3), `tools/crawl01.py` (6.2), tests `test/tools/test_crawlconv.py`, `test/tools/test_crawl01.py`, `test/sim/run_crawl.py`, data `test/tools/data/`.
+- **Offline full comparison:** 19 136 views of the Crawl level byte-identical to 1.0f (sim65 against `dbeview.view` against the 0.1 model), all A = 0.
+- VRAM: the gem occupies 36 instead of 72 bytes (the two font characters are deduplicated). End of data 45 644 (with 1732 bytes of font), reserve **691 bytes** up to 46335; with the actual font of 1730 bytes 693 bytes.
+- DVG 68 × 96, 28 elements, 506 bytes; wall DTS 545 bytes, 19 images; `walls.vrl` 6050 bytes (unpacked 22 354), not split (N = 1).
 
-### 12.2 P7b: Port und Disk (Spiel)
+### 12.2 P7b: Port and disk (game)
 
-- `game/crawl.bas` portiert (4.1), `tools/bas2prg.py --start`, `tools/mkdisk.py`, `libs/` (`dbe0.2.stub.prg`, `dbe0.2.lib.prg`, `vdcbasic3.prg`, `boot.prg`), `art/dbe02/`.
-- **Speicher gemessen (laufendes Spiel):** `BE` interpretiert `$8019` (32 793), kompiliert `$96B8` (38 584). Ladepuffer `[BE, $D000)`: 20 455 Byte bzw. 14 664 Byte; die größte VRL ist `walls.vrl` mit 6050 Byte. Variablen Bank 1 kompiliert `$0400–$0684`, Stringbereich bis `$1211` (interpretiert `$119B`).
-- Disk d81 2952 Blöcke frei, d64 456 Blöcke frei; Bootsektor vorhanden (Autoboot, `BOOT` als erste Datei). Release-Images `crawl128-110.d81` und `.d64` im Spiel-Repo, aus `build/crawl128-110c.d81` bzw. `build/crawl128-110.d64` kopiert (frisch mit `mkdisk.py` gebaut).
+- `game/crawl.bas` ported (4.1), `tools/bas2prg.py --start`, `tools/mkdisk.py`, `libs/` (`dbe0.2.stub.prg`, `dbe0.2.lib.prg`, `vdcbasic3.prg`, `boot.prg`), `art/dbe02/`.
+- **Memory measured (running game):** `BE` interpreted `$8019` (32 793), compiled `$96B8` (38 584). Load buffer `[BE, $D000)`: 20 455 bytes and 14 664 bytes respectively; the largest VRL is `walls.vrl` with 6050 bytes. Variables bank 1 compiled `$0400–$0684`, string area up to `$1211` (interpreted `$119B`).
+- Disk d81 2952 blocks free, d64 456 blocks free; boot sector present (autoboot, `BOOT` as first file). Release images `crawl128-110.d81` and `.d64` in the game repo, copied from `build/crawl128-110c.d81` and `build/crawl128-110.d64` respectively (freshly built with `mkdisk.py`).
 
-### 12.3 P7c: Pixeltest (Spiel)
+### 12.3 P7c: Pixel test (game)
 
-- `test/vice_crawl.py`, `test/patchbas.py`, `test/README.md`. 1.1 interpretiert und kompiliert an **74 Prompts VRAM-bytegleich** zu 1.0f; die Register 0–36 sind gleich bis auf R14/R15 und R33 (Zeiger, konstanter Unterschied, toleriert). `crawl01` gegen die echten 1.0f-Dumps: 73 Prompts gleich. `--control` meldet das verfälschte Bild.
-- Behoben: die Reihenfolge der Zeilen bei MAPINIT. Beobachtung: Der Blitz!-Compiler ist nicht deterministisch (± wenige Byte im Kompilat); die 1.0f-Neubauten sind deshalb nicht bytegleich zum Original.
+- `test/vice_crawl.py`, `test/patchbas.py`, `test/README.md`. 1.1 interpreted and compiled at **74 prompts VRAM-byte-identical** to 1.0f; the registers 0–36 are equal except R14/R15 and R33 (pointers, constant difference, tolerated). `crawl01` against the real 1.0f dumps: 73 prompts equal. `--control` reports the corrupted frame.
+- Fixed: the order of the lines at MAPINIT. Observation: the Blitz! compiler is not deterministic (± a few bytes in the compilation); the 1.0f rebuilds are therefore not byte-identical to the original.
 
-### 12.4 P7d: Zeitvergleich
+### 12.4 P7d: Timing comparison
 
-Messgröße und Verfahren nach 7.1–7.3; die Stoppuhr des Monitors zählt auch bei FAST **1-MHz-Takte** (985 248 je Sekunde, PAL), ein Jiffy ist 1/60,15 s. Die README-Werte von 1.0f (4,69 s / 22,96 s) sind mit demselben Harness nicht reproduzierbar (3,44 s / 21,87 s); die Tabelle enthält nur die neu gemessenen Werte. Jede Konfiguration lief zweimal (Mittelwert).
+Measured quantity and procedure per 7.1–7.3; the monitor stopwatch counts **1 MHz cycles** even at FAST (985 248 per second, PAL), one jiffy is 1/60.15 s. The README values of 1.0f (4.69 s / 22.96 s) are not reproducible with the same harness (3.44 s / 21.87 s); the table contains only the newly measured values. Each configuration ran twice (mean).
 
-| Konfiguration | CPU | 1.0f | 1.1 | Änderung |
+| Configuration | CPU | 1.0f | 1.1 | Change |
 |---|---|---|---|---|
-| VICE, kompiliert | 2 MHz | 3,44 s | 3,46 s | +0,8 % |
-| VICE, kompiliert | 1 MHz | 6,41 s | 6,53 s | +1,9 % |
-| VICE, interpretiert | 2 MHz | 21,87 s | 22,43 s | +2,5 % |
-| VICE, interpretiert | 1 MHz | 44,38 s | 45,60 s | +2,7 % |
-| Z64K, kompiliert | 2 MHz | 4,32 s | 4,27 s | -1,2 % |
-| Z64K, kompiliert | 1 MHz | 7,70 s | 7,75 s | +0,6 % |
+| VICE, compiled | 2 MHz | 3.44 s | 3.46 s | +0.8 % |
+| VICE, compiled | 1 MHz | 6.41 s | 6.53 s | +1.9 % |
+| VICE, interpreted | 2 MHz | 21.87 s | 22.43 s | +2.5 % |
+| VICE, interpreted | 1 MHz | 44.38 s | 45.60 s | +2.7 % |
+| Z64K, compiled | 2 MHz | 4.32 s | 4.27 s | -1.2 % |
+| Z64K, compiled | 1 MHz | 7.70 s | 7.75 s | +0.6 % |
 
-Endwerte mit der P6i-Lib (`libs/dbe0.2.lib.prg` 10 984 Byte). VICE: Summe Taste bis Prompt über 39 Tasten in 1-MHz-Takten, 1.0f / 1.1: kompiliert 2 MHz 3 385 841 / 3 411 580, 1 MHz 6 318 623 / 6 438 389; interpretiert 2 MHz 21 550 022 / 22 098 503, 1 MHz 43 727 387 / 44 925 517 (Doppelläufe identisch). Z64K: T9 in Jiffies, 2 MHz 260 / 257, 1 MHz 463 / 466. Ein Z64K-Lauf brach einmal mit rc 125 ab, die Wiederholung war in Ordnung (bekannte Flakiness). **Bewertung:** 1.1 ist praktisch gleich schnell wie 1.0f (VICE +0,8 bis +2,7 %, Z64K −1,2 bis +0,6 %), nicht schneller; unter der Schwelle von 10 % aus 7.4, eine Zerlegung war nicht nötig.
+Final values with the P6i lib (`libs/dbe0.2.lib.prg` 10 984 bytes). VICE: sum key to prompt over 39 keys in 1 MHz cycles, 1.0f / 1.1: compiled 2 MHz 3 385 841 / 3 411 580, 1 MHz 6 318 623 / 6 438 389; interpreted 2 MHz 21 550 022 / 22 098 503, 1 MHz 43 727 387 / 44 925 517 (double runs identical). Z64K: T9 in jiffies, 2 MHz 260 / 257, 1 MHz 463 / 466. One Z64K run aborted once with rc 125, the repetition was fine (known flakiness). **Assessment:** 1.1 is practically as fast as 1.0f (VICE +0.8 to +2.7 %, Z64K −1.2 to +0.6 %), not faster; below the 10 % threshold from 7.4, a breakdown was not necessary.
 
-Szene „Geist nah, schräg“ (Position 67, Richtung 3, Geist Zelle 86, kompiliert 2 MHz, Mittel aus 3, Takte), 1.0f / 1.1 alte Lib / 1.1 P6i: Geist-Richtung 0: 214 846 / 231 721 / 224 176; Richtung 1: 224 260 / 242 285 / 240 845; Richtung 2: 222 342 / 231 474 / 235 780; Richtung 3: 206 813 / 224 991 / 222 553; ohne Geist: 185 750 / 201 555 / 199 209. Der Geist selbst kostet jetzt so viel wie in 1.0f (etwa 31 k Takte). Der Rest des Mehraufwands der Szene (etwa +13 k, +7 %) kommt aus der Szene ohne Geist: höhere Kosten je sichtbarem Wandteil in `VIEW` 0.2 (etwa 1 500 statt 420 Zyklen), dafür niedrigere Grundkosten. Wiederholungen streuen bis ±15 % (Geist-KI).
+Scene "ghost near, oblique" (position 67, direction 3, ghost cell 86, compiled 2 MHz, mean of 3, cycles), 1.0f / 1.1 old lib / 1.1 P6i: ghost direction 0: 214 846 / 231 721 / 224 176; direction 1: 224 260 / 242 285 / 240 845; direction 2: 222 342 / 231 474 / 235 780; direction 3: 206 813 / 224 991 / 222 553; without ghost: 185 750 / 201 555 / 199 209. The ghost itself now costs as much as in 1.0f (about 31 k cycles). The rest of the scene's overhead (about +13 k, +7 %) comes from the scene without ghost: higher costs per visible wall piece in `VIEW` 0.2 (about 1 500 instead of 420 cycles), but lower base costs. Repetitions scatter up to ±15 % (ghost AI).
 
-Zum Vergleich die Messung mit der **alten Lib** (vor P6i, 11 057 Byte): VICE kompiliert 2 MHz 3,44 / 3,48 s (+1,2 %), 1 MHz 6,41 / 6,54 s (+2,0 %), interpretiert 2 MHz 21,87 / 22,43 s (+2,5 %), 1 MHz 44,38 / 45,61 s (+2,8 %); Z64K kompiliert 2 MHz 4,32 / 4,31 s, 1 MHz 7,70 / 7,76 s.
+For comparison the measurement with the **old lib** (before P6i, 11 057 bytes): VICE compiled 2 MHz 3.44 / 3.48 s (+1.2 %), 1 MHz 6.41 / 6.54 s (+2.0 %), interpreted 2 MHz 21.87 / 22.43 s (+2.5 %), 1 MHz 44.38 / 45.61 s (+2.8 %); Z64K compiled 2 MHz 4.32 / 4.31 s, 1 MHz 7.70 / 7.76 s.
 
-**Nachtrag P6j (2026-11-26):** feste Listenadresse (`BUFSET` X = 1, VDC-BASIC v3 mit VCL-Typ 10 aus P2e; `crawl.bas` 21 `VB=4864` als erste Variable, 10052 `BUFSET`, 4620 `::VCL VB` statt `VA=PEEK(3072)+256*PEEK(3073)`) und Stub mit Zeropage nur für VIEW/GEOMSET (P6 „Ergebnis P6j“). Pixeltest gegen 1.0f weiter **PASS**. Neue Endwerte (VICE, Takte, je zwei identische Läufe; alte P6i-Lib / Zwischenstand Kopie nach B0 / **Sprung** / 1.0f):
+**Addendum P6j (2026-11-26):** fixed list address (`BUFSET` X = 1, VDC-BASIC v3 with VCL type 10 from P2e; `crawl.bas` 21 `VB=4864` as first variable, 10052 `BUFSET`, 4620 `::VCL VB` instead of `VA=PEEK(3072)+256*PEEK(3073)`) and stub with zero page only for VIEW/GEOMSET (P6 "Result P6j"). Pixel test against 1.0f still **PASS**. New final values (VICE, cycles, two identical runs each; old P6i lib / interim copy to B0 / **jump** / 1.0f):
 
-| Konfiguration | CPU | 1.1 P6i | Kopie (verworfen) | **1.1 P6j** | 1.0f | P6j gegen 1.0f |
+| Configuration | CPU | 1.1 P6i | Copy (discarded) | **1.1 P6j** | 1.0f | P6j vs. 1.0f |
 |---|---|---|---|---|---|---|
-| VICE, kompiliert | 2 MHz | 3 411 580 | 3 372 356 | **3 353 392** (3,40 s) | 3 385 841 (3,44 s) | −1,0 % |
-| VICE, kompiliert | 1 MHz | 6 438 389 | 6 346 449 | **6 337 353** (6,43 s) | 6 318 623 (6,41 s) | +0,3 % |
-| VICE, interpretiert | 2 MHz | 22 098 503 | 21 915 560 | **21 908 130** (22,24 s) | 21 550 022 (21,87 s) | +1,7 % |
-| VICE, interpretiert | 1 MHz | 44 925 517 | 44 566 024 | **44 549 257** (45,22 s) | 43 727 387 (44,38 s) | +1,9 % |
-| Z64K, kompiliert (Jiffies) | 2 MHz | 257 | – | **256** (4,26 s) | 260 (4,32 s) | −1,5 % |
-| Z64K, kompiliert (Jiffies) | 1 MHz | 466 | – | **459** (7,63 s) | 463 (7,70 s) | −0,9 % |
+| VICE, compiled | 2 MHz | 3 411 580 | 3 372 356 | **3 353 392** (3.40 s) | 3 385 841 (3.44 s) | −1.0 % |
+| VICE, compiled | 1 MHz | 6 438 389 | 6 346 449 | **6 337 353** (6.43 s) | 6 318 623 (6.41 s) | +0.3 % |
+| VICE, interpreted | 2 MHz | 22 098 503 | 21 915 560 | **21 908 130** (22.24 s) | 21 550 022 (21.87 s) | +1.7 % |
+| VICE, interpreted | 1 MHz | 44 925 517 | 44 566 024 | **44 549 257** (45.22 s) | 43 727 387 (44.38 s) | +1.9 % |
+| Z64K, compiled (jiffies) | 2 MHz | 257 | – | **256** (4.26 s) | 260 (4.32 s) | −1.5 % |
+| Z64K, compiled (jiffies) | 1 MHz | 466 | – | **459** (7.63 s) | 463 (7.70 s) | −0.9 % |
 
-Gegen P6i: VICE −1,7 / −1,6 / −0,9 / −0,8 %. Geist-Szene (kompiliert 2 MHz, Takte je Lauf, 3 Läufe) P6j: Richtung 0 223 654 / 221 080 / 221 607, 1: 217 207 / 250 665 / 251 056, 2: 251 181 / 220 673 / 222 463, 3: 218 445 / 219 807 / 221 615, ohne Geist 198 073 / 197 031 / 197 619 (Streuung durch die Geist-KI wie vorher). Release-Images `crawl128-110.d81`/`.d64` neu gebaut (`mkdisk.py`).
+Against P6i: VICE −1.7 / −1.6 / −0.9 / −0.8 %. Ghost scene (compiled 2 MHz, cycles per run, 3 runs) P6j: direction 0 223 654 / 221 080 / 221 607, 1: 217 207 / 250 665 / 251 056, 2: 251 181 / 220 673 / 222 463, 3: 218 445 / 219 807 / 221 615, without ghost 198 073 / 197 031 / 197 619 (scatter due to the ghost AI as before). Release images `crawl128-110.d81`/`.d64` rebuilt (`mkdisk.py`).
 
-**Nachtrag P2f (2026-11-26):** VDC-BASIC v3 mit der Zeilenschleife von `VMC`/`VMF` ohne JSR (`vdc-basic/docs/v3/P2f-vmc-loop.md`: Register direkt, Ready-Bit vor jedem `$D601`-Zugriff, Quellschritt einmal je Aufruf geprüft; VMC-Zeile VICE 180 → 136, Z64K 207 → 144 Takte bei 1 MHz). Lib und Spiel unverändert, nur `libs/vdcbasic3.prg` ersetzt. Pixeltest gegen 1.0f weiter **PASS**. VICE, Takte, je zwei identische Läufe; Z64K T9 in Jiffies, je zwei gleiche Läufe:
+**Addendum P2f (2026-11-26):** VDC-BASIC v3 with the row loop of `VMC`/`VMF` without JSR (`vdc-basic/docs/v3/P2f-vmc-loop.md`: registers directly, ready bit before every `$D601` access, source step checked once per call; VMC row VICE 180 → 136, Z64K 207 → 144 cycles at 1 MHz). Lib and game unchanged, only `libs/vdcbasic3.prg` replaced. Pixel test against 1.0f still **PASS**. VICE, cycles, two identical runs each; Z64K T9 in jiffies, two equal runs each:
 
-| Konfiguration | CPU | 1.1 P6j | **1.1 P2f** | gegen P6j | 1.0f | P2f gegen 1.0f |
+| Configuration | CPU | 1.1 P6j | **1.1 P2f** | vs. P6j | 1.0f | P2f vs. 1.0f |
 |---|---|---|---|---|---|---|
-| VICE, kompiliert | 2 MHz | 3 353 392 | **3 104 710** (3,15 s) | −7,4 % | 3 385 841 | −8,3 % |
-| VICE, kompiliert | 1 MHz | 6 337 353 | **5 870 128** (5,96 s) | −7,4 % | 6 318 623 | −7,1 % |
-| VICE, interpretiert | 2 MHz | 21 908 130 | **21 652 569** (21,98 s) | −1,2 % | 21 550 022 | +0,5 % |
-| VICE, interpretiert | 1 MHz | 44 549 257 | **44 078 865** (44,74 s) | −1,1 % | 43 727 387 | +0,8 % |
-| Z64K, kompiliert (Jiffies) | 2 MHz | 256 | **230** (3,82 s) | −10,2 % | 260 | −11,5 % |
-| Z64K, kompiliert (Jiffies) | 1 MHz | 459 | **429** (7,13 s) | −6,5 % | 463 | −7,3 % |
+| VICE, compiled | 2 MHz | 3 353 392 | **3 104 710** (3.15 s) | −7.4 % | 3 385 841 | −8.3 % |
+| VICE, compiled | 1 MHz | 6 337 353 | **5 870 128** (5.96 s) | −7.4 % | 6 318 623 | −7.1 % |
+| VICE, interpreted | 2 MHz | 21 908 130 | **21 652 569** (21.98 s) | −1.2 % | 21 550 022 | +0.5 % |
+| VICE, interpreted | 1 MHz | 44 549 257 | **44 078 865** (44.74 s) | −1.1 % | 43 727 387 | +0.8 % |
+| Z64K, compiled (jiffies) | 2 MHz | 256 | **230** (3.82 s) | −10.2 % | 260 | −11.5 % |
+| Z64K, compiled (jiffies) | 1 MHz | 459 | **429** (7.13 s) | −6.5 % | 463 | −7.3 % |
 
-Kompiliert ist 1.1 damit 7–12 % schneller als 1.0f; interpretiert bleibt der Abstand klein, weil die Zeit dort im BASIC liegt. Release-Images `crawl128-110.d81`/`.d64` neu gebaut (`mkdisk.py`).
+Compiled, 1.1 is thus 7–12 % faster than 1.0f; interpreted the gap stays small because the time there is spent in BASIC. Release images `crawl128-110.d81`/`.d64` rebuilt (`mkdisk.py`).
 
 ### 12.5 P7e: Demo (Engine)
 
-`demo/` (Beschreibung in `demo/README.md`), `test/vice_demo.py`: Tour mit 75 Tasten, ganzes VRAM an jedem Prompt gleich dem Modell, interpretiert und kompiliert. VRAM-Pool 36 735 Byte, belegt 36 291. Abweichungen von der Planung in 8.4: `max_kerns` höchstens 4 (nicht 16), der Goblin hat keinen Tag `IDLE` (die Phase kommt aus der Objektliste) und ist 2fach vergrößert (64 × 64). Review-Auflagen (Hinweis zur Tapete als Fernsicht in `docs/formats.md`, diese Korrekturen) sind umgesetzt.
+`demo/` (description in `demo/README.md`), `test/vice_demo.py`: tour with 75 keys, entire VRAM at every prompt equal to the model, interpreted and compiled. VRAM pool 36 735 bytes, used 36 291. Deviations from the planning in 8.4: `max_cores` at most 4 (not 16), the goblin has no tag `IDLE` (the phase comes from the object list) and is enlarged 2× (64 × 64). Review requirements (note on the wallpaper as distant view in `docs/formats.md`, these corrections) are implemented.
 
-### 12.6 Weitere Entscheidungen und Änderungen in P7
+### 12.6 Further decisions and changes in P7
 
-| Thema | Ergebnis |
+| Topic | Result |
 |---|---|
-| Automap | Ganzer Dungeon wie 1.0f (`AM%=0`); Nebel nur optional (`AM%=1`). Abweichung 2 in 4.3 entfällt (Entscheidung des Nutzers) |
-| Font und Titel als VRL | `tools/vrlpics.py`, `art/dbe02/font.vrl` (1406 Byte statt 1732), `title.vrl` (1021 statt 2340); der Titel bleibt gepackt im RAM ab 63493 (`$F805`) und wird bei jeder Anzeige per `RXV` entpackt. Font entpackt 1730 Byte (nicht 1732, die 2 Byte sind die Ladeadresse); `DA = CA + 1730` |
-| P6i (Sprites und `cover`) | Sprites werden nicht gegen `cover` beschnitten, die Verdeckung ergibt sich aus der Malreihenfolge (P6 5.8a). Lib 10 984 Byte Datei (10 982 Code), Reserve **282 Byte**; Abweichung 5 in 4.3 entfällt |
-| Release-Dateien | `crawl128-110.d81`, `crawl128-110.d64`; Start nur über `BOOT` |
+| Automap | Entire dungeon like 1.0f (`AM%=0`); fog only optional (`AM%=1`). Deviation 2 in 4.3 is dropped (decision by the user) |
+| Font and title as VRL | `tools/vrlpics.py`, `art/dbe02/font.vrl` (1406 bytes instead of 1732), `title.vrl` (1021 instead of 2340); the title stays packed in RAM from 63493 (`$F805`) and is unpacked via `RXV` at every display. Font unpacked 1730 bytes (not 1732, the 2 bytes are the load address); `DA = CA + 1730` |
+| P6i (sprites and `cover`) | Sprites are not clipped against `cover`, occlusion results from the paint order (P6 5.8a). Lib 10 984 bytes file (10 982 code), reserve **282 bytes**; deviation 5 in 4.3 is dropped |
+| Release files | `crawl128-110.d81`, `crawl128-110.d64`; start only via `BOOT` |
 
-### 12.7 P7f: Doku
+### 12.7 P7f: Documentation
 
-Crawl `README.md` (Version 1.1), `art/dbe02/README.md`, `art/dbe/README.md` (ein Satz); Engine `README.md`, `docs/formats.md` (Tapete als Fernsicht, Sprites werden nicht gegen Wände beschnitten), `docs/plan-0.2.md` (P7 erledigt, Abschnitt 9), diese Spec. Veraltete Zahlen (alte Lib 11 057 Byte, Reserve 207, Nebel-Automap als Standard) sind nachgezogen; die alte Lib steht nur noch als Vergleichsmessung in 12.4.
+Crawl `README.md` (version 1.1), `art/dbe02/README.md`, `art/dbe/README.md` (one sentence); Engine `README.md`, `docs/formats.md` (wallpaper as distant view, sprites are not clipped against walls), `docs/plan-0.2.md` (P7 done, section 9), this spec. Outdated numbers (old lib 11 057 bytes, reserve 207, fog automap as default) have been updated; the old lib remains only as a comparison measurement in 12.4.

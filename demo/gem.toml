@@ -1,4 +1,4 @@
-# Edelstein: Beispiel aus docs/specs/examples/spr (gem.png, 2 Phasen, 3 Tiefen), direkt hinter dem Goblin in S2
+# Gem: example from docs/specs/examples/spr (gem.png, 2 phases, 3 depths), directly behind the goblin in S2
 format  = "dbespr"
 version = 1
 
@@ -10,8 +10,8 @@ load      = 0x6500
 vrl_load  = 0x9000
 angles    = 1
 phases    = 2
-max_kerns = 2
-kern_min  = 8
+max_cores = 2
+core_min  = 8
 
 [source]
 png = "art/gem.png"

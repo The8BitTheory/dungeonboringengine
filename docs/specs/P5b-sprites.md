@@ -1,41 +1,41 @@
-# P5b: Sprite-Sätze v2 – `tools/dbespr.py`, Format S2, Beschneiden
+# P5b: Sprite sets v2 – `tools/dbespr.py`, format S2, clipping
 
-Stand: 2026-11-25. Detailspezifikation zu Schritt P5b (Plan 5, 6; `P5-textures.md` 11). Umsetzung: Sonnet. Review: Opus. Abhängigkeiten: Python ≥ 3.11, Pillow, `tools/vrl.py`, `tools/dbetex.py` (P5, als Modul), `tools/dbegeom.py` (nur Tests). Voraussetzung in VDC-BASIC v3: VMS-Listenbefehl Typ 3 (source skip, vorhanden seit `c57ba31`).
+As of 2026-11-25. Detailed specification for step P5b (plan 5, 6; `P5-textures.md` 11). Implementation: Sonnet. Review: Opus. Dependencies: Python ≥ 3.11, Pillow, `tools/vrl.py`, `tools/dbetex.py` (P5, as a module), `tools/dbegeom.py` (tests only). Prerequisite in VDC-BASIC v3: VMS list command type 3 (source skip, present since `c57ba31`).
 
-## 1. Ziel und Abgrenzung
+## 1. Goal and scope
 
-- **Dynamische Objekte** (Gegner, Gegenstände, Projektile, Effekte) als handgemalte Bilder je **(Phase, Blickwinkel, Tiefe d = 1 … D)**. Keine Skalierung oder Spiegelung zur Laufzeit; d = 0 wird nicht gezeichnet (Plan 5).
-- Ein Bild ist **unabhängig von s und Unterposition**. `VIEW` (P6) setzt es mit seinem **Fußpunkt** auf den DVG-Anker (d, s, p) und **beschneidet** es am Sichtfenster und an verdeckten Spalten.
-- Bilddaten wie DTS-Einträge: Kerne (`VMC`) und Rand (`VMS` Typ 1/8, gepackt). Ein Satz = eine Metadatei (Bank 1) + eine VRL (Bank 0 → `RXV` an die VRAM-Basis), wie DTS (P5 1).
-- Die Animation steuert das Spiel (Phasennummer in der Objektliste). Der Satz enthält die Aseprite-Tags nur als Tabelle (Name, erste Phase, Anzahl, Modus, Dauer) für das Spiel und den Bericht. `VIEW` animiert nicht.
-- **Eigenes Werkzeug** `tools/dbespr.py` statt Erweiterung von `dbetex.py` (dort 1447 Zeilen); es importiert `to_indices`, `classify`, `choose_kerns`, `pack_image`, `sim_*`, `read_rgba`, `PALETTE` aus `dbetex`.
-- Die **Beschneide-Funktion** `clip_image` (Abschnitt 6) ist die Referenz für `VIEW` (P6, 5.9) und für den Listenvergleich.
+- **Dynamic objects** (enemies, items, projectiles, effects) as hand-painted images per **(phase, view angle, depth d = 1 … D)**. No scaling or mirroring at runtime; d = 0 is not drawn (plan 5).
+- An image is **independent of s and sub-position**. `VIEW` (P6) places it with its **foot point** on the DVG anchor (d, s, p) and **clips** it at the viewport and at occluded columns.
+- Image data like DTS entries: cores (`VMC`) and edge (`VMS` type 1/8, packed). One set = one metadata file (bank 1) + one VRL (bank 0 → `RXV` to the VRAM base), like DTS (P5 1).
+- The animation is controlled by the game (phase number in the object list). The set contains the Aseprite tags only as a table (name, first phase, count, mode, duration) for the game and the report. `VIEW` does not animate.
+- **Own tool** `tools/dbespr.py` instead of extending `dbetex.py` (1447 lines there); it imports `to_indices`, `classify`, `choose_cores`, `pack_image`, `sim_*`, `read_rgba`, `PALETTE` from `dbetex`.
+- The **clipping function** `clip_image` (section 6) is the reference for `VIEW` (P6, 5.9) and for the list comparison.
 
-Nicht in P5b: Anpassung der Crawl-Sprites (`crawlsprites.py` → S2, gehört zu P7), Laufzeit-Animation, Spiegeln.
+Not in P5b: adapting the Crawl sprites (`crawlsprites.py` → S2, belongs to P7), runtime animation, mirroring.
 
-## 2. Begriffe
+## 2. Terms
 
-| Begriff | Bedeutung |
+| Term | Meaning |
 |---|---|
-| Phase f | 0 … NP − 1; Frame-Nummer in Aseprite |
-| Blickwinkel a | 0 … 3, aus Spieler- und Objektrichtung: a = (2 + v − o) AND 3 (v Spieler, o Objekt, wie SPR v1). **0 = Vorderseite** (Objekt schaut den Spieler an), **1 = rechte Flanke der Figur**, **2 = Rücken**, **3 = linke Flanke**. Objektrichtung `$FF` → a = 0 |
-| Bildwinkel ai | 0 … NA − 1; Index der gemalten Ansicht. `angle_map[a]` bildet a auf ai ab |
-| Tiefe d | 1 … D (D aus der DVG) |
-| Bildrechteck | w Byte × h Zeilen; Byte bx = 2 Pixel (links = High-Nibble, P5 2.1) |
-| Fußpunkt (fx, fy) | Byte-Spalte und Zeile **im Bild**, die auf dem DVG-Anker (ax, ay) zu liegen kommt: Bild links oben = (ax − fx, ay − fy) |
+| Phase f | 0 … NP − 1; frame number in Aseprite |
+| View angle a | 0 … 3, from player and object direction: a = (2 + v − o) AND 3 (v player, o object, as SPR v1). **0 = front** (object faces the player), **1 = right flank of the figure**, **2 = back**, **3 = left flank**. Object direction `$FF` → a = 0 |
+| Image angle ai | 0 … NA − 1; index of the painted view. `angle_map[a]` maps a to ai |
+| Depth d | 1 … D (D from the DVG) |
+| Image rectangle | w bytes × h rows; byte bx = 2 pixels (left = high nibble, P5 2.1) |
+| Foot point (fx, fy) | byte column and row **in the image** that comes to lie on the DVG anchor (ax, ay): image top left = (ax − fx, ay − fy) |
 
-Standard für `angle_map` (überschreibbar):
+Default for `angle_map` (can be overridden):
 
-| NA | angle_map (a = 0, 1, 2, 3) | Bedeutung |
+| NA | angle_map (a = 0, 1, 2, 3) | Meaning |
 |---|---|---|
-| 1 | 0, 0, 0, 0 | eine Ansicht (Gegenstände) |
-| 2 | 0, 0, 1, 0 | vorne, hinten; Flanken zeigen vorne |
-| 3 | 0, 1, 2, 1 | vorne, Flanke, hinten |
-| 4 | 0, 1, 2, 3 | alle |
+| 1 | 0, 0, 0, 0 | one view (items) |
+| 2 | 0, 0, 1, 0 | front, back; flanks show front |
+| 3 | 0, 1, 2, 1 | front, flank, back |
+| 4 | 0, 1, 2, 3 | all |
 
-## 3. Eingaben
+## 3. Inputs
 
-### 3.1 Projektdatei `spr.toml`
+### 3.1 Project file `spr.toml`
 
 ```toml
 format  = "dbespr"
@@ -43,264 +43,264 @@ version = 1
 
 [sprite]
 name       = "ork"
-geom       = "../geom/west140.geom.json"   # Pflicht (Stride, D, Ebenen, Anker)
-dvg        = "../geom/west140.dvg"         # optional: ID gegenprüfen
+geom       = "../geom/west140.geom.json"   # mandatory (stride, D, planes, anchors)
+dvg        = "../geom/west140.dvg"         # optional: cross-check ID
 out        = "build/spr"
-load       = 0x7000                        # Ladeadresse S2 (Bank 1, P6 Speicherkarte)
+load       = 0x7000                        # load address S2 (bank 1, P6 memory map)
 vrl_load   = 0x4000
 angles     = 4                             # NA, 1 … 4
-angle_map  = [0, 1, 2, 3]                  # optional, Standard nach Tabelle 2
-phases     = 2                             # NP, 1 … 32; fehlt: aus der Quelle (höchste Phase + 1)
-max_kerns  = 4                             # 0 … 16 (wie P5 5.4, Obergrenze siehe review-notes G.2)
-kern_min   = 16
+angle_map  = [0, 1, 2, 3]                  # optional, default per table 2
+phases     = 2                             # NP, 1 … 32; missing: from the source (highest phase + 1)
+max_cores  = 4                             # 0 … 16 (as P5 5.4, upper limit see review-notes G.2)
+core_min   = 16
 key        = "FF00FF"                      # optional (P5 2.3)
 alpha_threshold = 0
-any_geometry = false                       # true: Geometrie-ID 0 schreiben (nur Stride und D binden, 4.1)
-mirror     = { 3 = 1 }                     # optional: Bildwinkel 3 = gespiegelter Bildwinkel 1 (Werkzeug, kein Laufzeit-Spiegeln)
-derive     = "none"                        # "none" | "nearest": fehlende Tiefen aus dem nächstgrößeren gemalten Bild verkleinern (5.4)
+any_geometry = false                       # true: write geometry ID 0 (only stride and D bind, 4.1)
+mirror     = { 3 = 1 }                     # optional: image angle 3 = mirrored image angle 1 (tool, not runtime mirroring)
+derive     = "none"                        # "none" | "nearest": shrink missing depths from the next larger painted image (5.4)
 
 [source]
-aseprite = "ork.json"                      # Aseprite-Export (3.2)
-# oder: png = "ork.png" mit [[image]]-Einträgen (3.3)
+aseprite = "ork.json"                      # Aseprite export (3.2)
+# or: png = "ork.png" with [[image]] entries (3.3)
 ```
 
-Regeln: unbekannte Schlüssel sind Fehler (wie P5 3.1); genau eine Quelle; `angle_map` hat 4 Werte < NA; `mirror` nur zwischen vorhandenen Bildwinkeln; CLI-Optionen überschreiben `[sprite]`.
+Rules: unknown keys are errors (as P5 3.1); exactly one source; `angle_map` has 4 values < NA; `mirror` only between existing image angles; CLI options override `[sprite]`.
 
-### 3.2 Aseprite-Export
+### 3.2 Aseprite export
 
-Konvention in der `.aseprite`-Datei:
+Convention in the `.aseprite` file:
 
-| Aseprite | Bedeutung |
+| Aseprite | Meaning |
 |---|---|
-| **Ebene** `v<ai>_d<d>` (z. B. `v0_d1`) | Ansicht ai in Tiefe d; jede Tiefe wird in ihrer Größe gemalt |
-| **Frame** f | Phase f |
-| **Tag** (Name, Frames von–bis, Richtung) | Animation: Phasen von–bis; Richtung `forward`, `reverse`, `pingpong` |
-| **Slice** `v<ai>_d<d>` mit Pivot | Bildrechteck und Fußpunkt (Pivot = Fußpunkt, relativ zur Slice); Keys je Frame erlaubt (gültig: größter Key-Frame ≤ f, P5 3.3) |
-| andere Ebenen (z. B. `ref`, `Hilfslinien`) | werden ignoriert, wenn ihr Name nicht dem Muster entspricht (Info) |
+| **Layer** `v<ai>_d<d>` (e.g. `v0_d1`) | view ai at depth d; each depth is painted at its own size |
+| **Frame** f | phase f |
+| **Tag** (name, frames from–to, direction) | animation: phases from–to; direction `forward`, `reverse`, `pingpong` |
+| **Slice** `v<ai>_d<d>` with pivot | image rectangle and foot point (pivot = foot point, relative to the slice); keys per frame allowed (valid: largest key frame ≤ f, P5 3.3) |
+| other layers (e.g. `ref`, `Hilfslinien`) | ignored if their name does not match the pattern (info) |
 
-Aufruf (steht im Docstring und im Bericht):
+Invocation (in the docstring and in the report):
 
 ```
 aseprite -b ork.aseprite --split-layers --sheet ork.png --data ork.json --format json-array \
          --filename-format '{layer}#{frame}' --list-layers --list-tags --list-slices
 ```
 
-Gelesen wird:
+What is read:
 
-- `frames`: je Eintrag `filename` = `<layer>#<frame>`, `frame` {x, y, w, h} im Sheet, `duration` (ms). `trimmed`/`rotated` = true → Fehler (wie P5 3.3). Ohne Trim ist jeder Sheet-Frame so groß wie die Leinwand.
-- `meta.frameTags`: Name, `from`, `to`, `direction` (fehlt: `forward`).
-- `meta.slices`: Name, `keys[]` mit `frame`, `bounds` {x, y, w, h} (Leinwandkoordinaten), optional `pivot` {x, y} (relativ zu `bounds`).
-- Je (Ebene `v<ai>_d<d>`, Frame f): Pixel nach P5 2.2/2.3 (Palette, Alpha, `key`).
-  - **Slice vorhanden:** Bild = Pixel innerhalb `bounds`; deckende Pixel der Ebene außerhalb → Warnung „außerhalb der Slice, verworfen“. Fußpunkt = `pivot`; ohne Pivot: Mitte der untersten Zeile (x = ⌊w_px / 2⌋, y = h − 1).
-  - **Keine Slice:** Bild = kleinstes Rechteck um alle deckenden Pixel; Fußpunkt = Mitte der untersten Zeile. Info „Fußpunkt automatisch“.
-  - **Leere Cel** (keine deckenden Pixel): kein Bild für (f, ai, d).
-- Ebene mit unbekanntem ai ≥ NA oder d > D oder d = 0 → Fehler.
+- `frames`: per entry `filename` = `<layer>#<frame>`, `frame` {x, y, w, h} in the sheet, `duration` (ms). `trimmed`/`rotated` = true → error (as P5 3.3). Without trim, every sheet frame is as large as the canvas.
+- `meta.frameTags`: name, `from`, `to`, `direction` (missing: `forward`).
+- `meta.slices`: name, `keys[]` with `frame`, `bounds` {x, y, w, h} (canvas coordinates), optional `pivot` {x, y} (relative to `bounds`).
+- Per (layer `v<ai>_d<d>`, frame f): pixels per P5 2.2/2.3 (palette, alpha, `key`).
+  - **Slice present:** image = pixels within `bounds`; opaque pixels of the layer outside → warning “N pixels outside the slice, discarded”. Foot point = `pivot`; without pivot: middle of the bottom row (x = ⌊w_px / 2⌋, y = h − 1).
+  - **No slice:** image = smallest rectangle around all opaque pixels; foot point = middle of the bottom row. Info “foot point automatic”.
+  - **Empty cel** (no opaque pixels): no image for (f, ai, d).
+- Layer with unknown ai ≥ NA or d > D or d = 0 → error.
 
-### 3.3 PNG mit Bildliste
+### 3.3 PNG with image list
 
 ```toml
 [source]
 png = "gem.png"
 
-[[image]]                 # je Bild ein Eintrag
-box   = [0, 0, 12, 10]    # x, y, w, h in Pixeln
-foot  = [6, 9]            # relativ zu box, in Pixeln; fehlt: Mitte der untersten Zeile
+[[image]]                 # one entry per image
+box   = [0, 0, 12, 10]    # x, y, w, h in pixels
+foot  = [6, 9]            # relative to box, in pixels; missing: middle of the bottom row
 phase = 0
 angle = 0                 # ai
 depth = 1
 ```
 
-Gleiche (phase, angle, depth) doppelt → Fehler. Für Gegenstände und Tests; Animationen ohne Tags.
+Same (phase, angle, depth) twice → error. For items and tests; animations without tags.
 
-### 3.4 Byte-Raster und Fußpunkt
+### 3.4 Byte grid and foot point
 
-- Das Bild beginnt auf der **geraden** Pixelspalte x_e = box.x − (box.x mod 2); w = ⌈(box.x + box.w − x_e) / 2⌉ Byte. Zusätzliche Randpixel sind transparent.
-- fx = ⌊(box.x + foot_x − x_e) / 2⌋, fy = foot_y. Liegt der Fußpunkt auf dem rechten Pixel eines Bytes, Info „Fußpunkt auf Bytegrenze gerundet“ (Anker sind Byte-genau, P3 4.3).
-- Prüfungen: 1 ≤ w ≤ min(VW, 127), 1 ≤ h ≤ VH, 0 ≤ fx < w, 0 ≤ fy < h (Fehler sonst).
-- **Höhenprüfung (Warnung):** Bild höher als die Wand an seiner Tiefe, also Oberkante ay − fy < T_d mit ay = Zeile des Ankers p = 0 (hinten links) der Zelle (d, 0) und T_d = Wandoberkante der Ebene d (`planes`). Grund: was über die Wandoberkante hinausragt, ragt in die Decke; `VIEW` zeichnet das Sprite vollständig und lässt es von näheren Wänden und den Deckenbändern näherer Tiefen übermalen (seit P6i kein Beschneiden nach Spalten mehr, P6 5.4/5.8a, review-notes G.8).
+- The image begins at the **even** pixel column x_e = box.x − (box.x mod 2); w = ⌈(box.x + box.w − x_e) / 2⌉ bytes. Additional edge pixels are transparent.
+- fx = ⌊(box.x + foot_x − x_e) / 2⌋, fy = foot_y. If the foot point lies on the right pixel of a byte, info “foot point rounded to byte boundary” (anchors are byte-exact, P3 4.3).
+- Checks: 1 ≤ w ≤ min(VW, 127), 1 ≤ h ≤ VH, 0 ≤ fx < w, 0 ≤ fy < h (otherwise error).
+- **Height check (warning):** image taller than the wall at its depth, i.e. top edge ay − fy < T_d with ay = row of anchor p = 0 (back left) of cell (d, 0) and T_d = wall top edge of plane d (`planes`). Reason: whatever protrudes above the wall top edge protrudes into the ceiling; `VIEW` draws the sprite completely and lets nearer walls and the ceiling bands of nearer depths paint over it (since P6i no more clipping by columns, P6 5.4/5.8a, review-notes G.8).
 
-## 4. Format S2 (Version 1)
+## 4. Format S2 (version 1)
 
-PRG-Datei: 2 Byte Ladeadresse (`load`, Standard `$7000`, Bank 1), dann der Inhalt. Offsets relativ zum Inhalt, Wörter Low/High. VRAM-Offsets relativ zur VRAM-Basis aus `SPRITESET` (P6). Bereiche lückenlos in der Reihenfolge Kopf, Indextabelle, Bildverzeichnis, Kerntabelle, Tagtabelle, Datenbereich.
+PRG file: 2 bytes load address (`load`, default `$7000`, bank 1), then the content. Offsets relative to the content, words low/high. VRAM offsets relative to the VRAM base from `SPRITESET` (P6). Areas contiguous in the order header, index table, image directory, core table, tag table, data area.
 
-### 4.1 Kopf (40 Byte)
+### 4.1 Header (40 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
 | 0–1 | `"S" "2"` (`$53 $32`) |
-| 2 | Version = 1 |
-| 3 | Flags: Bit 0 = Gegenstand (nur Hinweis für Werkzeuge; `dbespr` setzt es bei NA = 1); Rest 0 |
-| 4–5 | Geometrie-ID der DVG; **0 = jede Geometrie** mit gleichem Stride und D (`any_geometry`) |
-| 6 | D (Kontrolle; Tiefen 1 … D in der Indextabelle) |
+| 2 | version = 1 |
+| 3 | flags: bit 0 = item (only a hint for tools; `dbespr` sets it for NA = 1); rest 0 |
+| 4–5 | geometry ID of the DVG; **0 = any geometry** with the same stride and D (`any_geometry`) |
+| 6 | D (check; depths 1 … D in the index table) |
 | 7 | NA (1 … 4) |
 | 8 | NP (1 … 32) |
-| 9 | NI: Anzahl Bilder (≤ 254) |
-| 10–11 | NK: Anzahl Kerne (Wort) |
+| 9 | NI: number of images (≤ 254) |
+| 10–11 | NK: number of cores (word) |
 | 12–15 | `angle_map[0 … 3]` |
-| 16–17 | Offset Indextabelle |
-| 18–19 | Offset Bildverzeichnis |
-| 20–21 | Offset Kerntabelle |
-| 22–23 | Offset Tagtabelle |
-| 24 | NT: Anzahl Tags (≤ 32) |
-| 25 | reserviert 0 |
-| 26–27 | Offset Datenbereich (VMS-Listen) |
-| 28–29 | Gesamtlänge des Inhalts |
-| 30–31 | VRAM-Länge U (= entpackte Länge der VRL) |
-| 32–33 | CRC der VRAM-Daten (`binascii.crc_hqx(daten, 0xFFFF)`) |
-| 34–35 | stride (Kontrolle) |
-| 36–39 | reserviert 0 |
+| 16–17 | offset of index table |
+| 18–19 | offset of image directory |
+| 20–21 | offset of core table |
+| 22–23 | offset of tag table |
+| 24 | NT: number of tags (≤ 32) |
+| 25 | reserved 0 |
+| 26–27 | offset of data area (VMS lists) |
+| 28–29 | total length of the content |
+| 30–31 | VRAM length U (= unpacked length of the VRL) |
+| 32–33 | CRC of the VRAM data (`binascii.crc_hqx(data, 0xFFFF)`) |
+| 34–35 | stride (check) |
+| 36–39 | reserved 0 |
 
-Hinweis: Die Offsets der vier Tabellen stehen in 16–23 hintereinander; NT folgt als Byte in 24 (25 = 0), der Offset des Datenbereichs steht erst in 26–27.
+Note: the offsets of the four tables are in 16–23 one after another; NT follows as a byte at 24 (25 = 0), the offset of the data area is only in 26–27.
 
-### 4.2 Indextabelle (NP · NA · D Byte)
+### 4.2 Index table (NP · NA · D bytes)
 
-Eintrag für (f, ai, d) bei `(f · NA + ai) · D + (d − 1)`:
+Entry for (f, ai, d) at `(f · NA + ai) · D + (d − 1)`:
 
-| Wert | Bedeutung |
+| Value | Meaning |
 |---|---|
-| 0 … `$FD` | Bildindex |
-| `$FE` | kein Bild: nichts zeichnen |
-| `$FF` | Rückgriff auf **Phase 0** desselben (ai, d); in Phase 0 nicht erlaubt |
+| 0 … `$FD` | image index |
+| `$FE` | no image: draw nothing |
+| `$FF` | fall back to **phase 0** of the same (ai, d); not allowed in phase 0 |
 
-Der Importer schreibt `$FF` für fehlende Bilder in Phase ≥ 1, `$FE` für fehlende Bilder in Phase 0 (Warnung „Phase 0 ohne Bild für v<ai>_d<d>“, außer bei `derive`). `VIEW`: f ≥ NP → f = 0.
+The importer writes `$FF` for missing images in phase ≥ 1, `$FE` for missing images in phase 0 (warning “phase 0 without image for v<ai>_d<d>”, except with `derive`). `VIEW`: f ≥ NP → f = 0.
 
-### 4.3 Bildverzeichnis (NI × 16 Byte)
+### 4.3 Image directory (NI × 16 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
-| 0 | Flags: Bit 3 RAND (VMS-Liste vorhanden); Rest 0 |
-| 1 | w (Byte) |
-| 2 | h (Zeilen) |
+| 0 | flags: bit 3 EDGE (VMS list present); rest 0 |
+| 1 | w (bytes) |
+| 2 | h (rows) |
 | 3 | fx |
 | 4 | fy |
-| 5 | nk: Anzahl Kerne (0 … 16) |
-| 6–7 | Offset des ersten Kerns in der Kerntabelle (relativ zum Inhalt; 0 bei nk = 0) |
-| 8–9 | VRAM-Offset der gepackten Randbytes |
-| 10–11 | Anzahl Randbytes |
-| 12–13 | Offset der VMS-Liste (0 = keine) |
-| 14–15 | Länge der VMS-Liste (Kopf + Befehle) |
+| 5 | nk: number of cores (0 … 16) |
+| 6–7 | offset of the first core in the core table (relative to the content; 0 for nk = 0) |
+| 8–9 | VRAM offset of the packed edge bytes |
+| 10–11 | number of edge bytes |
+| 12–13 | offset of the VMS list (0 = none) |
+| 14–15 | length of the VMS list (header + commands) |
 
-Gleiche Bilder (gleiche Pixel, w, h, fx, fy) werden zusammengelegt (ein Eintrag, VRAM einmal).
+Identical images (same pixels, w, h, fx, fy) are merged (one entry, VRAM once).
 
-### 4.4 Kerntabelle (NK × 8 Byte)
+### 4.4 Core table (NK × 8 bytes)
 
-Wie DTS (P5 4.5): VRAM-Offset (Wort), dx, dy (relativ zum Bildrechteck), w, h, srcstep (Wort, 0 = gepackt). In S2 ist srcstep immer 0.
+As DTS (P5 4.5): VRAM offset (word), dx, dy (relative to the image rectangle), w, h, srcstep (word, 0 = packed). In S2, srcstep is always 0.
 
-### 4.5 Tagtabelle (NT × 12 Byte)
+### 4.5 Tag table (NT × 12 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
-| 0–7 | Name, ASCII (PETSCII-tauglich: Großbuchstaben, Ziffern, `_`), mit `$00` aufgefüllt, auf 8 Zeichen gekürzt (Warnung bei Kürzung oder Doppelung) |
-| 8 | erste Phase |
-| 9 | Anzahl Phasen |
-| 10 | Modus: 0 forward, 1 reverse, 2 pingpong |
-| 11 | Dauer je Phase in Jiffies (1/60 s): rund(ms · 60 / 1000), mindestens 1, höchstens 255; ungleiche Dauern im Tag → Mittelwert, Warnung |
+| 0–7 | name, ASCII (PETSCII-compatible: uppercase letters, digits, `_`), padded with `$00`, truncated to 8 characters (warning on truncation or duplication) |
+| 8 | first phase |
+| 9 | number of phases |
+| 10 | mode: 0 forward, 1 reverse, 2 pingpong |
+| 11 | duration per phase in jiffies (1/60 s): round(ms · 60 / 1000), at least 1, at most 255; unequal durations within a tag → average, warning |
 
-### 4.6 Datenbereich
+### 4.6 Data area
 
-VMS-Listen im VDC-BASIC-Format (P5 4.6), nur Typ 1 und 8. Zusätzliche **Formatregeln** (für das Beschneiden, P6 5.9, review-notes G.7): Befehle in Zeilenreihenfolge mit streng steigendem ofs, ohne Überlappung (ofs ≥ ofs + len des vorigen Befehls, Typ 8: len = 1); ofs = Zeile · stride + Byte-Spalte relativ zur linken oberen Bildecke, Zeile < h; ein Typ-1-Lauf bleibt in seiner Zeile (Spalte + len ≤ w ≤ stride). `pack_image` (P5 5.2) erfüllt das; `from_s2` bzw. `from_dts` prüfen es (`dbetex.check_vms`, P6e-opt-Review), `VIEW` setzt es beim Beschneiden voraus.
+VMS lists in VDC-BASIC format (P5 4.6), type 1 and 8 only. Additional **format rules** (for clipping, P6 5.9, review-notes G.7): commands in row order with strictly increasing ofs, without overlap (ofs ≥ ofs + len of the previous command, type 8: len = 1); ofs = row · stride + byte column relative to the top left image corner, row < h; a type 1 run stays within its row (column + len ≤ w ≤ stride). `pack_image` (P5 5.2) satisfies this; `from_s2` and `from_dts` check it (`dbetex.check_vms`, P6e-opt review), `VIEW` relies on it when clipping.
 
-### 4.7 Grenzen
+### 4.7 Limits
 
-NI ≤ 254, NP ≤ 32, NA ≤ 4, NT ≤ 32, nk ≤ 16, NK ≤ 65535, Inhalt ≤ 8192 (ein Satz passt in den Sprite-Bereich der Bank-1-Speicherkarte, P6 2.4; Warnung ab 4096, weil ein solcher Satz mehr als die Hälfte des Bereichs belegt), U ≤ 65535. Überschreitung: Fehler mit Ursache.
+NI ≤ 254, NP ≤ 32, NA ≤ 4, NT ≤ 32, nk ≤ 16, NK ≤ 65535, content ≤ 8192 (one set fits in the sprite area of the bank 1 memory map, P6 2.4; warning from 4096, because such a set occupies more than half of the area), U ≤ 65535. Exceeding: error with cause.
 
-## 5. Umwandlung
+## 5. Conversion
 
-### 5.1 Je Bild
+### 5.1 Per image
 
-1. Pixel nach 3.2/3.3 und P5 2.2/2.3, Byte-Raster nach 3.4.
-2. `classify(pix, None)` (keine Elementmaske), `choose_kerns(states, max_kerns, kern_min)`, `pack_image(pix, states, kerns, stride)` mit dem Stride der Geometrie.
-3. VRAM-Daten je Bild: Kern 1, Kern 2, …, Rand (wie P5 5.4).
+1. Pixels per 3.2/3.3 and P5 2.2/2.3, byte grid per 3.4.
+2. `classify(pix, None)` (no element mask), `choose_cores(states, max_cores, core_min)`, `pack_image(pix, states, cores, stride)` with the stride of the geometry.
+3. VRAM data per image: core 1, core 2, …, edge (as P5 5.4).
 
-### 5.2 Reihenfolge und Zusammenlegen
+### 5.2 Order and merging
 
-Bilder in der Reihenfolge (f, ai, d) aufsteigend; ein Bild, das einem früheren gleicht, bekommt dessen Index. VRAM-Daten in Verzeichnisreihenfolge, lückenlos.
+Images in the order (f, ai, d) ascending; an image that equals an earlier one gets its index. VRAM data in directory order, contiguous.
 
-### 5.3 Spiegeln (`mirror`)
+### 5.3 Mirroring (`mirror`)
 
-`mirror = { Ziel = Quelle }`: Für jedes (f, d) ohne eigenes Bild im Ziel-Bildwinkel entsteht das Bild aus der Quelle durch Spiegeln der Pixelzeilen; Fußpunkt fx' = w − 1 − fx (bei ungeradem Fußpunktpixel nach 3.4 neu gerundet). Belegt VRAM wie ein gemaltes Bild.
+`mirror = { target = source }`: for every (f, d) without an image of its own in the target image angle, the image is produced from the source by mirroring the pixel rows; foot point fx' = w − 1 − fx (re-rounded per 3.4 for an odd foot point pixel). Occupies VRAM like a painted image.
 
-### 5.4 Abgeleitete Tiefen (`derive = "nearest"`)
+### 5.4 Derived depths (`derive = "nearest"`)
 
-Fehlt einem (f, ai) die Tiefe d (und greift kein `$FF`-Rückgriff auf ein Bild in Phase 0), gibt es aber ein **gemaltes** Bild in einer Tiefe d' < d, wird das Bild aus der größten solchen Tiefe d' (nächstgrößeres Bild; abgeleitete Bilder sind keine Quelle) mit Nearest-Neighbour verkleinert: Faktor k = W(½, d) / W(½, d') mit W(t) nach P3 4.3 (Zellbreite auf halber Zelltiefe, aus `planes` der geom.json); neue Pixelgröße rund(w_px · k) × rund(h · k), mindestens 1; Fußpunkt skaliert. Warnung „Tiefe d aus Tiefe d' abgeleitet“. Nur als Hilfe für Prototypen; die Engine verzerrt weiterhin nichts.
+If a depth d is missing for an (f, ai) (and no `$FF` fall back to an image in phase 0 applies) but there is a **painted** image at a depth d' < d, the image from the largest such depth d' (next larger image; derived images are not a source) is shrunk with nearest neighbour: factor k = W(½, d) / W(½, d') with W(t) per P3 4.3 (cell width at half cell depth, from `planes` of the geom.json); new pixel size round(w_px · k) × round(h · k), at least 1; foot point scaled. Warning “Tiefe d aus Tiefe d' abgeleitet”. Only as an aid for prototypes; the engine still distorts nothing.
 
-## 6. Beschneiden: `clip_image` (Referenz für P6)
+## 6. Clipping: `clip_image` (reference for P6)
 
 ```python
 def clip_image(img, x0, y0, cx0, cx1, cy0, cy1, stride) -> Clipped
 ```
 
-`img` = Bildeintrag (w, h, Kerne, Rand-VRAM-Offset, VMS-Liste), (x0, y0) = linke obere Bildecke im Sichtfenster (Byte-Spalte, Zeile; vorzeichenbehaftet), [cx0, cx1) × [cy0, cy1) = sichtbarer Ausschnitt im Sichtfenster (P6 bestimmt ihn aus dem Fenster, seit P6i nicht mehr aus der Abdeckung; immer ⊆ Bildrechteck und nicht leer), stride = Stride der Geometrie (S2-Kopf 34). Im Bild: L = cx0 − x0, R = cx1 − x0, T = cy0 − y0, B = cy1 − y0. **Unbeschnitten** heißt L = 0, R = w, T = 0, B = h.
+`img` = image entry (w, h, cores, edge VRAM offset, VMS list), (x0, y0) = top left image corner in the viewport (byte column, row; signed), [cx0, cx1) × [cy0, cy1) = visible cutout in the viewport (P6 determines it from the window, since P6i no longer from the coverage; always ⊆ image rectangle and not empty), stride = stride of the geometry (S2 header 34). In the image: L = cx0 − x0, R = cx1 − x0, T = cy0 − y0, B = cy1 − y0. **Unclipped** means L = 0, R = w, T = 0, B = h.
 
-Ergebnis: Liste der Kern-Kopien, optional eine neue VMS-Liste, Bezugspunkt.
+Result: list of core copies, optionally a new VMS list, reference point.
 
-### 6.1 Kerne
+### 6.1 Cores
 
-Je Kern (kx, ky, kw, kh, src, srcstep), Schrittweite st = srcstep, falls ≠ 0, sonst kw:
+Per core (kx, ky, kw, kh, src, srcstep), step width st = srcstep if ≠ 0, otherwise kw:
 
-- Spalten a = max(kx, L), b = min(kx + kw, R); Zeilen c = max(ky, T), e = min(ky + kh, B). Leer → Kern entfällt.
-- src' = src + (c − ky) · st + (a − kx); Ziel = Zeile y0 + c, Spalte x0 + a; Breite b − a, Zeilen e − c.
-- srcstep' = srcstep, wenn a = kx und b = kx + kw (volle Breite), sonst st. (Volle Breite bei srcstep 0 bleibt gepackt: VCL-Typ 2; sonst Typ 3.)
+- Columns a = max(kx, L), b = min(kx + kw, R); rows c = max(ky, T), e = min(ky + kh, B). Empty → core dropped.
+- src' = src + (c − ky) · st + (a − kx); destination = row y0 + c, column x0 + a; width b − a, rows e − c.
+- srcstep' = srcstep if a = kx and b = kx + kw (full width), otherwise st. (Full width with srcstep 0 stays packed: VCL type 2; otherwise type 3.)
 
-### 6.2 VMS-Liste
+### 6.2 VMS list
 
-Unbeschnitten: Liste unverändert, Bezugspunkt (x0, y0).
+Unclipped: list unchanged, reference point (x0, y0).
 
-Beschnitten: **Bezugspunkt (cx0, cy0)**; die Liste wird neu geschrieben. Durchlauf über die Befehle mit Zeilenzähler r und Zeilenanfang rs (r = 0, rs = 0 am Anfang; vor jedem Befehl `while ofs ≥ rs + stride: rs += stride; r += 1`), Spalte col = ofs − rs, Lesezähler „ausstehender Sprung“ k = 0:
+Clipped: **reference point (cx0, cy0)**; the list is rewritten. Pass over the commands with row counter r and row start rs (r = 0, rs = 0 at the beginning; before each command `while ofs ≥ rs + stride: rs += stride; r += 1`), column col = ofs − rs, read counter “pending jump” k = 0:
 
-| Befehl | sichtbar, wenn | Ausgabe |
+| Command | visible if | Output |
 |---|---|---|
-| Typ 1 (ofs, len) | T ≤ r < B und [col, col + len) ∩ [L, R) ≠ ∅ | a = max(col, L), b = min(col + len, R): k += a − col; falls k > 0: Typ 3 (k), k = 0; Typ 1 (ofs' = (r − T) · stride + (a − L), b − a); k += col + len − b |
-| Typ 1, unsichtbar | sonst | k += len |
-| Typ 8 (ofs) | T ≤ r < B und L ≤ col < R | falls k > 0: Typ 3 (k), k = 0; Typ 8 (ofs' wie oben mit a = col) |
-| Typ 8, unsichtbar | sonst | k += 1 |
+| Type 1 (ofs, len) | T ≤ r < B and [col, col + len) ∩ [L, R) ≠ ∅ | a = max(col, L), b = min(col + len, R): k += a − col; if k > 0: type 3 (k), k = 0; type 1 (ofs' = (r − T) · stride + (a − L), b − a); k += col + len − b |
+| Type 1, invisible | otherwise | k += len |
+| Type 8 (ofs) | T ≤ r < B and L ≤ col < R | if k > 0: type 3 (k), k = 0; type 8 (ofs' as above with a = col) |
+| Type 8, invisible | otherwise | k += 1 |
 
-- Sobald r ≥ B, endet der Durchlauf (Rest entfällt, kein abschließender Typ 3).
-- Ein ausstehendes k am Ende wird nicht ausgegeben.
-- Kopf der neuen Liste: Alpha unverändert, Anzahl = ausgegebene Befehle (inklusive Typ 3). Typ 3 hat das Format `03 n_lo n_hi` (VDC-BASIC `vms-format.md`); k ≤ 65535 (Randbytes ≤ U).
-- Bleibt kein Typ-1- oder Typ-8-Befehl übrig, entfällt die Liste ganz (Ergebnis ohne VMS).
-- Länge: Die neue Liste ist höchstens 3 · (B − T) Byte länger als die gespeicherte (je sichtbarer Zeile höchstens ein Typ 3; ein Typ-1-Lauf wird nie geteilt). Puffer-Reserve in P6 danach bemessen.
-- ofs' ist immer < 65536, weil der Ausschnitt im Sichtfenster liegt (P6 rechnet das Ziel als `AP + Zeilenadresse(cy0) + cx0`).
+- As soon as r ≥ B, the pass ends (rest dropped, no trailing type 3).
+- A pending k at the end is not output.
+- Header of the new list: alpha unchanged, count = number of commands output (including type 3). Type 3 has the format `03 n_lo n_hi` (VDC-BASIC `vms-format.md`); k ≤ 65535 (edge bytes ≤ U).
+- If no type 1 or type 8 command remains, the list is dropped entirely (result without VMS).
+- Length: the new list is at most 3 · (B − T) bytes longer than the stored one (at most one type 3 per visible row; a type 1 run is never split). Dimension the buffer reserve in P6 accordingly.
+- ofs' is always < 65536, because the cutout lies in the viewport (P6 computes the destination as `AP + row address(cy0) + cx0`).
 
-### 6.3 Weitere Funktionen
+### 6.3 Further functions
 
 ```python
-def render_image(s2, img_index, vram, fb, x0, y0, vp, ap=0, vb=0, clip=None)   # zeichnet über clip_image + sim_*
+def render_image(s2, img_index, vram, fb, x0, y0, vp, ap=0, vb=0, clip=None)   # draws via clip_image + sim_*
 def from_s2(data) -> SpriteSet ; def to_s2(ss, load) -> bytes
-def lookup(ss, phase, a, d) -> int | None      # 4.2 inkl. angle_map, $FF, f >= NP
+def lookup(ss, phase, a, d) -> int | None      # 4.2 incl. angle_map, $FF, f >= NP
 ```
 
-`dbetex.sim_vms` bekommt Typ 3 (Lesezähler += n, nichts schreiben); Typ 2 bleibt ungenutzt.
+`dbetex.sim_vms` gets type 3 (read counter += n, write nothing); type 2 stays unused.
 
-## 7. Bericht, Budget
+## 7. Report, budget
 
-### 7.1 Bericht (`<name>.spr.md`, `<name>.spr.json`, stdout eine Zeile)
+### 7.1 Report (`<name>.spr.md`, `<name>.spr.json`, one line on stdout)
 
-- Kopf (NA, NP, D, NI, NK, NT), S2-Inhalt (Bank 1), VRAM U, VRL-Strom.
-- Tabelle je (f, ai, d): Index, Quelle (eigen, geteilt, gespiegelt, abgeleitet, `$FF`, `$FE`), w × h, Fußpunkt, Kerne/Kernbytes, Randbytes, VMS-Länge, **VCL-Bytes** (11 bzw. 13 je Kern + 7 bei Rand).
-- **Puffer:** größte VMS-Liste und größte Summe VCL + VMS eines Bildes; Warnung, wenn ein Bild mehr als 1/3 des gemeinsamen Puffers (P6: 2304 Byte) braucht.
-- Warnungen (Palette, außerhalb der Slice, Höhenprüfung 3.4, Tag gekürzt, Phase 0 ohne Bild), Infos.
-- Tags als Tabelle und als BASIC-Hilfe: `REM ORK: IDLE 0-1 30J, WALK 2-5 8J`.
+- Header (NA, NP, D, NI, NK, NT), S2 content (bank 1), VRAM U, VRL stream.
+- Table per (f, ai, d): index, source (own, shared, mirrored, derived, `$FF`, `$FE`), w × h, foot point, cores/core bytes, edge bytes, VMS length, **VCL bytes** (11 or 13 per core + 7 for edge).
+- **Buffer:** largest VMS list and largest sum VCL + VMS of one image; warning if an image needs more than 1/3 of the shared buffer (P6: 2304 bytes).
+- Warnings (palette, outside the slice, height check 3.4, tag truncated, phase 0 without image), infos.
+- Tags as a table and as BASIC aid: `REM ORK: IDLE 0-1 30J, WALK 2-5 8J`.
 
-### 7.2 Budget (Richtwerte, 140 × 96)
+### 7.2 Budget (reference values, 140 × 96)
 
-Nach P3/P5: 1 Wandstil + Boden- und Deckenbänder ≈ 16 KB im 26-KB-Pool, rund 10 KB bleiben für Tapete und Sprites (review-notes C.2, F.9). Schätzung für eine Figur mit 40 % der Zellbreite und 70 % der Wandhöhe, 65 % Deckung:
+Per P3/P5: 1 wall style + floor and ceiling bands ≈ 16 KB in the 26 KB pool, about 10 KB remain for wallpaper and sprites (review-notes C.2, F.9). Estimate for a figure with 40 % of the cell width and 70 % of the wall height, 65 % coverage:
 
-| Tiefe | Bild etwa | VRAM etwa |
+| Depth | Image approx. | VRAM approx. |
 |---|---|---|
-| d = 1 | 20 × 54 Byte | 700 |
+| d = 1 | 20 × 54 bytes | 700 |
 | d = 2 | 13 × 35 | 300 |
 | d = 3 | 8 × 22 | 115 |
 
-| Sparform | VRAM je Gegnertyp |
+| Economy variant | VRAM per enemy type |
 |---|---|
-| 4 Blickwinkel × 2 Phasen × 3 Tiefen | ≈ 8,9 KB |
-| 4 Blickwinkel, 2 Phasen nur in d = 1 (`$FF` sonst) | ≈ 7,3 KB |
-| 2 Blickwinkel (vorne/hinten), 2 Phasen nur in d = 1 | ≈ 3,6 KB |
-| 1 Blickwinkel, 2 Phasen in d = 1 | ≈ 1,8 KB |
-| Gegenstand, 1 Bild je Tiefe | 0,1–0,4 KB |
+| 4 view angles × 2 phases × 3 depths | ≈ 8.9 KB |
+| 4 view angles, 2 phases only in d = 1 (`$FF` otherwise) | ≈ 7.3 KB |
+| 2 view angles (front/back), 2 phases only in d = 1 | ≈ 3.6 KB |
+| 1 view angle, 2 phases in d = 1 | ≈ 1.8 KB |
+| Item, 1 image per depth | 0.1–0.4 KB |
 
-`dbespr.py budget` = `dbetex.py budget` mit S2-Dateien (die P5-Funktion liest S2 zusätzlich: Art „Sprite“, U).
+`dbespr.py budget` = `dbetex.py budget` with S2 files (the P5 function additionally reads S2: kind “Sprite”, U).
 
 ## 8. CLI
 
@@ -310,40 +310,40 @@ dbespr.py dump  FILE.s2 [--vrl FILE.vrl] [--json]
 dbespr.py preview FILE.s2 --vrl FILE.vrl --geom G.json [--d D] [--phase F] [--angle A] [--out PNG]
 ```
 
-`preview`: alle Bilder einer Tiefe auf allen Unterpositionen der Zellen (d, s) über einem Gitter, beschnitten nach 6 (zeigt das Beschneiden am Rand), ×4. `build` schreibt `<name>.s2`, `<name>.vrl`, Bericht und `<name>_preview.png`. Exitcodes wie P5.
+`preview`: all images of one depth on all sub-positions of cells (d, s) over a grid, clipped per 6 (shows the clipping at the edge), ×4. `build` writes `<name>.s2`, `<name>.vrl`, report and `<name>_preview.png`. Exit codes as P5.
 
 ## 9. Tests (`test/tools/test_dbespr.py`, unittest)
 
-### 9.1 Beispiel-Assets
+### 9.1 Example assets
 
-`tools/dbesprdemo.py OUTDIR [--geom G.json]` erzeugt deterministisch:
+`tools/dbesprdemo.py OUTDIR [--geom G.json]` generates deterministically:
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `blob.json` + `blob.png` | Aseprite-artiger Export, `--split-layers`-Namen: Ebenen `v0_d1 … v3_d3`, 2 Frames, Tags `idle` (0–0), `walk` (0–1, pingpong, 150 ms), Slices mit Pivot für d = 1, ohne Slice für d = 2 (automatisch), `v0_d3` in Frame 1 leer (→ `$FF`); Figur mit halben Bytes am Rand, ungerader Breite und einem Loch (Auge transparent) |
-| `gem.png` + `gem.toml` | PNG mit Bildliste, NA = 1, NP = 2 (Glitzern), Tiefen 1–3 |
-| `blob.toml` | Projektdatei (NA 4, `mirror = {3 = 1}` als zweite Variante `blob_m.toml`) |
+| `blob.json` + `blob.png` | Aseprite-style export, `--split-layers` names: layers `v0_d1 … v3_d3`, 2 frames, tags `idle` (0–0), `walk` (0–1, pingpong, 150 ms), slices with pivot for d = 1, without slice for d = 2 (automatic), `v0_d3` empty in frame 1 (→ `$FF`); figure with half bytes at the edge, odd width and a hole (eye transparent) |
+| `gem.png` + `gem.toml` | PNG with image list, NA = 1, NP = 2 (sparkle), depths 1–3 |
+| `blob.toml` | project file (NA 4, `mirror = {3 = 1}` as second variant `blob_m.toml`) |
 
-Kopien in `docs/specs/examples/spr/` (klein); Tests erzeugen neu im Temp-Verzeichnis.
+Copies in `docs/specs/examples/spr/` (small); tests regenerate in the temp directory.
 
-### 9.2 Eigenschaften
+### 9.2 Properties
 
-- **Rundlauf:** VRL entpacken nach VB = `$5000`; je Bild `render_image` unbeschnitten an (x0, y0) = (10, 20) auf Zufallshintergrund = Erwartungsbild (deckende Pixel aus der Quelle, Rest Hintergrund).
-- **Beschneiden:** je Bild alle Ausschnitte mit L, R ∈ {0, 1, w/2, w − 1, w} und T, B ∈ {0, 1, h − 1, h} (nicht leer): Ergebnis = Erwartungsbild nur im Ausschnitt, Hintergrund überall sonst (insbesondere **kein Byte außerhalb** des Ausschnitts verändert, Prüfung über das ganze 64-KB-Feld); neue Liste nur mit Typ 1/3/8, Typ 3 nie am Ende, nie zwei Typ 3 hintereinander; Summe aller verbrauchten Bytes ≤ Randbytes.
-- **Unbeschnitten** = Liste bytegleich mit der gespeicherten.
-- **Kerne:** srcstep-Regel 6.1 (Typ 2 bleibt Typ 2 bei voller Breite, auch mit T > 0).
-- **Index:** `lookup` für alle (f, a, d) inkl. f ≥ NP, `$FF` → Phase 0, `$FE`, angle_map-Standards je NA, `$FF`-Objektrichtung → a = 0.
-- **Aseprite:** Slice mit/ohne Pivot, Key-Auswahl je Frame, ohne Slice (bbox), leere Cel, unbekannte Ebene (Info), ai ≥ NA → Fehler, `trimmed` → Fehler, `json-hash` und `json-array`.
-- **Byte-Raster:** box.x ungerade → x_e, Fußpunkt-Rundung mit Info.
-- **Spiegeln, Ableiten:** gespiegeltes Bild = horizontal gespiegelte Pixel; abgeleitete Größe nach 5.4.
-- **Format:** Kopf, Offsets lückenlos, Länge, CRC, U = VRL; `from_s2(to_s2(x))` = x; Determinismus (zweimal gebaut = gleiche Bytes); Grenzen 4.7.
-- **VMS-Formatregeln 4.6** für alle erzeugten Listen.
-- **CLI** über `subprocess`; Formatfehler → Exitcode 1 ohne Traceback.
+- **Round trip:** unpack the VRL to VB = `$5000`; per image `render_image` unclipped at (x0, y0) = (10, 20) on a random background = expected image (opaque pixels from the source, rest background).
+- **Clipping:** per image all cutouts with L, R ∈ {0, 1, w/2, w − 1, w} and T, B ∈ {0, 1, h − 1, h} (not empty): result = expected image only within the cutout, background everywhere else (in particular **no byte outside** the cutout changed, checked over the whole 64 KB field); new list only with type 1/3/8, type 3 never at the end, never two type 3 in a row; sum of all consumed bytes ≤ edge bytes.
+- **Unclipped** = list byte-identical to the stored one.
+- **Cores:** srcstep rule 6.1 (type 2 stays type 2 at full width, also with T > 0).
+- **Index:** `lookup` for all (f, a, d) incl. f ≥ NP, `$FF` → phase 0, `$FE`, angle_map defaults per NA, object direction `$FF` → a = 0.
+- **Aseprite:** slice with/without pivot, key selection per frame, without slice (bbox), empty cel, unknown layer (info), ai ≥ NA → error, `trimmed` → error, `json-hash` and `json-array`.
+- **Byte grid:** box.x odd → x_e, foot point rounding with info.
+- **Mirroring, deriving:** mirrored image = horizontally mirrored pixels; derived size per 5.4.
+- **Format:** header, offsets contiguous, length, CRC, U = VRL; `from_s2(to_s2(x))` = x; determinism (built twice = same bytes); limits 4.7.
+- **VMS format rules 4.6** for all generated lists.
+- **CLI** via `subprocess`; format error → exit code 1 without traceback.
 
-Laufzeit < 60 s.
+Run time < 60 s.
 
-## 10. Abnahme
+## 10. Acceptance
 
-- `tools/dbespr.py`, `tools/dbesprdemo.py`, `test/tools/test_dbespr.py` grün; `dbetex.sim_vms` mit Typ 3 (bestehende P5-Tests grün).
-- Beispiele in `docs/specs/examples/spr/` mit Bericht.
-- `docs/formats.md` erhält „S2 v1“ (4.1–4.6, kurz).
+- `tools/dbespr.py`, `tools/dbesprdemo.py`, `test/tools/test_dbespr.py` green; `dbetex.sim_vms` with type 3 (existing P5 tests green).
+- Examples in `docs/specs/examples/spr/` with report.
+- `docs/formats.md` gets “S2 v1” (4.1–4.6, brief).

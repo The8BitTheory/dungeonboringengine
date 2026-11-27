@@ -1,150 +1,150 @@
-# P6d-Review: VIEW ohne Objekte – Korrektheit, Zyklen, Speicher, nächste Schritte
+# P6d review: VIEW without objects – correctness, cycles, memory, next steps
 
-Stand: 2026-11-25. Review (Opus) von Commit `793a273` (Branch `step2/textures-0.2`): `engine/view.s`, `engine/lib.s`, `tools/dbeview.py`, `test/sim/run_sim.py`, Spezifikation `P6-engine.md` (Abschnitte 2, 5, 7, 8, „Ergebnis P6d“). Nichts geändert, nichts committet. `python3 test/sim/run_sim.py` ist grün (1302 Ansichten bytegleich, Zyklen wie im Ergebnis P6d).
+As of: 2026-11-25. Review (Opus) of commit `793a273` (branch `step2/textures-0.2`): `engine/view.s`, `engine/lib.s`, `tools/dbeview.py`, `test/sim/run_sim.py`, specification `P6-engine.md` (sections 2, 5, 7, 8, "Result P6d"). Nothing changed, nothing committed. `python3 test/sim/run_sim.py` is green (1302 views byte-identical, cycles as in the result P6d).
 
-Messgrundlage: eigener Profiler (`prof6502.py`, Zyklen je PC, Gruppierung nach Labels und Quellzeilen), Demo-Assets 140 × 96 (VW 70, D 3, S 3, NE 79), Szenen wie `test_p6d`. Die Werte in Klammern sind Mittel je Ansicht.
+Measurement basis: own profiler (`prof6502.py`, cycles per PC, grouping by labels and source lines), demo assets 140 × 96 (VW 70, D 3, S 3, NE 79), scenes like `test_p6d`. The values in parentheses are means per view.
 
-## 1. Review: Korrektheitsrisiken außerhalb der Tests
+## 1. Review: correctness risks outside the tests
 
-### 1.1 Befunde (nach Gewicht)
+### 1.1 Findings (by weight)
 
-| # | Risiko | Wirkung | Vorschlag |
+| # | Risk | Effect | Proposal |
 |---|---|---|---|
-| K1 | **`BUFSET` erlaubt Puffer ab `$0200`.** Bank 0 `$0200–$0AFF` enthält Eingabepuffer, Kernal-Vektoren (`$0314` IRQ) und Systemvariablen, `$0C00–$0DFF` Parameterblock und Stub, `$1000–$12FF` Funktionstasten, BASIC-Sprite- und BASIC-7-Arbeitsspeicher. Ein Spiel mit `BUFSET 512,…` überschreibt beim nächsten `VIEW` den IRQ-Vektor → Absturz. | System hängt | `BUFSET` nur in erlaubten Fenstern: `$1300 ≤ B0` (Standard), optional `$0B00–$0BFF` und `$0E00–$0FFF` als eigene Fenster (falls der Nutzer sie freigibt, 3.4). Spezifikation 3/3.3 anpassen. |
-| K2 | **`GEOMSET` prüft die Elementtabelle nicht.** Geprüft werden nur Kopf und Grenzen VW/VH/D/S/NE. Nicht geprüft: `first + n ≤ NE` je Tiefe, Art ≤ 4, `e.d` = Tiefe, `|e.s| ≤ S`, `x + w ≤ VW`, `c0 ≤ c1 ≤ VW`, `y + h ≤ VH`, zusammenhängende Zellen (P3 5.3), höchstens ein Boden-/Deckenelement je Zelle. Folgen einer falschen oder vertauschten Datei: `mark_c`/`mark_b` mit `c1 > VW` schreiben Einsen über `cover`/`bcov` hinaus in `dcy0…`, `pd_*`, `gr_*` (BSS-Zerstörung). Nicht zusammenhängende Zellen ergeben mehr als 31 Gruppen; `vband` liest dann für alle Gruppen ab 31 die Werte von `gr_*[31]` (`@gx: ldx #MAXGRP-1`), also falsche Band-Entscheidungen statt `E_FORMAT` (die Referenz wirft `ViewError`). | stille Fehlbilder, BSS-Zerstörung | Einmalige Prüfung in `GEOMSET` (≈ 150 B Code, Laufzeit einmalig). Danach entfallen in `VIEW` die Rückfallpfade `bmulti`/`bit0`/`bitn`-Scan und `MAXGRP`-Abfragen (≈ 150 B Code weniger). |
-| K3 | **Wartebereich 16 Einträge je Tiefe** ist nur eine Laufzeitgrenze (`A = 2`). Die Referenz kennt keine Grenze → bei Überschreitung keine Byte-Gleichheit mehr. Gemessen: höchstens 6 belegte Plätze in allen 800 Zufallsszenen (beide Bit-3-Varianten, `double_fronts`). Obergrenze je Tiefe = Zahl der Seiten mit DVG-Bit 0 plus Fronten mit Bit 0 ohne Bit 3. Demo mit `double_fronts` ohne Bit 3: Tiefe 3 = 6 Seiten + 10 Fronten = **genau 16**. Eine Crawl-ähnliche DVG mit größerem S überschreitet das. | A = 2 ohne Not, Abweichung von der Referenz | `GEOMSET` zählt diese Elemente je Tiefe und gibt bei > 16 `A = 1` (Grenze in Abschnitt 7, Referenz `parse_dvg` gleich). Danach kann `VIEW` nie überlaufen; der Laufzeitzweig entfällt. Test: DVG mit 16 (ok) und 17 (A = 1). |
-| K4 | **`MAXITEM = 96` ist ungetestet.** Höchstens 41 Einträge in allen Zufallsszenen (auch mit `double_fronts`). Der STOP-Pfad aus `itemadd` (A = 2 ohne Pufferüberlauf) wird nur über den Puffer erreicht. | ungetesteter Pfad | Synthetische Szene: großer Puffer (`BUFSET` bis `$1BFF`), viele kleine Einträge (z. B. Tapete in vielen Spannen, Kacheln mit `max_kerns` 16) oder vorläufig `MAXITEM` per `--asm-define` klein. Mit der Einpass-Erzeugung (2.3, M2) bleibt nur der Zähler. |
-| K5 | **Asset-Adressen unter `$2000` werden nicht abgewiesen.** `TEXSET`/`BGSET`/`SPRITESET`/`GEOMSET`/`MAPINIT` (außer Arbeitskopie) akzeptieren jede Adresse; unter `$2000` liest die Lib Bank 0 (gemeinsames RAM). Ebenso Überlappung mit Lib (`$B000–$CFFF`) und BSS (`$E000–$E7FF`). | stille Fehlbilder | Gemeinsame Prüfung „Daten in `$2000 … $FEFF`, nicht in Lib/BSS“ (A = 6), ≈ 30 B. Niedrige Priorität. |
-| K6 | `clipvms_e`: Zeilenzähler `cr` ist 8 Bit (`inc cr; bne @rw`). Bei Offsets ≥ 256 · stride (nur mit kaputter Liste oder stride < 64) läuft er über und der Ausschnitt wird falsch. | nur kaputte Daten | P6e prüfen (Sprites haben kleinere Höhen); ggf. `cr ≥ B` vor dem Erhöhen abfragen. |
-| K7 | Kommentar in `velem` („abgelehnt ändert nichts an der Abdeckung“) ist missverständlich: Auch ein verworfener Eintrag (`@drop`, v = 7 mit Rand) markiert danach `cover`. Das entspricht der Referenz (sie ignoriert den Rückgabewert von `add`). Kann nur bei DECKEND-Bildern ohne Kerne auftreten (Werkzeugfehler). | keine | Kommentar präzisieren; `dbetex` sollte DECKEND ohne Kern verbieten. |
+| K1 | **`BUFSET` permits buffers from `$0200`.** Bank 0 `$0200–$0AFF` contains input buffers, Kernal vectors (`$0314` IRQ) and system variables, `$0C00–$0DFF` parameter block and stub, `$1000–$12FF` function keys, BASIC sprite and BASIC 7 work memory. A game with `BUFSET 512,…` overwrites the IRQ vector at the next `VIEW` → crash. | system hangs | `BUFSET` only in permitted windows: `$1300 ≤ B0` (default), optionally `$0B00–$0BFF` and `$0E00–$0FFF` as separate windows (if the user releases them, 3.4). Adjust specification 3/3.3. |
+| K2 | **`GEOMSET` does not check the element table.** Only the header and the limits VW/VH/D/S/NE are checked. Not checked: `first + n ≤ NE` per depth, kind ≤ 4, `e.d` = depth, `|e.s| ≤ S`, `x + w ≤ VW`, `c0 ≤ c1 ≤ VW`, `y + h ≤ VH`, contiguous cells (P3 5.3), at most one floor/ceiling element per cell. Consequences of a wrong or swapped file: `mark_c`/`mark_b` with `c1 > VW` write ones beyond `cover`/`bcov` into `dcy0…`, `pd_*`, `gr_*` (BSS corruption). Non-contiguous cells yield more than 31 groups; `vband` then reads the values of `gr_*[31]` for all groups from 31 on (`@gx: ldx #MAXGRP-1`), i.e. wrong band decisions instead of `E_FORMAT` (the reference raises `ViewError`). | silent wrong images, BSS corruption | One-time check in `GEOMSET` (≈ 150 B code, one-time runtime). After that the fallback paths `bmulti`/`bit0`/`bitn` scan and `MAXGRP` checks in `VIEW` become unnecessary (≈ 150 B less code). |
+| K3 | **Pending area of 16 entries per depth** is only a runtime limit (`A = 2`). The reference knows no limit → on overflow no more byte identity. Measured: at most 6 occupied slots in all 800 random scenes (both bit 3 variants, `double_fronts`). Upper bound per depth = number of sides with DVG bit 0 plus fronts with bit 0 without bit 3. Demo with `double_fronts` without bit 3: depth 3 = 6 sides + 10 fronts = **exactly 16**. A Crawl-like DVG with larger S exceeds that. | A = 2 without need, deviation from the reference | `GEOMSET` counts these elements per depth and gives `A = 1` at > 16 (limit in section 7, reference `parse_dvg` the same). After that `VIEW` can never overflow; the runtime branch is dropped. Test: DVG with 16 (ok) and 17 (A = 1). |
+| K4 | **`MAXITEM = 96` is untested.** At most 41 entries in all random scenes (also with `double_fronts`). The STOP path from `itemadd` (A = 2 without buffer overflow) is only reached via the buffer. | untested path | Synthetic scene: large buffer (`BUFSET` up to `$1BFF`), many small entries (e.g. wallpaper in many spans, tiles with `max_cores` 16) or provisionally `MAXITEM` small via `--asm-define`. With single-pass generation (2.3, M2) only the counter remains. |
+| K5 | **Asset addresses below `$2000` are not rejected.** `TEXSET`/`BGSET`/`SPRITESET`/`GEOMSET`/`MAPINIT` (except working copy) accept any address; below `$2000` the lib reads bank 0 (shared RAM). Likewise overlap with lib (`$B000–$CFFF`) and BSS (`$E000–$E7FF`). | silent wrong images | Common check "data in `$2000 … $FEFF`, not in lib/BSS" (A = 6), ≈ 30 B. Low priority. |
+| K6 | `clipvms_e`: row counter `cr` is 8 bits (`inc cr; bne @rw`). With offsets ≥ 256 · stride (only with a broken list or stride < 64) it overflows and the clip becomes wrong. | broken data only | Check in P6e (sprites have smaller heights); if necessary test `cr ≥ B` before incrementing. |
+| K7 | Comment in `velem` ("rejected changes nothing about the occlusion") is misleading: even a discarded entry (`@drop`, v = 7 with edge) marks `cover` afterwards. This corresponds to the reference (it ignores the return value of `add`). Can only occur with OCCLUDING images without cores (tool error). | none | Make the comment more precise; `dbetex` should forbid OCCLUDING without a core. |
 
-### 1.2 Geprüft und in Ordnung
+### 1.2 Checked and fine
 
-- **Zeropage:** `VIEW` benutzt nur `ZP0`/`ZP1` (`$FA–$FD`); `vstop` stellt den Stapelzeiger wieder her, `ZP0` wird in `vout` neu gesetzt; im Zählmodus verändert `clipvms_e` `ZP0` nicht. Selbstmodifizierender Code nur in `vcopy` (Bank-1-RAM), interruptfest.
-- **Bank-1-Zugriffe:** alle Daten über `(ZP),y` in Bank 1; Schreiben nur in den Puffer (gemeinsames RAM) und in `$0C0A–$0C11`. Zellen außerhalb der Karte (feste Achse über `dout`, Seitenachse über `a0 + as`, 16 Bit vorzeichenrichtig) fallen auf die Außenkachel.
-- **Grenzen:** `cover`/`bcov` mit 81 Byte (Sentinel bei VW), `allcov` bei w = 0 → „belegt“ wie `all([])`; `resolve`-Index `Art · 32 + st < 96`; `spans` mit > 4 Folgen; `bgq` terminiert für P ≥ 1; nv/nm 16 Bit; `X` sättigt bei 255.
-- **Zähl- und Schreibmodus** laufen durch denselben Code; die Tests decken Rand weggelassen (A = 3), Verwerfen und STOP über den Puffer ab.
-- **IRQ während `VIEW`:** keine Kernal-Aufrufe, I/O nicht berührt; der lange Aufruf wird bereits im VICE-Rauchtest (Jiffy-Uhr) geprüft.
+- **Zero page:** `VIEW` uses only `ZP0`/`ZP1` (`$FA–$FD`); `vstop` restores the stack pointer, `ZP0` is set anew in `vout`; in count mode `clipvms_e` does not change `ZP0`. Self-modifying code only in `vcopy` (bank 1 RAM), interrupt-safe.
+- **Bank 1 accesses:** all data via `(ZP),y` in bank 1; writing only into the buffer (shared RAM) and into `$0C0A–$0C11`. Cells outside the map (fixed axis via `dout`, side axis via `a0 + as`, 16 bits sign-correct) fall back to the outer tile.
+- **Limits:** `cover`/`bcov` with 81 bytes (sentinel at VW), `allcov` at w = 0 → "occupied" like `all([])`; `resolve` index `kind · 32 + st < 96`; `spans` with > 4 runs; `bgq` terminates for P ≥ 1; nv/nm 16 bits; `X` saturates at 255.
+- **Count and write mode** run through the same code; the tests cover edge omitted (A = 3), discarding and STOP via the buffer.
+- **IRQ during `VIEW`:** no Kernal calls, I/O not touched; the long call is already checked in the VICE smoke test (jiffy clock).
 
-## 2. Ursachenanalyse der Zyklen
+## 2. Root-cause analysis of the cycles
 
-### 2.1 Messwerte
+### 2.1 Measured values
 
-| Satz | Mittel | max | Einträge Sichtliste | VCL-Einträge | VMS-Bytes |
+| Set | Mean | max | Entries visibility list | VCL entries | VMS bytes |
 |---|---|---|---|---|---|
-| Gang (ganzer Satz, sim65) | 90 696 | 106 247 | 5–17 | 6–39 | 0–690 |
-| Gang, billigste Ansicht (Wand in Tiefe 1) | 29 998 | – | 5 | 6 | 0 |
-| zufall (40 Szenen) | 106 806 | 143 712 | 13–29 | 24–56 | 123–1 763 |
+| corridor (whole set, sim65) | 90 696 | 106 247 | 5–17 | 6–39 | 0–690 |
+| corridor, cheapest view (wall at depth 1) | 29 998 | – | 5 | 6 | 0 |
+| random (40 scenes) | 106 806 | 143 712 | 13–29 | 24–56 | 123–1 763 |
 
-Selbst die billigste Gang-Ansicht kostet 30 000 Zyklen für 6 VCL-Einträge. Ein Eintrag der Sichtliste kostet im Mittel **etwa 6 000 Zyklen**. Den Großteil verursachen Durchlauf und Verwaltung, nicht die Ausgabe.
+Even the cheapest corridor view costs 30 000 cycles for 6 VCL entries. One entry of the visibility list costs on average **about 6 000 cycles**. The bulk is caused by traversal and management, not by the output.
 
-Profil Gang (16 Ansichten, 81 619 Zyklen): `vcells` 10 665, `gent0` 7 907, `vcell` 5 991, `vcopy` 5 355, `vband` 4 783, `velem` 3 997, `spans` 3 944, `itemadd` 3 583, `resolve` 3 245, `gwall` 3 040, `fillrows` 2 805, `mark_c` 2 170, `emit_vmc` 2 163, `allcov_c` 2 144, `clipkerns` 1 982, `bitn` 1 900, `f_view` 1 635, `dstxy` 1 516, `vout` 1 349, `mark_b` 1 280, `bgoffs` 831.
-Profil zufall: `vcopy` 17 143 (max. Szene 29 862 = **21 %**), `vcells` 11 830, `gent0` 10 322, `vband` 9 441, `gwall` 6 405, `vcell` 6 167, `itemadd` 5 762, `bitn` 3 684.
+Profile corridor (16 views, 81 619 cycles): `vcells` 10 665, `gent0` 7 907, `vcell` 5 991, `vcopy` 5 355, `vband` 4 783, `velem` 3 997, `spans` 3 944, `itemadd` 3 583, `resolve` 3 245, `gwall` 3 040, `fillrows` 2 805, `mark_c` 2 170, `emit_vmc` 2 163, `allcov_c` 2 144, `clipcores` 1 982, `bitn` 1 900, `f_view` 1 635, `dstxy` 1 516, `vout` 1 349, `mark_b` 1 280, `bgoffs` 831.
+Profile random: `vcopy` 17 143 (max. scene 29 862 = **21 %**), `vcells` 11 830, `gent0` 10 322, `vband` 9 441, `gwall` 6 405, `vcell` 6 167, `itemadd` 5 762, `bitn` 3 684.
 
-### 2.2 Wo algorithmisch zu viel passiert
+### 2.2 Where too much happens algorithmically
 
-1. **Jedes Element jeder Tiefe wird zweimal angefasst, die meisten umsonst.** `vcells` liest je Element Art und s (Gruppenbildung, Boden-/Deckenelement merken), dann ruft der Durchlauf `velem` für jedes Element auf. Von 79 Elementen sind nur 25 Wände; Boden, Decke und Objektplätze werden gelesen und verworfen. Die Quellzeilen zeigen etwa 60 Zyklen je Element im Scan und etwa 60 im Durchlauf (16-Bit-Zeigerfortschaltung um 16, `ldy #0/lda (ZP0),y/cmp`, `inc ecur`, `dec ecnt`). Die Gruppenstruktur ist für eine DVG fest und könnte einmal bei `GEOMSET` berechnet werden.
-2. **Zellberechnung je Zelle etwa 330 Zyklen:** Zellindex über eine Schleife `as`-mal `± W` (bei O/W bis 15 Additionen à 20 Zyklen), Kachelzeiger 8 · t, **Kopie aller 7 Kachelbytes** (~100 Zyklen), `faces`/`blocked`. Eine Tabelle `rtab[s] = s · R` je `VIEW` (oder bei `SETPOS`) macht daraus eine 16-Bit-Addition.
-3. **„Vorlauf der Erzeuger“ = jeder Eintrag wird zweimal erzeugt.** Einmal im Zählmodus in `itemadd`, einmal im Schreibmodus in `vout`. Beide Male kopiert `gent0` 14 Byte des Verzeichniseintrags (~300 Zyklen je Aufruf) und läuft die Kerne durch. Im Zählmodus werden für unbeschnittene Wände, ZEILEN-Bänder und Tapete nur Konstanten oder einfache Formeln berechnet, und das mit voller Erzeuger-Maschinerie. Dazu kommt die Übergabe über die 7 Felder `g_*` → `it_*` → `g_*`. Gesamt etwa 9 000 (Gang) bzw. 13 000 (zufall).
-4. **Band-Entscheidung als eigener Durchlauf je Art:** `vband` läuft je Tiefe für Boden und Decke über alle Zellen (`bit0`/`bitn`, Einordnung egal/Lücke/Stil), obwohl `vcell` dieselben Daten gerade gelesen hat. Bei einheitlichen Bändern (Gang) ist der zweite Durchlauf unnötig.
-5. **Spaltenmasken byteweise mit teuren Schleifen:** `mark_c` 28 Zyklen je Spalte (wegen `inc ncov` für die Abbruchbedingung), `mark_b` 17, `spans` ~13 (mit `cpx dvg_vw` je Spalte). Eine deckende Front über 70 Spalten kostet allein 2 000 Zyklen für `mark_c`. Gang: etwa 4 Neuberechnungen von `spans` à 950.
-6. **`bgoffs`:** eine 16-Bit-Division (o_v mod P) bei jedem `VIEW`, 831 Zyklen, obwohl sie nur von der DBG und v abhängt.
-7. **Absolute Adressierung überall:** Nur zwei Zeiger in der Zeropage. Das zwingt zu ständigem Umladen (`gp → ZP0`, `fsrc → ZP1`, `vclsv`), jeder Zugriff kostet 1 Zyklus und 1 Byte mehr. Das erklärt einen Teil der Codegröße (5,6 KB statt geschätzter 3 KB).
-8. **`vcopy`** 17 Zyklen je VMS-Byte (`lda abs,y / sta abs,y / iny / dex / bne`). Das ist nicht falsch, aber in zufall der größte Einzelposten. Ohne Kopie (Listen aus Bank 1 oder resident) entfällt er ganz.
+1. **Every element of every depth is touched twice, most of them in vain.** `vcells` reads kind and s per element (group formation, remember floor/ceiling element), then the pass calls `velem` for every element. Of 79 elements only 25 are walls; floor, ceiling and object slots are read and discarded. The source lines show about 60 cycles per element in the scan and about 60 in the pass (16-bit pointer advance by 16, `ldy #0/lda (ZP0),y/cmp`, `inc ecur`, `dec ecnt`). The group structure is fixed for a DVG and could be computed once at `GEOMSET`.
+2. **Cell computation about 330 cycles per cell:** cell index via a loop `as` times `± W` (for E/W up to 15 additions of 20 cycles each), tile pointer 8 · t, **copy of all 7 tile bytes** (~100 cycles), `faces`/`blocked`. A table `rtab[s] = s · R` per `VIEW` (or at `SETPOS`) turns this into a 16-bit addition.
+3. **"Generator pre-run" = every entry is generated twice.** Once in count mode in `itemadd`, once in write mode in `vout`. Both times `gent0` copies 14 bytes of the directory entry (~300 cycles per call) and runs through the cores. In count mode, for unclipped walls, ROWS bands and wallpaper only constants or simple formulas are computed, and that with the full generator machinery. In addition there is the handover via the 7 fields `g_*` → `it_*` → `g_*`. In total about 9 000 (corridor) or 13 000 (random).
+4. **Band decision as its own pass per kind:** `vband` runs per depth for floor and ceiling over all cells (`bit0`/`bitn`, classification don't-care/gap/style), although `vcell` has just read the same data. With uniform bands (corridor) the second pass is unnecessary.
+5. **Column masks byte by byte with expensive loops:** `mark_c` 28 cycles per column (because of `inc ncov` for the abort condition), `mark_b` 17, `spans` ~13 (with `cpx dvg_vw` per column). An occluding front across 70 columns costs 2 000 cycles for `mark_c` alone. Corridor: about 4 recomputations of `spans` at 950 each.
+6. **`bgoffs`:** a 16-bit division (o_v mod P) at every `VIEW`, 831 cycles, although it depends only on the DBG and v.
+7. **Absolute addressing everywhere:** Only two pointers in zero page. That forces constant reloading (`gp → ZP0`, `fsrc → ZP1`, `vclsv`), every access costs 1 cycle and 1 byte more. This explains part of the code size (5.6 KB instead of the estimated 3 KB).
+8. **`vcopy`** 17 cycles per VMS byte (`lda abs,y / sta abs,y / iny / dex / bne`). That is not wrong, but in random it is the largest single item. Without the copy (lists from bank 1 or resident) it disappears completely.
 
-Die 16-Bit-Arithmetik, die sich per Tabelle 8-bittig machen lässt: Zellindex (`rtab`), Element-/Zellzeiger (aus der Zellentabelle statt `elp` = 16 · i), `bgoffs` (Tabelle bei `BGSET`). `dstxy` nutzt die Zeilentabelle schon; `resolve` (16 · b) ist billig genug.
+The 16-bit arithmetic that can be made 8-bit via a table: cell index (`rtab`), element/cell pointer (from the cell table instead of `elp` = 16 · i), `bgoffs` (table at `BGSET`). `dstxy` already uses the row table; `resolve` (16 · b) is cheap enough.
 
-### 2.3 Maßnahmen (sortiert nach Nutzen/Aufwand)
+### 2.3 Measures (sorted by benefit/effort)
 
-Ersparnis je Ansicht, geschätzt aus dem Profil (Gang 81 600 bzw. zufall 107 000 als Basis). Die Posten überlappen sich teilweise (ZP verbilligt auch die anderen), die Summe ist deshalb eine Obergrenze.
+Savings per view, estimated from the profile (corridor 81 600 and random 107 000 as basis). The items overlap partly (ZP also makes the others cheaper), so the sum is therefore an upper bound.
 
-| # | Maßnahme | Gang | zufall | Aufwand | Code / BSS |
+| # | Measure | Corridor | random | Effort | Code / BSS |
 |---|---|---|---|---|---|
-| **M1** | **Zellentabelle bei `GEOMSET`** (zusammen mit K2): je Tiefe die Zellen mit s, Zeiger auf das erste Element, Anzahl Wandelemente (DVG-Reihenfolge), Objekt-, Boden-, Deckenelement, Spaltenhülle [x0, x1) der Wände. `VIEW` läuft nur über Zellen und deren Wände; Zellindex über `rtab[s]` (16 Bit, einmal je `VIEW`); Kachelbytes direkt per `(ZP),y` statt Kopie; **`allcov` vor `resolve`** und Zelle überspringen, wenn ihre Hülle in `cover` ganz belegt ist (Kacheldaten für die Bänder trotzdem lesen). | −13 000 … −15 000 | −13 000 | mittel | Code ±0 (GEOMSET +200, VIEW −250, Rückfallpfade weg); BSS +6–8 B je Zelle (Grenze z. B. 64 Zellen → ≤ 512 B; Demo 18) |
-| **M2** | **Einpass-Erzeugung** (empfohlen, verlangt eine API-Entscheidung, 5 F2): Jeder angenommene Eintrag wird sofort geschrieben. VCL-Einträge **abwärts ab B1** (Ende-Byte zuerst), VMS-Listen **aufwärts ab B0**; VCLADR = Ende des Abwärtsschreibens (variabel, P0 liefert es schon). Innerhalb eines Eintrags kehrt sich die Reihenfolge der VCL-Einträge um. Das ist pixelgleich, weil Kerne und Rand disjunkt sind (P5 4.4 „Reihenfolge ist frei“); Gleiches gilt für ZEILEN-Gruppen und Tapetenteile. Überlaufprüfung: fast path, wenn der freie Platz die Obergrenze des Eintrags fasst (Kerne · 13 + 7 + vlen, beschnitten + 3 je Befehl); sonst slow path mit dem vorhandenen Zählmodus und der Regel aus 5.10. Sichtliste, `vout`, zweiter `gent0` und `g_*/it_*`-Umladen entfallen. | −9 000 | −13 000 | mittel bis hoch (Referenz und Harness anpassen) | Code −150 … −300; **BSS −680** |
-| M2′ | Alternative ohne API-Änderung: **Größen ohne Erzeuger.** Wand/Kachel: v aus dem Verzeichniseintrag (DTS-Byte 15, von `dbetex` vorberechnet: Kernbytes + 7 bei RAND; ≤ 16 · 13 + 7 = 215), m = vlen; ZEILEN-Band: v je Bild konstant (Gruppenzahl, unabhängig von c0/c1); Tapete: Formel. Zählmodus nur noch für beschnittene Bandbilder (und Sprites in P6e). | −6 000 | −9 000 | niedrig bis mittel (DTS-Format, `dbetex`) | Code −100; BSS ±0 (Sichtliste bleibt, P6e braucht dann +300–500 B BSS für Sprite-Felder) |
-| **M3** | **Band-Entscheidung im Zellendurchlauf:** `vcell` ordnet Boden und Decke der Zelle sofort ein (egal/Lücke/Stil) und führt je Tiefe live/gap/mix/st1 sowie st0 (erster Stil mit auflösbarem Bandbild; `resolve` nur bei neuem Stil). `vband` macht nur noch den Kacheldurchlauf (bei gemischt/Lücke) und die Spannen. | −5 000 | −6 000 | niedrig bis mittel | Code −150 |
-| **M4** | **Zeropage-Block während `VIEW`** (16–24 Byte retten und zurückschreiben, ≈ 450 Zyklen): 4–6 Zeiger (Element, Zelle, Kachel, Quelle, VCL, VMS) und die heißesten Zähler. Erzeuger lesen den Verzeichniseintrag direkt per `(ZP),y` (kein 14-Byte-Kopieren), `putb0`/`put_dst` inline. | −5 000 … −7 000 | −8 000 | mittel (mechanisch, breit) | **Code −0,6 … −1 KB** |
-| **M5** | **Masken:** `mark_c` ohne `ncov` (Abbruchtest „cover ganz belegt“ einmal am Tiefenende, bricht an der ersten freien Spalte ab), 13 Zyklen je Spalte; `spans` mit Sentinel in `bcov[VW]` (zwei enge Schleifen); `mark_b` mit ZP-Grenze. Optional `spans` inkrementell (freie Folgen als Liste, `mark_b` schneidet aus). | −3 000 … −4 000 | −2 000 | niedrig | ±0 |
-| **M6** | **`bgoffs` bei `BGSET`** für alle 4 Richtungen (8 B BSS) oder `dbetex` garantiert o_v < P (dann entfällt die Division ganz). | −830 | −830 | trivial | Code −60 |
-| **M7** | **`vcopy` entrollt** (4 Bytes je Schleife, ≈ 12,5 statt 17 Zyklen je Byte). | −1 300 | −4 000 (max −7 000) | trivial | +30 B |
-| **M8** | **VMS-Listen ohne Kopie** (Nutzerentscheidung, 5 F4): VDC-BASIC v3 führt unbeschnittene VMS-Listen direkt aus Bank 1 aus (neuer VCL-Typ oder Bank-Bit in Typ 12; die VMS-Schleife liegt in `$1C00–$1FFF`, also im gemeinsamen RAM, und schaltet für die Dauer einer Liste wie der Stub `$D506`/`$FF00`). Alternativ residente Listen in Bank 0 (Plan 12.2, braucht mehrere KB Bank 0). Nur beschnittene Listen werden noch in den Puffer geschrieben. | −5 000 (max −12 000) | −17 000 (max −30 000) | mittel, zweites Repo | Engine-Code −100; **Puffer entlastet** (zufall: 10–15 % der Szenen haben heute A = 2 wegen des Puffers) |
-| M9 | Zellzeiger je (d, s) bei `SETPOS`/`MAPINIT` vorberechnen (2 B je Zelle). Lohnt sich, wenn das Spiel `VIEW` ohne Bewegung wiederholt (Objekte, P6e). | −1 000 | −1 000 | niedrig | BSS +2 B je Zelle |
+| **M1** | **Cell table at `GEOMSET`** (together with K2): per depth the cells with s, pointer to the first element, number of wall elements (DVG order), object, floor, ceiling element, column hull [x0, x1) of the walls. `VIEW` runs only over cells and their walls; cell index via `rtab[s]` (16 bits, once per `VIEW`); tile bytes directly via `(ZP),y` instead of a copy; **`allcov` before `resolve`** and skip the cell if its hull is fully occupied in `cover` (still read tile data for the bands). | −13 000 … −15 000 | −13 000 | medium | Code ±0 (GEOMSET +200, VIEW −250, fallback paths gone); BSS +6–8 B per cell (limit e.g. 64 cells → ≤ 512 B; demo 18) |
+| **M2** | **Single-pass generation** (recommended, requires an API decision, 5 F2): Every accepted entry is written immediately. VCL entries **downward from B1** (end byte first), VMS lists **upward from B0**; VCLADR = end of the downward writing (variable, P0 already supplies it). Within an entry the order of the VCL entries reverses. This is pixel-identical because cores and edge are disjoint (P5 4.4 "order is free"); the same applies to ROWS groups and wallpaper parts. Overflow check: fast path if the free space holds the upper bound of the entry (cores · 13 + 7 + vlen, clipped + 3 per command); otherwise slow path with the existing count mode and the rule from 5.10. Visibility list, `vout`, second `gent0` and `g_*/it_*` reloading are dropped. | −9 000 | −13 000 | medium to high (adapt reference and harness) | Code −150 … −300; **BSS −680** |
+| M2′ | Alternative without API change: **sizes without generators.** Wall/tile: v from the directory entry (DTS byte 15, precomputed by `dbetex`: core bytes + 7 for EDGE; ≤ 16 · 13 + 7 = 215), m = vlen; ROWS band: v constant per image (group count, independent of c0/c1); wallpaper: formula. Count mode only for clipped band images (and sprites in P6e). | −6 000 | −9 000 | low to medium (DTS format, `dbetex`) | Code −100; BSS ±0 (visibility list remains, P6e then needs +300–500 B BSS for sprite fields) |
+| **M3** | **Band decision in the cell pass:** `vcell` classifies floor and ceiling of the cell immediately (don't-care/gap/style) and keeps per depth live/gap/mix/st1 as well as st0 (first style with a resolvable band image; `resolve` only for a new style). `vband` then only does the tile pass (for mixed/gap) and the spans. | −5 000 | −6 000 | low to medium | Code −150 |
+| **M4** | **Zero-page block during `VIEW`** (save and restore 16–24 bytes, ≈ 450 cycles): 4–6 pointers (element, cell, tile, source, VCL, VMS) and the hottest counters. Generators read the directory entry directly via `(ZP),y` (no 14-byte copy), `putb0`/`put_dst` inline. | −5 000 … −7 000 | −8 000 | medium (mechanical, broad) | **Code −0.6 … −1 KB** |
+| **M5** | **Masks:** `mark_c` without `ncov` (abort test "cover fully occupied" once at depth end, terminates at the first free column), 13 cycles per column; `spans` with sentinel in `bcov[VW]` (two tight loops); `mark_b` with ZP limit. Optionally `spans` incremental (free runs as a list, `mark_b` cuts out). | −3 000 … −4 000 | −2 000 | low | ±0 |
+| **M6** | **`bgoffs` at `BGSET`** for all 4 directions (8 B BSS) or `dbetex` guarantees o_v < P (then the division disappears entirely). | −830 | −830 | trivial | Code −60 |
+| **M7** | **`vcopy` unrolled** (4 bytes per loop, ≈ 12.5 instead of 17 cycles per byte). | −1 300 | −4 000 (max −7 000) | trivial | +30 B |
+| **M8** | **VMS lists without copy** (user decision, 5 F4): VDC-BASIC v3 executes unclipped VMS lists directly from bank 1 (new VCL type or bank bit in type 12; the VMS loop lies in `$1C00–$1FFF`, i.e. in shared RAM, and switches `$D506`/`$FF00` for the duration of a list like the stub). Alternatively resident lists in bank 0 (plan 12.2, needs several KB of bank 0). Only clipped lists are still written into the buffer. | −5 000 (max −12 000) | −17 000 (max −30 000) | medium, second repo | Engine code −100; **buffer relieved** (random: 10–15 % of the scenes today have A = 2 because of the buffer) |
+| M9 | Precompute cell pointers per (d, s) at `SETPOS`/`MAPINIT` (2 B per cell). Worthwhile if the game repeats `VIEW` without movement (objects, P6e). | −1 000 | −1 000 | low | BSS +2 B per cell |
 
-Reihenfolge nach Nutzen/Aufwand: **M1, M3, M5, M6** (zusammen etwa −22 000, ohne Formatänderung), dann **M2** (bzw. M2′), dann **M4**, M7 (entfällt mit M8), M9.
+Order by benefit/effort: **M1, M3, M5, M6** (together about −22 000, without format change), then **M2** (or M2′), then **M4**, M7 (dropped with M8), M9.
 
-### 2.4 Ist das Ziel erreichbar?
+### 2.4 Is the target achievable?
 
-Rechnung von unten für eine typische Gang-Ansicht (13 Einträge, 23 VCL-Einträge, 250 VCL-Bytes, 156 VMS-Bytes) bei guter Umsetzung: Ausgabe etwa 4 000, VMS-Kopie 2 700 (mit M7 2 000), 18 Zellen à 120 und 25 Wände à 100 ≈ 4 700, Bänder 2 000, Spannen 1 600, Rest 2 000, zusammen **17 000–22 000**. Von oben (Profil minus M1–M7) landet man bei etwa 40 000–45 000, weil sich die Posten überlappen und Reste bleiben. Realistisch nach P6d-opt:
+Bottom-up calculation for a typical corridor view (13 entries, 23 VCL entries, 250 VCL bytes, 156 VMS bytes) with a good implementation: output about 4 000, VMS copy 2 700 (with M7 2 000), 18 cells at 120 and 25 walls at 100 ≈ 4 700, bands 2 000, spans 1 600, rest 2 000, together **17 000–22 000**. Top-down (profile minus M1–M7) one lands at about 40 000–45 000, because the items overlap and remainders stay. Realistically after P6d-opt:
 
-| Fall | Ziel (Abschnitt 8) | erwartet mit M1–M7 | mit zusätzlich M8 |
+| Case | Target (section 8) | expected with M1–M7 | with M8 in addition |
 |---|---|---|---|
-| Gang Mittel | ≤ 30 000 | 35 000–45 000 | 30 000–38 000 |
-| Gang max (690 VMS-Bytes) | ≤ 45 000 | 50 000–60 000 | 40 000–48 000 |
-| zufall max (1 760 VMS-Bytes) | ≤ 80 000 | 90 000–105 000 | 65 000–80 000 |
+| Corridor mean | ≤ 30 000 | 35 000–45 000 | 30 000–38 000 |
+| Corridor max (690 VMS bytes) | ≤ 45 000 | 50 000–60 000 | 40 000–48 000 |
+| random max (1 760 VMS bytes) | ≤ 80 000 | 90 000–105 000 | 65 000–80 000 |
 
-**Bewertung:** Die Ziele aus Abschnitt 8 sind nur mit M8 (VMS ohne Kopie) sicher erreichbar; ohne M8 reicht es knapp nicht (allein die Kopie kostet in der größten Zufallsszene 30 000). Vorschlag für die Abnahme von P6d-opt **ohne M8**: Gang Mittel ≤ 40 000, max ≤ 55 000, zufall max ≤ 100 000. **Mit M8** bleiben die ursprünglichen Ziele 30 000 / 45 000 / 80 000. Die Ziele sollten zusätzlich an der VDC-Zeit der Liste gemessen werden (P6g). Eine Gang-Ansicht zeichnet etwa 6 700 Fensterbytes und braucht im VDC grob die gleiche Größenordnung an Zyklen; `VIEW` sollte nicht mehr als etwa die Hälfte davon kosten.
+**Assessment:** The targets from section 8 are reliably achievable only with M8 (VMS without copy); without M8 they narrowly fail (the copy alone costs 30 000 in the largest random scene). Proposal for the acceptance of P6d-opt **without M8**: corridor mean ≤ 40 000, max ≤ 55 000, random max ≤ 100 000. **With M8** the original targets 30 000 / 45 000 / 80 000 remain. The targets should additionally be measured against the VDC time of the list (P6g). A corridor view draws about 6 700 window bytes and needs roughly the same order of magnitude of cycles in the VDC; `VIEW` should not cost more than about half of that.
 
-## 3. Speicherplan für P6e und Optimierungen
+## 3. Memory plan for P6e and optimizations
 
-### 3.1 Bedarf
+### 3.1 Demand
 
-| | heute | nach P6d-opt (M1–M6, M2) geschätzt | P6e zusätzlich | P6f (MOVE, Automap) |
+| | today | after P6d-opt (M1–M6, M2) estimated | P6e additionally | P6f (MOVE, automap) |
 |---|---|---|---|---|
-| Code (8 192) | 7 960 | 6 600–7 000 | +700 … +1 000 (Kandidaten, Sortierung, `lookup`, Anker, Spaltenbeschnitt, OBJVIS; `clipkerns`/`clipvms_e` werden wiederverwendet) | +300 … +500 |
-| BSS (2 048) | 1 993 | 1 450–1 600 (−680 Sichtliste, +300–500 Zellentabelle, −160 `gr_*`) | +40–80 mit M2; **+300–500 ohne M2** (Sprite-Felder x0/y0 16 Bit, cy0/cy1, Satz in der Sichtliste) | +10 |
+| Code (8 192) | 7 960 | 6 600–7 000 | +700 … +1 000 (candidates, sorting, `lookup`, anchor, column clipping, OBJVIS; `clipcores`/`clipvms_e` are reused) | +300 … +500 |
+| BSS (2 048) | 1 993 | 1 450–1 600 (−680 visibility list, +300–500 cell table, −160 `gr_*`) | +40–80 with M2; **+300–500 without M2** (sprite fields x0/y0 16 bits, cy0/cy1, set in the visibility list) | +10 |
 
-Ohne Änderung der memory map reicht es also auch nach der Optimierung nur knapp, ohne Reserve für P6f und P7.
+Without a change to the memory map, even after the optimization it is only just enough, without reserve for P6f and P7.
 
-### 3.2 Optionen
+### 3.2 Options
 
-| Option | Inhalt | Gewinn | Risiko/Kosten | Entscheidung |
+| Option | Content | Gain | Risk/cost | Decision |
 |---|---|---|---|---|
-| **A: Lib mit `$FF00 = $7F`** | Stub schaltet Bank 1 **ohne I/O** (`CR_LIB = $7F` statt `$7E`). Die Lib benutzt kein I/O (geprüft: nur die Testfunktion 250 liest `$D506`; sie schaltet dafür kurz um). Dann ist Bank-1-RAM `$D000–$DFFF` nutzbar: **Code `$B000–$DFFF` = 12 KB**, BSS bleibt `$E000`. `BLOAD` nach Bank 1 (BASIC `BANK 1` = `$7F`) schreibt ins RAM unter I/O. IRQ/NMI laufen über die Weiche in Bank 1, die selbst `$FF00 = 0` setzt. | +4 KB Code, keine Asset-Fläche verkleinert | Stub 1 Byte, `lib.cfg`, Rauchtest (`$FF00`-Erwartung, BLOAD über `$D000`, Jiffy-Uhr) nachziehen; Spiele dürfen Bank 1 `$D000–$DFFF` nicht anders nutzen (bisher frei) | **Nutzer** (memory map 2.4) |
-| B: Einpass (M2) | Sichtliste entfällt | −680 B BSS, −150…300 B Code | API: VCLADR variabel | Nutzer (F2) |
-| C: Zeropage-Block (M4) | 16–24 B retten/zurückschreiben, z. B. `$63–$72` (FAC/ARG des Interpreters) | −0,6…1 KB Code, −5 % Zyklen | Konflikt nur mit Code, der **während** des Aufrufs läuft = IRQ/NMI. Kernal-IRQ nutzt `$A0–$A2`, Tastatur `$D0–$D9`; VDC-BASIC (`$0A–$0E`, `$16`, `$26–$2A`, `$3F`, `$77`, `$83–$8E`) und Blitz! laufen nicht während `SYS` und sind durch das Zurückschreiben geschützt. BASIC-7-IRQ (SOUND, PLAY, MOVSPR, Kollision) ist zu prüfen. Nachweis in VICE: Watchpoint `store` auf den Block während einer `VIEW`-Schleife mit Tastatur, SOUND/PLAY und MOVSPR (ereignisgesteuert). | Nutzer (Bereich), Opus (Nachweis) |
-| D: Bank 0 `$0B00–$0BFF`, `$0E00–$0FFF` | 768 B im gemeinsamen RAM für Daten nur während `VIEW` (Masken, Zellen-/Bandzustand, Sichtliste) | bis 768 B BSS | Kassettenpuffer/Bootsektor bzw. VIC-Sprites; das Spiel darf diese Bereiche dann nicht nutzen (80-Zeichen-Spiel: VIC-Sprites ohnehin tabu) | Nutzer |
-| E: Asset-Flächen verkleinern | z. B. DVG 2 KB → 1,5 KB zugunsten BSS, DMP 8 → 6 KB | 0,5–2 KB | schränkt Spiele ein | Nutzer, **nicht empfohlen** |
-| F: Tabellen im Puffer `$1300` | – | – | Der Puffer ist die Ausgabe; mit M2 wachsen beide Enden aufeinander zu, kein fester freier Teil | verworfen |
-| G: Zeropage per MMU (`$D507/$D508`) verlegen | Zeropage in eine Bank-1-Seite | ganze Seite ZP | Kernal-IRQ würde die verlegte Seite benutzen (Jiffy, Tastatur); nur mit eigener IRQ-Hülle (Rücksprungrahmen fälschen) sicher | verworfen (zu heikel) |
+| **A: Lib with `$FF00 = $7F`** | Stub switches bank 1 **without I/O** (`CR_LIB = $7F` instead of `$7E`). The lib uses no I/O (checked: only test function 250 reads `$D506`; it switches briefly for that). Then bank 1 RAM `$D000–$DFFF` is usable: **code `$B000–$DFFF` = 12 KB**, BSS stays `$E000`. `BLOAD` to bank 1 (BASIC `BANK 1` = `$7F`) writes into the RAM under I/O. IRQ/NMI run via the switch in bank 1, which itself sets `$FF00 = 0`. | +4 KB code, no asset area reduced | Stub 1 byte, `lib.cfg`, adapt smoke test (`$FF00` expectation, BLOAD across `$D000`, jiffy clock); games must not use bank 1 `$D000–$DFFF` otherwise (previously free) | **User** (memory map 2.4) |
+| B: Single pass (M2) | Visibility list dropped | −680 B BSS, −150…300 B code | API: VCLADR variable | User (F2) |
+| C: Zero-page block (M4) | save/restore 16–24 B, e.g. `$63–$72` (FAC/ARG of the interpreter) | −0.6…1 KB code, −5 % cycles | Conflict only with code that runs **during** the call = IRQ/NMI. Kernal IRQ uses `$A0–$A2`, keyboard `$D0–$D9`; VDC-BASIC (`$0A–$0E`, `$16`, `$26–$2A`, `$3F`, `$77`, `$83–$8E`) and Blitz! do not run during `SYS` and are protected by the restore. BASIC 7 IRQ (SOUND, PLAY, MOVSPR, collision) is to be checked. Proof in VICE: watchpoint `store` on the block during a `VIEW` loop with keyboard, SOUND/PLAY and MOVSPR (event-driven). | User (range), Opus (proof) |
+| D: Bank 0 `$0B00–$0BFF`, `$0E00–$0FFF` | 768 B in shared RAM for data only during `VIEW` (masks, cell/band state, visibility list) | up to 768 B BSS | Cassette buffer/boot sector or VIC sprites; the game must then not use these areas (80-column game: VIC sprites are taboo anyway) | User |
+| E: Shrink asset areas | e.g. DVG 2 KB → 1.5 KB in favor of BSS, DMP 8 → 6 KB | 0.5–2 KB | restricts games | User, **not recommended** |
+| F: Tables in the buffer `$1300` | – | – | The buffer is the output; with M2 both ends grow toward each other, no fixed free part | rejected |
+| G: Relocate zero page via MMU (`$D507/$D508`) | zero page into a bank 1 page | whole page ZP | Kernal IRQ would use the relocated page (jiffy, keyboard); safe only with its own IRQ shell (forge return frame) | rejected (too delicate) |
 
-### 3.3 Empfehlung
+### 3.3 Recommendation
 
-1. **Option A jetzt** (vor P6d-opt): Sie kostet ein Byte im Stub und ein paar Testanpassungen und beendet den Platzdruck für P6e, P6f und P7, ohne dass das Spiel Asset-Fläche abgibt. Die Optimierung kann sich dann nach Zyklen richten statt nach Bytes.
-2. **M2 (Einpass)**, wenn der Nutzer VCLADR variabel akzeptiert: Das spart am meisten BSS und Zyklen, und P6e braucht dann keine Sprite-Felder in einer Sichtliste. Sonst M2′.
-3. **Option C** erst nach dem VICE-Nachweis. Ohne C wird der Code nur durch die Struktur kleiner (M1–M3), das reicht mit A.
-4. D und E nicht nötig, solange A gilt. D bleibt die Reserve für BSS, falls die Zellentabelle oder P6e mehr brauchen als gedacht.
+1. **Option A now** (before P6d-opt): It costs one byte in the stub and a few test adjustments and ends the space pressure for P6e, P6f and P7, without the game giving up asset area. The optimization can then be guided by cycles instead of bytes.
+2. **M2 (single pass)**, if the user accepts VCLADR variable: This saves the most BSS and cycles, and P6e then needs no sprite fields in a visibility list. Otherwise M2′.
+3. **Option C** only after the VICE proof. Without C the code only becomes smaller through the structure (M1–M3), which suffices with A.
+4. D and E not necessary as long as A holds. D remains the reserve for BSS if the cell table or P6e need more than expected.
 
-### 3.4 Entscheidungen des Nutzers (Speicher)
+### 3.4 User decisions (memory)
 
-- memory map 2.4: Lib-Code bis `$DFFF`, Stub mit `$FF00 = $7F` (A)?
-- Darf die Engine Bank 0 `$0B00–$0BFF`/`$0E00–$0FFF` als Arbeitsbereich (D) bzw. als Pufferfenster für `BUFSET` (K1) nutzen?
-- Zeropage-Block für `VIEW` (C): welcher Bereich ist für das Spiel und eigene IRQ-Routinen tabu?
+- memory map 2.4: lib code up to `$DFFF`, stub with `$FF00 = $7F` (A)?
+- May the engine use bank 0 `$0B00–$0BFF`/`$0E00–$0FFF` as work area (D) or as a buffer window for `BUFSET` (K1)?
+- Zero-page block for `VIEW` (C): which range is taboo for the game and its own IRQ routines?
 
-## 4. Vorschlag: Aufteilung der nächsten Arbeit
+## 4. Proposal: split of the next work
 
-**P6d-opt vor P6e.** Gründe: (1) P6e hängt am Aufbau (Sichtliste ja/nein, ZP-Zeiger, Zellentabelle mit Objektelement und Zellindex); nach P6e müsste man die Objektlogik mit umbauen. (2) Ohne Platz (A oder Optimierung) lässt sich P6e nicht bauen. (3) Die Byte-Gleichheit mit der Referenz ist das Netz für den Umbau; sie wird mit P6e nur komplizierter.
+**P6d-opt before P6e.** Reasons: (1) P6e depends on the structure (visibility list yes/no, ZP pointers, cell table with object element and cell index); after P6e one would have to rebuild the object logic as well. (2) Without space (A or optimization) P6e cannot be built. (3) Byte identity with the reference is the safety net for the rebuild; it only becomes more complicated with P6e.
 
-| Schritt | Inhalt | Abnahme | Modell |
+| Step | Content | Acceptance | Model |
 |---|---|---|---|
-| **P6d-0** Entscheidungen | Nutzerfragen 5 F1–F5; Spezifikation nachziehen (Abschnitte 2.4, 3, 5.10/5.11, 7, 8) | Entscheidungen im Spec | Opus (Hauptagent) mit Nutzer |
-| **P6d-1** Rahmen | Option A (Stub `$7F`, `lib.cfg` 12 KB, Rauchtest); K1 (`BUFSET`-Fenster), K2/K3 (GEOMSET-Prüfungen inkl. Wartebereich ≤ 16, ≤ 1 Boden/Decke je Zelle, Zellen zusammenhängend) in Lib **und** `dbeview.parse_dvg`; Tests für die neuen Fehlerfälle | sim grün, bytegleich; VICE-Rauchtest grün | Sonnet (klar umrissen), Review Opus |
-| **P6d-2** Referenz | bei M2: `dbeview.output` mit VCL abwärts ab B1 / VMS ab B0, Eintragsreihenfolge je Eintrag umgekehrt; Pixelprüfung `run_vcl` = `paint_reference` bleibt grün; Harness liest [B0, B0 + nm) und [VCLADR, B1). Bei M2′: `dbetex` Byte 15 | Python-Tests grün | Sonnet |
-| **P6d-opt** 6502 | M1, M3, M5, M6, M2 (bzw. M2′), M4 (falls C freigegeben), M7; K4-Test (MAXITEM) | **bytegleich** wie P6d (alle Sätze, auch `DBEVIEW_FULL=1`); Zyklen nach 2.4 (ohne/mit M8); Code- und BSS-Bericht; Profil je Abschnitt im Ergebnis | **Opus** (zeitkritischer 6502-Umbau mit vielen Wechselwirkungen); Messläufe Haiku |
-| P6e | Objekte auf der neuen Struktur | wie Spezifikation 10 | Opus |
-| P6f | MOVE, Automap; restliche Feinarbeit (M9, `spans` inkrementell) | wie Spezifikation 10 | Sonnet |
-| M8 (parallel möglich) | VDC-BASIC v3: VMS-Liste aus Bank 1 (Branch `v3`), danach Engine-Anpassung | VICE-Test VDC-BASIC; sim bytegleich | Opus (VDC-BASIC-Assembler), Sonnet (Tests) |
+| **P6d-0** Decisions | User questions 5 F1–F5; update specification (sections 2.4, 3, 5.10/5.11, 7, 8) | Decisions in the spec | Opus (main agent) with user |
+| **P6d-1** Framework | Option A (stub `$7F`, `lib.cfg` 12 KB, smoke test); K1 (`BUFSET` window), K2/K3 (GEOMSET checks incl. pending area ≤ 16, ≤ 1 floor/ceiling per cell, cells contiguous) in lib **and** `dbeview.parse_dvg`; tests for the new error cases | sim green, byte-identical; VICE smoke test green | Sonnet (clearly delineated), review Opus |
+| **P6d-2** Reference | for M2: `dbeview.output` with VCL downward from B1 / VMS from B0, entry order reversed per entry; pixel check `run_vcl` = `paint_reference` remains green; harness reads [B0, B0 + nm) and [VCLADR, B1). For M2′: `dbetex` byte 15 | Python tests green | Sonnet |
+| **P6d-opt** 6502 | M1, M3, M5, M6, M2 (or M2′), M4 (if C is released), M7; K4 test (MAXITEM) | **byte-identical** as P6d (all sets, also `DBEVIEW_FULL=1`); cycles per 2.4 (without/with M8); code and BSS report; profile per section in the result | **Opus** (time-critical 6502 rebuild with many interactions); measurement runs Haiku |
+| P6e | Objects on the new structure | as specification 10 | Opus |
+| P6f | MOVE, automap; remaining fine work (M9, `spans` incremental) | as specification 10 | Sonnet |
+| M8 (parallel possible) | VDC-BASIC v3: VMS list from bank 1 (branch `v3`), then engine adaptation | VICE test VDC-BASIC; sim byte-identical | Opus (VDC-BASIC assembler), Sonnet (tests) |
 
-Hinweis zum Vorgehen in P6d-opt: Erst M1 + M3 + M5 + M6 (keine Formatänderung, sofort messbar, etwa −22 000), dann M2 als eigener Commit, dann M4. Nach jedem Schritt bytegleich und mit Zyklenbericht, damit Regressionen eindeutig zuzuordnen sind.
+Note on the procedure in P6d-opt: First M1 + M3 + M5 + M6 (no format change, immediately measurable, about −22 000), then M2 as its own commit, then M4. After each step byte-identical and with a cycle report, so that regressions can be assigned unambiguously.
 
-## 5. Entscheidungsfragen an den Nutzer
+## 5. Decision questions for the user
 
-| # | Frage | Empfehlung |
+| # | Question | Recommendation |
 |---|---|---|
-| F1 | memory map: Lib läuft mit `$FF00 = $7F` (Bank 1 ohne I/O), Code `$B000–$DFFF` (12 KB) | ja |
-| F2 | VCL-Liste nicht mehr fest bei B0, sondern bei VCLADR (= P0 nach `VIEW`; Spiel: `::VCL` mit diesem Wert statt `4864`) – ermöglicht die Einpass-Erzeugung (M2) | ja; sonst M2′ mit DTS-Byte 15 |
-| F3 | Zeropage-Block (16–24 Byte, z. B. `$63–$72`) während `VIEW` retten und benutzen, nach VICE-Nachweis | ja, mit Nachweis |
-| F4 | VMS-Listen ohne Kopie: VDC-BASIC v3 führt Listen aus Bank 1 aus (bzw. residente Listen in Bank 0) – vorziehen statt nach P6g entscheiden | ja (VDC-BASIC-Variante); einzige Maßnahme, mit der die Ziele aus Abschnitt 8 und die Pufferentlastung sicher erreicht werden |
-| F5 | Zyklenziele: ohne F4 auf Gang Mittel ≤ 40 000 / max ≤ 55 000, zufall max ≤ 100 000 anheben; mit F4 bei 30 000 / 45 000 / 80 000 bleiben | wie angegeben |
-| F6 | Bank 0 `$0B00–$0BFF` und `$0E00–$0FFF` für die Engine (Pufferfenster, Arbeitsbereich) freigeben | optional, nur als Reserve |
-| F7 | `BUFSET` auf erlaubte Fenster beschränken (K1) und neue `GEOMSET`-Grenzen (≤ 16 deckende Seiten/Fronten ohne Bit 3 je Tiefe, ≤ 64 Zellen gesamt, ≤ 1 Boden/Decke je Zelle) | ja |
+| F1 | memory map: lib runs with `$FF00 = $7F` (bank 1 without I/O), code `$B000–$DFFF` (12 KB) | yes |
+| F2 | VCL list no longer fixed at B0, but at VCLADR (= P0 after `VIEW`; game: `::VCL` with this value instead of `4864`) – enables single-pass generation (M2) | yes; otherwise M2′ with DTS byte 15 |
+| F3 | Save and use a zero-page block (16–24 bytes, e.g. `$63–$72`) during `VIEW`, after VICE proof | yes, with proof |
+| F4 | VMS lists without copy: VDC-BASIC v3 executes lists from bank 1 (or resident lists in bank 0) – bring forward instead of deciding after P6g | yes (VDC-BASIC variant); the only measure that reliably achieves the targets from section 8 and the buffer relief |
+| F5 | Cycle targets: without F4 raise to corridor mean ≤ 40 000 / max ≤ 55 000, random max ≤ 100 000; with F4 they stay at 30 000 / 45 000 / 80 000 | as stated |
+| F6 | Release bank 0 `$0B00–$0BFF` and `$0E00–$0FFF` for the engine (buffer window, work area) | optional, only as reserve |
+| F7 | Restrict `BUFSET` to permitted windows (K1) and new `GEOMSET` limits (≤ 16 occluding sides/fronts without bit 3 per depth, ≤ 64 cells total, ≤ 1 floor/ceiling per cell) | yes |

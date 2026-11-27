@@ -1,168 +1,168 @@
-# Plan Engine 0.2 und VDC-BASIC v3: Boden, Decke, Tapete, freier Viewport, RLE
+# Plan Engine 0.2 and VDC-BASIC v3: floor, ceiling, wallpaper, free viewport, RLE
 
-Stand: 2026-11-25. Abgestimmt mit dem Nutzer. Grundlage: `engine-design.md`, `formats.md`, Analyse von VDC-BASIC v2h und c128-vdc-gui.
+As of: 2026-11-25. Agreed with the user. Basis: `engine-design.md`, `formats.md`, analysis of VDC-BASIC v2h and c128-vdc-gui.
 
-## 1. Ziele
+## 1. Goals
 
-- Neben Wänden auch **Boden- und Deckentexturen**. Wandelemente nutzen **Transparenz** (Trapezecken, Fenster, Gitter, Bögen).
-- **Hintergrundtapete** (Landschaft hinter Fenstern, Himmel, Abgrund).
-- **Frei definierbarer Viewport**. Die Größe aller Elemente errechnet sich daraus und wird als Vorgabe ausgegeben. Die Texturen sind **handgemalte, vorgefertigte Tiles** (z. B. aus Aseprite); die Engine verzerrt nichts.
-- **Dynamische Objekte** (Gegner, Gegenstände, Animationen) in der richtigen Tiefe.
-- **Karten- und Grafikformate** festlegen. Grafiken sind RLE-gepackt (Format VRL) und werden mit dem neuen VDC-BASIC-Befehl **`RXV`** aus dem RAM ins VRAM entpackt, Läufe per Block fill.
-- VDC-BASIC v3 bekommt außerdem `VDL`/`VDR`/`VDB` (Linie, leeres Rechteck, gefülltes Rechteck) mit Umschalter zwischen Bitmap (1 bpp) und chunky (4 bpp).
+- In addition to walls, **floor and ceiling textures**. Wall elements use **transparency** (trapezoid corners, windows, grilles, arches).
+- **Background wallpaper** (landscape behind windows, sky, abyss).
+- **Freely definable viewport**. The size of all elements is computed from it and output as a specification. The textures are **hand-painted, prefabricated tiles** (e.g. from Aseprite); the engine distorts nothing.
+- **Dynamic objects** (enemies, items, animations) at the correct depth.
+- Define **map and graphics formats**. Graphics are RLE-packed (format VRL) and are unpacked from RAM into VRAM with the new VDC-BASIC command **`RXV`**, with runs done by block fill.
+- VDC-BASIC v3 additionally gets `VDL`/`VDR`/`VDB` (line, empty rectangle, filled rectangle) with a switch between bitmap (1 bpp) and chunky (4 bpp).
 
-## 2. Randbedingungen
+## 2. Constraints
 
-- **Chunky-Modus:** Die Bitmap ist fest `$0F`, die Pixel stehen im Attribut-RAM: 1 Byte = 2 Pixel zu 4 Bit, maximal 160 × 100 Pixel. Transparenz pro Byte (überspringen) oder pro Pixel (VMS-Befehl 8 bzw. Nibble-RMW).
-- **Die Engine besitzt nur den 3D-Viewport** und einen Asset-Pool im VRAM, den das Spiel ihr zuweist. Den Rest des Bildschirms verwaltet das Spiel.
-- **VRAM:** Neben Bitmap und zwei Attribut-Puffern bleiben etwa 26 KB für Font, HUD und Assets. Wandstile, Monster und Animationen teilen sich den Pool und werden je Karte oder Zone nachgeladen.
-- **VDC-Praxis aus c128-vdc-gui:**
-  - Reg 31 einmal anwählen, danach `bit $D600/bpl/sta $D601` (15 Zyklen pro Byte). Eine neue Adresse kostet etwa 80 Zyklen.
-  - Block fill hat etwa 200 Zyklen Fixkosten.
-  - Reg 24 nur per Read-Modify-Write ändern, Bit 6 erhalten.
-  - Nach Block-Operationen steht 18/19 hinter dem Ende.
-  - Horizontal arbeiten.
-  - Reg 36 = 0 ist heikel für VRAM außerhalb der Anzeige.
+- **Chunky mode:** The bitmap is fixed at `$0F`, the pixels are in attribute RAM: 1 byte = 2 pixels of 4 bits each, at most 160 × 100 pixels. Transparency per byte (skip) or per pixel (VMS command 8 or nibble RMW).
+- **The engine owns only the 3D viewport** and an asset pool in VRAM that the game assigns to it. The game manages the rest of the screen.
+- **VRAM:** Besides the bitmap and two attribute buffers, about 26 KB remain for font, HUD and assets. Wall styles, monsters and animations share the pool and are reloaded per map or zone.
+- **VDC practice from c128-vdc-gui:**
+  - Select reg 31 once, then `bit $D600/bpl/sta $D601` (15 cycles per byte). A new address costs about 80 cycles.
+  - Block fill has about 200 cycles of fixed cost.
+  - Change reg 24 only via read-modify-write, preserving bit 6.
+  - After block operations, 18/19 points past the end.
+  - Work horizontally.
+  - Reg 36 = 0 is tricky for VRAM outside the display.
 
-## 3. Speicher
+## 3. Memory
 
-| Bereich (Bank 0) | neu |
+| Area (bank 0) | new |
 |---|---|
-| `$0B00–$0FFF` | Parameterblock, Stub (wie bisher); der alte VCL-Puffer `$0B00` wird frei |
-| `$1300–$1BFF` | **Puffer der Engine:** VCL-Liste (etwa 1 KB) und VMS-Listen (etwa 1,3 KB) |
-| `$1C00–$3FFF` | **VDC-BASIC v3** (vorher `$1300`, dort waren nur noch 10 Byte frei) |
-| ab `$4001` | BASIC-Text: interpretiert über einen Boot-Lader (`POKE 45/46`, `POKE 16384,0`, `NEW`), kompiliert mit Blitz! Image 2 |
+| `$0B00–$0FFF` | Parameter block, stub (as before); the old VCL buffer `$0B00` becomes free |
+| `$1300–$1BFF` | **Engine buffers:** VCL list (about 1 KB) and VMS lists (about 1.3 KB) |
+| `$1C00–$3FFF` | **VDC-BASIC v3** (previously `$1300`, where only 10 bytes were still free) |
+| from `$4001` | BASIC text: interpreted via a boot loader (`POKE 45/46`, `POKE 16384,0`, `NEW`), compiled with Blitz! Image 2 |
 
-- VDC-BASIC muss unter `$4000` liegen, weil es bei eingeblendetem BASIC-ROM läuft.
-- Das gemeinsame RAM der Engine wächst von 4 auf 8 KB (`$0000–$1FFF`), damit die Lib in Bank 1 die Puffer bei `$1300` sieht.
-- Die Grenze von 256 Byte für die VCL-Liste und die VCL-Erweiterung V2 entfallen.
-- **Zu prüfen:** Ladepuffer des Spiels in Bank 0 (Crawl `BE` ab `$94E8`) über dem Programmende; VDC-BASIC-Tests, die VMS-Listen bei `$3000` ablegen.
+- VDC-BASIC must lie below `$4000` because it runs with the BASIC ROM banked in.
+- The engine's shared RAM grows from 4 to 8 KB (`$0000–$1FFF`) so that the lib in bank 1 sees the buffers at `$1300`.
+- The 256-byte limit for the VCL list and the VCL extension V2 are dropped.
+- **To check:** the game's load buffer in bank 0 (Crawl `BE` from `$94E8`) above the end of the program; VDC-BASIC tests that place VMS lists at `$3000`.
 
-## 4. Viewport und Geometrie
+## 4. Viewport and geometry
 
-Projektdatei `view.toml`, Werkzeug `tools/dbegeom.py`:
+Project file `view.toml`, tool `tools/dbegeom.py`:
 
 ```toml
 [viewport]
-preset   = "westwood"   # Eye of the Beholder / Lands of Lore, proportional skaliert
-width_px = 140          # gerade
-height   = 96           # chunky-Zeilen (1 Textzeile = 4 Zeilen)
-origin   = 0            # Byte-Offset im Attribut-Puffer (relativ zu AP)
+preset   = "westwood"   # Eye of the Beholder / Lands of Lore, proportionally scaled
+width_px = 140          # even
+height   = 96           # chunky rows (1 text row = 4 rows)
+origin   = 0            # byte offset in the attribute buffer (relative to AP)
 stride   = 80
 ```
 
-- **Westwood-Preset:** Vorlage 176 × 120, Tiefe 3 plus eigene Zelle, seitliche Wandpositionen wie dort. Proportional skaliert auf **140 × 96** (Standard, 1 Textzeile frei) oder **136 × 92** (2 Textzeilen). Breite höchstens 160.
-- **Ausgabe je Element (d, s, Art):**
-  - Rechteck (Byte-Spalte, Zeile, Breite, Höhe)
-  - Transparenzmaske
-  - deckender Kern
-  - Spaltenbereich für die Abdeckung
-- **Weitere Ausgaben:** Vorlagen-PNGs, Aseprite-Vorlage (ein Slice je Element), `*.DVG`, **Budgetbericht** (VRAM je Stil). Richtwert bei 140 × 96: etwa 9–10 KB je Wandstil.
+- **Westwood preset:** Template 176 × 120, depth 3 plus own cell, lateral wall positions as there. Proportionally scaled to **140 × 96** (default, 1 text row free) or **136 × 92** (2 text rows). Width at most 160.
+- **Output per element (d, s, kind):**
+  - Rectangle (byte column, row, width, height)
+  - Transparency mask
+  - opaque core
+  - Column range for the occlusion
+- **Further outputs:** template PNGs, Aseprite template (one slice per element), `*.DVG`, **budget report** (VRAM per style). Guideline at 140 × 96: about 9–10 KB per wall style.
 
-## 5. Render-Reihenfolge (Painter, je Tiefe von hinten nach vorne)
+## 5. Render order (painter, per depth from back to front)
 
-`VIEW` bestimmt die Sichtbarkeit von vorne nach hinten (Spaltenmaske, nur deckende Wandkerne decken ab) und gibt danach die Liste von hinten nach vorne aus. Für jede Tiefe d = D … 0:
+`VIEW` determines visibility from front to back (column mask, only occluding wall cores occlude) and then outputs the list from back to front. For each depth d = D … 0:
 
-1. **Tapete** für die Zeilen dieser Tiefe, die kein Band füllt. Bei d = D ist das das Horizontband dahinter. Dazu kommen Bänder mit Lücken, also Zellen ohne Boden oder Decke. Ausgabe per `VMC` mit Quellinkrement = Panoramabreite (Fenster aus einem breiteren Bild, verschoben je Blickrichtung).
-2. **Boden und Decke** der Tiefe d:
-   - einheitlicher Stil: ein Rechteck über die volle Breite (`VMC`, deckend) oder ein Farbverlauf (`VMF` je Zeile)
-   - gemischte Stile: transparente Trapezkacheln je Zelle
-3. **Zellen der Tiefe d von außen nach innen** (Reihenfolge wie bei EOB). Je Zelle entweder ihre Wandflächen oder ihr Inhalt:
-   - **Wandzelle:** erst die Seitenfläche, dann die Front. Deckender Kern per `VMC`, transparenter Rand per `VMS`. Fenster und Gitter sind nicht deckend, dahinter Gezeichnetes bleibt sichtbar.
-   - **Freie Zelle:** ihre **dynamischen Objekte** (Gegner, Gegenstände, Projektile, Animationen), sortiert nach **Unterposition**: hinten, Mitte, vorne. Gegenstände am Boden haben wie bei Westwood 4 Plätze, Gegner stehen in der Mitte oder paarweise. Die Unterpositionen sind absolut gespeichert (NW, NO, SW, SO, Mitte) und werden mit der Blickrichtung umgerechnet.
-   - Objekte stehen mit dem Fußpunkt auf dem Boden ihrer Zelle. Deshalb überschneiden sie sich nicht mit den Boden- und Deckenbändern näherer Tiefen.
-   - Innere Nachbarfronten derselben Tiefe werden nach den Objekten der äußeren Zelle gezeichnet und verdecken sie dadurch richtig.
-   - Die Abdeckung durch Seitenflächen der Tiefe d schneidet keine Objekte derselben Tiefe weg.
-   - Teile, deren Spalten alle durch nähere deckende Wände verdeckt sind, entfallen.
-   - Animationsphase und Blickwinkel kommen aus der Objektliste.
-   - Objekte in der eigenen Zelle (d = 0) werden nicht gezeichnet (wie bei EOB).
+1. **Wallpaper** for the rows of this depth that no band fills. At d = D this is the horizon band behind it. In addition there are bands with gaps, i.e. cells without floor or ceiling. Output via `VMC` with source increment = panorama width (window from a wider image, shifted per viewing direction).
+2. **Floor and ceiling** of depth d:
+   - uniform style: one rectangle across the full width (`VMC`, opaque) or a gradient (`VMF` per row)
+   - mixed styles: transparent trapezoid tiles per cell
+3. **Cells of depth d from outside to inside** (order as in EOB). For each cell, either its wall surfaces or its contents:
+   - **Wall cell:** first the side surface, then the front. Opaque core via `VMC`, transparent edge via `VMS`. Windows and grilles are not occluding; whatever is drawn behind them remains visible.
+   - **Free cell:** its **dynamic objects** (enemies, items, projectiles, animations), sorted by **subposition**: back, middle, front. Items on the floor have 4 slots as in Westwood, enemies stand in the middle or in pairs. The subpositions are stored absolutely (NW, NE, SW, SE, middle) and are converted using the viewing direction.
+   - Objects stand with their foot point on the floor of their cell. Therefore they do not overlap the floor and ceiling bands of nearer depths.
+   - Inner neighbor fronts of the same depth are drawn after the objects of the outer cell and thereby occlude them correctly.
+   - The occlusion by side surfaces of depth d does not clip away any objects of the same depth.
+   - Parts whose columns are all hidden by nearer occluding walls are omitted.
+   - Animation phase and viewing angle come from the object list.
+   - Objects in the player's own cell (d = 0) are not drawn (as in EOB).
 
-Fehler entstehen nur bei Sprites, die breiter als ihre Zelle sind.
+Errors occur only with sprites that are wider than their cell.
 
-**Objektliste (Parameterblock, neu):**
-- je Objekt 6 Byte: Zellindex (Wort), Sprite-Satz, Blickrichtung, Animationsphase, Unterposition (absolut)
-- bis zu 16 Objekte; neue Lage in P6 (passt nicht mehr an `$0C10`, z. B. in den Puffer bei `$1300`)
-- Gegenstände aus der Inhaltsebene der Karte kommen zusätzlich über `ITEMSET` dazu
+**Object list (parameter block, new):**
+- 6 bytes per object: cell index (word), sprite set, viewing direction, animation phase, subposition (absolute)
+- up to 16 objects; new location in P6 (no longer fits at `$0C10`, e.g. in the buffer at `$1300`)
+- Items from the content layer of the map are added additionally via `ITEMSET`
 
-## 6. Formate
+## 6. Formats
 
-Alle Wörter Low/High. Genaue Byte-Layouts folgen in `formats.md` mit dem jeweiligen Schritt.
+All words low/high. The exact byte layouts follow in `formats.md` with the respective step.
 
-**VRL (RLE-Strom für `RXV`)**
+**VRL (RLE stream for `RXV`)**
 
-| Byte | Bedeutung |
+| Byte | Meaning |
 |---|---|
-| `$00` | Ende |
-| `$01–$7F` | n Literale folgen |
-| `$80–$FD` | Lauf, Länge (b − `$80`) + 2, dann Wert |
-| `$FE lo hi` | Skip: Ziel um n Byte weiter, nichts schreiben (für Transparenz und Rechtecke mit Stride) |
-| `$FF lo hi v` | langer Lauf, 16-Bit-Länge (0 = 65536) |
+| `$00` | End |
+| `$01–$7F` | n literals follow |
+| `$80–$FD` | Run, length (b − `$80`) + 2, then value |
+| `$FE lo hi` | Skip: advance destination by n bytes, write nothing (for transparency and rectangles with stride) |
+| `$FF lo hi v` | long run, 16-bit length (0 = 65536) |
 
-- Der Encoder optimiert auf Größe. Der Decoder entscheidet je Lauf: unter der Schwelle T per CPU, ab T per Block fill (T wird gemessen).
-- Datei: Ladeadresse, `"VR"`, Version, entpackte Länge, Strom.
+- The encoder optimizes for size. The decoder decides per run: below threshold T via CPU, from T via block fill (T is measured).
+- File: load address, `"VR"`, version, unpacked length, stream.
 
-**Weitere Formate**
+**Further formats**
 
-- **DVG (Geometrie):** Kopf mit VW, VH, stride, D, S, horizon, origin, Geometrie-ID. Bandtabelle je Tiefe, dann Elemente: Art, d, s, Rechteck, Kern, Spaltenbereich, Unterpositionsanker für Objekte.
-- **DTS (Texturset):** Kopf mit Geometrie-ID, Art, Stile. Je Stil ein Bildindex pro Element (`$FF` = Stil 0). Bildverzeichnis: VRAM-Offsets für Kern und Rand, VMS-Liste. Die Bilddaten liegen in einem VRL-Strom. Importer für PNG und Aseprite-Export.
-- **DBG (Tapete):** Panoramabreite, Höhe, Lage, Versatz je Blickrichtung, Daten als VRL.
-- **DMP (Karte):**
-  - Kopf, Kachelebene (W×H, statisch), Inhaltsebene (W×H, Gegenstände 0–63, Automap-Bits)
-  - Kacheltabelle zu 8 Byte: Wandstil N/O/S/W, Boden, Decke (0 = Himmel/Leere), Flags (Weg, Sicht, deckend, Tür, Automap), Automap-Zeichen
-  - Ereignisse zu 4 Byte: Zelle, Typ, Parameter
-  - Konverter aus `CRAWL128.CD1`
-- **Sprite-Sätze:** wie SPR v1, erweitert um Animationsphase und Unterposition.
+- **DVG (geometry):** Header with VW, VH, stride, D, S, horizon, origin, geometry ID. Band table per depth, then elements: kind, d, s, rectangle, core, column range, subposition anchor for objects.
+- **DTS (texture set):** Header with geometry ID, kind, styles. Per style one image index per element (`$FF` = style 0). Image directory: VRAM offsets for core and edge, VMS list. The image data lies in a VRL stream. Importer for PNG and Aseprite export.
+- **DBG (wallpaper):** Panorama width, height, position, offset per viewing direction, data as VRL.
+- **DMP (map):**
+  - Header, tile layer (W×H, static), content layer (W×H, items 0–63, automap bits)
+  - Tile table of 8 bytes: wall style N/E/S/W, floor, ceiling (0 = sky/empty), flags (solid, blocksight, occluding, door, automap), automap character
+  - Events of 4 bytes: cell, type, parameter
+  - Converter from `CRAWL128.CD1`
+- **Sprite sets:** like SPR v1, extended by animation phase and subposition.
 
-## 7. VDC-BASIC v3 (Branch `v3`, auf `v2h`)
+## 7. VDC-BASIC v3 (branch `v3`, on `v2h`)
 
-1. Nach `$1C00–$3FFF` verlegen, Boot-Lader, Tests interpretiert und als Blitz!-Image-2-Kompilat.
-2. **`RXV src,dst`:** VRL aus Bank 0 ins VRAM. Optional VCL-Typ 8 = `RXV`.
-3. **`VDM modus,basis,stride`:** 0 = Bitmap 1 bpp, 1 = chunky 4 bpp.
-4. **`VDL x1,y1,x2,y2,c`, `VDR x,y,w,h,c`, `VDB x,y,w,h,c`** (Tokens `$FE3E–$FE40` wie ursprünglich für `vdl/vdr/vdb` vorgesehen):
-   - waagerechte Spanne: ausgerichteter Mittelteil per Block fill, Ränder per Nibble- oder Bitmasken-RMW
-   - senkrechte Linie mit Inkrement = stride
-   - Box = Spanne mit Wiederholungen
-   - schräge Linien: Bresenham mit Run-Slicing (waagerechte bzw. senkrechte Läufe über die schnellen Pfade)
-5. **Tests:** Bytevergleich gegen ein Python-Referenzmodell, VRAM-Dump über den Monitor, Zyklen je Pfad.
+1. Relocate to `$1C00–$3FFF`, boot loader, tests interpreted and as a Blitz! Image 2 compilation.
+2. **`RXV src,dst`:** VRL from bank 0 into VRAM. Optionally VCL type 8 = `RXV`.
+3. **`VDM mode,base,stride`:** 0 = bitmap 1 bpp, 1 = chunky 4 bpp.
+4. **`VDL x1,y1,x2,y2,c`, `VDR x,y,w,h,c`, `VDB x,y,w,h,c`** (tokens `$FE3E–$FE40` as originally intended for `vdl/vdr/vdb`):
+   - horizontal span: aligned middle part via block fill, edges via nibble or bit-mask RMW
+   - vertical line with increment = stride
+   - Box = span with repetitions
+   - diagonal lines: Bresenham with run slicing (horizontal or vertical runs via the fast paths)
+5. **Tests:** byte comparison against a Python reference model, VRAM dump via the monitor, cycles per path.
 
-## 8. Schritte
+## 8. Steps
 
-| # | Inhalt | Agent |
+| # | Content | Agent |
 |---|---|---|
-| P0 | Messen: Schwelle CPU gegen Block fill, `VMC` gegen `VMS` je Byte, Reg 36 | Sonnet (Testprogramm), Haiku (VICE-Läufe) |
-| P1 | `tools/vrl.py` mit Tests, Spezifikation | Sonnet |
-| P2a | VDC-BASIC nach `$1C00`, Boot-Lader, Blitz!-Test | Opus |
-| P2b | `RXV` (+ VCL-Typ 8) | Opus |
-| P2c | `VDM`/`VDL`/`VDR`/`VDB` mit Python-Referenzmodell | Opus (Assembler), Sonnet (Referenzmodell, Tests) |
-| P3 | `dbegeom.py`, Westwood-Preset, Vorlagen, Budget | Sonnet |
+| P0 | Measure: threshold CPU vs. block fill, `VMC` vs. `VMS` per byte, reg 36 | Sonnet (test program), Haiku (VICE runs) |
+| P1 | `tools/vrl.py` with tests, specification | Sonnet |
+| P2a | VDC-BASIC to `$1C00`, boot loader, Blitz! test | Opus |
+| P2b | `RXV` (+ VCL type 8) | Opus |
+| P2c | `VDM`/`VDL`/`VDR`/`VDB` with Python reference model | Opus (assembler), Sonnet (reference model, tests) |
+| P3 | `dbegeom.py`, Westwood preset, templates, budget | Sonnet |
 | P4 | DMP, `dbemap.py`, `crawlmap.py` | Sonnet |
-| P5 | DTS-/DBG-Importer (PNG, Aseprite) | Sonnet |
-| P6 | Engine 0.2: 8 KB gemeinsames RAM, Puffer bei `$1300`, `POOLSET`/`GEOMSET`/`TEXSET`/`BGSET`, DMP, Objektliste neu, neues `VIEW`; sim65 mit Listenvergleich | Opus |
-| P7 | Crawl auf 0.2 (pixelgleich), Demo-Karte mit Fenstern, Himmel, Abgrund und Gegnern, Zeitvergleich | Sonnet, Haiku | **erledigt** (2026-11-26, Ergebnisse `docs/specs/P7-crawl.md` Abschnitt 12) |
-| P8 | Doku nachziehen | Sonnet |
+| P5 | DTS/DBG importers (PNG, Aseprite) | Sonnet |
+| P6 | Engine 0.2: 8 KB shared RAM, buffers at `$1300`, `POOLSET`/`GEOMSET`/`TEXSET`/`BGSET`, DMP, new object list, new `VIEW`; sim65 with list comparison | Opus |
+| P7 | Crawl on 0.2 (pixel-identical), demo map with windows, sky, abyss and enemies, timing comparison | Sonnet, Haiku | **done** (2026-11-26, results `docs/specs/P7-crawl.md` section 12) |
+| P8 | Update documentation | Sonnet |
 
-- **Reihenfolge:** P0, P1, P3 und P4 parallel; P2a, dann P2b/P2c; P5 nach P3; P6 nach P1–P5.
-- **Ablauf je Schritt:** Opus schreibt die Detailspezifikation und prüft das Ergebnis (Review).
-- **Tests:** ereignisgesteuert (Haltepunkte, keine festen Wartezeiten).
+- **Order:** P0, P1, P3 and P4 in parallel; P2a, then P2b/P2c; P5 after P3; P6 after P1–P5.
+- **Procedure per step:** Opus writes the detailed specification and checks the result (review).
+- **Tests:** event-driven (breakpoints, no fixed wait times).
 
-## 9. Entscheidungen während der Umsetzung (2026-11-25)
+## 9. Decisions during implementation (2026-11-25)
 
-| Thema | Entscheidung |
+| Topic | Decision |
 |---|---|
-| Sprite-Clipping am Viewport-Rand | Neuer VMS-Listenbefehl „Quelle n Byte weiter“ (source skip) in VDC-BASIC v3; die Engine kürzt die Listen beim Kopieren in den Puffer (P2c/P5b/P6) |
-| VIC-Grafik | Mit v3 sind `GRAPHIC 1–4` tabu (VDC-BASIC liegt bei `$1C00–$3FFF`) |
-| Guide von VDC-BASIC | wird erst in P8 auf v3 umgestellt |
-| `vrl.py` | kanonische Fassung in vdc-basic `tools/vrl.py`; die Engine verweist darauf bzw. hält eine Kopie |
-| `origin` | gehört nicht zur Geometrie-ID (Viewport verschieben ohne Neuimport der Texturen) |
-| Schwelle T | patchbares Byte in VDC-BASIC (`$1C04`), Standard 14 (Platzhalter aus der Kostenformel); VICE misst 2, nicht übertragbar; endgültig nach Messung in Z64K bzw. auf echter Hardware (`test/bench` in vdc-basic) |
-| BASIC-Variablen Bank 1 | `$0400–$4FFF` (ca. 19 KB inkl. Strings, Obergrenze wird abgesenkt); Assets und Lib ab `$5000` (Speicherkarte in P6-engine.md); **seit P6h `MEMSIZ $4000`**: Variablen `$0400–$3FFF` (15 KB), Assets ab `$4000` (Speicherkarte G, `P6-engine.md` 2.4) |
-| WALLSET/SPRITESET v1 | entfallen; Crawl wird in P7 per Konverter auf DVG/DTS/Sprite-Sätze v2 umgestellt |
-| MOVE, CELL, Automap-Bit | bleiben in P6 (P6f) |
-| Objekte in Wandzellen | neues Kachel-Flag „Inhalt zeichnen“ (Tür, Gitter, Bogen): Seitenfläche, dann Objekte, dann Front |
-| VMS-Listen fest in Bank 0 | nach den Messungen in P6 entscheiden |
-| Schwelle T (Z64K) | 3–4 in der Anzeige (VICE 2); `vrl.py` nutzt die Tabelle `fill_done(L)` |
-| Objekte und `cover` (P6i, 2026-11-26) | Objekte werden nicht gegen `cover` beschnitten; Verdeckung über die Render-Reihenfolge (Painter: Sprite vollständig, nähere Wände übermalen). `cover` verwirft nur ganz verdeckte Sprites, beschnitten wird nur am Viewport-Rand (`P6-engine.md` 5.8/5.8a) |
-| Automap in Crawl 1.1 (P7, 2026-11-26) | zeigt wie 1.0f immer den ganzen Dungeon (`AM%=0`, Standard); die Nebel-Variante (nur Erkundetes, `AM%=1`) bleibt optional im Quelltext. Abweichung „Automap nur Erkundetes“ aus P7 4.3 entfällt |
-| Font und Titel als VRL (P7, 2026-11-26) | `font.vrl` (1406 Byte statt 1732) und `title.vrl` (1021 statt 2340 Byte) per `tools/vrlpics.py`; der Titel bleibt gepackt im RAM ab 63493 und wird bei jeder Anzeige per `RXV` entpackt |
-| Crawl 1.1 (P7, 2026-11-26) | pixelgleich zu 1.0f (offline 19 136 Ansichten, Emulator 74 Prompts), Start nur über `BOOT`, Release `crawl128-110.d81/.d64`, Lib-Reserve 282 Byte |
-| Demo (P7e, 2026-11-26) | eigenes Programm im Engine-Repo (`demo/`), nicht als Crawl-Level; `max_kerns` höchstens 4, Goblin ohne Tag, 2fach vergrößert |
+| Sprite clipping at the viewport edge | New VMS list command "source n bytes further" (source skip) in VDC-BASIC v3; the engine shortens the lists when copying them into the buffer (P2c/P5b/P6) |
+| VIC graphics | With v3, `GRAPHIC 1–4` are taboo (VDC-BASIC sits at `$1C00–$3FFF`) |
+| VDC-BASIC guide | is converted to v3 only in P8 |
+| `vrl.py` | canonical version in vdc-basic `tools/vrl.py`; the engine refers to it or keeps a copy |
+| `origin` | does not belong to the geometry ID (move viewport without re-importing the textures) |
+| Threshold T | patchable byte in VDC-BASIC (`$1C04`), default 14 (placeholder from the cost formula); VICE measures 2, not transferable; final after measurement in Z64K or on real hardware (`test/bench` in vdc-basic) |
+| BASIC variables bank 1 | `$0400–$4FFF` (approx. 19 KB incl. strings, upper limit will be lowered); assets and lib from `$5000` (memory map in P6-engine.md); **since P6h `MEMSIZ $4000`**: variables `$0400–$3FFF` (15 KB), assets from `$4000` (memory map G, `P6-engine.md` 2.4) |
+| WALLSET/SPRITESET v1 | dropped; Crawl is converted in P7 via converter to DVG/DTS/sprite sets v2 |
+| MOVE, CELL, automap bit | remain in P6 (P6f) |
+| Objects in wall cells | new tile flag "draw content" (door, grille, arch): side surface, then objects, then front |
+| VMS lists fixed in bank 0 | decide after the measurements in P6 |
+| Threshold T (Z64K) | 3–4 in the display (VICE 2); `vrl.py` uses the table `fill_done(L)` |
+| Objects and `cover` (P6i, 2026-11-26) | Objects are not clipped against `cover`; occlusion via render order (painter: sprite whole, nearer walls overdraw). `cover` only discards fully hidden sprites, clipping happens only at the viewport edge (`P6-engine.md` 5.8/5.8a) |
+| Automap in Crawl 1.1 (P7, 2026-11-26) | like 1.0f always shows the whole dungeon (`AM%=0`, default); the fog variant (only explored areas, `AM%=1`) remains optional in the source. The deviation "automap only explored areas" from P7 4.3 is dropped |
+| Font and title as VRL (P7, 2026-11-26) | `font.vrl` (1406 bytes instead of 1732) and `title.vrl` (1021 instead of 2340 bytes) via `tools/vrlpics.py`; the title stays packed in RAM from 63493 and is unpacked via `RXV` on every display |
+| Crawl 1.1 (P7, 2026-11-26) | pixel-identical to 1.0f (offline 19 136 views, emulator 74 prompts), start only via `BOOT`, release `crawl128-110.d81/.d64`, lib reserve 282 bytes |
+| Demo (P7e, 2026-11-26) | separate program in the engine repo (`demo/`), not as a Crawl level; `max_cores` at most 4, goblin without tag, enlarged 2x |

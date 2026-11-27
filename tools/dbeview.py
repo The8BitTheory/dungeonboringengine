@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Python-Referenz der Engine-Funktion VIEW (P6b): VCL-Liste, VCL-Interpreter, unabhaengiger Maler.
+"""Python reference of the engine function VIEW (P6b): VCL list, VCL interpreter, independent painter.
 
-Spezifikation: docs/specs/P6-engine.md (Abschnitte 5 und 9.1); Geometrie P3 (DVG), Karte P4 (DMP), Texturen P5
-(DTS, DBG), Sprites P5b (S2). Die 6502-Fassung muss die Liste von view() bytegleich erzeugen.
+Specification: docs/specs/P6-engine.md (sections 5 and 9.1); geometry P3 (DVG), map P4 (DMP), textures P5
+(DTS, DBG), sprites P5b (S2). The 6502 version must produce the list of view() byte for byte.
 
-API (Module-Ebene):
-  Scene, Obj, Result                 Eingabe und Ergebnis
-  view(scene) -> Result              VCL- und VMS-Bytes nach P6 Abschnitt 5 (a, x, vcl, vms, vcllen, vmslen, objvis)
-  run_vcl(bank0, vram, addr)         VCL-Interpreter (Typen 1-8, 12, 13; VMS 1, 2, 3, 8; RXV ueber vrl)
-  paint_reference(scene, vram)       Maler ohne Abdeckung und Spannen (Plan-Reihenfolge, alles was existiert)
-  render_view(scene, vram=None)      view + run_vcl in ein VRAM-Abbild
-  decode_vcl(buf, off=0)             VCL-Liste als Tupel (fuer Fehlermeldungen beim Listenvergleich)
+API (module level):
+  Scene, Obj, Result                 input and result
+  view(scene) -> Result              VCL and VMS bytes per P6 section 5 (a, x, vcl, vms, vcllen, vmslen, objvis)
+  run_vcl(bank0, vram, addr)         VCL interpreter (types 1-8, 12, 13; VMS 1, 2, 3, 8; RXV via vrl)
+  paint_reference(scene, vram)       painter without coverage and spans (plan order, everything that exists)
+  render_view(scene, vram=None)      view + run_vcl into a VRAM image
+  decode_vcl(buf, off=0)             VCL list as tuples (for error messages when comparing lists)
   load_scene(toml) / random_scene(seed, assets, ...) / budget(scenes)
-  build_demo_assets(dir)             DVG, Wand-/Boden-/Decken-DTS, DBG und Sprite-Saetze fuer Tests
+  build_demo_assets(dir)             DVG, wall/floor/ceiling DTS, DBG and sprite sets for tests
 
-Aufruf:
-  dbeview.py render SCENE.toml [--out PNG] [--zoom N]     Szene zeichnen (Bild des Sichtfensters)
-  dbeview.py dump   SCENE.toml                            VCL-Liste dekodiert
-  dbeview.py budget SCENE.toml...                         groesste VCL + VMS, Warnung bei A != 0
-Exitcode 0 ok, 1 Fehler, 2 Aufruf.
+Usage:
+  dbeview.py render SCENE.toml [--out PNG] [--zoom N]     draw scene (image of the view window)
+  dbeview.py dump   SCENE.toml                            VCL list decoded
+  dbeview.py budget SCENE.toml...                         largest VCL + VMS, warning if A != 0
+Exit code 0 ok, 1 error, 2 usage.
 """
 import argparse
 import copy
@@ -37,19 +37,19 @@ import vrl  # noqa: E402
 
 ART_FRONT, ART_SIDE, ART_FLOOR, ART_CEIL, ART_OBJ = 0, 1, 2, 3, 4
 KIND_WALL, KIND_FLOOR, KIND_CEIL = 0, 1, 2
-F_DECKEND, F_AUSSCHNITT, F_ZEILEN, F_RAND = dbetex.F_DECKEND, dbetex.F_AUSSCHNITT, dbetex.F_ZEILEN, dbetex.F_RAND
+F_OCCLUDING, F_CUTOUT, F_ROWS, F_EDGE = dbetex.F_OCCLUDING, dbetex.F_CUTOUT, dbetex.F_ROWS, dbetex.F_EDGE
 DVG_COVER, DVG_BANDCOVER = 1, 8
-T_WEG, T_DECKEND, T_INHALT = dbemap.FLAGS["weg"], dbemap.FLAGS["deckend"], dbemap.FLAGS["inhalt"]
-T_FERN = dbemap.FLAGS["fern"]                   # P6 5.7a: kehrt die Deckenregel der Fernsicht um
+T_SOLID, T_OCCLUDING, T_CONTENT = dbemap.FLAGS["solid"], dbemap.FLAGS["occluding"], dbemap.FLAGS["content"]
+T_DISTANT = dbemap.FLAGS["distant"]                   # P6 5.7a: inverts the ceiling rule of the far view
 MAXITEM = 96
 MAX_SPANS = 4
 DEFAULT_BUF = (0x1300, 0x1C00)
-MAXCELL, MAXWALL, MAXPEND, MAXCELLELEM = 48, 96, 16, 16     # GEOMSET-Grenzen der Elementtabelle (P6 7)
-DEFAULT_DTS_ADDR = (0x8000, 0xEE00, 0xF600)                  # Bank-1-Adressen der DTS (P6 2.4), fuer vms_bank1
-DEFAULT_S2_ADDR = 0x6000                                     # Bank-1-Adresse des ersten S2 (P6 2.4), fuer vms_bank1
+MAXCELL, MAXWALL, MAXPEND, MAXCELLELEM = 48, 96, 16, 16     # GEOMSET limits of the element table (P6 7)
+DEFAULT_DTS_ADDR = (0x8000, 0xEE00, 0xF600)                  # bank 1 addresses of the DTS (P6 2.4), for vms_bank1
+DEFAULT_S2_ADDR = 0x6000                                     # bank 1 address of the first S2 (P6 2.4), for vms_bank1
 E_OK, E_TOOMANY, E_PARTIAL = 0, 2, 3
-FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # F je Richtung v (N, O, S, W)
-RIGHT = [(1, 0), (0, 1), (-1, 0), (0, -1)]      # R je Richtung v
+FORE = [(0, -1), (1, 0), (0, 1), (-1, 0)]       # F per direction v (N, E, S, W)
+RIGHT = [(1, 0), (0, 1), (-1, 0), (0, -1)]      # R per direction v
 
 
 class ViewError(Exception):
@@ -114,18 +114,18 @@ def _s8(b):
 
 
 def parse_dvg(data, prg=True):
-    """DVG (PRG mit Ladeadresse) -> Dvg; ViewError bei Formatfehlern."""
+    """DVG (PRG with load address) -> Dvg; ViewError on format errors."""
     c = bytes(data[2:] if prg else data)
     if len(c) < 24 or c[0:2] != b"DV" or c[2] != 1:
-        raise ViewError("DVG: Magic/Version")
+        raise ViewError("DVG: magic/version")
     vw, vh, D, S, ne = c[3], c[4], c[5], c[6], c[7]
     stride, origin, gid = struct.unpack_from("<HHH", c, 8)
     hy0, hy1, elen, dlen = c[14], c[15], c[16], c[17]
     o_d, o_e, total = struct.unpack_from("<HHH", c, 18)
     if elen != 16 or dlen != 8 or len(c) < total or o_d != 24 or o_e != 24 + 8 * (D + 1) or total != o_e + 16 * ne:
-        raise ViewError("DVG: Laengen/Offsets")
+        raise ViewError("DVG: lengths/offsets")
     if vw > 80 or vh > 100 or D > 7 or ne < 1:
-        raise ViewError("DVG: VW/VH/D/NE ausserhalb der Grenzen")
+        raise ViewError("DVG: VW/VH/D/NE out of bounds")
     depth = [DepthRow(*c[o_d + 8 * d:o_d + 8 * d + 8]) for d in range(D + 1)]
     elems = []
     for i in range(ne):
@@ -142,31 +142,31 @@ def parse_dvg(data, prg=True):
 
 
 def check_elems(vw, vh, D, S, depth, elems):
-    """Pruefungen der Elementtabelle wie GEOMSET (P6 7); ViewError bei Verstoss."""
+    """Checks of the element table as in GEOMSET (P6 7); ViewError on violation."""
     ncell = nwall = 0
     for d, dt in enumerate(depth):
         if dt.first + dt.n > len(elems):
-            raise ViewError(f"DVG: Tiefe {d}: first + n > NE")
+            raise ViewError(f"DVG: depth {d}: first + n > NE")
         seen, cur, pend = set(), None, 0
         for e in elems[dt.first:dt.first + dt.n]:
             if e.art > ART_OBJ or abs(e.s) > S:
-                raise ViewError(f"DVG: Element {e.index}: Art oder s ausserhalb")
+                raise ViewError(f"DVG: Element {e.index}: kind or s out of range")
             if e.s != cur:
                 if e.s in seen:
-                    raise ViewError(f"DVG: Elemente der Zelle ({d}, {e.s}) nicht zusammenhaengend (P3 5.3)")
+                    raise ViewError(f"DVG: elements of cell ({d}, {e.s}) not contiguous (P3 5.3)")
                 seen.add(e.s)
                 cur, nel, nfl, nce = e.s, 0, 0, 0
                 ncell += 1
             nel += 1
             if nel > MAXCELLELEM:
-                raise ViewError(f"DVG: Zelle ({d}, {e.s}) mit mehr als {MAXCELLELEM} Elementen")
+                raise ViewError(f"DVG: cell ({d}, {e.s}) with more than {MAXCELLELEM} elements")
             if e.art == ART_OBJ:
                 continue
             if e.x + e.w > vw or e.y + e.h > vh:
-                raise ViewError(f"DVG: Element {e.index} ausserhalb des Fensters")
+                raise ViewError(f"DVG: Element {e.index} outside the window")
             if e.art in (ART_FRONT, ART_SIDE):
                 if not e.c0 <= e.c1 <= vw:
-                    raise ViewError(f"DVG: Element {e.index}: Spalten c0/c1")
+                    raise ViewError(f"DVG: Element {e.index}: columns c0/c1")
                 nwall += 1
                 if e.flags & DVG_COVER and (e.art == ART_SIDE or not e.flags & DVG_BANDCOVER):
                     pend += 1
@@ -175,14 +175,14 @@ def check_elems(vw, vh, D, S, depth, elems):
             else:
                 nce += 1
             if nfl > 1 or nce > 1:
-                raise ViewError(f"DVG: Zelle ({d}, {e.s}) mit mehr als einem Boden- bzw. Deckenelement")
+                raise ViewError(f"DVG: cell ({d}, {e.s}) with more than one floor or ceiling element")
         if pend > MAXPEND:
-            raise ViewError(f"DVG: Tiefe {d}: mehr als {MAXPEND} deckende Seiten/Fronten ohne Bit 3")
+            raise ViewError(f"DVG: depth {d}: more than {MAXPEND} opaque sides/fronts without bit 3")
     if ncell > MAXCELL or nwall > MAXWALL:
-        raise ViewError(f"DVG: mehr als {MAXCELL} Zellen bzw. {MAXWALL} Waende")
+        raise ViewError(f"DVG: more than {MAXCELL} cells or {MAXWALL} walls")
 
 
-# ---------------------------------------------------------------- Szene
+# ---------------------------------------------------------------- Scene
 
 @dataclass
 class Obj:
@@ -202,30 +202,30 @@ class Obj:
 class Scene:
     dvg: Dvg
     dmp: object                                   # dbemap.Map
-    dts: list = field(default_factory=lambda: [None, None, None])     # TexSet je Art (mit .vram)
+    dts: list = field(default_factory=lambda: [None, None, None])     # TexSet per kind (with .vram)
     dbg: dict = None                              # dbetex.from_dbg
     dbg_vram: bytes = b""
-    bgfill: int = 0                               # Fuellbyte ohne DBG (BGSET)
-    farfill: int = None                           # Fernsicht-Fuellbyte (BGSET Y Bit 0, P2 Low; P6 5.7a), None = aus
-    s2: list = field(default_factory=lambda: [None] * 8)              # SpriteSet (dbespr) je Satz
+    bgfill: int = 0                               # fill byte without DBG (BGSET)
+    farfill: int = None                           # far-view fill byte (BGSET Y Bit 0, P2 Low; P6 5.7a), None = off
+    s2: list = field(default_factory=lambda: [None] * 8)              # SpriteSet (dbespr) per set
     vram_bases: dict = field(default_factory=lambda: {"dts": [0, 0, 0], "dbg": 0, "s2": [0] * 8})
-    itemtab: list = field(default_factory=lambda: [0] * 64)           # Satz + 1
+    itemtab: list = field(default_factory=lambda: [0] * 64)           # set + 1
     objects: list = field(default_factory=list)
     itemph: int = 0
     pos: int = 0
     dir: int = 0
     ap: int = 0
-    automap: bool = False                         # P6f: Automap-Bit 6 in dmp.content setzen (view veraendert dmp!)
+    automap: bool = False                         # P6f: set automap bit 6 in dmp.content (view modifies dmp!)
     buf: tuple = DEFAULT_BUF
-    buf_fix: bool = False                         # P6j: BUFSET X Bit 0 (feste Listenadresse: bei B0 VCL-Typ 10,
-                                                  # Sprung auf den Listenanfang; VMS-Listen ab B0 + 3)
-    vms_bank1: bool = False                       # unbeschnittene VMS-Listen aus Bank 1 (VCL-Typ 9, Standardbuild);
-                                                  # False = Build VMS_COPY (Kopie in den Puffer, Typ 12)
-    dts_addr: tuple = DEFAULT_DTS_ADDR            # Bank-1-Adressen der DTS (Inhaltsanfang), nur fuer vms_bank1
-    s2_addr: tuple = None                         # Bank-1-Adressen der S2 je Satz; None: dicht ab $6000 (P6 2.4)
+    buf_fix: bool = False                         # P6j: BUFSET X bit 0 (fixed list address: at B0 VCL type 10,
+                                                  # jump to the list start; VMS lists from B0 + 3)
+    vms_bank1: bool = False                       # unclipped VMS lists from bank 1 (VCL type 9, standard build);
+                                                  # False = build VMS_COPY (copy into the buffer, type 12)
+    dts_addr: tuple = DEFAULT_DTS_ADDR            # bank 1 addresses of the DTS (content start), only for vms_bank1
+    s2_addr: tuple = None                         # bank 1 addresses of the S2 per set; None: packed from $6000 (P6 2.4)
 
     def s2_bank1(self, k):
-        """Bank-1-Adresse (Inhaltsanfang) des Sprite-Satzes k."""
+        """Bank 1 address (content start) of sprite set k."""
         if self.s2_addr is not None:
             return self.s2_addr[k]
         a, seen = DEFAULT_S2_ADDR, {}
@@ -240,12 +240,12 @@ class Scene:
         return 0
 
     def window(self):
-        """Adressen aller Fensterbytes (Menge)."""
+        """Addresses of all window bytes (set)."""
         g = self.dvg
         return {(self.ap + g.row(y) + x) & 0xFFFF for y in range(g.vh) for x in range(g.vw)}
 
     def assets(self):
-        """(Name, Basis, Bytes) aller Assets im VRAM."""
+        """(name, base, bytes) of all assets in VRAM."""
         out = []
         for k, ts in enumerate(self.dts):
             if ts is not None and ts.vram:
@@ -258,37 +258,37 @@ class Scene:
         return out
 
     def make_vram(self, seed=0):
-        """64-KB-VRAM mit Zufallsinhalt und den Assets an ihren Basen."""
+        """64 KB VRAM with random content and the assets at their bases."""
         rnd = random.Random(seed)
         vram = bytearray(rnd.getrandbits(8) for _ in range(65536))
         for name, base, data in self.assets():
             if base + len(data) > 65536:
-                raise ViewError(f"{name}: Basis {base:#06x} + {len(data)} Byte ueber das VRAM hinaus")
+                raise ViewError(f"{name}: base {base:#06x} + {len(data)} bytes extends beyond the VRAM")
             vram[base:base + len(data)] = data
         return vram
 
     def window_ranges(self):
-        """Adressbereiche [von, bis) des Sichtfensters (ein Bereich, bei Ueberlauf ueber 65535 zwei)."""
+        """Address ranges [from, to) of the view window (one range, two on overflow past 65535)."""
         g = self.dvg
         w0 = (self.ap + g.origin) & 0xFFFF
         w1 = w0 + (g.vh - 1) * g.stride + g.vw
         return [(w0, w1)] if w1 <= 65536 else [(w0, 65536), (0, w1 - 65536)]
 
     def check_layout(self):
-        """Ueberlappen Assets untereinander oder mit dem Fenster?"""
+        """Do assets overlap each other or the window?"""
         spans = sorted((b, b + len(d), n) for n, b, d in self.assets())
         for (a0, a1, n0), (b0, b1, n1) in zip(spans, spans[1:]):
             if b0 < a1:
-                raise ViewError(f"VRAM: {n0} und {n1} ueberlappen")
+                raise ViewError(f"VRAM: {n0} and {n1} overlap")
         for a0, a1, n in spans:
             for w0, w1 in self.window_ranges():
                 if a0 < w1 and a1 > w0:
-                    raise ViewError(f"VRAM: {n} ueberlappt das Sichtfenster")
+                    raise ViewError(f"VRAM: {n} overlaps the view window")
 
 
 def layout_vram(scene, start=None, align=1):
-    """Setzt die Basen der Assets dicht hintereinander: ab Ende des Sichtfensters (liegt es in der unteren Haelfte
-    des VRAM) oder ab 0."""
+    """Places the asset bases packed one after another: from the end of the view window (if it lies in the lower half
+    of the VRAM) or from 0."""
     wr = scene.window_ranges()
     if start is None:
         start = wr[-1][1] if len(wr) == 2 else (wr[0][1] if wr[0][1] <= 0x8000 else 0)
@@ -306,7 +306,7 @@ def layout_vram(scene, start=None, align=1):
     for i, ss in enumerate(scene.s2):
         scene.vram_bases["s2"][i] = take(len(ss.vram)) if ss is not None else 0
     if p > 65536:
-        raise ViewError(f"VRAM-Pool zu gross: Ende {p:#x}")
+        raise ViewError(f"VRAM pool too large: end {p:#x}")
     scene.check_layout()
     return scene
 
@@ -316,11 +316,11 @@ class Result:
     a: int = 0
     x: int = 0
     y: int = 0
-    p0: int = 0                 # VCLADR = P0: VCL-Liste [p0, B1), VMS-Listen [b0, b0 + vmslen)
-                                # buf_fix (P6j): p0 = b0 mit Sprung (Typ 10) auf l0, VMS-Listen [b0 + 3, ...)
-    b0: int = 0                 # Pufferanfang
-    b1: int = 0                 # Pufferende (exklusiv)
-    fix: bool = False           # feste Listenadresse (Sprung bei b0)
+    p0: int = 0                 # VCLADR = P0: VCL list [p0, B1), VMS lists [b0, b0 + vmslen)
+                                # buf_fix (P6j): p0 = b0 with jump (type 10) to l0, VMS lists [b0 + 3, ...)
+    b0: int = 0                 # buffer start
+    b1: int = 0                 # buffer end (exclusive)
+    fix: bool = False           # fixed list address (jump at b0)
     vcl: bytes = b""
     vms: bytes = b""
     vcllen: int = 0
@@ -328,25 +328,25 @@ class Result:
     objvis: int = 0
     partial: bool = False
     items: int = 0
-    lists1: dict = field(default_factory=dict)    # VCL-Typ 9: Bank-1-Adresse -> VMS-Liste
+    lists1: dict = field(default_factory=dict)    # VCL type 9: bank 1 address -> VMS list
 
     @property
     def buffer(self):
-        """VCL-Liste (ab dem echten Anfang l0), dann VMS-Listen (so liefert sie der sim65-Harness)."""
+        """VCL list (from the real start l0), then VMS lists (as the sim65 harness delivers it)."""
         return self.vcl + self.vms
 
     @property
     def l0(self):
-        """Echter Anfang der VCL-Liste (= B1 - VCLLEN)."""
+        """Real start of the VCL list (= B1 - VCLLEN)."""
         return self.b1 - len(self.vcl)
 
     @property
     def m0(self):
-        """Anfang der VMS-Listen."""
+        """Start of the VMS lists."""
         return self.b0 + (3 if self.fix else 0)
 
     def jump(self):
-        """Sprung-Eintrag bei B0 (nur buf_fix)."""
+        """Jump entry at B0 (buf_fix only)."""
         return bytes((10, self.l0 & 255, self.l0 >> 8)) if self.fix else b""
 
     def bank0(self):
@@ -363,10 +363,10 @@ class Result:
         return b
 
 
-# ---------------------------------------------------------------- S2-Zugriff (nur ueber die API aus P5b 6.3)
+# ---------------------------------------------------------------- S2 access (only via the API from P5b 6.3)
 
 def _lookup(ss, phase, a, d):
-    """Bildindex (P5b 4.2/6.3) oder None; unabhaengig von dbespr.lookup, gleiche Regeln."""
+    """Image index (P5b 4.2/6.3) or None; independent of dbespr.lookup, same rules."""
     if not 1 <= d <= ss.depth:
         return None
     if phase >= ss.np:
@@ -379,26 +379,26 @@ def _lookup(ss, phase, a, d):
 
 
 def clip_image(img, stride, x0, y0, cx0, cx1, cy0, cy1):
-    """Beschneiden nach P5b 6 (eigene Fassung, Referenz fuer VIEW).
+    """Clipping per P5b 6 (own version, reference for VIEW).
 
-    img: w, h, kerns (src, dx, dy, w, h, srcstep), vms (Bytes oder leer).
-    Rueckgabe (kerns, vms, ref): kerns = [(src_rel, x, y, w, reps, srcstep)] im Sichtfenster,
-    vms = Bytes oder None, ref = Bezugspunkt (x, y) der VMS-Liste."""
+    img: w, h, cores (src, dx, dy, w, h, srcstep), vms (bytes or empty).
+    Returns (cores, vms, ref): cores = [(src_rel, x, y, w, reps, srcstep)] in the view window,
+    vms = bytes or None, ref = reference point (x, y) of the VMS list."""
     L, R, T, B = cx0 - x0, cx1 - x0, cy0 - y0, cy1 - y0
-    kerns = []
-    for k in img.kerns:
+    cores = []
+    for k in img.cores:
         st = k.srcstep or k.w
         a, b = max(k.dx, L), min(k.dx + k.w, R)
         c, e = max(k.dy, T), min(k.dy + k.h, B)
         if a >= b or c >= e:
             continue
-        kerns.append((k.src + (c - k.dy) * st + (a - k.dx), x0 + a, y0 + c, b - a, e - c,
+        cores.append((k.src + (c - k.dy) * st + (a - k.dx), x0 + a, y0 + c, b - a, e - c,
                       k.srcstep if (a == k.dx and b == k.dx + k.w) else st))
     vms = img.vms or None
     if not vms:
-        return kerns, None, (x0, y0)
+        return cores, None, (x0, y0)
     if (L, R, T, B) == (0, img.w, 0, img.h):
-        return kerns, bytes(vms), (x0, y0)
+        return cores, bytes(vms), (x0, y0)
     cnt = vms[1] | vms[2] << 8
     out, n = bytearray(), 0
     p = 3
@@ -441,13 +441,13 @@ def clip_image(img, stride, x0, y0, cx0, cx1, cy0, cy1):
             else:
                 k += 1
         else:
-            raise ViewError(f"VMS-Liste: Typ {t} im Bild")
-    if not out:                          # Typ 3 steht nur vor einem sichtbaren Befehl
-        return kerns, None, (cx0, cy0)
-    return kerns, bytes((vms[0], n & 255, n >> 8)) + bytes(out), (cx0, cy0)
+            raise ViewError(f"VMS list: type {t} in image")
+    if not out:                          # type 3 only precedes a visible command
+        return cores, None, (cx0, cy0)
+    return cores, bytes((vms[0], n & 255, n >> 8)) + bytes(out), (cx0, cy0)
 
 
-# ---------------------------------------------------------------- gemeinsame Hilfen (view und Maler)
+# ---------------------------------------------------------------- common helpers (view and painter)
 
 class _Ctx:
     def __init__(self, sc):
@@ -483,7 +483,7 @@ class _Ctx:
 
     @staticmethod
     def blocked(t):
-        return bool(t.flags & T_DECKEND) and all(t.walls)
+        return bool(t.flags & T_OCCLUDING) and all(t.walls)
 
     def face_of(self, e):
         if e.art == ART_FRONT:
@@ -491,7 +491,7 @@ class _Ctx:
         return (self.v + 1) & 3 if e.s < 0 else (self.v + 3) & 3
 
     def resolve_idx(self, kind, slotindex, n):
-        """(Stil, Slot) des Bildes oder None (P6 5.1 resolve)."""
+        """(style, slot) of the image or None (P6 5.1 resolve)."""
         ts = self.sc.dts[kind]
         if n == 0 or ts is None:
             return None
@@ -522,33 +522,33 @@ class _Ctx:
     def band_slot(self, kind, d):
         return self.ne + d if kind == KIND_CEIL else self.ne + self.D + 1 + d
 
-    def deck(self, e, t, ent):
-        return bool(e.flags & DVG_COVER) and bool(t.flags & T_DECKEND) and bool(ent.flags & F_DECKEND)
+    def occ(self, e, t, ent):
+        return bool(e.flags & DVG_COVER) and bool(t.flags & T_OCCLUDING) and bool(ent.flags & F_OCCLUDING)
 
     def cells_of(self, d):
-        """Zellen der Tiefe d: Liste (s, [Elemente]) als zusammenhaengende Gruppen gleichen s (P3 5.3)."""
+        """Cells of depth d: list (s, [elements]) as contiguous groups of equal s (P3 5.3)."""
         dt = self.g.depth[d]
         out = []
         for e in self.g.elems[dt.first:dt.first + dt.n]:
             if not out or out[-1][0] != e.s:
                 if any(s == e.s for s, _ in out):
-                    raise ViewError(f"DVG: Elemente der Zelle ({d}, {e.s}) nicht zusammenhaengend (P3 5.3)")
+                    raise ViewError(f"DVG: elements of cell ({d}, {e.s}) not contiguous (P3 5.3)")
                 out.append((e.s, []))
             out[-1][1].append(e)
         return out
 
     def cell_order(self, ce, t):
-        """Reihenfolge der Elemente einer Zelle beim Sichtdurchlauf: DVG-Reihenfolge; bei INHALT-Flag und Flaechen
-        erst Fronten, dann Objektplatz, dann Seiten (Ausgabe rueckwaerts: Seiten, Objekte, Fronten)."""
-        if self.faces(t) and t.flags & T_INHALT:
+        """Order of the elements of a cell during the visibility pass: DVG order; with CONTENT flag and faces
+        first fronts, then object slot, then sides (output backwards: sides, objects, fronts)."""
+        if self.faces(t) and t.flags & T_CONTENT:
             return ([e for e in ce if e.art == ART_FRONT] + [e for e in ce if e.art == ART_OBJ]
                     + [e for e in ce if e.art == ART_SIDE] + [e for e in ce if e.art in (ART_FLOOR, ART_CEIL)])
         return ce
 
     def far_cols(self):
-        """Fernsicht (P6 5.7a): Zelle s der Tiefe D je Spalte des Horizontbandes. Die Grenzen sind die fernen Kanten
-        der Seitenflaechen der Tiefe D (Ebene P_{D+1}): Seite mit s < 0 rechts bei x + w, mit s > 0 links bei x;
-        s(c) = - #{Seiten s < 0 mit c < x + w} + #{Seiten s >= 0 mit c >= x}."""
+        """Far view (P6 5.7a): cell s of depth D per column of the horizon band. The boundaries are the far edges
+        of the side faces of depth D (plane P_{D+1}): side with s < 0 at the right at x + w, with s > 0 at the left at x;
+        s(c) = - #{sides s < 0 with c < x + w} + #{sides s >= 0 with c >= x}."""
         dt = self.g.depth[self.D]
         sides = [e for e in self.g.elems[dt.first:dt.first + dt.n] if e.art == ART_SIDE]
         out = []
@@ -563,45 +563,45 @@ class _Ctx:
         return out
 
     def far_dec(self):
-        """Fernsicht (P6 5.7a): {s: True = Fuellung} fuer die Zellen der Tiefe D (Zellentabelle).
-        Deckenstil != 0 -> Fuellung, Deckenstil 0 -> Tapete; Kachel-Flag FERN (Bit 6) kehrt das um."""
+        """Far view (P6 5.7a): {s: True = fill} for the cells of depth D (cell table).
+        Ceiling style != 0 -> fill, ceiling style 0 -> wallpaper; tile flag DISTANT (bit 6) inverts this."""
         out = {}
         for s, _ in self.cells_of(self.D):
             t = self.tile(self.cell(self.D, s))
-            out[s] = (t.ceiling != 0) != bool(t.flags & T_FERN)
+            out[s] = (t.ceiling != 0) != bool(t.flags & T_DISTANT)
         return out
 
     def band_plan(self, d, kind):
-        """Entscheidung fuer Boden- bzw. Deckenband und -kacheln der Tiefe d (P6 5.6, Schritte 1-4).
+        """Decision for floor or ceiling band and tiles of depth d (P6 5.6, steps 1-4).
 
-        None (nichts zu zeichnen) oder dict: rows (y0, y1), luecke, ground ('band', st, ent) | 'tapete' | None,
-        tiles [(Element, n)] in DVG-Reihenfolge."""
+        None (nothing to draw) or dict: rows (y0, y1), gap, ground ('band', st, ent) | 'wallpaper' | None,
+        tiles [(element, n)] in DVG order."""
         dt = self.g.depth[d]
         y0, y1 = (dt.fy0, dt.fy1) if kind == KIND_FLOOR else (dt.cy0, dt.cy1)
         if y1 <= y0:
             return None
         art = ART_FLOOR if kind == KIND_FLOOR else ART_CEIL
         ts = self.sc.dts[kind]
-        info = []                      # (Element, n, Stil | 'egal' | 'luecke')
+        info = []                      # (element, n, style | 'any' | 'gap')
         for e in self.g.elems[dt.first:dt.first + dt.n]:
             if e.art != art:
                 continue
             t = self.tile(self.cell(d, e.s))
             if self.blocked(t):
-                info.append((e, 0, "egal"))
+                info.append((e, 0, "any"))
                 continue
             n = t.floor if kind == KIND_FLOOR else t.ceiling
             if n == 0 or ts is None or n - 1 >= len(ts.styles):
-                info.append((e, n, "luecke"))
+                info.append((e, n, "gap"))
             else:
                 info.append((e, n, n - 1))
-        live = [i for i in info if i[2] != "egal"]
+        live = [i for i in info if i[2] != "any"]
         if not live:
             return None
-        has_gap = any(i[2] == "luecke" for i in live)
-        styles = {i[2] for i in live if i[2] != "luecke"}
+        has_gap = any(i[2] == "gap" for i in live)
+        styles = {i[2] for i in live if i[2] != "gap"}
         bslot = self.band_slot(kind, d)
-        plan = {"rows": (y0, y1), "luecke": False, "ground": None, "tiles": [], "kind": kind, "bslot": bslot}
+        plan = {"rows": (y0, y1), "gap": False, "ground": None, "tiles": [], "kind": kind, "bslot": bslot}
         if not has_gap and len(styles) == 1:
             st = next(iter(styles))
             ent = self.resolve(kind, bslot, st + 1)
@@ -609,9 +609,9 @@ class _Ctx:
                 plan["ground"] = ("band", st, ent)
                 return plan
         if has_gap:
-            plan["luecke"] = True
-            plan["ground"] = "tapete"
-            plan["tiles"] = [(e, n) for e, n, s in live if s != "luecke"]
+            plan["gap"] = True
+            plan["ground"] = "wallpaper"
+            plan["tiles"] = [(e, n) for e, n, s in live if s != "gap"]
         else:
             st0 = None
             for e, n, s in live:
@@ -626,7 +626,7 @@ class _Ctx:
         return plan
 
     def candidates(self, c):
-        """Objekte einer Zelle in Malreihenfolge: (p, Satz, Richtung, Phase, Objektindex | None)."""
+        """Objects of a cell in paint order: (p, set, direction, phase, object index | None)."""
         if c is None:
             return []
         out = []
@@ -641,7 +641,7 @@ class _Ctx:
         return [(p, s, dr, ph, oi) for p, _, s, dr, ph, oi in out]
 
     def sprite_image(self, cand, d):
-        """(SpriteSet, Bild) fuer den Kandidaten in Tiefe d oder None (P6 5.8 Schritt 3)."""
+        """(SpriteSet, image) for the candidate at depth d or None (P6 5.8 step 3)."""
         p, setn, dr, ph, oi = cand
         if not 0 <= setn < 8 or self.sc.s2[setn] is None:
             return None
@@ -660,10 +660,10 @@ class _Stop(Exception):
 
 
 class _Item:
-    """Sichtlisteneintrag: Liste von VCL-Eintraegen.
+    """Visibility list entry: list of VCL entries.
 
     ('vmc', src, dst, count, reps, step, srcstep) | ('vmf', vaddr, byte, count, reps, step) | ('vms', src, dst, bytes)
-    | ('vms1', src, dst, bank1-adresse, bytes): unbeschnittene Liste aus Bank 1 (VCL-Typ 9, keine Pufferbytes)"""
+    | ('vms1', src, dst, bank1-address, bytes): unclipped list from bank 1 (VCL type 9, no buffer bytes)"""
 
     def __init__(self, ents, obj=None):
         self.ents = ents
@@ -685,17 +685,17 @@ class _Item:
     def m(self):
         return sum(len(e[3]) for e in self.ents if e[0] == "vms")
 
-    def strip_rand(self):
+    def strip_edge(self):
         self.ents = [e for e in self.ents if e[0] not in ("vms", "vms1")]
 
 
-def _kern_vmc(src, dst, cnt, reps, step, ss):
-    """VCL-Eintrag eines Kerns; srcstep = Laenge ist Typ 2 (srcstep 0, P6h). Die Tapete bleibt immer Typ 3."""
+def _core_vmc(src, dst, cnt, reps, step, ss):
+    """VCL entry of a core; srcstep = length is type 2 (srcstep 0, P6h). The wallpaper always stays type 3."""
     return ("vmc", src, dst, cnt, reps, step, 0 if ss == cnt else ss)
 
 
 def _fill_groups(fills):
-    """Aufeinanderfolgende gleiche Fuellbytes gruppieren: [(erste Zeile, Anzahl, Byte)]."""
+    """Group consecutive equal fill bytes: [(first row, count, byte)]."""
     out = []
     for i, b in enumerate(fills):
         if out and out[-1][2] == b:
@@ -717,12 +717,12 @@ class _View(_Ctx):
         self.partial = False
         self.objvis = 0
         self.fix = sc.buf_fix
-        self.BL = sc.buf[1] - sc.buf[0] - (3 if self.fix else 0)    # P6j: Sprung-Eintrag bei B0
+        self.BL = sc.buf[1] - sc.buf[0] - (3 if self.fix else 0)    # P6j: jump entry at B0
         self.pend = []
-        self.lue = {KIND_FLOOR: False, KIND_CEIL: False}
+        self.gap = {KIND_FLOOR: False, KIND_CEIL: False}
         self.far = False
 
-    # ---- Masken
+    # ---- Masks
     def mark(self, m, c0, c1):
         for c in range(c0, c1):
             if not m[c]:
@@ -748,7 +748,7 @@ class _View(_Ctx):
             return [(out[0][0], out[-1][1])]
         return out
 
-    # ---- Sichtliste
+    # ---- Visibility list
     def add(self, item):
         if len(self.items) == MAXITEM:
             self.err = E_TOOMANY
@@ -757,7 +757,7 @@ class _View(_Ctx):
         if self.nv + v + self.nm + m <= self.BL:
             pass
         elif m > 0 and v > 7 and self.nv + v - 7 + self.nm <= self.BL:
-            item.strip_rand()
+            item.strip_edge()
             v, m = v - 7, 0
             self.partial = True
         elif m > 0 and v == 7:
@@ -773,49 +773,49 @@ class _View(_Ctx):
             self.objvis |= 1 << item.obj
         return True
 
-    # ---- Eintraege
+    # ---- Entries
     def wall_item(self, kind, e, ent):
         sc = self.sc
         vb = sc.vram_bases["dts"][kind]
         t0 = (sc.ap + self.row(e.y) + e.x) & 0xFFFF
-        if ent.flags & F_ZEILEN:
+        if ent.flags & F_ROWS:
             return _Item([("vmf", (sc.ap + self.row(e.y + r) + e.x) & 0xFFFF, b, e.w, n, self.stride)
                           for r, n, b in _fill_groups(ent.fill)])
-        ents = [_kern_vmc((vb + k.src) & 0xFFFF, (t0 + k.dy * self.stride + k.dx) & 0xFFFF, k.w, k.h, self.stride,
-                          k.srcstep) for k in ent.kerns]
-        if ent.flags & F_RAND:
-            ents.append(self._vms_ent(kind, ent, (vb + ent.rand_ofs) & 0xFFFF, t0))
+        ents = [_core_vmc((vb + k.src) & 0xFFFF, (t0 + k.dy * self.stride + k.dx) & 0xFFFF, k.w, k.h, self.stride,
+                          k.srcstep) for k in ent.cores]
+        if ent.flags & F_EDGE:
+            ents.append(self._vms_ent(kind, ent, (vb + ent.edge_ofs) & 0xFFFF, t0))
         return _Item(ents)
 
     def _vms_ent(self, kind, ent, src, dst):
-        """Unbeschnittene VMS-Liste: in den Puffer bzw. mit vms_bank1 als Verweis nach Bank 1 (Typ 9)."""
+        """Unclipped VMS list: into the buffer or, with vms_bank1, as a reference to bank 1 (type 9)."""
         if not self.sc.vms_bank1:
             return ("vms", src, dst, bytes(ent.vms))
         return ("vms1", src, dst, (self.sc.dts_addr[kind] + _vms_offsets(self.sc.dts[kind])[id(ent)]) & 0xFFFF,
                 bytes(ent.vms))
 
     def band_item(self, kind, ent, y0, rows, c0, c1):
-        """BAND(ent, y0, c0, c1): Bandbild (Breite VW, Hoehe rows) im Ausschnitt [c0, c1) (P6 5.6)."""
+        """BAND(ent, y0, c0, c1): band image (width VW, height rows) in the section [c0, c1) (P6 5.6)."""
         sc = self.sc
         vb = sc.vram_bases["dts"][kind]
-        if ent.flags & F_ZEILEN:
+        if ent.flags & F_ROWS:
             return _Item([("vmf", (sc.ap + self.row(y0 + r) + c0) & 0xFFFF, b, c1 - c0, n, self.stride)
                           for r, n, b in _fill_groups(ent.fill)])
-        img = _Pseudo(self.VW, rows, ent.kerns, bytes(ent.vms) if ent.flags & F_RAND else b"")
-        kerns, vms, ref = clip_image(img, self.stride, 0, y0, c0, c1, y0, y0 + rows)
-        if vms and self.sc.vms_bank1 and (c0, c1) == (0, self.VW):          # volle Breite: unbeschnitten
-            item = self._clipped_item(vb, kerns, None, ref, ent.rand_ofs)
-            item.ents.append(self._vms_ent(kind, ent, (vb + ent.rand_ofs) & 0xFFFF,
+        img = _Pseudo(self.VW, rows, ent.cores, bytes(ent.vms) if ent.flags & F_EDGE else b"")
+        cores, vms, ref = clip_image(img, self.stride, 0, y0, c0, c1, y0, y0 + rows)
+        if vms and self.sc.vms_bank1 and (c0, c1) == (0, self.VW):          # full width: unclipped
+            item = self._clipped_item(vb, cores, None, ref, ent.edge_ofs)
+            item.ents.append(self._vms_ent(kind, ent, (vb + ent.edge_ofs) & 0xFFFF,
                                            (sc.ap + self.row(ref[1]) + ref[0]) & 0xFFFF))
             return item
-        return self._clipped_item(vb, kerns, vms, ref, ent.rand_ofs)
+        return self._clipped_item(vb, cores, vms, ref, ent.edge_ofs)
 
-    def _clipped_item(self, vb, kerns, vms, ref, rand_ofs, obj=None):
+    def _clipped_item(self, vb, cores, vms, ref, edge_ofs, obj=None):
         sc = self.sc
-        ents = [_kern_vmc((vb + src) & 0xFFFF, (sc.ap + self.row(y) + x) & 0xFFFF, w, reps, self.stride, ss)
-                for src, x, y, w, reps, ss in kerns]
+        ents = [_core_vmc((vb + src) & 0xFFFF, (sc.ap + self.row(y) + x) & 0xFFFF, w, reps, self.stride, ss)
+                for src, x, y, w, reps, ss in cores]
         if vms:
-            ents.append(("vms", (vb + rand_ofs) & 0xFFFF, (sc.ap + self.row(ref[1]) + ref[0]) & 0xFFFF, bytes(vms)))
+            ents.append(("vms", (vb + edge_ofs) & 0xFFFF, (sc.ap + self.row(ref[1]) + ref[0]) & 0xFFFF, bytes(vms)))
         return _Item(ents, obj)
 
     def bg_item(self, r0, r1, c0, c1):
@@ -851,39 +851,39 @@ class _View(_Ctx):
         fill_rows(max(r0, y0 + h), r1)
         return _Item(ents)
 
-    # ---- Durchlauf
+    # ---- Pass
     def run(self):
         try:
             for d in range(self.D + 1):
                 self.pend = []
-                self.lue = {KIND_FLOOR: False, KIND_CEIL: False}
+                self.gap = {KIND_FLOOR: False, KIND_CEIL: False}
                 self.depth_cells(d)
                 self.seen_floor(d)
-                self.baender(d, KIND_FLOOR)
-                self.baender(d, KIND_CEIL)
-                self.tapete(d)
+                self.bands(d, KIND_FLOOR)
+                self.bands(d, KIND_CEIL)
+                self.wallpaper(d)
                 for c0, c1, ziel in self.pend:
                     self.mark(self.bcov, c0, c1)
                     if ziel == "both":
                         self.mark(self.cover, c0, c1)
                 if self.far:
-                    self.fern()
+                    self.distant()
                 if self.ncov == self.VW:
                     break
         except _Stop:
             pass
         return self.output()
 
-    # ---- Automap (P6f): Bit 6 "gesehen" der Inhaltsebene, nur mit Scene.automap
+    # ---- Automap (P6f): bit 6 "seen" of the content plane, only with Scene.automap
     def seen(self, c):
         if self.sc.automap and c is not None:
             self.m.content[c] |= 0x40
 
     def seen_floor(self, d):
-        """Zellen mit nicht ganz verdecktem Bodenelement (bcov wie bei den Kacheln des Bodenbandes); nicht fuer
-        Zellen ausserhalb der Karte und nicht fuer blockierte Zellen (deckend, vier Waende), nur bei sichtbaren
-        Bodenzeilen der Tiefe. Ein Wandeintrag (depth_cells) markiert seine Zelle, sobald er nicht ganz verdeckt
-        ist und ein Bild hat (auch wenn add() ihn danach wegen Platz verwirft). Deckenkacheln markieren nicht."""
+        """Cells with a not fully covered floor element (bcov as for the tiles of the floor band); not for
+        cells outside the map and not for blocked cells (opaque, four walls), only for visible
+        floor rows of the depth. A wall entry (depth_cells) marks its cell as soon as it is not fully covered
+        and has an image (even if add() discards it afterwards for lack of space). Ceiling tiles do not mark."""
         dt = self.g.depth[d]
         if not self.sc.automap or dt.fy1 <= dt.fy0:
             return
@@ -908,7 +908,7 @@ class _View(_Ctx):
                         continue
                     self.seen(c)
                     self.add(self.wall_item(KIND_WALL, e, ent))
-                    if self.deck(e, t, ent):
+                    if self.occ(e, t, ent):
                         if e.art == ART_FRONT:
                             self.mark(self.cover, e.c0, e.c1)
                             if e.flags & DVG_BANDCOVER:
@@ -917,10 +917,10 @@ class _View(_Ctx):
                                 self.pend.append((e.c0, e.c1, "bcov"))
                         else:
                             self.pend.append((e.c0, e.c1, "both"))
-                elif e.art == ART_OBJ and d >= 1 and (not faces or t.flags & T_INHALT):
-                    self.objekte(d, e, c)
+                elif e.art == ART_OBJ and d >= 1 and (not faces or t.flags & T_CONTENT):
+                    self.objects(d, e, c)
 
-    def objekte(self, d, e, c):
+    def objects(self, d, e, c):
         for cand in reversed(self.candidates(c)):
             r = self.sprite_image(cand, d)
             if r is None:
@@ -933,25 +933,25 @@ class _View(_Ctx):
             cy0, cy1 = max(y0, 0), min(y0 + img.h, self.sc.dvg.vh)
             if cx0 >= cx1 or cy0 >= cy1:
                 continue
-            if self.allcov(self.cover, cx0, cx1):        # ganz verdeckt -> verwerfen; sonst vollstaendig, nur am
-                continue                                 # Fenster beschnitten (P6i: Verdeckung ueber die Malreihenfolge)
-            kerns, vms, ref = clip_image(img, self.stride, x0, y0, cx0, cx1, cy0, cy1)
+            if self.allcov(self.cover, cx0, cx1):        # fully covered -> discard; otherwise complete, only at the
+                continue                                 # window clipped (P6i: occlusion via the paint order)
+            cores, vms, ref = clip_image(img, self.stride, x0, y0, cx0, cx1, cy0, cy1)
             vb = self.sc.vram_bases["s2"][setn]
             if vms and self.sc.vms_bank1 and (cx0, cx1, cy0, cy1) == (x0, x0 + img.w, y0, y0 + img.h):
-                item = self._clipped_item(vb, kerns, None, ref, img.rand_ofs, oi)     # unbeschnitten: Typ 9
-                item.ents.append(("vms1", (vb + img.rand_ofs) & 0xFFFF, (self.sc.ap + self.row(y0) + x0) & 0xFFFF,
+                item = self._clipped_item(vb, cores, None, ref, img.edge_ofs, oi)     # unclipped: type 9
+                item.ents.append(("vms1", (vb + img.edge_ofs) & 0xFFFF, (self.sc.ap + self.row(y0) + x0) & 0xFFFF,
                                   (self.sc.s2_bank1(setn) + _s2_vofs(ss)[id(img)]) & 0xFFFF, bytes(img.vms)))
             else:
-                item = self._clipped_item(vb, kerns, vms, ref, img.rand_ofs, oi)
+                item = self._clipped_item(vb, cores, vms, ref, img.edge_ofs, oi)
             if item.v == 0:
                 continue
             self.add(item)
 
-    def baender(self, d, kind):
+    def bands(self, d, kind):
         plan = self.band_plan(d, kind)
         if plan is None:
             return
-        self.lue[kind] = plan["luecke"]
+        self.gap[kind] = plan["gap"]
         y0, y1 = plan["rows"]
         for e, n in plan["tiles"]:
             ent = self.resolve(kind, e.index, n)
@@ -963,17 +963,17 @@ class _View(_Ctx):
             for c0, c1 in reversed(self.spans(self.bcov)):
                 self.add(self.band_item(kind, g[2], y0, y1 - y0, c0, c1))
 
-    def tapete(self, d):
+    def wallpaper(self, d):
         g = self.g.depth[d]
         rows = []
-        if self.lue[KIND_CEIL]:
+        if self.gap[KIND_CEIL]:
             rows.append((g.cy0, g.cy1))
         if d == self.D and self.sc.farfill is not None:
             self.fdec = self.far_dec()
-            self.far = any(self.fdec.values())          # sonst wie ohne Fernsicht-Fuellung
+            self.far = any(self.fdec.values())          # otherwise as without far-view fill
         if d == self.D and not self.far:
             rows.append((self.g.hy0, self.g.hy1))
-        if self.lue[KIND_FLOOR]:
+        if self.gap[KIND_FLOOR]:
             rows.append((g.fy0, g.fy1))
         merged = []
         for r0, r1 in rows:
@@ -988,15 +988,15 @@ class _View(_Ctx):
             for c0, c1 in reversed(sp):
                 self.add(self.bg_item(r0, r1, c0, c1))
 
-    def fern(self):
-        """Fernsicht (P6 5.7a): Horizontband der Tiefe D nach dem Wartebereich (bcov = alles, was ihn abdeckt), je
-        Folge von rechts nach links Laeufe gleicher Entscheidung von rechts nach links: Fuellbyte bzw. Tapete."""
+    def distant(self):
+        """Far view (P6 5.7a): horizon band of depth D after the waiting area (bcov = everything that covers it), per
+        run from right to left: runs of the same decision, fill byte or wallpaper."""
         r0, r1 = self.g.hy0, self.g.hy1
         if r1 <= r0:
             return
         cols = self.far_cols()
         if any(s not in self.fdec for s in cols):
-            raise ViewError("DVG: Fernsicht-Spalte ohne Zelle der Tiefe D (P6 5.7a: eine Seite je Zelle, Zellen lueckenlos)")
+            raise ViewError("DVG: far-view column without cell of depth D (P6 5.7a: one side per cell, cells gapless)")
         f = [self.fdec[s] for s in cols]
         for c0, c1 in reversed(self.spans(self.bcov)):
             c = c1
@@ -1011,12 +1011,12 @@ class _View(_Ctx):
                     self.add(self.bg_item(r0, r1, a, c))
                 c = a
 
-    # ---- Ausgabe (Einpass, P6d-opt)
+    # ---- Output (single pass, P6d-opt)
     def output(self):
-        """Eintraege in Erzeugungsreihenfolge (vorne -> hinten); jeder wird sofort geschrieben: VMS-Listen aufwaerts
-        ab B0, VCL-Eintraege abwaerts ab B1 (Ende-Byte bei B1 - 1). Die VCL-Liste ab VCLADR ist damit die umgekehrte
-        Erzeugungsreihenfolge (hinten -> vorne, innerhalb eines Sichtlisteneintrags ebenfalls umgekehrt).
-        Feste Listenadresse (buf_fix, P6j): bei B0 steht VCL-Typ 10 (Sprung auf den Listenanfang), VMS-Listen ab B0 + 3,
+        """Entries in generation order (front -> back); each is written immediately: VMS lists upwards
+        from B0, VCL entries downwards from B1 (end byte at B1 - 1). The VCL list from VCLADR is thus the reverse of the
+        generation order (back -> front, also reversed within a visibility list entry).
+        Fixed list address (buf_fix, P6j): at B0 there is VCL type 10 (jump to the list start), VMS lists from B0 + 3,
         VCLADR = B0."""
         b0, b1 = self.sc.buf
         m0 = b0 + (3 if self.fix else 0)
@@ -1045,16 +1045,16 @@ class _View(_Ctx):
                     lists1[addr] = lst
         vcl = b"".join(reversed(parts)) + b"\0"
         if len(vcl) != self.nv or len(vms) != self.nm:
-            raise ViewError("interner Fehler: Groessenrechnung %d/%d != %d/%d" % (self.nv, self.nm, len(vcl), len(vms)))
+            raise ViewError("internal error: size calculation %d/%d != %d/%d" % (self.nv, self.nm, len(vcl), len(vms)))
         a = E_TOOMANY if self.err else (E_PARTIAL if self.partial else E_OK)
-        p0 = b0 if self.fix else b1 - len(vcl)          # P6j: feste Listenadresse (Sprung bei B0)
+        p0 = b0 if self.fix else b1 - len(vcl)          # P6j: fixed list address (jump at B0)
         return Result(a=a, x=min(len(parts), 255), y=0, p0=p0, b0=b0, b1=b1, fix=self.fix, vcl=vcl, vms=bytes(vms),
                       vcllen=len(vcl), vmslen=len(vms), objvis=self.objvis, partial=self.partial,
                       items=len(self.items), lists1=lists1)
 
 
 def _vms_offsets(ts):
-    """id(Verzeichniseintrag) -> vofs (inhaltsrelativer Offset der VMS-Liste in der DTS-Datei, P5)."""
+    """id(directory entry) -> vofs (content-relative offset of the VMS list in the DTS file, P5)."""
     cache = getattr(ts, "_vofs", None)
     if cache is None:
         c = (getattr(ts, "dts_prg", None) or dbetex.to_dts(ts))[2:]
@@ -1065,7 +1065,7 @@ def _vms_offsets(ts):
 
 
 def _s2_content(ss):
-    """Inhalt der S2-Datei (ohne Ladeadresse), zwischengespeichert."""
+    """Content of the S2 file (without load address), cached."""
     c = getattr(ss, "_s2c", None)
     if c is None:
         import dbespr
@@ -1074,7 +1074,7 @@ def _s2_content(ss):
 
 
 def _s2_vofs(ss):
-    """id(Bild) -> vofs (inhaltsrelativer Offset der VMS-Liste in der S2-Datei, P5b)."""
+    """id(image) -> vofs (content-relative offset of the VMS list in the S2 file, P5b)."""
     cache = getattr(ss, "_s2vofs", None)
     if cache is None:
         c = _s2_content(ss)
@@ -1086,21 +1086,21 @@ def _s2_vofs(ss):
 
 @dataclass
 class _Pseudo:
-    """Bildbeschreibung eines Bandes fuer clip_image."""
+    """Image description of a band for clip_image."""
     w: int
     h: int
-    kerns: list
+    cores: list
     vms: bytes
 
 
 def view(scene):
-    """VIEW nach P6 Abschnitt 5: VMS-Listen ab scene.buf[0], VCL-Liste ab Result.p0 bis scene.buf[1] (Einpass)."""
+    """VIEW per P6 section 5: VMS lists from scene.buf[0], VCL list from Result.p0 to scene.buf[1] (single pass)."""
     if scene.dvg is None or scene.dmp is None:
-        raise ViewError("E_STATE: DVG/Karte fehlt")
+        raise ViewError("E_STATE: DVG/map missing")
     return _View(scene).run()
 
 
-# ---------------------------------------------------------------- VCL-Interpreter
+# ---------------------------------------------------------------- VCL interpreter
 
 def _copy(vram, s, d, n):
     if n <= 0:
@@ -1117,7 +1117,7 @@ def _sw(v):
 
 
 def vmc(vram, src, dst, count, reps=1, step=0, srcstep=0):
-    """VDC-BASIC VMC: srcstep 0 = Quelle hinter dem vorigen Lauf."""
+    """VDC-BASIC VMC: srcstep 0 = source after the previous run."""
     for r in range(reps):
         s = (src + r * (srcstep if srcstep else count)) & 0xFFFF
         _copy(vram, s, (dst + r * step) & 0xFFFF, count)
@@ -1132,7 +1132,7 @@ def vmf(vram, dst, byte, count, reps=1, step=0):
 
 
 def vms(bank0, vram, src, dst, addr, rowstep=80):
-    """VDC-BASIC VMS nach vms-format.md: Typ 1, 8, 3 (v3), 2."""
+    """VDC-BASIC VMS per vms-format.md: Type 1, 8, 3 (v3), 2."""
     alpha = bank0[addr]
     n = bank0[addr + 1] | bank0[addr + 2] << 8
     p, rd = addr + 3, src
@@ -1181,9 +1181,9 @@ def rxv(bank0, vram, src, dst):
 
 
 def run_vcl(bank0, vram, addr, rowstep=80, bank1=None):
-    """Fuehrt die VCL-Liste bei addr in bank0 aus (vcl-format.md); veraendert vram. Rueckgabe: Anzahl Eintraege.
-    Typ 13 (SYN) tut nichts. Typ 2 in VMS nutzt rowstep statt VDC-Register 1. Typ 9 (Vorschlag P6d-opt, VDC-BASIC):
-    wie 12, die Liste liegt in bank1. Typ 10 (VDC-BASIC v3 P2e): weiter bei der Adresse."""
+    """Executes the VCL list at addr in bank0 (vcl-format.md); modifies vram. Returns: number of entries.
+    Type 13 (SYN) does nothing. Type 2 in VMS uses rowstep instead of VDC register 1. Type 9 (proposal P6d-opt, VDC-BASIC):
+    like 12, the list resides in bank1. Type 10 (VDC-BASIC v3 P2e): continue at the address."""
     p = addr
     count = 0
 
@@ -1228,15 +1228,15 @@ def run_vcl(bank0, vram, addr, rowstep=80, bank1=None):
             p += 7
         elif t == 13:
             p += 3 + 4 * (w(1) & 255)
-        elif t == 10:                   # VDC-BASIC v3 P2e: weiter bei Adresse (zählt nicht als Eintrag)
+        elif t == 10:                   # VDC-BASIC v3 P2e: continue at address (does not count as an entry)
             count -= 1
             p = w(1)
         else:
-            raise ViewError(f"INVALID VCL type {t} bei {p:#06x}")
+            raise ViewError(f"INVALID VCL type {t} at {p:#06x}")
 
 
 def decode_vcl(buf, off=0):
-    """VCL-Liste ab buf[off] als Liste von Tupeln (Typ, Parameter...) bis zum Ende-Byte (ohne dieses)."""
+    """VCL list from buf[off] as a list of tuples (type, parameters...) up to the end byte (excluding it)."""
     out, p = [], off
     lens = {1: 3, 2: 5, 3: 6, 4: 3, 5: 5, 6: 2, 7: 4, 8: 2, 9: 3, 12: 3}
     while buf[p]:
@@ -1253,7 +1253,7 @@ def decode_vcl(buf, off=0):
 
 
 def render_view(scene, vram=None, res=None, seed=0):
-    """view() und run_vcl() in ein VRAM-Abbild (Zufallsinhalt, falls nicht gegeben). Rueckgabe (vram, Result)."""
+    """view() and run_vcl() into a VRAM image (random content if not given). Returns (vram, Result)."""
     res = res or view(scene)
     if vram is None:
         vram = scene.make_vram(seed)
@@ -1261,7 +1261,7 @@ def render_view(scene, vram=None, res=None, seed=0):
     return vram, res
 
 
-# ---------------------------------------------------------------- unabhaengiger Maler
+# ---------------------------------------------------------------- independent painter
 
 class _Painter(_Ctx):
     def __init__(self, sc, vram):
@@ -1298,7 +1298,7 @@ class _Painter(_Ctx):
                       vb=sc.vram_bases["dts"][kind], t0=t0)
 
     def row_fill(self, r0, r1):
-        """Tapete fuer die Zeilen [r0, r1), volle Breite, byteweise (unabhaengig von Spannen und VMC)."""
+        """Wallpaper for the rows [r0, r1), full width, bytewise (independent of spans and VMC)."""
         sc = self.sc
         for r in range(r0, r1):
             base = sc.ap + self.row(r)
@@ -1317,18 +1317,18 @@ class _Painter(_Ctx):
                     self.vram[(base + x) & 0xFFFF] = bg["fill"][r]
 
     def sprite(self, ss, img, setn, x0, y0):
-        """Zeichnet das Bild am Fenster beschnitten: Bild unbeschnitten in zwei Schmierpuffer (0x00 / 0xFF),
-        Nibbles, die in beiden gleich sind, hat das Bild geschrieben; nur diese kommen ins Fenster."""
+        """Draws the image clipped at the window: image unclipped into two scratch buffers (0x00 / 0xFF),
+        nibbles that are equal in both were written by the image; only those go into the window."""
         sc, stride = self.sc, self.stride
         vb = sc.vram_bases["s2"][setn]
         size = img.h * stride + 130
         bufs = []
         for fill in (0x00, 0xFF):
             fb = bytearray([fill]) * size
-            for k in img.kerns:
+            for k in img.cores:
                 dbetex.sim_vmc(self.vram, vb + k.src, k.dy * stride + k.dx, k.w, k.h, stride, k.srcstep, fb=fb)
             if img.vms:
-                dbetex.sim_vms(self.vram, vb + img.rand_ofs, 0, img.vms, fb=fb)
+                dbetex.sim_vms(self.vram, vb + img.edge_ofs, 0, img.vms, fb=fb)
             bufs.append(fb)
         a, b = bufs
         for r in range(img.h):
@@ -1366,7 +1366,7 @@ class _Painter(_Ctx):
         if isinstance(g, tuple):
             r = self.resolve_idx(kind, plan["bslot"], g[1] + 1)
             self.put_entry(kind, r[0], r[1], 0, y0)
-        for e, n in reversed(plan["tiles"]):        # aussen -> innen (Randpixel benachbarter Kacheln ueberlappen)
+        for e, n in reversed(plan["tiles"]):        # outside -> inside (edge pixels of neighbouring tiles overlap)
             r = self.resolve_idx(kind, e.index, n)
             if r is not None:
                 self.put_entry(kind, r[0], r[1], e.x, e.y)
@@ -1376,15 +1376,15 @@ class _Painter(_Ctx):
             pf, pc = self.band_plan(d, KIND_FLOOR), self.band_plan(d, KIND_CEIL)
             dt = self.g.depth[d]
             rows = []
-            if pc and pc["luecke"]:
+            if pc and pc["gap"]:
                 rows.append((dt.cy0, dt.cy1))
             if d == self.D:
                 rows.append((self.g.hy0, self.g.hy1))
-            if pf and pf["luecke"]:
+            if pf and pf["gap"]:
                 rows.append((dt.fy0, dt.fy1))
             for r0, r1 in rows:
                 self.row_fill(r0, r1)
-            if d == self.D and self.sc.farfill is not None:      # Fernsicht (5.7a): je Spalte Fuellung statt Tapete
+            if d == self.D and self.sc.farfill is not None:      # far view (5.7a): per column fill instead of wallpaper
                 dec = self.far_dec()
                 for x, s in enumerate(self.far_cols()):
                     if dec.get(s, False):
@@ -1396,24 +1396,24 @@ class _Painter(_Ctx):
                 c = self.cell(d, s)
                 t = self.tile(c)
                 faces = self.faces(t)
-                order = list(reversed(self.cell_order(ce, t)))     # Malreihenfolge = Umkehrung der Sichtreihenfolge
+                order = list(reversed(self.cell_order(ce, t)))     # paint order = reverse of the visibility order
                 for e in order:
                     if e.art in (ART_FRONT, ART_SIDE) and faces:
                         r = self.resolve_idx(KIND_WALL, e.index, t.walls[self.face_of(e)])
                         if r is not None:
                             self.put_entry(KIND_WALL, r[0], r[1], e.x, e.y)
-                    elif e.art == ART_OBJ and d >= 1 and (not faces or t.flags & T_INHALT):
+                    elif e.art == ART_OBJ and d >= 1 and (not faces or t.flags & T_CONTENT):
                         self.objects(d, e, c)
 
 
 def paint_reference(scene, vram):
-    """Malt alles, was nach Karte und Stilen existiert, in Plan-Reihenfolge (Plan 5): ohne Abdeckung und Spannen,
-    Baender und Tapete volle Breite, Sprites nur am Fenster beschnitten. Veraendert nur das Sichtfenster."""
+    """Paints everything that exists per map and styles, in plan order (plan 5): without coverage and spans,
+    bands and wallpaper full width, sprites clipped only at the window. Modifies only the view window."""
     _Painter(scene, vram).run()
     return vram
 
 
-# ---------------------------------------------------------------- Bild des Sichtfensters
+# ---------------------------------------------------------------- Image of the view window
 
 def window_image(scene, vram, zoom=1):
     g = scene.dvg
@@ -1426,14 +1426,14 @@ def window_bytes(scene, vram):
     return [bytes(vram[(scene.ap + g.row(y) + x) & 0xFFFF] for x in range(g.vw)) for y in range(g.vh)]
 
 
-# ---------------------------------------------------------------- Sprite-Saetze (minimaler S2-Schreiber fuer Tests)
+# ---------------------------------------------------------------- Sprite sets (minimal S2 writer for tests)
 
-def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_kerns=4, kern_min=16, load=0x6000):
-    """Minimaler S2-Schreiber nach P5b 4 (Dateischnittstelle; dbespr.py ist der eigentliche Importer).
+def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_cores=4, core_min=16, load=0x6000):
+    """Minimal S2 writer per P5b 4 (file interface; dbespr.py is the actual importer).
 
-    images: {(phase, ai, d): (rows, fx, fy)}; rows = Pixelzeilen (Palettenindex 0-15 oder None, gerade Breite).
-    Fehlende Bilder: Phase 0 -> $FE, Phase >= 1 -> $FF. Gleiche Bilder werden zusammengelegt.
-    Rueckgabe (S2-PRG, VRAM-Daten)."""
+    images: {(phase, ai, d): (rows, fx, fy)}; rows = pixel rows (palette index 0-15 or None, even width).
+    Missing images: phase 0 -> $FE, phase >= 1 -> $FF. Identical images are merged.
+    Returns (S2 PRG, VRAM data)."""
     amap = angle_map or dbespr_default_map(NA)
     order = sorted(images)
     ents, keys, vram = [], {}, bytearray()
@@ -1445,15 +1445,15 @@ def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_kerns
             pix = [list(r) for r in rows]
             states = dbetex.classify(pix)
             dbetex.resolve_alpha_conflict(pix, states)
-            kerns = dbetex.choose_kerns(states, max_kerns, kern_min)
-            alpha, rand, vms = dbetex.pack_image(pix, states, kerns, stride)
-            e = {"w": len(rows[0]) // 2, "h": len(rows), "fx": fx, "fy": fy, "kerns": [], "vms": vms,
-                 "rand_ofs": 0, "rand_len": len(rand)}
-            for kx, ky, kw, kh in kerns:
-                e["kerns"].append((len(vram), kx, ky, kw, kh))
-                vram += dbetex.kern_bytes(pix, [(kx, ky, kw, kh)])
-            e["rand_ofs"] = len(vram) if rand else 0
-            vram += rand
+            cores = dbetex.choose_cores(states, max_cores, core_min)
+            alpha, edge, vms = dbetex.pack_image(pix, states, cores, stride)
+            e = {"w": len(rows[0]) // 2, "h": len(rows), "fx": fx, "fy": fy, "cores": [], "vms": vms,
+                 "edge_ofs": 0, "edge_len": len(edge)}
+            for kx, ky, kw, kh in cores:
+                e["cores"].append((len(vram), kx, ky, kw, kh))
+                vram += dbetex.core_bytes(pix, [(kx, ky, kw, kh)])
+            e["edge_ofs"] = len(vram) if edge else 0
+            vram += edge
             keys[key] = len(ents)
             ents.append(e)
         index[(f * NA + ai) * D + d - 1] = keys[key]
@@ -1464,27 +1464,27 @@ def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_kerns
                 if index[i] == 0xFE:
                     index[i] = 0xFF
     ni = len(ents)
-    nk = sum(len(e["kerns"]) for e in ents)
+    nk = sum(len(e["cores"]) for e in ents)
     o_idx = 40
     o_dir = o_idx + len(index)
-    o_kern = o_dir + 16 * ni
-    o_tag = o_kern + 8 * nk
+    o_core = o_dir + 16 * ni
+    o_tag = o_core + 8 * nk
     o_data = o_tag
-    dirs, kerns, data = bytearray(), bytearray(), bytearray()
-    kpos = o_kern
+    dirs, cores, data = bytearray(), bytearray(), bytearray()
+    kpos = o_core
     for e in ents:
         kofs = 0
-        if e["kerns"]:
+        if e["cores"]:
             kofs = kpos
-            for src, kx, ky, kw, kh in e["kerns"]:
-                kerns += struct.pack("<HBBBBH", src, kx, ky, kw, kh, 0)
-            kpos += 8 * len(e["kerns"])
+            for src, kx, ky, kw, kh in e["cores"]:
+                cores += struct.pack("<HBBBBH", src, kx, ky, kw, kh, 0)
+            kpos += 8 * len(e["cores"])
         vofs = vlen = 0
         if e["vms"]:
             vofs, vlen = o_data + len(data), len(e["vms"])
             data += e["vms"]
-        dirs += struct.pack("<BBBBBBHHHHH", 8 if e["rand_len"] else 0, e["w"], e["h"], e["fx"], e["fy"],
-                            len(e["kerns"]), kofs, e["rand_ofs"], e["rand_len"], vofs, vlen)
+        dirs += struct.pack("<BBBBBBHHHHH", 8 if e["edge_len"] else 0, e["w"], e["h"], e["fx"], e["fy"],
+                            len(e["cores"]), kofs, e["edge_ofs"], e["edge_len"], vofs, vlen)
     total = o_data + len(data)
     import binascii
     head = bytearray(40)
@@ -1494,10 +1494,10 @@ def make_s2(images, D, NA, NP, stride, angle_map=None, gid=0, flags=0, max_kerns
     head[6], head[7], head[8], head[9] = D, NA, NP, ni
     struct.pack_into("<H", head, 10, nk)
     head[12:16] = bytes(amap)
-    struct.pack_into("<HHHH", head, 16, o_idx, o_dir, o_kern, o_tag)
+    struct.pack_into("<HHHH", head, 16, o_idx, o_dir, o_core, o_tag)
     struct.pack_into("<HHHHH", head, 26, o_data, total, len(vram), binascii.crc_hqx(bytes(vram), 0xFFFF), 0)
     struct.pack_into("<H", head, 34, stride)
-    out = bytes(head) + bytes(index) + bytes(dirs) + bytes(kerns) + bytes(data)
+    out = bytes(head) + bytes(index) + bytes(dirs) + bytes(cores) + bytes(data)
     assert len(out) == total
     return struct.pack("<H", load) + out, bytes(vram)
 
@@ -1507,18 +1507,18 @@ def dbespr_default_map(na):
 
 
 def read_s2(prg, vram):
-    """S2-PRG + VRAM-Daten -> SpriteSet ueber dbespr.from_s2 (P5b 6.3)."""
+    """S2 PRG + VRAM data -> SpriteSet via dbespr.from_s2 (P5b 6.3)."""
     import dbespr
     return dbespr.from_s2(prg, vram)
 
 
-# ---------------------------------------------------------------- Demo-Assets
+# ---------------------------------------------------------------- Demo assets
 
 def sprite_pixels(kind, w_px, h, ai, f):
-    """Pixelbild (Zeilen mit Palettenindex oder None) fuer Testsprites; Bildwinkel ai und Phase f aendern das Muster."""
+    """Pixel image (rows with palette index or None) for test sprites; image angle ai and phase f change the pattern."""
     pix = [[None] * w_px for _ in range(h)]
     for r in range(h):
-        # Umriss: Ellipse (Gegner) bzw. Raute (Gegenstand)
+        # outline: ellipse (enemy) or rhombus (item)
         t = (r + 0.5) / h
         if kind == "gem":
             half = (0.5 - abs(t - 0.5)) * w_px * (1.1 + 0.15 * (f & 1))
@@ -1528,7 +1528,7 @@ def sprite_pixels(kind, w_px, h, ai, f):
             if abs(x + 0.5 - w_px / 2) <= half:
                 pix[r][x] = (9, 13, 5, 3)[ai & 3] if kind != "gem" else (11, 7)[f & 1]
     if kind != "gem":
-        # Augen (Loch) und Streifen je nach Bildwinkel
+        # eyes (hole) and stripes depending on the image angle
         ey = max(1, h // 4)
         ex = w_px // 2 + (-1, 0, 1, 0)[ai & 3] * max(1, w_px // 5)
         for dx in (-1, 0):
@@ -1540,15 +1540,15 @@ def sprite_pixels(kind, w_px, h, ai, f):
         for x in range(w_px):
             if pix[sy][x] is not None and (x + f) % 4 < 2:
                 pix[sy][x] = 0
-        for x in range(0, w_px, 5):                   # einzelne Pixel am Rand: halbe Bytes
+        for x in range(0, w_px, 5):                   # single pixels at the edge: half bytes
             if pix[h // 2][x] is not None:
                 pix[h // 2][x] = None
     return pix
 
 
 def make_sprite_set(dvg, name="blob", NA=4, NP=2, phases_depths=None, wide=1.0, height=0.8, kind="blob", odd=0):
-    """Bilder je (Phase, Winkel, Tiefe), skaliert nach der Zellbreite; Hoehe hoechstens Wandhoehe der Tiefe (5.4).
-    Rueckgabe (SpriteSet, VRAM-Daten, PRG)."""
+    """Images per (phase, angle, depth), scaled to the cell width; height at most wall height of the depth (5.4).
+    Returns (SpriteSet, VRAM data, PRG)."""
     D, stride = dvg.D, dvg.stride
     images = {}
     for d in range(1, D + 1):
@@ -1563,7 +1563,7 @@ def make_sprite_set(dvg, name="blob", NA=4, NP=2, phases_depths=None, wide=1.0, 
                 if phases_depths is not None and (f, d) not in phases_depths and f > 0:
                     continue
                 pix = sprite_pixels(kind, w_px, h, ai, f)
-                if odd:                                    # Bild beginnt auf ungerader Pixelspalte: linkes Pixel leer
+                if odd:                                    # image starts on an odd pixel column: left pixel empty
                     pix = [[None] + r[:-1] for r in pix]
                 images[(f, ai, d)] = (pix, w_b // 2, h - 1)
     prg, vram = make_s2(images, D, NA, NP, stride, flags=1 if kind == "gem" else 0)
@@ -1579,13 +1579,13 @@ kind = "{kind}"
 geom = "west140.geom.json"
 out  = "build"
 load = {load}
-max_kerns = 4
+max_cores = 4
 
 {styles}'''
 
 
 def _atlas_styles(geom, outdir):
-    """Zusaetzliche Boden- und Deckenstile: textureller Bandverlauf (kein ZEILEN), Pfuetze mit Loechern, ohne Baender."""
+    """Additional floor and ceiling styles: textured band gradient (no ROWS), puddle with holes, without bands."""
     import dbetexdemo as dd
     from PIL import Image
 
@@ -1595,11 +1595,11 @@ def _atlas_styles(geom, outdir):
             dd._paint(im, ax, ay, rect, mask, fn_band if "band" in name else fn_tile(d))
         im.save(path)
     P = lambda n: os.path.join(outdir, n)
-    make(P("gras_atlas.png"), ("floor", "floorband"), lambda px, r: 4 if (px // 3 + r) % 5 else 5,
+    make(P("grass_atlas.png"), ("floor", "floorband"), lambda px, r: 4 if (px // 3 + r) % 5 else 5,
          lambda d: (lambda px, r: 4 if (px + r) % 4 else 5))
-    make(P("pfuetze_atlas.png"), ("floor", "floorband"), lambda px, r: 3,
+    make(P("puddle_atlas.png"), ("floor", "floorband"), lambda px, r: 3,
          lambda d: (lambda px, r: None if (px // 2 + r // 2) % 3 == 0 else 3))
-    make(P("loch_atlas.png"), ("ceil", "ceilband"), lambda px, r: 10,
+    make(P("hole_atlas.png"), ("ceil", "ceilband"), lambda px, r: 10,
          lambda d: (lambda px, r: None if (px // 4 + r // 3) % 2 == 0 else 10))
 
 
@@ -1618,8 +1618,8 @@ class Assets:
 
 
 def build_demo_assets(outdir):
-    """Erzeugt (deterministisch) DVG 140 x 96, Wand-DTS (4 Stile), Boden-DTS (3 Stile), Decken-DTS (3 Stile), DBG und
-    Sprite-Saetze in outdir und liefert sie als Assets."""
+    """Generates (deterministically) DVG 140 x 96, wall DTS (4 styles), floor DTS (3 styles), ceiling DTS (3 styles), DBG and
+    sprite sets in outdir and returns them as assets."""
     import dbetexdemo
     os.makedirs(outdir, exist_ok=True)
     dbetexdemo.generate(outdir)
@@ -1631,11 +1631,11 @@ def build_demo_assets(outdir):
     empty_f = ", ".join(f'"floorband_d{d}"' for d in range(dvg.D + 1))
     empty_c = ", ".join(f'"ceilband_d{d}"' for d in range(dvg.D + 1))
     ftoml = GEN_FLOOR_TOML.format(name="demo_floor3", kind="floor", load="0xEE00", styles=(
-        '[[style]]\nname = "stein"\npng = "stein_atlas.png"\n\n[[style]]\nname = "gras"\npng = "gras_atlas.png"\n\n'
-        f'[[style]]\nname = "pfuetze"\npng = "pfuetze_atlas.png"\nempty = [{empty_f}]\n'))
+        '[[style]]\nname = "stone"\npng = "stone_atlas.png"\n\n[[style]]\nname = "grass"\npng = "grass_atlas.png"\n\n'
+        f'[[style]]\nname = "puddle"\npng = "puddle_atlas.png"\nempty = [{empty_f}]\n'))
     ctoml = GEN_FLOOR_TOML.format(name="demo_ceil3", kind="ceiling", load="0xF600", styles=(
-        '[[style]]\nname = "holz"\npng = "holz_atlas.png"\n\n'
-        f'[[style]]\nname = "loch"\npng = "loch_atlas.png"\nempty = [{empty_c}]\n'))
+        '[[style]]\nname = "wood"\npng = "wood_atlas.png"\n\n'
+        f'[[style]]\nname = "hole"\npng = "hole_atlas.png"\nempty = [{empty_c}]\n'))
     for n, t in (("floor3.toml", ftoml), ("ceil3.toml", ctoml)):
         with open(os.path.join(outdir, n), "w", encoding="utf-8") as f:
             f.write(t)
@@ -1647,13 +1647,13 @@ def build_demo_assets(outdir):
     spr = [None] * 8
     spr[0] = make_sprite_set(dvg, "blob", NA=4, NP=2, wide=0.4, height=0.4)[0]
     spr[1] = make_sprite_set(dvg, "gem", NA=1, NP=2, kind="gem", wide=0.5, height=0.3)[0]
-    spr[2] = make_sprite_set(dvg, "wache", NA=2, NP=1, wide=0.35, height=0.6, odd=1)[0]
-    spr[3] = make_sprite_set(dvg, "breit", NA=2, NP=2, wide=1.8, height=0.2, phases_depths={(1, 1)})[0]
+    spr[2] = make_sprite_set(dvg, "guard", NA=2, NP=1, wide=0.35, height=0.6, odd=1)[0]
+    spr[3] = make_sprite_set(dvg, "wide", NA=2, NP=2, wide=1.8, height=0.2, phases_depths={(1, 1)})[0]
     return Assets(dvg, geom, walls, floor, ceil, dbg, dbg_vram, spr, outdir, dvg_prg)
 
 
 def with_band_cover(dvg):
-    """Kopie der Dvg mit gesetztem DVG-Flag Bit 3 (Bandabdeckung) an allen Fronten, die die Bandzeilen enthalten."""
+    """Copy of the Dvg with DVG flag bit 3 (band coverage) set on all fronts that contain the band rows."""
     d2 = copy.deepcopy(dvg)
     for e in d2.elems:
         if e.art == ART_FRONT:
@@ -1664,7 +1664,7 @@ def with_band_cover(dvg):
 
 
 def without_band_cover(dvg):
-    """Kopie der Dvg ohne DVG-Flag Bit 3 (dbegeom setzt es seit P6h; fuer Tests des Falls "Bit fehlt")."""
+    """Copy of the Dvg without DVG flag bit 3 (dbegeom sets it since P6h; for tests of the "bit missing" case)."""
     d2 = copy.deepcopy(dvg)
     for e in d2.elems:
         e.flags &= ~DVG_BANDCOVER
@@ -1672,8 +1672,8 @@ def without_band_cover(dvg):
 
 
 def dvg_bytes(dvg, load=0xE800):
-    """Dvg -> DVG-PRG (P3 5; fuer Tests mit veraenderten Geometrien, z. B. with_band_cover, double_fronts).
-    Die Geometrie-ID wird uebernommen (nicht neu berechnet), damit die DTS/S2 der Vorlage gueltig bleiben."""
+    """Dvg -> DVG-PRG (P3 5; for tests with modified geometries, e.g. with_band_cover, double_fronts).
+    The geometry ID is kept (not recomputed) so that the DTS/S2 of the template stay valid."""
     D, ne = dvg.D, len(dvg.elems)
     o_d, o_e = 24, 24 + 8 * (D + 1)
     total = o_e + 16 * ne
@@ -1694,12 +1694,12 @@ def dvg_bytes(dvg, load=0xE800):
 
 
 def double_fronts(assets, objs=False):
-    """Synthetische Geometrie mit zwei Frontflaechen je Zelle (P6 9.3 zufall / 9.5 Crawl): jede Front der Tiefen
-    d >= 1 bekommt eine Kopie (gleiches Bild ueber denselben Slot, Rechteck und Spaltenbereich um -1, +1 oder 0
-    Spalten verschoben). Die Kopie steht abwechselnd direkt hinter der Front oder hinter der Seite der Zelle
-    (DVG-Reihenfolge F, S, F': die INHALT-Reihenfolge 5.2a weicht davon ab). objs: zusaetzlich ein zweiter
-    Objektplatz je Zelle (Anker um 3 Spalten und 1 Zeile verschoben, direkt hinter dem ersten). Rueckgabe: Assets mit
-    neuer Dvg und angepassten Slotkarten der drei DTS (dvg_prg neu erzeugt)."""
+    """Synthetic geometry with two front faces per cell (P6 9.3 random / 9.5 Crawl): each front of depths
+    d >= 1 gets a copy (same image via the same slot, rectangle and column range shifted by -1, +1 or 0
+    columns). The copy alternately stands directly behind the front or behind the side of the cell
+    (DVG-Reihenfolge F, S, F': the CONTENT order 5.2a differs from it). objs: additionally a second
+    object slot per cell (anchor shifted by 3 columns and 1 row, directly behind the first). Returns: assets with
+    new Dvg and adjusted slot maps of the three DTS (dvg_prg regenerated)."""
     g = assets.dvg
     elems, src, depth = [], [], []
     k = 0
@@ -1722,7 +1722,7 @@ def double_fronts(assets, objs=False):
                     dup.x += sh
                     if dup.flags & DVG_COVER:
                         dup.c0, dup.c1 = e.c0 + sh, e.c1 + sh
-                    if k & 1:                       # hinter die Seite der Zelle
+                    if k & 1:                       # behind the side of the cell
                         sides = [i for i, x in enumerate(ce) if x.art == ART_SIDE]
                         dup._after = ce[sides[0]] if sides else e
                     else:
@@ -1736,7 +1736,7 @@ def double_fronts(assets, objs=False):
                     dup._after = e
                     k += 1
                     out.append(dup)
-            # Kopien hinter ihr Bezugselement umsortieren
+            # re-sort copies behind their reference element
             ordered = [x for x in out if not hasattr(x, "_after")]
             for x in [x for x in out if hasattr(x, "_after")]:
                 i = next(j for j, y in enumerate(ordered) if y is x._after)
@@ -1752,19 +1752,19 @@ def double_fronts(assets, objs=False):
                 elems.append(y)
         depth.append(DepthRow(dt.cy0, dt.cy1, dt.fy0, dt.fy1, first, len(elems) - first, dt.fw, dt.fx))
     if len(elems) > 255:
-        raise ViewError("double_fronts: mehr als 255 Elemente")
+        raise ViewError("double_fronts: more than 255 elements")
     g2 = Dvg(g.vw, g.vh, g.D, g.S, g.stride, g.origin, g.gid, g.hy0, g.hy1, depth, elems)
 
     def ts2(ts):
         t = copy.copy(ts)
-        t.__dict__.pop("_vofs", None)               # Cache der Vorlage (_vms_offsets) gilt fuer die neue Datei nicht
+        t.__dict__.pop("_vofs", None)               # cache of the template (_vms_offsets) does not apply to the new file
         t.slot_map = [ts.slot_map[i] for i in src] + list(ts.slot_map[len(g.elems):])
         t.ne = len(elems)
-        # DTS-Bytes: dbetex.to_dts zaehlt NS aus der Slotkarte (doppelte Slots wuerden mitgezaehlt), daher die
-        # Datei der Vorlage mit laengerer Slotkarte und verschobenen Offsets
+        # DTS-Bytes: dbetex.to_dts counts NS from the slot map (duplicate slots would be counted), hence the
+        # file of the template with longer slot map and shifted offsets
         c = bytearray(dbetex.to_dts(ts)[2:])
         delta = len(t.slot_map) - len(ts.slot_map)
-        o_slot, o_style, o_dir, o_kern, o_data, total = struct.unpack_from("<HHHHHH", c, 12)
+        o_slot, o_style, o_dir, o_core, o_data, total = struct.unpack_from("<HHHHHH", c, 12)
         ni = c[10]
         for i in range(ni):
             for off in (4, 10):
@@ -1772,11 +1772,11 @@ def double_fronts(assets, objs=False):
                 if v:
                     struct.pack_into("<H", c, o_dir + 16 * i + off, v + delta)
         c[6] = t.ne
-        struct.pack_into("<HHHHHH", c, 12, o_slot, o_style + delta, o_dir + delta, o_kern + delta, o_data + delta,
+        struct.pack_into("<HHHHHH", c, 12, o_slot, o_style + delta, o_dir + delta, o_core + delta, o_data + delta,
                          total + delta)
         t.dts_prg = struct.pack("<H", 0x8000) + bytes(c[:o_slot]) + bytes(t.slot_map) + bytes(c[o_style:])
         t2 = dbetex.from_dts(t.dts_prg, ts.vram)
-        assert t2.slot_map == t.slot_map and [e.kerns for e in t2.entries] == [e.kerns for e in ts.entries]
+        assert t2.slot_map == t.slot_map and [e.cores for e in t2.entries] == [e.cores for e in ts.entries]
         return t
     a2 = copy.copy(assets)
     a2.dvg, a2.walls, a2.floor, a2.ceil = g2, ts2(assets.walls), ts2(assets.floor), ts2(assets.ceil)
@@ -1804,41 +1804,41 @@ def make_scene(assets, dmp, pos=None, direction=None, objects=(), itemtab=None, 
     return layout_vram(sc, start)
 
 
-# ---------------------------------------------------------------- Zufallsszenen
+# ---------------------------------------------------------------- Random scenes
 
-def random_map(rnd, w, h, nt_styles=(4, 3, 3), name="zufall"):
-    """Zufallskarte mit Wand-, Gitter-, Tuer-, Abgrund- und Bodenkacheln (P6 9.3 zufall)."""
+def random_map(rnd, w, h, nt_styles=(4, 3, 3), name="random"):
+    """Random map with wall, grate, door, abyss and floor tiles (P6 9.3 random)."""
     nw, nf, nc = nt_styles
     T = dbemap.Tile
-    tiles = [T((0, 0, 0, 0), 1, 1, 0, 0, "gang")]
+    tiles = [T((0, 0, 0, 0), 1, 1, 0, 0, "corridor")]
     for i in range(rnd.randint(8, 14)):
-        kind = rnd.choice(["wand", "wand", "gitter", "tuer", "frei", "frei", "frei", "abgrund", "block"])
+        kind = rnd.choice(["wall", "wall", "grating", "door", "free", "free", "free", "abyss", "block"])
         if i < 2:
-            kind = ("wand", "gitter")[i]               # mindestens eine Wand- und eine Gitterkachel
-        floor = rnd.choice([0, 1, 1, 2, 3, nf + 1]) if kind not in ("wand", "block") else rnd.choice([0, 1])
+            kind = ("wall", "grating")[i]               # at least one wall and one grate tile
+        floor = rnd.choice([0, 1, 1, 2, 3, nf + 1]) if kind not in ("wall", "block") else rnd.choice([0, 1])
         ceil = rnd.choice([0, 1, 1, 2, 3, nc + 1])
-        if kind == "wand":
+        if kind == "wall":
             st = rnd.randint(1, nw)
             tiles.append(T((st,) * 4 if rnd.random() < 0.7 else tuple(rnd.randint(1, nw) for _ in range(4)),
-                           0, 0, T_WEG | T_DECKEND, 0))
-        elif kind == "block":              # deckend, aber nicht alle Flaechen -> Boden/Decke zaehlen
+                           0, 0, T_SOLID | T_OCCLUDING, 0))
+        elif kind == "block":              # opaque, but not all faces -> floor/ceiling count
             tiles.append(T((rnd.randint(1, nw), 0, rnd.randint(1, nw), rnd.randint(0, nw)), floor, ceil,
-                           T_WEG | T_DECKEND, 0))
-        elif kind in ("gitter", "tuer"):
+                           T_SOLID | T_OCCLUDING, 0))
+        elif kind in ("grating", "door"):
             st = rnd.randint(1, nw)
-            fl = (T_WEG if rnd.random() < 0.5 else 0) | (T_DECKEND if rnd.random() < 0.3 else 0)
-            fl |= T_INHALT if rnd.random() < 0.5 else 0
+            fl = (T_SOLID if rnd.random() < 0.5 else 0) | (T_OCCLUDING if rnd.random() < 0.3 else 0)
+            fl |= T_CONTENT if rnd.random() < 0.5 else 0
             tiles.append(T((st, rnd.randint(0, nw), st, rnd.randint(0, nw)), floor, ceil, fl, 0))
-        elif kind == "abgrund":
+        elif kind == "abyss":
             tiles.append(T((0, 0, 0, 0), 0, rnd.choice([0, 1]), 0, 0))
         else:
             tiles.append(T((0, 0, 0, 0), floor, ceil, 0, 0))
     nt = len(tiles)
-    # Raumstruktur: zusammenhaengende Zufallsflaechen
+    # Room structure: contiguous random areas
     walls = [i for i, t in enumerate(tiles) if any(t.walls)]
     opens = [i for i, t in enumerate(tiles) if not any(t.walls)]
     cells = [rnd.choice(walls) if rnd.random() < 0.35 else rnd.choice(opens) for _ in range(w * h)]
-    for _ in range(w * h // 3):                       # Gaenge
+    for _ in range(w * h // 3):                       # corridors
         x, y = rnd.randrange(w), rnd.randrange(h)
         dx, dy = rnd.choice([(1, 0), (0, 1)])
         t = rnd.choice(opens[:3] + opens)
@@ -1847,8 +1847,8 @@ def random_map(rnd, w, h, nt_styles=(4, 3, 3), name="zufall"):
                 cells[y * w + x] = t
             x, y = x + dx, y + dy
     content = [rnd.choice([0, 0, 0, 0, 0, 0, 0, 1, 2, 3]) for _ in range(w * h)]
-    start = next((i for i, c in enumerate(cells) if not tiles[c].flags & T_WEG), 0)
-    if tiles[cells[start]].flags & T_WEG:
+    start = next((i for i, c in enumerate(cells) if not tiles[c].flags & T_SOLID), 0)
+    if tiles[cells[start]].flags & T_SOLID:
         cells[start] = 0
     m = dbemap.Map(name, w, h, tiles, cells, content, [], start, rnd.randrange(4), rnd.randrange(nt))
     dbemap.validate(m)
@@ -1856,7 +1856,7 @@ def random_map(rnd, w, h, nt_styles=(4, 3, 3), name="zufall"):
 
 
 def random_objects(rnd, m, pos, v, n):
-    """n Objekte in Zellen vor der Kamera (und einige beliebige)."""
+    """n objects in cells in front of the camera (and some arbitrary ones)."""
     objs = []
     fx, fy = FORE[v]
     rx, ry = RIGHT[v]
@@ -1875,13 +1875,13 @@ def random_objects(rnd, m, pos, v, n):
 
 def random_scene(seed, assets, w=None, h=None, nobj=None, band_cover=None, dbg=None, ap=0, buf=DEFAULT_BUF,
                  start=None):
-    """Zufallsszene (Karte, Position, Richtung, Objekte, Gegenstaende, ITEMPH) aus den Demo-Assets."""
+    """Random scene (map, position, direction, objects, items, ITEMPH) from the demo assets."""
     rnd = random.Random(seed)
     w = w or rnd.randint(8, 24)
     h = h or rnd.randint(8, 24)
     nst = (len(assets.walls.styles), len(assets.floor.styles), len(assets.ceil.styles))
     m = random_map(rnd, w, h, nst)
-    free = [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & T_WEG]
+    free = [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & T_SOLID]
     pos = rnd.choice(free)
     v = rnd.randrange(4)
     nobj = rnd.randint(0, 16) if nobj is None else nobj
@@ -1894,37 +1894,37 @@ def random_scene(seed, assets, w=None, h=None, nobj=None, band_cover=None, dbg=N
                       band_cover=rnd.random() < 0.5 if band_cover is None else band_cover, buf=buf, start=start)
 
 
-def far_variant(sc, seed, farfill=None, p_fern=0.3):
-    """Fernsicht-Variante einer Szene (P6 5.7a): Fuellbyte (zufaellig, falls None) und in einem Teil der Kacheln das
-    Flag FERN umgeschaltet (Kopie der Karte)."""
+def far_variant(sc, seed, farfill=None, p_distant=0.3):
+    """Far-view variant of a scene (P6 5.7a): fill byte (random if None) and in some of the tiles the
+    flag DISTANT toggled (copy of the map)."""
     rnd = random.Random(seed ^ 0x5F5F)
     s2 = copy.copy(sc)
     s2.dmp = copy.deepcopy(sc.dmp)
     for t in s2.dmp.tiles:
-        if rnd.random() < p_fern:
-            t.flags ^= T_FERN
+        if rnd.random() < p_distant:
+            t.flags ^= T_DISTANT
     s2.farfill = rnd.choice([0x00, 0x11, 0xF0]) if farfill is None else farfill
     return s2
 
 
-# ---------------------------------------------------------------- Szenendatei
+# ---------------------------------------------------------------- Scene file
 
 def _dir(v):
     if isinstance(v, int):
         return v
-    return {"N": 0, "O": 1, "S": 2, "W": 3, "-": 0xFF}[v.upper()]
+    return {"N": 0, "E": 1, "S": 2, "W": 3, "-": 0xFF}[v.upper()]
 
 
 def load_scene(path):
-    """Szene aus TOML: [scene] dvg, map, pos, dir, ap, buf, itemph, bgfill, farfill (Fernsicht, P6 5.7a); [walls]/[floor]/[ceil] dts, vrl (+ base);
-    [background] dbg, vrl; [[sprites]] set, s2, vrl; [items] "<Nr>" = Satz; [[object]] at/cell, set, dir, phase, sub,
-    hidden, noblock. Pfade relativ zur Datei; fehlende Basen werden dicht nach dem Sichtfenster vergeben."""
+    """Scene from TOML: [scene] dvg, map, pos, dir, ap, buf, itemph, bgfill, farfill (far view, P6 5.7a); [walls]/[floor]/[ceil] dts, vrl (+ base);
+    [background] dbg, vrl; [[sprites]] set, s2, vrl; [items] "<no>" = set; [[object]] at/cell, set, dir, phase, sub,
+    hidden, noblock. Paths relative to the file; missing bases are assigned packed after the view window."""
     with open(path, "rb") as f:
         cfg = tomllib.load(f)
     base = os.path.dirname(os.path.abspath(path))
     P = lambda n: os.path.join(base, n)
     if cfg.get("format") != "dbeview" or cfg.get("version") != 1:
-        raise ViewError(f'{path}: format = "dbeview" und version = 1 erwartet')
+        raise ViewError(f'{path}: format = "dbeview" and version = 1 expected')
     s = cfg["scene"]
 
     def rd(n):
@@ -1975,7 +1975,7 @@ def load_scene(path):
 # ---------------------------------------------------------------- Budget
 
 def budget(scenes):
-    """Bericht ueber eine Liste von Szenen: groesste VCL + VMS, Eintraege, Szenen mit A != 0."""
+    """Report on a list of scenes: largest VCL + VMS, entries, scenes with A != 0."""
     rep = {"scenes": 0, "max_total": 0, "max_vcl": 0, "max_vms": 0, "max_entries": 0, "max_items": 0,
            "warnings": [], "codes": {}}
     for i, sc in enumerate(scenes):
@@ -1988,8 +1988,8 @@ def budget(scenes):
         rep["max_items"] = max(rep["max_items"], r.items)
         rep["codes"][r.a] = rep["codes"].get(r.a, 0) + 1
         if r.a:
-            rep["warnings"].append(f"Szene {i}: A = {r.a} ({'gekuerzt' if r.a == 2 else 'Raender weggelassen'}), "
-                                   f"VCL {r.vcllen} + VMS {r.vmslen} von {sc.buf[1] - sc.buf[0]}")
+            rep["warnings"].append(f"Scene {i}: A = {r.a} ({'truncated' if r.a == 2 else 'edges omitted'}), "
+                                   f"VCL {r.vcllen} + VMS {r.vmslen} of {sc.buf[1] - sc.buf[0]}")
     return rep
 
 
@@ -2000,7 +2000,7 @@ def _cmd_render(a):
     vram, res = render_view(sc, bytearray(65536) if a.clear else None)
     out = a.out or os.path.splitext(a.scene)[0] + ".png"
     window_image(sc, vram, a.zoom).save(out)
-    print(f"{out}: A = {res.a}, VCL {res.vcllen} + VMS {res.vmslen} Byte, {res.x} Eintraege, OBJVIS {res.objvis:#06x}")
+    print(f"{out}: A = {res.a}, VCL {res.vcllen} + VMS {res.vmslen} bytes, {res.x} entries, OBJVIS {res.objvis:#06x}")
     return 0
 
 
@@ -2016,10 +2016,10 @@ def _cmd_dump(a):
 
 def _cmd_budget(a):
     rep = budget([load_scene(p) for p in a.scene])
-    print(f"{rep['scenes']} Szenen: VCL max {rep['max_vcl']}, VMS max {rep['max_vms']}, zusammen max "
-          f"{rep['max_total']}, Eintraege max {rep['max_entries']}, Sichtliste max {rep['max_items']}")
+    print(f"{rep['scenes']} scenes: VCL max {rep['max_vcl']}, VMS max {rep['max_vms']}, total max "
+          f"{rep['max_total']}, entries max {rep['max_entries']}, visibility list max {rep['max_items']}")
     for w in rep["warnings"]:
-        print("Warnung:", w)
+        print("Warning:", w)
     return 0
 
 
@@ -2030,7 +2030,7 @@ def main(argv=None):
     r.add_argument("scene")
     r.add_argument("--out")
     r.add_argument("--zoom", type=int, default=4)
-    r.add_argument("--clear", action="store_true", help="VRAM mit 0 statt Zufall")
+    r.add_argument("--clear", action="store_true", help="VRAM with 0 instead of random")
     r.set_defaults(fn=_cmd_render)
     d = sub.add_parser("dump")
     d.add_argument("scene")
@@ -2045,7 +2045,7 @@ def main(argv=None):
     try:
         return a.fn(a)
     except (ViewError, dbetex.TexError, ValueError, OSError, KeyError) as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
 
 

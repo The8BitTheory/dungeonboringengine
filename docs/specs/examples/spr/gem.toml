@@ -7,8 +7,8 @@ geom      = "../tex/west140.geom.json"
 out       = "build"
 angles    = 1
 phases    = 2
-max_kerns = 2
-kern_min  = 8
+max_cores = 2
+core_min  = 8
 
 [source]
 png = "gem.png"

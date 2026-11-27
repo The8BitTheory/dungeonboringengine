@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""sim65-Gerüst für die Lib (docs/specs/P6-engine.md 9.2).
+"""sim65 scaffold for the lib (docs/specs/P6-engine.md 9.2).
 
-Aufruf:  run_sim.py            baut den Harness und führt die Tests der Teilschritte aus (P6a, P6c, P6d, P6e; P6d und P6e
-                               zweimal: Standardbuild (unbeschnittene VMS-Listen als Typ 9) und Build-Schalter VMS_COPY)
-         Umgebung: DBEVIEW_FULL=1 voller Zufallssatz (200 x 20), DBE_NOCYCLES=1 ohne Zyklenmessung
-         run_sim.py --build    nur bauen
+Usage:   run_sim.py            builds the harness and runs the tests of the substeps (P6a, P6c, P6d, P6e; P6d and P6e
+                               twice: standard build (untrimmed VMS lists as type 9) and build switch VMS_COPY)
+         Environment: DBEVIEW_FULL=1 full random set (200 x 20), DBE_NOCYCLES=1 without cycle measurement
+         run_sim.py --build    build only
 
-Bausteine für die späteren Teilschritte:
-  Scene            Szene aufbauen (Segmente, Aufrufe, Auslesen) und als Szenendatei schreiben
+Building blocks for the later substeps:
+  Scene            build a scene (segments, calls, readbacks) and write it as a scene file
   build()          cl65: viewsim.c + glue.s + engine/lib.s (--asm-define SIM) -> build/sim/viewsim.prg + Labels
-  run(scene)       sim65 ausführen, Ergebnisdatei lesen -> Run (calls, dumps, cycles)
-  decode_vcl(buf)  VCL-Liste in Einträge zerlegen; first_diff(a, b) -> Text der ersten abweichenden Stelle
-Format der Szenen- und Ergebnisdatei: Kopf von viewsim.c.
+  run(scene)       run sim65, read the result file -> Run (calls, dumps, cycles)
+  decode_vcl(buf)  split a VCL list into entries; first_diff(a, b) -> text of the first differing position
+Format of the scene and result file: header of viewsim.c.
 """
 import os, re, struct, subprocess, sys, tempfile
 from collections import namedtuple
@@ -21,11 +21,11 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, 'build', 'sim')
 PRG = os.path.join(OUT, 'viewsim.prg')
 LBL = os.path.join(OUT, 'viewsim.lbl')
-PRGC = os.path.join(OUT, 'viewsimc.prg')         # Build-Schalter VMS_COPY (unbeschnittene VMS-Listen in den Puffer)
-PRGM = os.path.join(OUT, 'viewsimm.prg')         # nur Test: MAXITEM = 8 (Abbruch über die Eintragszahl)
+PRGC = os.path.join(OUT, 'viewsimc.prg')         # build switch VMS_COPY (untrimmed VMS lists into the buffer)
+PRGM = os.path.join(OUT, 'viewsimm.prg')         # test only: MAXITEM = 8 (abort via the entry count)
 
-Call = namedtuple('Call', 'f a x y p pb buf')      # p: 4 Wörter, pb: 10 Byte $0C08-$0C11
-# items in Reihenfolge der Szene: Call oder (addr, bytes) für Auslesen
+Call = namedtuple('Call', 'f a x y p pb buf')      # p: 4 words, pb: 10 bytes $0C08-$0C11
+# items in scene order: Call or (addr, bytes) for readbacks
 Run = namedtuple('Run', 'items cycles')
 
 
@@ -59,14 +59,14 @@ def build():
         subprocess.run(['cl65', '-t', 'sim6502', '-g', '-C', os.path.join(HERE, cfg), '-O', '--asm-define', 'SIM']
                        + defs + ['--asm-include-dir', os.path.join(ROOT, 'engine'), '-Ln', lbl,
                                  '-m', os.path.splitext(prg)[0] + '.map', '-o', prg] + src, check=True, cwd=OUT)
-    for s in src:                       # ältere cl65-Versionen lassen Objekte neben den Quellen liegen
+    for s in src:                       # older cl65 versions leave object files next to the sources
         o = os.path.splitext(s)[0] + '.o'
         if os.path.exists(o):
             os.remove(o)
 
 
 def labels():
-    """ld65 -Ln: 'al 00E000 .name' -> {name: adresse}"""
+    """ld65 -Ln: 'al 00E000 .name' -> {name: address}"""
     d = {}
     for line in open(LBL):
         m = re.match(r'al ([0-9A-Fa-f]+) \.(\S+)', line)
@@ -79,7 +79,7 @@ def run(scene, prg=PRG):
     with tempfile.TemporaryDirectory() as td:
         sc, rs = os.path.join(td, 'scene'), os.path.join(td, 'result')
         open(sc, 'wb').write(scene.encode())
-        r = subprocess.run(['sim65', '-c', prg, sc, rs], capture_output=True, text=True, timeout=300)   # Wächter gegen Hänger
+        r = subprocess.run(['sim65', '-c', prg, sc, rs], capture_output=True, text=True, timeout=300)   # guard against hangs
         if r.returncode:
             raise RuntimeError(f'sim65 Exitcode {r.returncode}: {r.stdout}{r.stderr}')
         cyc = int(re.search(r'(\d+) cycles', r.stdout + r.stderr).group(1))
@@ -100,15 +100,15 @@ def run(scene, prg=PRG):
             items.append((addr, d[i + 5:i + 5 + n]))
             i += 5 + n
         else:
-            raise RuntimeError(f'Ergebnisdatei: Satz {t} bei {i}')
+            raise RuntimeError(f'result file: record {t} at {i}')
     return Run(items, cyc)
 
 
-VCL_LEN = {0: 1, 2: 11, 3: 13, 4: 7, 5: 11, 9: 7, 12: 7}      # P6 Abschnitt 6
+VCL_LEN = {0: 1, 2: 11, 3: 13, 4: 7, 5: 11, 9: 7, 12: 7}      # P6 section 6
 
 
 def decode_vcl(buf):
-    """-> Liste (Offset, Typ, Bytes); bricht bei unbekanntem Typ mit einem Eintrag ('?') ab."""
+    """-> list (offset, type, bytes); stops at an unknown type with one entry ('?')."""
     out, i = [], 0
     while i < len(buf):
         t = buf[i]
@@ -129,8 +129,8 @@ def first_diff(a, b):
         x = ea[k] if k < len(ea) else None
         y = eb[k] if k < len(eb) else None
         if x != y:
-            return f'Eintrag {k}: sim {x and (x[1], x[2].hex())} <> Referenz {y and (y[1], y[2].hex())}'
-    return None if a == b else 'VCL gleich, VMS-Bytes unterscheiden sich'
+            return f'entry {k}: sim {x and (x[1], x[2].hex())} <> reference {y and (y[1], y[2].hex())}'
+    return None if a == b else 'VCL equal, VMS bytes differ'
 
 
 # ------------------------------------------------------------------ P6a: INIT, BUFSET, POOLSET, Dispatcher
@@ -149,69 +149,69 @@ def test_p6a():
 
     n = bss_end - bss
     s = Scene()
-    s.seg(bss, bytes([0xAA]) * n).seg(0x0C08, bytes([0x55]) * 10)         # 0: schmutziger Zustand
+    s.seg(bss, bytes([0xAA]) * n).seg(0x0C08, bytes([0x55]) * 10)         # 0: dirty state
     s.call(0, objn=5)                                                       # INIT
     s.dump(bss, n).dump(0x0C08, 10).dump(0x0C50, 1)
-    s.call(17).call(18).call(255).call(7).call(8).call(4).call(3)           # nicht umgesetzt
-    s.call(15, p=(0x1300, 0x1C00, 0, 0)).dump(bss, n)                       # BUFSET ok, Standard
-    s.call(15, p=(0x1300, 0x1340, 0, 0)).dump(bss, n)                       # genau 64 Byte ok
-    s.call(15, p=(0x1400, 0x143F, 0, 0)).dump(bss, n)                       # 63 Byte: 6, unverändert
-    s.call(15, p=(0x12FF, 0x1800, 0, 0)).dump(bss, n)                       # Anfang < $1300 (Fenster)
-    s.call(15, p=(0x1400, 0x1C01, 0, 0)).dump(bss, n)                       # Ende > $1C00
-    s.call(15, p=(0x1600, 0x1400, 0, 0)).dump(bss, n)                       # Ende < Anfang
-    s.call(15, p=(0x1400, 0x1400, 0, 0)).dump(bss, n)                       # Länge 0
-    s.call(15, p=(0x0200, 0x0240, 0, 0)).dump(bss, n)                       # $0200: 6 (Kernal-Vektoren)
-    s.call(15, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                       # ok, 256 Byte am Ende
-    s.call(15, 1, p=(0x1300, 0x1C00, 0, 0)).dump(bss, n)                    # P6j: X Bit 0 = feste Listenadresse
-    s.call(15, 3, p=(0x1400, 0x1C01, 0, 0)).dump(bss, n)                    # Fehler: Modus bleibt
-    s.call(15, 2, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                    # X Bit 0 = 0: aus (Bit 1 egal)
-    s.call(11, p=(0, 0, 0, 0)).dump(bss, n)                                 # POOLSET aus
+    s.call(17).call(18).call(255).call(7).call(8).call(4).call(3)           # not implemented
+    s.call(15, p=(0x1300, 0x1C00, 0, 0)).dump(bss, n)                       # BUFSET ok, default
+    s.call(15, p=(0x1300, 0x1340, 0, 0)).dump(bss, n)                       # exactly 64 bytes ok
+    s.call(15, p=(0x1400, 0x143F, 0, 0)).dump(bss, n)                       # 63 bytes: 6, unchanged
+    s.call(15, p=(0x12FF, 0x1800, 0, 0)).dump(bss, n)                       # start < $1300 (window)
+    s.call(15, p=(0x1400, 0x1C01, 0, 0)).dump(bss, n)                       # end > $1C00
+    s.call(15, p=(0x1600, 0x1400, 0, 0)).dump(bss, n)                       # end < start
+    s.call(15, p=(0x1400, 0x1400, 0, 0)).dump(bss, n)                       # length 0
+    s.call(15, p=(0x0200, 0x0240, 0, 0)).dump(bss, n)                       # $0200: 6 (Kernal vectors)
+    s.call(15, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                       # ok, 256 bytes at the end
+    s.call(15, 1, p=(0x1300, 0x1C00, 0, 0)).dump(bss, n)                    # P6j: X bit 0 = fixed list address
+    s.call(15, 3, p=(0x1400, 0x1C01, 0, 0)).dump(bss, n)                    # error: mode is kept
+    s.call(15, 2, p=(0x1B00, 0x1C00, 0, 0)).dump(bss, n)                    # X bit 0 = 0: off (bit 1 irrelevant)
+    s.call(11, p=(0, 0, 0, 0)).dump(bss, n)                                 # POOLSET off
     s.call(11, p=(0x7000, 0x9000, 0, 0)).dump(bss, n)
-    s.call(11, p=(0x9000, 0x7000, 0, 0)).dump(bss, n)                       # 6, unverändert
-    s.call(11, p=(0x7000, 0x7000, 0, 0)).dump(bss, n)                       # leer: 6
-    s.call(11, p=(0x7000, 0, 0, 0)).dump(bss, n)                            # bis 65536
-    s.call(11, p=(0, 0x100, 0, 0)).dump(bss, n)                             # ab 0
-    s.call(11, p=(0, 0, 0, 0)).dump(bss, n)                                 # wieder aus
-    s.call(0).dump(bss, n)                                                  # INIT setzt alles zurück
+    s.call(11, p=(0x9000, 0x7000, 0, 0)).dump(bss, n)                       # 6, unchanged
+    s.call(11, p=(0x7000, 0x7000, 0, 0)).dump(bss, n)                       # empty: 6
+    s.call(11, p=(0x7000, 0, 0, 0)).dump(bss, n)                            # up to 65536
+    s.call(11, p=(0, 0x100, 0, 0)).dump(bss, n)                             # from 0
+    s.call(11, p=(0, 0, 0, 0)).dump(bss, n)                                 # off again
+    s.call(0).dump(bss, n)                                                  # INIT resets everything
     r = run(s)
     it = iter(r.items)
     nxt = lambda: next(it)
 
     c = nxt(); d = nxt()[1]; pb = nxt()[1]; objn = nxt()[1]
     check('INIT A/X/Y', (c.a, c.x, c.y) == (0, 3, 0), str((c.a, c.x, c.y)))
-    check('INIT P0 = Codeende', c.p[0] == code_end, f'{c.p[0]:04x} <> {code_end:04x}')
-    check('INIT P1 = BSS-Ende', c.p[1] == bss_end, f'{c.p[1]:04x} <> {bss_end:04x}')
-    check('INIT Puffer', (var(d, 'buf_b0'), var(d, 'buf_b1')) == (0x1300, 0x1C00))
-    check('INIT Pool aus', var(d, 'pool_on', 1) == 0 and var(d, 'pool_a') == 0 and var(d, 'pool_b') == 0)
+    check('INIT P0 = code end', c.p[0] == code_end, f'{c.p[0]:04x} <> {code_end:04x}')
+    check('INIT P1 = BSS end', c.p[1] == bss_end, f'{c.p[1]:04x} <> {bss_end:04x}')
+    check('INIT buffer', (var(d, 'buf_b0'), var(d, 'buf_b1')) == (0x1300, 0x1C00))
+    check('INIT pool off', var(d, 'pool_on', 1) == 0 and var(d, 'pool_a') == 0 and var(d, 'pool_b') == 0)
     o0 = L['buf_b0'] - bss
-    check('INIT löscht alle Variablen außer dem Puffer', all(v == 0 for i, v in enumerate(d) if not o0 <= i < o0 + 4))
-    check('INIT Parameterblock $0C08-$0C11', pb == bytes([0, 0, 0, 0x13]) + bytes(6), pb.hex())   # nur VCLADR = $1300
+    check('INIT clears all variables except the buffer', all(v == 0 for i, v in enumerate(d) if not o0 <= i < o0 + 4))
+    check('INIT parameter block $0C08-$0C11', pb == bytes([0, 0, 0, 0x13]) + bytes(6), pb.hex())   # only VCLADR = $1300
     check('INIT OBJN = 0', objn == b'\0')
     for f in (17, 18, 255, 7, 8, 4, 3):
         c = nxt()
-        want = (5, 0, 0) if f in (3, 4) else (255, 0, 0)     # VIEW/MOVE ohne GEOMSET/MAPINIT: E_STATE (MOVE seit P6f)
+        want = (5, 0, 0) if f in (3, 4) else (255, 0, 0)     # VIEW/MOVE without GEOMSET/MAPINIT: E_STATE (MOVE since P6f)
         check(f'F={f} {"E_STATE" if f in (3, 4) else "E_NOTIMPL"}', (c.a, c.x, c.y) == want, str((c.a, c.x, c.y)))
 
     def bufcase(name, want_a, want_buf):
         c = nxt(); d = nxt()[1]
         check(f'BUFSET {name} A', c.a == want_a, f'{c.a} <> {want_a}')
         got = (var(d, 'buf_b0'), var(d, 'buf_b1'))
-        check(f'BUFSET {name} Puffer', got == want_buf, f'{got[0]:04x},{got[1]:04x} <> ' + str(want_buf))
+        check(f'BUFSET {name} buffer', got == want_buf, f'{got[0]:04x},{got[1]:04x} <> ' + str(want_buf))
         return want_buf if want_a == 0 else None
 
     cur = (0x1300, 0x1C00)
-    for name, a, newbuf in (('Standard', 0, (0x1300, 0x1C00)), ('64 Byte', 0, (0x1300, 0x1340)),
-                            ('63 Byte', 6, None), ('Anfang < $1300', 6, None), ('Ende > $1C00', 6, None),
-                            ('Ende < Anfang', 6, None), ('Länge 0', 6, None), ('$0200', 6, None),
-                            ('256 Byte am Ende', 0, (0x1B00, 0x1C00))):
+    for name, a, newbuf in (('Default', 0, (0x1300, 0x1C00)), ('64 bytes', 0, (0x1300, 0x1340)),
+                            ('63 bytes', 6, None), ('Start < $1300', 6, None), ('End > $1C00', 6, None),
+                            ('End < start', 6, None), ('Length 0', 6, None), ('$0200', 6, None),
+                            ('256 bytes at the end', 0, (0x1B00, 0x1C00))):
         want = newbuf or cur
         bufcase(name, a, want)
         cur = want
-    for name, a, want, fix in (('X = 1', 0, (0x1300, 0x1C00), 0x80), ('X = 3, Fehler', 6, (0x1300, 0x1C00), 0x80),
+    for name, a, want, fix in (('X = 1', 0, (0x1300, 0x1C00), 0x80), ('X = 3, error', 6, (0x1300, 0x1C00), 0x80),
                                ('X = 2', 0, (0x1B00, 0x1C00), 0)):
         c = nxt(); d = nxt()[1]
         check(f'BUFSET {name} A', c.a == a, f'{c.a} <> {a}')
-        check(f'BUFSET {name} Puffer', (var(d, 'buf_b0'), var(d, 'buf_b1')) == want)
+        check(f'BUFSET {name} buffer', (var(d, 'buf_b0'), var(d, 'buf_b1')) == want)
         check(f'BUFSET {name} buf_fix', var(d, 'buf_fix', 1) & 0x80 == fix, f'{var(d, "buf_fix", 1):02x}')
         cur = want
 
@@ -219,41 +219,41 @@ def test_p6a():
         c = nxt(); d = nxt()[1]
         got = (var(d, 'pool_on', 1), var(d, 'pool_a'), var(d, 'pool_b'))
         check(f'POOLSET {name} A', c.a == want_a, f'{c.a} <> {want_a}')
-        check(f'POOLSET {name} Zustand', got == want, str(got) + ' <> ' + str(want))
-        check(f'POOLSET {name} Puffer unverändert', (var(d, 'buf_b0'), var(d, 'buf_b1')) == cur)
+        check(f'POOLSET {name} state', got == want, str(got) + ' <> ' + str(want))
+        check(f'POOLSET {name} buffer unchanged', (var(d, 'buf_b0'), var(d, 'buf_b1')) == cur)
         return want if want_a == 0 else None
 
     pool = (0, 0, 0)
-    for name, a, want in (('aus', 0, (0, 0, 0)), ('$7000-$9000', 0, (1, 0x7000, 0x9000)),
-                          ('Ende < Anfang', 6, None), ('leer', 6, None), ('bis 65536', 0, (1, 0x7000, 0)),
-                          ('ab 0', 0, (1, 0, 0x100)), ('wieder aus', 0, None)):
+    for name, a, want in (('off', 0, (0, 0, 0)), ('$7000-$9000', 0, (1, 0x7000, 0x9000)),
+                          ('End < start', 6, None), ('empty', 6, None), ('up to 65536', 0, (1, 0x7000, 0)),
+                          ('from 0', 0, (1, 0, 0x100)), ('off again', 0, None)):
         w = want or pool
-        if name == 'wieder aus':
-            w = (0, pool[1], pool[2])           # pool_on = 0, Grenzen bleiben stehen (ohne Bedeutung)
+        if name == 'off again':
+            w = (0, pool[1], pool[2])           # pool_on = 0, limits are left untouched (irrelevant)
             c = nxt(); d = nxt()[1]
-            check('POOLSET wieder aus', c.a == 0 and var(d, 'pool_on', 1) == 0)
+            check('POOLSET off again', c.a == 0 and var(d, 'pool_on', 1) == 0)
             continue
         poolcase(name, a, w)
         pool = w
     c = nxt(); d = nxt()[1]
-    check('INIT erneut A/X', (c.a, c.x) == (0, 3))
-    check('INIT erneut: Variablen gelöscht und Standard', (var(d, 'buf_b0'), var(d, 'buf_b1'), var(d, 'pool_on', 1),
+    check('INIT again A/X', (c.a, c.x) == (0, 3))
+    check('INIT again: variables cleared and default', (var(d, 'buf_b0'), var(d, 'buf_b1'), var(d, 'pool_on', 1),
                                                            var(d, 'pool_a'), var(d, 'pool_b')) == (0x1300, 0x1C00, 0, 0, 0))
     for f in fails:
         print('FAIL', f)
-    print(f'P6a sim: {"ok" if not fails else str(len(fails)) + " Fehler"}  (Zyklen gesamt {r.cycles})')
+    print(f'P6a sim: {"ok" if not fails else str(len(fails)) + " errors"}  (total cycles {r.cycles})')
     return not fails
 
 
-# ------------------------------------------------------------------ P6c: Karte und Assets
+# ------------------------------------------------------------------ P6c: map and assets
 TOOLS = os.path.join(ROOT, 'tools')
 DEMO_MAP = os.path.join(ROOT, 'docs', 'specs', 'examples', 'demo.toml')
-HDR = 0x1400            # Platz für Kopf-Kopien mit gezielten Fehlern (gemeinsames RAM)
-HDR2 = 0xA700           # Kopf-Kopien, die gültig sein müssen (S2 und DTS ab $4000 wegen VCL-Typ 9; frei in P6c)
+HDR = 0x1400            # space for header copies with deliberate errors (shared RAM)
+HDR2 = 0xA700           # header copies that must be valid (S2 and DTS from $4000 because of VCL type 9; free in P6c)
 
 
 class Bss:
-    """BSS-Abzug der Lib, Zugriff über die Labels."""
+    """BSS dump of the lib, access via the labels."""
     def __init__(self, d, L):
         self.d, self.L, self.o = d, L, L['bss_start']
 
@@ -273,7 +273,7 @@ class Bss:
 
 
 class Seq:
-    """Folge von Aufrufen mit je einem BSS-Abzug; Prüfungen laufen nach dem sim65-Lauf."""
+    """Sequence of calls, each with a BSS dump; checks run after the sim65 run."""
     def __init__(self, L):
         self.L = L
         self.n = L['bss_end'] - L['bss_start']
@@ -285,7 +285,7 @@ class Seq:
         self.scene.seg(addr, data)
 
     def stable(self, d):
-        """BSS ohne argx/argy und Zwischenwerte (t0 ... val)"""
+        """BSS without argx/argy and intermediate values (t0 ... val)"""
         d = bytearray(d)
         o = self.L['bss_start']
         x = self.L['argx'] - o
@@ -296,8 +296,8 @@ class Seq:
 
     def call(self, name, f, x=0, y=0, p=(0, 0, 0, 0), pre=(), a=0, rx=None, ry=None, rp=None, check=None,
              same=False, objn=0, dump=()):
-        """a/rx/ry: erwartete Rückgabe (rx, ry None = nicht prüfen); rp: erwartete P0..P3 (None = nicht prüfen);
-        same: BSS unverändert gegenüber dem vorigen Schritt; check(bss): weitere Prüfung (Liste von Fehlertexten)."""
+        """a/rx/ry: expected return value (rx, ry None = do not check); rp: expected P0..P3 (None = do not check);
+        same: BSS unchanged compared with the previous step; check(bss): further check (list of error texts)."""
         for addr, data in pre:
             self.scene.seg(addr, data)
         self.scene.call(f, x, y, p, objn=objn)
@@ -327,7 +327,7 @@ class Seq:
                 self.fails.append(f'{name}: P = {[hex(v) for v in c.p]}, erwartet {[hex(v) for v in rp]}')
             if same and prev is not None and self.stable(d) != self.stable(prev):
                 diff = [i for i in range(len(d)) if self.stable(d)[i] != self.stable(prev)[i]][:6]
-                self.fails.append(f'{name}: BSS verändert (Offsets {diff})')
+                self.fails.append(f'{name}: BSS changed (offsets {diff})')
             if check:
                 for msg in check(bss) or ():
                     self.fails.append(f'{name}: {msg}')
@@ -336,7 +336,7 @@ class Seq:
 
 
 def patched(data, *edits, n=40):
-    """Kopf-Kopie (n Byte) mit Änderungen (offset, wert[, länge]); wert > 255 -> Wort"""
+    """Header copy (n bytes) with changes (offset, value[, length]); value > 255 -> word"""
     h = bytearray(data[:n])
     for e in edits:
         off, val = e[0], e[1]
@@ -346,8 +346,8 @@ def patched(data, *edits, n=40):
 
 
 def test_geomcheck():
-    """GEOMSET prüft die Elementtabelle (P6d-opt, Abschnitt 7): Fehlerfälle A = 1 und keine gültige Geometrie
-    (geom_ok = 0), Grenzfälle A = 0; dbeview.parse_dvg wirft in denselben Fällen ViewError."""
+    """GEOMSET checks the element table (P6d-opt, section 7): error cases A = 1 and no valid geometry
+    (geom_ok = 0), boundary cases A = 0; dbeview.parse_dvg raises ViewError in the same cases."""
     sys.path.insert(0, TOOLS)
     import copy
     import dbeview
@@ -356,7 +356,7 @@ def test_geomcheck():
     A = dbeview.build_demo_assets(tmp.name)
     base = bytes(dbeview.dvg_bytes(A.dvg)[2:])
     A2 = dbeview.double_fronts(A)
-    base2 = bytes(dbeview.dvg_bytes(dbeview.without_band_cover(A2.dvg))[2:])        # Tiefe 3: genau 16 deckende Seiten/Fronten ohne Bit 3
+    base2 = bytes(dbeview.dvg_bytes(dbeview.without_band_cover(A2.dvg))[2:])        # depth 3: exactly 16 occluding sides/fronts without bit 3
 
     def el(data, i, off, val):
         d = bytearray(data)
@@ -364,7 +364,7 @@ def test_geomcheck():
         d[o] = val & 255
         return bytes(d)
 
-    def depth3_ceil(data):                              # ein Deckenelement der Tiefe 3 als deckende Seite
+    def depth3_ceil(data):                              # a ceiling element of depth 3 as an occluding side
         d = bytearray(data)
         o_e, ne = 24 + 8 * (d[5] + 1), d[7]
         f3, n3 = d[24 + 8 * 3 + 4], d[24 + 8 * 3 + 5]
@@ -375,7 +375,7 @@ def test_geomcheck():
                 d[o_e + 16 * i + 12] = d[o_e + 16 * i + 13] = 0
                 return bytes(d)
         raise AssertionError
-    # synthetische Geometrien über dbeview.Dvg (Zellen je Tiefe neu zusammensetzen, first/n neu berechnen)
+    # synthetic geometries via dbeview.Dvg (reassemble cells per depth, recompute first/n)
     def rebuild(fn, S=None):
         g = copy.deepcopy(A.dvg)
         cells = [dbeview._Ctx.cells_of(type('C', (), {'g': g})(), d) for d in range(g.D + 1)]
@@ -395,16 +395,16 @@ def test_geomcheck():
         return bytes(dbeview.dvg_bytes(g)[2:])
     proto_obj = next(e for e in A.dvg.elems if e.art == 4)
     proto_side = copy.copy(next(e for e in A.dvg.elems if e.art == 1))
-    proto_side.flags = 0                                # nicht deckend: kein Wartebereich
+    proto_side.flags = 0                                # not occluding: no waiting area
     proto_ceil = next(e for e in A.dvg.elems if e.art == 3)
 
-    def pad_cell(n):                                    # Zelle (1, -1) mit Objektplätzen auf n Elemente auffüllen
+    def pad_cell(n):                                    # pad cell (1, -1) with object slots up to n elements
         def fn(g, cells):
             es = next(es for s_, es in cells[1] if s_ == -1)
             es += [copy.copy(proto_obj) for _ in range(n - len(es))]
         return fn
 
-    def more_cells(ncell, nwall):                       # neue Zellen (S = 15) mit Objektplatz und Wänden
+    def more_cells(ncell, nwall):                       # new cells (S = 15) with object slot and walls
         def fn(g, cells):
             have = sum(len(c) for c in cells)
             walls = sum(1 for c in cells for _, es in c for e in es if e.art < 2)
@@ -427,17 +427,17 @@ def test_geomcheck():
         es.append(copy.copy(proto_ceil))
     nd = base[5]
     cases = [
-        ('16 Elemente in einer Zelle', rebuild(pad_cell(16)), 0),
-        ('17 Elemente in einer Zelle', rebuild(pad_cell(17)), 1),
-        ('48 Zellen', rebuild(more_cells(48, 0), S=15), 0),
-        ('49 Zellen', rebuild(more_cells(49, 0), S=15), 1),
-        ('96 Wände', rebuild(more_cells(30, 96), S=15), 0),
-        ('97 Wände', rebuild(more_cells(30, 97), S=15), 1),
-        ('zwei Deckenelemente', rebuild(two_ceils), 1),
-        ('demo', base, 0), ('zwei Fronten (16 wartend)', base2, 0),
-        ('17 wartende in Tiefe 3', depth3_ceil(base2), 1),
-        ('Zelle nicht zusammenhängend', el(base, 12, 2, 1), 1),
-        ('zwei Bodenelemente', el(base, 13, 0, 2), 1),
+        ('16 elements in one cell', rebuild(pad_cell(16)), 0),
+        ('17 elements in one cell', rebuild(pad_cell(17)), 1),
+        ('48 cells', rebuild(more_cells(48, 0), S=15), 0),
+        ('49 cells', rebuild(more_cells(49, 0), S=15), 1),
+        ('96 walls', rebuild(more_cells(30, 96), S=15), 0),
+        ('97 walls', rebuild(more_cells(30, 97), S=15), 1),
+        ('two ceiling elements', rebuild(two_ceils), 1),
+        ('demo', base, 0), ('two fronts (16 waiting)', base2, 0),
+        ('17 waiting at depth 3', depth3_ceil(base2), 1),
+        ('cell not contiguous', el(base, 12, 2, 1), 1),
+        ('two floor elements', el(base, 13, 0, 2), 1),
         ('x + w > VW', el(base, 11, 4, 30), 1),
         ('c1 > VW', el(base, 11, 13, 71), 1),
         ('c0 > c1', el(base, 11, 12, 61), 1),
@@ -462,22 +462,22 @@ def test_geomcheck():
         if py != a:
             fails.append(f'parse_dvg {name}: ViewError {bool(py)}, erwartet {bool(a)}')
         if not a:
-            S.call(f'GEOMSET {name} zurück', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
-    # VIEW nach fehlgeschlagenem GEOMSET: A = 5 (keine gültige Geometrie), nach gültigem wieder 0
+            S.call(f'GEOMSET {name} back', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    # VIEW after failed GEOMSET: A = 5 (no valid geometry), 0 again after a valid one
     import dbemap
     dmp = dbemap.to_dmp(dbemap.load_toml(DEMO_MAP))[2:]
     S.call('GEOMSET demo', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
     S.call('MAPINIT', 1, p=(0x5000, 0, 0, 0), pre=[(0x5000, dmp)], a=0)
-    S.call('VIEW gültig', 4, p=(0, 0, 0, 0), a=0)
-    S.call('GEOMSET 17 Elemente', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, rebuild(pad_cell(17)))], a=1)
-    S.call('VIEW nach fehlgeschlagenem GEOMSET', 4, p=(0, 0, 0, 0), a=5)
-    S.call('GEOMSET demo erneut', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
-    S.call('VIEW wieder gültig', 4, p=(0, 0, 0, 0), a=0)
+    S.call('VIEW valid', 4, p=(0, 0, 0, 0), a=0)
+    S.call('GEOMSET 17 elements', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, rebuild(pad_cell(17)))], a=1)
+    S.call('VIEW after failed GEOMSET', 4, p=(0, 0, 0, 0), a=5)
+    S.call('GEOMSET demo again', 12, p=(0xE800, 0xFFFF, 0, 0), pre=[(0xE800, base)], a=0)
+    S.call('VIEW valid again', 4, p=(0, 0, 0, 0), a=0)
     S.run()
     fails += S.fails
     for f in fails:
         print('FAIL', f)
-    print(f'GEOMSET-Prüfungen: {len(cases)} Fälle + VIEW nach Fehler, {len(fails)} Fehler')
+    print(f'GEOMSET checks: {len(cases)} cases + VIEW after error, {len(fails)} errors')
     return not fails
 
 
@@ -491,12 +491,12 @@ def test_p6c():
     tmp = tempfile.TemporaryDirectory()
     A = dbeview.build_demo_assets(tmp.name)
 
-    # ---- Daten an ihren Bank-1-Adressen (2.4)
-    # sim65: Lib-Code an $B000 wie auf dem C128; die Demo-DTS sind größer als die Bereiche der Karte 2.4 (sim.cfg):
-    # DVG $E800, Decke ab $EE00 (3,2 KB statt 1,25 KB, endet vor DBG), DBG $FB80 (Standard); alles unter $FC00 (Runtime)
+    # ---- Data at their bank 1 addresses (2.4)
+    # sim65: lib code at $B000 as on the C128; the demo DTS are larger than the areas of map 2.4 (sim.cfg):
+    # DVG $E800, ceiling from $EE00 (3.2 KB instead of 1.25 KB, ends before DBG), DBG $FB80 (default); everything below $FC00 (runtime)
     ADDR = {'dmp': 0x5000, 'dvg': 0xE800, 'wall': 0x6000, 'floor': 0x8300, 'ceil': 0xEE00, 'dbg': 0xFB80,
             'bigmap': 0x2E00}
-    S2A = [0x4000, 0x5040, 0x5340, 0x5840]  # Typ 9: S2 ab $4000 (SPRITESET prüft); die DMP lädt nur Szene B ($5000)
+    S2A = [0x4000, 0x5040, 0x5340, 0x5840]  # type 9: S2 from $4000 (SPRITESET checks); the DMP loads scene B only ($5000)
     dvg = A.dvg_prg[2:]
     dts = [dbetex.to_dts(t)[2:] for t in (A.walls, A.floor, A.ceil)]
     dtsa = [ADDR['wall'], ADDR['floor'], ADDR['ceil']]
@@ -504,7 +504,7 @@ def test_p6c():
     dbg = dbg_prg[2:]
     s2 = [dbespr.to_s2(x)[2:] for x in A.sprites[:4]]
     gid_dvg = u16(dvg, 12)
-    for k in (0, 2):                                        # Sätze 0 und 2 mit Geometrie-ID, 1 und 3 mit ID 0
+    for k in (0, 2):                                        # records 0 and 2 with geometry ID, 1 and 3 with ID 0
         s2[k] = patched(s2[k], (4, gid_dvg), n=len(s2[k]))
     m = dbemap.load_toml(DEMO_MAP)
     dmp = dbemap.to_dmp(m)[2:]
@@ -519,32 +519,32 @@ def test_p6c():
         for k in range(4):
             s.seg(S2A[k], s2[k])
 
-    # ================================================================ Szene A: Geometrie und Assets
+    # ================================================================ scene A: geometry and assets
     S = Seq(L)
     base(S.scene)
     GD, TD, DB = ADDR['dvg'], dtsa, ADDR['dbg']
-    VR = [0x0000, 0x4000, 0x8000]       # VRAM-Basen
+    VR = [0x0000, 0x4000, 0x8000]       # VRAM bases
     S.call('INIT', 0, a=0, rx=3)
-    # Reihenfolge: ohne Karte / ohne Geometrie
+    # order: without map / without geometry
     for nm, f, x in (('CELL', 5, 0), ('SETPOS', 2, 0), ('SETCELL', 6, 0), ('SETITEM', 16, 0)):
-        S.call(f'{nm} ohne MAPINIT', f, x, a=5, rx=0, ry=0, same=True)
-    S.call('TEXSET ohne GEOMSET', 13, 0, p=(TD[0], VR[0], 0, 0), a=5, same=True)
-    S.call('BGSET ohne GEOMSET', 14, 0x22, p=(DB, 0, 0, 0), a=5,
+        S.call(f'{nm} without MAPINIT', f, x, a=5, rx=0, ry=0, same=True)
+    S.call('TEXSET without GEOMSET', 13, 0, p=(TD[0], VR[0], 0, 0), a=5, same=True)
+    S.call('BGSET without GEOMSET', 14, 0x22, p=(DB, 0, 0, 0), a=5,
            check=lambda b: [] if b.b('bgfill') == 0x22 else ['bgfill'])
-    S.call('SPRITESET ohne GEOMSET', 9, 0, p=(S2A[0], 0, 0, 0), a=5, same=True)
-    S.call('TEXSET löschen ohne GEOMSET', 13, 2, p=(0, 0, 0, 0), a=0, same=True)
-    S.call('BGSET keine Tapete', 14, 0x44, p=(0, 0, 0, 0), a=0,
+    S.call('SPRITESET without GEOMSET', 9, 0, p=(S2A[0], 0, 0, 0), a=5, same=True)
+    S.call('TEXSET clear without GEOMSET', 13, 2, p=(0, 0, 0, 0), a=0, same=True)
+    S.call('BGSET no wallpaper', 14, 0x44, p=(0, 0, 0, 0), a=0,
            check=lambda b: [] if b.b('bgfill') == 0x44 and b.b('dbg_ok') == 0 else ['bgfill/dbg_ok'])
-    S.call('SPRITESET löschen', 9, 7, p=(0, 0, 0, 0), a=0)
-    S.call('SPRITESET Satz 8', 9, 8, p=(S2A[0], 0, 0, 0), a=6)
+    S.call('SPRITESET clear', 9, 7, p=(0, 0, 0, 0), a=0)
+    S.call('SPRITESET record 8', 9, 8, p=(S2A[0], 0, 0, 0), a=6)
     S.call('TEXSET Art 3', 13, 3, p=(TD[0], 0, 0, 0), a=6)
-    # GEOMSET: Formatfehler
-    gerr = [('Magic', (0, ord('X'))), ('Version', (2, 2)), ('Elementlänge', (16, 15)), ('Tiefeneintrag', (17, 7)),
+    # GEOMSET: format errors
+    gerr = [('Magic', (0, ord('X'))), ('Version', (2, 2)), ('Element length', (16, 15)), ('Depth entry', (17, 7)),
             ('VW 81', (3, 81)), ('VW 0', (3, 0)), ('VH 101', (4, 101)), ('VH 0', (4, 0)), ('D 8', (5, 8)),
             ('NE 0', (7, 0)), ('S 16', (6, 16))]
     for nm, e in gerr:
         S.call(f'GEOMSET {nm}', 12, p=(HDR, 0xFFFF, 0, 0), pre=[(HDR, patched(dvg, e))], a=1, same=True)
-    S.call('TEXSET nach GEOMSET-Fehler', 13, 0, p=(TD[0], 0, 0, 0), a=5, same=True)
+    S.call('TEXSET after GEOMSET error', 13, 0, p=(TD[0], 0, 0, 0), a=5, same=True)
 
     def geom_check(src, origin, dvgaddr):
         def chk(b):
@@ -557,14 +557,14 @@ def test_p6c():
                    b.raw('dvg_vw', 2, 11))
             want = (1, bytes([vw, vh, D, Sx, ne]), stride, org, gid, bytes(src[14:16]))
             if got != want:
-                out.append(f'DVG-Zustand {got} <> {want}')
+                out.append(f'DVG state {got} <> {want}')
             if (b.w('ptrs', 8), b.w('ptrs', 10)) != (dvgaddr + u16(src, 18), dvgaddr + u16(src, 20)):
-                out.append('Tiefen-/Elementtabelle')
+                out.append('Depth/element table')
             rows = b''.join(st.pack('<H', (org + y * stride) & 0xFFFF) for y in range(vh))
             if b.raw('rows', 200) != rows + bytes(200 - len(rows)):
-                out.append('Zeilentabelle')
-            dt = u16(src, 18) + 8 * D                       # Fernsicht (5.7a): s + 15 je Horizontspalte aus den
-            first, n = src[dt + 4], src[dt + 5]             # Seiten der Tiefe D (wie dbeview far_cols)
+                out.append('Row table')
+            dt = u16(src, 18) + 8 * D                       # far view (5.7a): s + 15 per horizon column from the
+            first, n = src[dt + 4], src[dt + 5]             # sides of depth D (as in dbeview far_cols)
             sides = [src[u16(src, 20) + 16 * j:][:8] for j in range(first, first + n)]
             sides = [(e[2] - 256 if e[2] > 127 else e[2], e[4], e[6]) for e in sides if e[0] == 1]
             hs = bytes(15 + sum(-(c < x + w) if s_ < 0 else (c >= x) for s_, x, w in sides) for c in range(vw))
@@ -575,11 +575,11 @@ def test_p6c():
 
     S.call('GEOMSET', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 0xFFFF, GD))
     S.call('GEOMSET origin 0x1234', 12, p=(GD, 0x1234, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 0x1234, GD))
-    S.call('GEOMSET origin aus DVG', 12, p=(GD, 0xFFFF, 0, 0), a=0, check=geom_check(dvg, 0xFFFF, GD))
+    S.call('GEOMSET origin from DVG', 12, p=(GD, 0xFFFF, 0, 0), a=0, check=geom_check(dvg, 0xFFFF, GD))
 
     # ---- TEXSET
     def rec_check(k, src, base_addr, vram, kind):
-        """kind 'dts' | 's2': Satz k der Satztabelle"""
+        """kind 'dts' | 's2': record k of the record table"""
         def chk(b):
             o = 16 * k
             r = b.raw('recs', 16, o)
@@ -589,13 +589,13 @@ def test_p6c():
             else:
                 want = bytes([1]) + st.pack('<H', vram) + bytes([src[7], src[8]]) + src[4:6] + b'\0' + st.pack(
                     '<HHH', base_addr, base_addr + u16(src, 16), base_addr + u16(src, 18)) + bytes([src[7] * dvg[5], 0])
-            return [] if r == want else [f'Satz {k}: {r.hex()} <> {want.hex()}']
+            return [] if r == want else [f'Record {k}: {r.hex()} <> {want.hex()}']
         return chk
     for k in range(3):
         S.call(f'TEXSET Art {k}', 13, k, p=(TD[k], VR[k], 0, 0), a=0, rx=0, ry=0,
                check=rec_check(k, dts[k], TD[k], VR[k], 'dts'))
     S.call('TEXSET Art falsch', 13, 1, p=(TD[0], 0, 0, 0), a=1, same=True)
-    S.call('TEXSET unter $4000', 13, 0, p=(0x3FC0, VR[0], 0, 0), pre=[(0x3FC0, dts[0][:64])], a=6, same=True)
+    S.call('TEXSET below $4000', 13, 0, p=(0x3FC0, VR[0], 0, 0), pre=[(0x3FC0, dts[0][:64])], a=6, same=True)
     terr = [('Magic', 1, (1, ord('X'))), ('Version', 1, (2, 2)), ('NST 0', 1, (9, 0)), ('NST 33', 1, (9, 33)),
             ('Art', 1, (3, 2))]
     for nm, ferr, e in terr:
@@ -607,21 +607,21 @@ def test_p6c():
     # Pool
     U = [u16(t, 24) for t in dts]
     S.call('POOLSET', 11, p=(0x1000, 0xA000, 0, 0), a=0)
-    S.call('TEXSET Pool: Basis < Anfang', 13, 0, p=(TD[0], 0x0FFF, 0, 0), a=6, same=True)
-    S.call('TEXSET Pool: Ende überschritten', 13, 0, p=(TD[0], 0xA000 - U[0] + 1, 0, 0), a=6, same=True)
-    S.call('TEXSET Pool: genau am Ende', 13, 0, p=(TD[0], 0xA000 - U[0], 0, 0), a=0,
+    S.call('TEXSET pool: base < start', 13, 0, p=(TD[0], 0x0FFF, 0, 0), a=6, same=True)
+    S.call('TEXSET pool: end exceeded', 13, 0, p=(TD[0], 0xA000 - U[0] + 1, 0, 0), a=6, same=True)
+    S.call('TEXSET pool: exactly at the end', 13, 0, p=(TD[0], 0xA000 - U[0], 0, 0), a=0,
            check=rec_check(0, dts[0], TD[0], 0xA000 - U[0], 'dts'))
-    S.call('TEXSET Pool: genau am Anfang', 13, 0, p=(TD[0], 0x1000, 0, 0), a=0,
+    S.call('TEXSET pool: exactly at the start', 13, 0, p=(TD[0], 0x1000, 0, 0), a=0,
            check=rec_check(0, dts[0], TD[0], 0x1000, 'dts'))
-    S.call('POOLSET bis 65536', 11, p=(0x1000, 0, 0, 0), a=0)
-    S.call('TEXSET Pool 65536: genau', 13, 0, p=(TD[0], (0x10000 - U[0]) & 0xFFFF, 0, 0), a=0,
+    S.call('POOLSET up to 65536', 11, p=(0x1000, 0, 0, 0), a=0)
+    S.call('TEXSET pool 65536: exact', 13, 0, p=(TD[0], (0x10000 - U[0]) & 0xFFFF, 0, 0), a=0,
            check=rec_check(0, dts[0], TD[0], 0x10000 - U[0], 'dts'))
-    S.call('TEXSET Pool 65536: Überlauf', 13, 0, p=(TD[0], (0x10001 - U[0]) & 0xFFFF, 0, 0), a=6)
-    S.call('POOLSET aus', 11, p=(0, 0, 0, 0), a=0)
-    S.call('TEXSET Art 0 erneut', 13, 0, p=(TD[0], VR[0], 0, 0), a=0, check=rec_check(0, dts[0], TD[0], VR[0], 'dts'))
-    S.call('TEXSET Decke löschen', 13, 2, p=(0, 0, 0, 0), a=0,
-           check=lambda b: [] if b.b('recs', 32) == 0 else ['Satz nicht gelöscht'])
-    S.call('TEXSET Decke', 13, 2, p=(TD[2], VR[2], 0, 0), a=0, check=rec_check(2, dts[2], TD[2], VR[2], 'dts'))
+    S.call('TEXSET pool 65536: overflow', 13, 0, p=(TD[0], (0x10001 - U[0]) & 0xFFFF, 0, 0), a=6)
+    S.call('POOLSET off', 11, p=(0, 0, 0, 0), a=0)
+    S.call('TEXSET kind 0 again', 13, 0, p=(TD[0], VR[0], 0, 0), a=0, check=rec_check(0, dts[0], TD[0], VR[0], 'dts'))
+    S.call('TEXSET clear ceiling', 13, 2, p=(0, 0, 0, 0), a=0,
+           check=lambda b: [] if b.b('recs', 32) == 0 else ['Record not cleared'])
+    S.call('TEXSET ceiling', 13, 2, p=(TD[2], VR[2], 0, 0), a=0, check=rec_check(2, dts[2], TD[2], VR[2], 'dts'))
 
     # ---- BGSET
     def bg_check(vram, fill):
@@ -632,18 +632,18 @@ def test_p6c():
             return [] if got == want else [f'DBG {got} <> {want}']
         return chk
     S.call('BGSET', 14, 0x77, p=(DB, 0x6000, 0, 0), a=0, rx=0, ry=0, check=bg_check(0x6000, 0x77))
-    for y_, p2, want in ((2, 0x1234, (2, 0x34)), (0, 0x5678, (0, 0x78))):     # Fernsicht (5.7a): Y, P2 Low
-        S.call(f'BGSET Fernsicht Y = {y_}', 14, 0x77, y_, p=(DB, 0x6000, p2, 0), a=0,
+    for y_, p2, want in ((2, 0x1234, (2, 0x34)), (0, 0x5678, (0, 0x78))):     # far view (5.7a): Y, P2 low
+        S.call(f'BGSET Distant view Y = {y_}', 14, 0x77, y_, p=(DB, 0x6000, p2, 0), a=0,
                check=lambda b, w=want: [] if (b.b('ffon'), b.b('ffill')) == w else [f'ffon/ffill <> {w}'])
     for nm, e, a in (('Magic', (1, ord('X')), 1), ('Version', (2, 9), 1), ('P 0', (7, 0, 2), 1), ('VW', (3, dbg[3] + 1), 4),
                      ('VH', (4, dbg[4] - 1), 4), ('ID', (5, u16(dbg, 5) ^ 1), 4)):
         S.call(f'BGSET {nm}', 14, 0x11, p=(HDR, 0x7000, 0, 0), pre=[(HDR, patched(dbg, e, n=32))], a=a,
-               check=lambda b: [] if b.b('bgfill') == 0x11 and b.w('dbg_vram') == 0x6000 else ['Zustand'])
+               check=lambda b: [] if b.b('bgfill') == 0x11 and b.w('dbg_vram') == 0x6000 else ['State'])
     Ub = u16(dbg, 20)
-    S.call('POOLSET für BGSET', 11, p=(0x4000, 0x8000, 0, 0), a=0)
+    S.call('POOLSET for BGSET', 11, p=(0x4000, 0x8000, 0, 0), a=0)
     S.call('BGSET Pool', 14, 0x77, p=(DB, 0x8000 - Ub + 1, 0, 0), a=6)
     S.call('BGSET Pool ok', 14, 0x77, p=(DB, 0x8000 - Ub, 0, 0), a=0, check=bg_check(0x8000 - Ub, 0x77))
-    S.call('POOLSET aus 2', 11, p=(0, 0, 0, 0), a=0)
+    S.call('POOLSET off 2', 11, p=(0, 0, 0, 0), a=0)
 
     # ---- SPRITESET
     for k in range(4):
@@ -653,17 +653,17 @@ def test_p6c():
                      ('NP 0', (8, 0), 1), ('ID', (4, u16(s2[0], 4) ^ 1), 4), ('D', (6, s2[0][6] + 1), 4),
                      ('Stride', (34, u16(s2[0], 34) + 2), 4)):
         S.call(f'SPRITESET {nm}', 9, 5, p=(HDR, 0, 0, 0), pre=[(HDR, patched(s2[0], e))], a=a,
-               check=lambda b: [] if b.b('recs', 16 * 8) == 0 else ['Satz 5 gesetzt'])
-    S.call('POOLSET für SPRITESET', 11, p=(0x4000, 0x8000, 0, 0), a=0)
+               check=lambda b: [] if b.b('recs', 16 * 8) == 0 else ['Record 5 set'])
+    S.call('POOLSET for SPRITESET', 11, p=(0x4000, 0x8000, 0, 0), a=0)
     Us = u16(s2[1], 30)
     S.call('SPRITESET Pool', 9, 1, p=(S2A[1], 0x8000 - Us + 1, 0, 0), a=6)
     S.call('SPRITESET Pool ok', 9, 1, p=(S2A[1], 0x8000 - Us, 0, 0), a=0,
            check=rec_check(4, s2[1], S2A[1], 0x8000 - Us, 's2'))
-    S.call('POOLSET aus 3', 11, p=(0, 0, 0, 0), a=0)
-    S.call('SPRITESET 1 erneut', 9, 1, p=(S2A[1], 0x1000, 0, 0), a=0)
-    # Satz 4: ID 0, Satz 7: Kopie von Satz 2 (Header-Kopie, Tabellen nur als Adressen)
-    S.call('SPRITESET unter $4000', 9, 4, p=(0x3FC0, 0x5000, 0, 0), pre=[(0x3FC0, patched(s2[3], (4, 0, 2)))], a=6,
-           check=lambda b: [] if b.b('recs', 16 * 7) == 0 else ['Satz 4 gesetzt'])
+    S.call('POOLSET off 3', 11, p=(0, 0, 0, 0), a=0)
+    S.call('SPRITESET 1 again', 9, 1, p=(S2A[1], 0x1000, 0, 0), a=0)
+    # record 4: ID 0, record 7: copy of record 2 (header copy, tables as addresses only)
+    S.call('SPRITESET below $4000', 9, 4, p=(0x3FC0, 0x5000, 0, 0), pre=[(0x3FC0, patched(s2[3], (4, 0, 2)))], a=6,
+           check=lambda b: [] if b.b('recs', 16 * 7) == 0 else ['Record 4 set'])
     S.call('SPRITESET ID 0', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))], a=0,
            check=rec_check(7, patched(s2[3], (4, 0, 2)), HDR2, 0x5000, 's2'))
     S.call('SPRITESET 7', 9, 7, p=(S2A[2], 0x6000, 0, 0), a=0, check=rec_check(10, s2[2], S2A[2], 0x6000, 's2'))
@@ -678,56 +678,56 @@ def test_p6c():
     S.call('ITEMSET 5,8', 10, 5, 8, a=0, check=item_check([0] * 5 + [8] + [0] * 57 + [0]))
     S.call('ITEMSET 63,3', 10, 63, 3, a=0, check=item_check(it))
     S.call('ITEMSET 64', 10, 64, 1, a=6, same=True)
-    S.call('ITEMSET Satz 9', 10, 5, 9, a=6, same=True)
-    # ---- GEOMSET: gleiche ID (neuer origin), andere ID, anderes D / Stride
-    S.call('GEOMSET gleiche ID, origin 7', 12, p=(GD, 7, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 7, GD))
-    S.call('Satz 0 nach gleicher ID noch gültig', 15, p=(0x1300, 0x1C00, 0, 0), a=0,
-           check=lambda b: [] if b.b('recs', 0) == 1 and b.b('dbg_ok') == 1 and b.b('recs', 48) == 1 else ['gelöscht'])
+    S.call('ITEMSET record 9', 10, 5, 9, a=6, same=True)
+    # ---- GEOMSET: same ID (new origin), other ID, other D / stride
+    S.call('GEOMSET same ID, origin 7', 12, p=(GD, 7, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 7, GD))
+    S.call('Record 0 still valid after same ID', 15, p=(0x1300, 0x1C00, 0, 0), a=0,
+           check=lambda b: [] if b.b('recs', 0) == 1 and b.b('dbg_ok') == 1 and b.b('recs', 48) == 1 else ['cleared'])
     dvg2 = patched(dvg, (12, gid ^ 0x55), n=len(dvg))
     S.call('GEOMSET andere ID', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg2)], a=0,
-           rx=0x85, ry=0x0F, check=geom_check(dvg2, 0xFFFF, HDR + 0x400))        # S2 mit ID: Sätze 0, 2, 7
-    S.call('Sätze mit ID 0 bleiben', 15, p=(0x1300, 0x1C00, 0, 0), a=0,
+           rx=0x85, ry=0x0F, check=geom_check(dvg2, 0xFFFF, HDR + 0x400))        # S2 with ID: records 0, 2, 7
+    S.call('Records with ID 0 remain', 15, p=(0x1300, 0x1C00, 0, 0), a=0,
            check=lambda b: [] if [b.b('recs', 16 * (3 + k)) for k in range(8)] == [0, 1, 0, 1, 1, 0, 0, 0] and
-           b.b('recs', 0) == 0 and b.b('dbg_ok') == 0 else ['Sätze 1, 3, 4'])
-    S.call('TEXSET mit alter ID', 13, 0, p=(TD[0], 0, 0, 0), a=4, same=True)
-    S.call('BGSET mit alter ID', 14, 0, p=(DB, 0, 0, 0), a=4)
+           b.b('recs', 0) == 0 and b.b('dbg_ok') == 0 else ['Records 1, 3, 4'])
+    S.call('TEXSET with old ID', 13, 0, p=(TD[0], 0, 0, 0), a=4, same=True)
+    S.call('BGSET with old ID', 14, 0, p=(DB, 0, 0, 0), a=4)
     dvg3 = patched(dvg, (12, gid ^ 0x66), (5, 2), n=len(dvg))
-    S.call('GEOMSET andere ID und D', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg3)], a=0,
+    S.call('GEOMSET other ID and D', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg3)], a=0,
            rx=0x1A, ry=0, check=geom_check(dvg3, 0xFFFF, HDR + 0x400))
-    S.call('GEOMSET zurück', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 0xFFFF, GD))
-    S.call('SPRITESET ID 0 erneut', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))], a=0)
+    S.call('GEOMSET back', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0, check=geom_check(dvg, 0xFFFF, GD))
+    S.call('SPRITESET ID 0 again', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))], a=0)
     dvg4 = patched(dvg, (12, gid ^ 0x77), (8, u16(dvg, 8) + 2), n=len(dvg))
-    S.call('GEOMSET andere ID und Stride', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg4)], a=0,
+    S.call('GEOMSET other ID and stride', 12, p=(HDR + 0x400, 0xFFFF, 0, 0), pre=[(HDR + 0x400, dvg4)], a=0,
            rx=0x10, ry=0)
-    S.call('GEOMSET zurück 2', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0)
-    S.call('SPRITESET ID 0 und gleiche ID', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))],
+    S.call('GEOMSET back 2', 12, p=(GD, 0xFFFF, 0, 0), a=0, rx=0, ry=0)
+    S.call('SPRITESET ID 0 and same ID', 9, 4, p=(HDR2, 0x5000, 0, 0), pre=[(HDR2, patched(s2[3], (4, 0, 2)))],
            a=0)
-    S.call('GEOMSET gleiche ID: Satz 4 bleibt', 12, p=(GD, 0x10, 0, 0), a=0, rx=0, ry=0)
-    S.call('INIT löscht alles', 0, a=0, rx=3,
-           check=lambda b: [] if b.raw('recs', 176) == bytes(176) and b.b('geom_ok') == 0 else ['Zustand'])
+    S.call('GEOMSET same ID: record 4 remains', 12, p=(GD, 0x10, 0, 0), a=0, rx=0, ry=0)
+    S.call('INIT clears everything', 0, a=0, rx=3,
+           check=lambda b: [] if b.raw('recs', 176) == bytes(176) and b.b('geom_ok') == 0 else ['State'])
     cyc = S.run()
     fails += S.fails
-    print(f'P6c sim A (Geometrie, Assets): {len(S.steps)} Aufrufe, {len(S.fails)} Fehler, Zyklen {cyc}')
+    print(f'P6c sim A (geometry, assets): {len(S.steps)} calls, {len(S.fails)} errors, cycles {cyc}')
 
-    # ================================================================ Szene B: Karte
+    # ================================================================ scene B: map
     SB = Seq(L)
     SB.seg(ADDR['dmp'], dmp)
     SB.call('INIT', 0, a=0)
     mp = (ADDR['dmp'], 0, 0, 0)
-    # Formatfehler (Kopfkopien)
+    # format errors (header copies)
     c = dmp
     wh = W * H
     bad = [('Magic', (0, ord('X'))), ('Version', (2, 2)), ('W 0', (3, 0)), ('H 0', (4, 0)),
            ('W*H > 16384', (3, 255), (4, 255)), ('W*H = 16512', (3, 129), (4, 128)),
-           ('Start >= W*H', (8, wh)), ('Richtung 4', (10, 4)), ('Außenkachel >= NT', (11, NT)),
+           ('Start >= W*H', (8, wh)), ('Direction 4', (10, 4)), ('Outside tile >= NT', (11, NT)),
            ('Offset 12', (12, 25)), ('Offset 14', (14, 24 + wh + 1)), ('Offset 16', (16, 24 + 2 * wh + 8)),
-           ('Offset 18', (18, u16(c, 18) + 1)), ('Länge', (20, u16(c, 20) + 1)), ('NT', (5, NT + 1)),
+           ('Offset 18', (18, u16(c, 18) + 1)), ('Length', (20, u16(c, 20) + 1)), ('NT', (5, NT + 1)),
            ('NE', (6, u16(c, 6) + 1)), ('NE 16384 (4 NE = 65536)', (6, 0x4000), (20, u16(c, 18))),
-           ('Länge über 65535', (6, 0x3FFF), (20, (u16(c, 18) + 4 * 0x3FFF) & 0xFFFF))]
+           ('Length over 65535', (6, 0x3FFF), (20, (u16(c, 18) + 4 * 0x3FFF) & 0xFFFF))]
     for nm, *e in bad:
         SB.call(f'MAPINIT {nm}', 1, p=(HDR, 0, 0, 0), pre=[(HDR, patched(c, *e, n=24))], a=1,
                 check=lambda b: [] if b.b('map_ok') == 0 else ['map_ok'])
-        SB.call(f'CELL nach fehlerhaftem MAPINIT ({nm})', 5, p=(0, 0, 0, 0), a=5)
+        SB.call(f'CELL after faulty MAPINIT ({nm})', 5, p=(0, 0, 0, 0), a=5)
 
     def map_check(m_, copyaddr, auto, dmpaddr=ADDR['dmp']):
         n = m_.width * m_.height
@@ -738,24 +738,24 @@ def test_p6c():
             want = (1, m_.width, m_.height, n, len(m_.tiles), len(m_.events), m_.start, m_.direction, m_.outside, auto,
                     m_.start % m_.width, m_.start // m_.width)
             if got != want:
-                out.append(f'Karte {got} <> {want}')
+                out.append(f'Map {got} <> {want}')
             cells = copyaddr or dmpaddr + 24
             if (b.w('ptrs', 0), b.w('ptrs', 2)) != (cells, cells + n):
-                out.append('Ebenenzeiger')
+                out.append('Layer pointers')
             if (b.w('ptrs', 4), b.w('ptrs', 6)) != (dmpaddr + 24 + 2 * n, dmpaddr + 24 + 2 * n + 8 * len(m_.tiles)):
-                out.append('Tabellenzeiger')
+                out.append('Table pointers')
             return out
         return chk
     SB.call('MAPINIT', 1, p=mp, objn=5, a=0, rx=W, ry=H, rp=(m.start, m.direction), check=map_check(m, 0, 0),
             dump=[(0x0C50, 1)])
     SB.call('OBJN = 0', 15, p=(0x1300, 0x1C00, 0, 0), a=0)
-    SB.call('MAPINIT mit Arbeitskopie und Automap', 1, x=1, p=(ADDR['dmp'], 0x6000, 0, 0), objn=3, a=0, rx=W, ry=H,
+    SB.call('MAPINIT with working copy and automap', 1, x=1, p=(ADDR['dmp'], 0x6000, 0, 0), objn=3, a=0, rx=W, ry=H,
             rp=(m.start, m.direction), check=map_check(m, 0x6000, 1), dump=[(0x0C50, 1), (0x6000, 2 * W * H)])
     # CELL, SETPOS
     for i in range(W * H):
         t = m.cells[i]
         SB.call(f'CELL {i}', 5, p=(i, 0, 0, 0), a=0, rx=t, ry=m.content[i], rp=(i, m.tiles[t].flags))
-    SB.call('CELL außerhalb', 5, p=(W * H, 0, 0, 0), a=6, rx=m.outside, ry=0, rp=(W * H, m.tiles[m.outside].flags))
+    SB.call('CELL outside', 5, p=(W * H, 0, 0, 0), a=6, rx=m.outside, ry=0, rp=(W * H, m.tiles[m.outside].flags))
     SB.call('CELL 0xFFFF', 5, p=(0xFFFF, 0, 0, 0), a=6, rx=m.outside, ry=0)
     prev = None
     for i in range(W * H):
@@ -763,43 +763,43 @@ def test_p6c():
         SB.call(f'SETPOS {i}', 2, v, p=(i, 0, 0, 0), a=0, rx=0, ry=0,
                 check=(lambda i, v: lambda b: [] if (b.w('pos'), b.b('vdir'), b.b('px'), b.b('py')) == (i, v, i % W, i // W)
                        else [f'pos/v/px/py {(b.w("pos"), b.b("vdir"), b.b("px"), b.b("py"))}'])(i, v))
-    SB.call('SETPOS außerhalb', 2, 1, p=(W * H, 0, 0, 0), a=6, same=True)
-    SB.call('SETPOS Richtung 4', 2, 4, p=(3, 0, 0, 0), a=6, same=True)
-    # SETCELL / SETITEM (mit Arbeitskopie: DMP bleibt, Kopie ändert sich)
-    SB.call('SETCELL 3 = Kachel 2', 6, 2, p=(3, 0, 0, 0), a=0)
-    SB.call('CELL 3 nach SETCELL', 5, p=(3, 0, 0, 0), a=0, rx=2, ry=m.content[3], rp=(3, m.tiles[2].flags))
-    SB.call('SETCELL Kachel = NT', 6, NT, p=(3, 0, 0, 0), a=6, same=True)
-    SB.call('SETCELL Kachel 255', 6, 255, p=(3, 0, 0, 0), a=6, same=True)
-    SB.call('SETCELL Zelle außerhalb', 6, 0, p=(W * H, 0, 0, 0), a=6, same=True)
+    SB.call('SETPOS outside', 2, 1, p=(W * H, 0, 0, 0), a=6, same=True)
+    SB.call('SETPOS direction 4', 2, 4, p=(3, 0, 0, 0), a=6, same=True)
+    # SETCELL / SETITEM (with working copy: DMP stays, copy changes)
+    SB.call('SETCELL 3 = tile 2', 6, 2, p=(3, 0, 0, 0), a=0)
+    SB.call('CELL 3 after SETCELL', 5, p=(3, 0, 0, 0), a=0, rx=2, ry=m.content[3], rp=(3, m.tiles[2].flags))
+    SB.call('SETCELL tile = NT', 6, NT, p=(3, 0, 0, 0), a=6, same=True)
+    SB.call('SETCELL tile 255', 6, 255, p=(3, 0, 0, 0), a=6, same=True)
+    SB.call('SETCELL cell outside', 6, 0, p=(W * H, 0, 0, 0), a=6, same=True)
     SB.call('SETITEM 10 = $45', 16, 0x45, p=(10, 0, 0, 0), a=0)
-    SB.call('CELL 10 nach SETITEM', 5, p=(10, 0, 0, 0), a=0, rx=m.cells[10], ry=0x45)
+    SB.call('CELL 10 after SETITEM', 5, p=(10, 0, 0, 0), a=0, rx=m.cells[10], ry=0x45)
     SB.call('SETITEM 34 = 255', 16, 255, p=(34, 0, 0, 0), a=0)
-    SB.call('SETITEM außerhalb', 16, 1, p=(W * H, 0, 0, 0), a=6, same=True)
+    SB.call('SETITEM outside', 16, 1, p=(W * H, 0, 0, 0), a=6, same=True)
     SB.call('SETITEM $FFFF', 16, 1, p=(0xFFFF, 0, 0, 0), a=6, same=True)
     cells2 = bytes(m.cells[:3] + [2] + m.cells[4:])
     cont2 = bytearray(m.content)
     cont2[10], cont2[34] = 0x45, 255
-    SB.call('Kopie und DMP prüfen', 15, p=(0x1300, 0x1C00, 0, 0), a=0, dump=[(0x6000, 2 * W * H), (0x5000 + 24, 2 * W * H)],
-            check=lambda b: ([] if b.extra[0] == cells2 + bytes(cont2) else ['Arbeitskopie']) +
-            ([] if b.extra[1] == bytes(m.cells) + bytes(m.content) else ['DMP verändert']))
-    # ohne Arbeitskopie: SETCELL schreibt in die DMP
-    SB.call('MAPINIT ohne Kopie', 1, p=mp, a=0, check=map_check(m, 0, 0))
+    SB.call('Check copy and DMP', 15, p=(0x1300, 0x1C00, 0, 0), a=0, dump=[(0x6000, 2 * W * H), (0x5000 + 24, 2 * W * H)],
+            check=lambda b: ([] if b.extra[0] == cells2 + bytes(cont2) else ['Working copy']) +
+            ([] if b.extra[1] == bytes(m.cells) + bytes(m.content) else ['DMP changed']))
+    # without working copy: SETCELL writes into the DMP
+    SB.call('MAPINIT without copy', 1, p=mp, a=0, check=map_check(m, 0, 0))
     SB.call('SETCELL in DMP', 6, 1, p=(0, 0, 0, 0), a=0, dump=[(0x5000 + 24, 1)],
-            check=lambda b: [] if b.extra[0] == b'\1' else ['DMP nicht geändert'])
-    # Ziel der Arbeitskopie (P6d): [P1, P1 + 2 W H) muss in $4000 ... LIB ($B000) liegen, sonst E_RANGE
+            check=lambda b: [] if b.extra[0] == b'\1' else ['DMP not changed'])
+    # target of the working copy (P6d): [P1, P1 + 2 W H) must lie in $4000 ... LIB ($B000), otherwise E_RANGE
     n2 = 2 * W * H
-    for nm, dst, a in (('genau unter LIB', 0xB000 - n2, 0), ('ein Byte über LIB', 0xB000 - n2 + 1, 6),
-                       ('ab LIB', 0xB000, 6), ('BSS', 0xE000, 6), ('DVG', 0xE800, 6), ('unter $4000', 0x3FFF, 6),
-                       ('$2000', 0x2000, 6), ('$0400', 0x0400, 6), ('Überlauf 65536', 0x10000 - n2 + 2, 6), ('I/O', 0xD000 - 4, 6)):
-        SB.call(f'MAPINIT Arbeitskopie {nm}', 1, p=(ADDR['dmp'], dst, 0, 0), a=a,
+    for nm, dst, a in (('exactly below LIB', 0xB000 - n2, 0), ('one byte above LIB', 0xB000 - n2 + 1, 6),
+                       ('from LIB', 0xB000, 6), ('BSS', 0xE000, 6), ('DVG', 0xE800, 6), ('below $4000', 0x3FFF, 6),
+                       ('$2000', 0x2000, 6), ('$0400', 0x0400, 6), ('Overflow 65536', 0x10000 - n2 + 2, 6), ('I/O', 0xD000 - 4, 6)):
+        SB.call(f'MAPINIT working copy {nm}', 1, p=(ADDR['dmp'], dst, 0, 0), a=a,
                 check=(lambda a, dst: lambda b: ([] if b.b('map_ok') == (a == 0) else ['map_ok']) +
-                       ([] if a or b.w('ptrs', 0) == dst else ['Kopie nicht benutzt']))(a, dst))
-        SB.call(f'CELL nach MAPINIT {nm}', 5, p=(0, 0, 0, 0), a=0 if a == 0 else 5)
+                       ([] if a or b.w('ptrs', 0) == dst else ['Copy not used']))(a, dst))
+        SB.call(f'CELL after MAPINIT {nm}', 5, p=(0, 0, 0, 0), a=0 if a == 0 else 5)
     cyc = SB.run()
     fails += SB.fails
-    print(f'P6c sim B (Karte, {W}x{H}): {len(SB.steps)} Aufrufe, {len(SB.fails)} Fehler, Zyklen {cyc}')
+    print(f'P6c sim B (map, {W}x{H}): {len(SB.steps)} calls, {len(SB.fails)} errors, cycles {cyc}')
 
-    # ---- Zufallskarten und Grenzfälle der Größe (NT = 256, 128 x 128, 255 x 64, Zufallsgrößen)
+    # ---- random maps and boundary cases of the size (NT = 256, 128 x 128, 255 x 64, random sizes)
     import random
     SC = Seq(L)
     SC.call('INIT', 0, a=0)
@@ -828,11 +828,11 @@ def test_p6c():
             SC.call(f'{nm} SETPOS {i}', 2, 3, p=(i, 0, 0, 0), a=0,
                     check=(lambda i, w: lambda b: [] if (b.b('px'), b.b('py')) == (i % w, i // w) else
                            [f'px/py {(b.b("px"), b.b("py"))}'])(i, w))
-        SC.call(f'{nm} SETCELL höchste Kachel', 6, len(mm.tiles) - 1 & 255, p=(n - 1, 0, 0, 0), a=0)
+        SC.call(f'{nm} SETCELL highest tile', 6, len(mm.tiles) - 1 & 255, p=(n - 1, 0, 0, 0), a=0)
         SC.call(f'{nm} SETCELL NT', 6, len(mm.tiles) & 255, p=(n - 1, 0, 0, 0), a=0 if len(mm.tiles) == 256 else 6)
     cyc = SC.run()
     fails += SC.fails
-    print(f'P6c sim C (Größen, Zufall): {len(SC.steps)} Aufrufe, {len(SC.fails)} Fehler, Zyklen {cyc}')
+    print(f'P6c sim C (sizes, random): {len(SC.steps)} calls, {len(SC.fails)} errors, cycles {cyc}')
     for f in fails[:40]:
         print('FAIL', f)
     return not fails
@@ -840,18 +840,18 @@ def test_p6c():
 
 
 
-# ------------------------------------------------------------------ P6d: VIEW ohne Objekte
-# Demo-DTS größer als die Bereiche von 2.4: DVG $E800 (bis 1,8 KB), Decke $EF00-$FBAE (alles unter $FC00), DBG in der Lücke
-# zwischen Wand und Boden (Platz dort für Wand-DTS mit doppelten Slots)
+# ------------------------------------------------------------------ P6d: VIEW without objects
+# demo DTS larger than the areas of 2.4: DVG $E800 (up to 1.8 KB), ceiling $EF00-$FBAE (everything below $FC00), DBG in the gap
+# between wall and floor (room there for wall DTS with double slots)
 P6D_ADDR = {'dmp': 0x2E00, 'dvg': 0xE800, 'dts': (0x6000, 0x8300, 0xEF00), 'dbg': 0x8280}   # S2: ViewRunner.S2_AREAS
-BIGBUF = (0x1300, 0x1C00)       # größter erlaubter Puffer (BUFSET-Fenster, P6d-opt)
+BIGBUF = (0x1300, 0x1C00)       # largest allowed buffer (BUFSET window, P6d-opt)
 
 
 class ViewRunner:
-    """Baut aus dbeview-Szenen eine Szenendatei (nur nötige Setz-Aufrufe zwischen den Ansichten) und vergleicht
-    jede VIEW-Antwort bytegenau mit dbeview.view."""
+    """Builds a scene file from dbeview scenes (only necessary set calls between the views) and compares
+    every VIEW reply byte for byte with dbeview.view."""
 
-    mapx, mapp1 = 0, 0              # MAPINIT: X und Arbeitskopie (P6f: Automap)
+    mapx, mapp1 = 0, 0              # MAPINIT: X and working copy (P6f: automap)
 
     def __init__(self, dbeview, dbetex, vcopy=False):
         self.dv, self.dt = dbeview, dbetex
@@ -863,14 +863,14 @@ class ViewRunner:
         self.scene = Scene()
         self.scene.call(0)
         self.state = {}
-        self.expect = []            # (Name, Result) je VIEW, None für Setz-Aufrufe
+        self.expect = []            # (name, result) per VIEW, None for set calls
 
     def _call(self, f, x=0, y=0, p=(0, 0, 0, 0), want=None, **kw):
         self.scene.call(f, x, y, p, **kw)
         self.expect.append(want)
 
     def setup(self, sc):
-        """Setz-Aufrufe für sc; Rückgabe: Liste der (Aufruf, erwartetes A)"""
+        """Set calls for sc; returns: list of (call, expected A)"""
         st, dv, dt = self.state, self.dv, self.dt
         dvg = dv.dvg_bytes(sc.dvg)[2:]
         if st.get('dvg') != dvg:
@@ -900,7 +900,7 @@ class ViewRunner:
             if sc.dbg is not None and not st.get('dbgdata'):
                 self.scene.seg(P6D_ADDR['dbg'], self.dbg_bytes)
                 st['dbgdata'] = True
-            ff = sc.farfill                 # Fernsicht (P6 5.7a): Y <> 0 = an, P2 Low = Füllbyte
+            ff = sc.farfill                 # far view (P6 5.7a): Y <> 0 = on, P2 low = fill byte
             self._call(14, sc.bgfill, 0 if ff is None else 1 + (ff & 1),
                        p=(P6D_ADDR['dbg'] if sc.dbg is not None else 0, sc.vram_bases['dbg'],
                           0x5A00 if ff is None else ff | 0xA500, 0), want=('setup', 0))
@@ -917,11 +917,11 @@ class ViewRunner:
         if st.get('buf') != (sc.buf, sc.buf_fix):
             self._call(15, int(sc.buf_fix), p=(sc.buf[0], sc.buf[1], 0, 0), want=('setup', 0))
             st['buf'] = (sc.buf, sc.buf_fix)
-        # Sprite-Sätze (S2 an festen Adressen je Satzobjekt, P6e) und ITEMSET
+        # sprite records (S2 at fixed addresses per record object, P6e) and ITEMSET
         for k in range(8):
             ss = sc.s2[k]
             key = (id(ss), sc.vram_bases['s2'][k]) if ss is not None else None
-            if st.get(('s2', k), 'neu') == key:
+            if st.get(('s2', k), 'new') == key:
                 continue
             if ss is None:
                 self._call(9, k, p=(0, 0, 0, 0), want=('setup', 0))
@@ -935,10 +935,10 @@ class ViewRunner:
                 self._call(10, g, sc.itemtab[g], want=('setup', 0))
                 it[g] = sc.itemtab[g]
 
-    S2_AREAS = ((0x4000, 0x6000), (0xA700, 0xB000))      # freie Bereiche für S2 (sim.cfg; ab $4000 wegen Typ 9)
+    S2_AREAS = ((0x4000, 0x6000), (0xA700, 0xB000))      # free areas for S2 (sim.cfg; from $4000 because of type 9)
 
     def s2_addr(self, ss):
-        """Bank-1-Adresse eines Sprite-Satzes; lädt ihn beim ersten Gebrauch (Bereiche S2_AREAS, dicht)."""
+        """Bank 1 address of a sprite record; loads it on first use (areas S2_AREAS, packed)."""
         tab = self.state.setdefault('s2addr', {})
         if id(ss) in tab:
             return tab[id(ss)][0]
@@ -951,14 +951,14 @@ class ViewRunner:
                 used[i] += (len(data) + 15) & ~15
                 break
         else:
-            raise RuntimeError('kein Platz für den Sprite-Satz im sim65-Speicher')
+            raise RuntimeError('no room for the sprite record in sim65 memory')
         self.scene.seg(addr, data)
-        tab[id(ss)] = (addr, ss)            # ss festhalten: id bleibt eindeutig
+        tab[id(ss)] = (addr, ss)            # keep ss alive: id stays unique
         return addr
 
     def add(self, name, sc, objs=False, objn=None):
-        """objs: Objekte, Gegenstände (itemtab) und ITEMPH der Szene übernehmen (P6e), sonst ohne Objekte (P6d);
-        objn: OBJN abweichend von der Länge der Liste (> 16 testen)."""
+        """objs: take over objects, items (itemtab) and ITEMPH of the scene (P6e), otherwise without objects (P6d);
+        objn: OBJN differing from the length of the list (test > 16)."""
         if not objs:
             sc.objects = []
             sc.itemtab = [0] * 64
@@ -982,7 +982,7 @@ class ViewRunner:
             name, res = w
             if name == 'setup':
                 if c.a != res:
-                    fails.append(f'Setz-Aufruf F={c.f}: A = {c.a}')
+                    fails.append(f'Set call F={c.f}: A = {c.a}')
                 continue
             nview += 1
             codes[res.a] = codes.get(res.a, 0) + 1
@@ -992,29 +992,29 @@ class ViewRunner:
             if got != want or c.buf != res.buffer:
                 msg = f'{name}: A/X/Y/P0/PB sim {got} <> Referenz {want}'
                 if c.buf != res.buffer:
-                    msg += '; ' + (first_diff(c.buf, res.buffer) or 'Länge')
+                    msg += '; ' + (first_diff(c.buf, res.buffer) or 'length')
                 fails.append(msg)
         return nview, fails, codes, r.cycles
 
 
 def corridor_map(dbemap, n=24):
-    """Gang mit deckenden Wänden und einheitlichem Boden/Decke (Zyklenziel 8, Zeile 2)."""
+    """Corridor with occluding walls and uniform floor/ceiling (cycle target 8, row 2)."""
     T = dbemap.Tile
     t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, 1 | 4, 0)]
     w, h = n, 5
     cells = [1] * (w * h)
     for x in range(1, w - 1):
         cells[2 * w + x] = 0
-    for y in (1, 3):                            # Seitengänge
+    for y in (1, 3):                            # side corridors
         for x in range(4, w - 1, 6):
             cells[y * w + x] = 0
-    m = dbemap.Map('gang', w, h, t, cells, [0] * (w * h), [], 2 * w + 1, 1, 1)
+    m = dbemap.Map('corridor', w, h, t, cells, [0] * (w * h), [], 2 * w + 1, 1, 1)
     dbemap.validate(m)
     return m
 
 
 def time_view(runner, sc):
-    """Zyklen eines VIEW: Lauf mit VIEW minus Lauf mit F = 7 an seiner Stelle (gleiche Szene)."""
+    """Cycles of a VIEW: run with VIEW minus run with F = 7 in its place (same scene)."""
     runner.reset()
     sc.objects, sc.itemtab = [], [0] * 64
     runner.setup(sc)
@@ -1030,7 +1030,7 @@ def test_p6d(vcopy=False):
     import copy, random
     import dbemap, dbetex, dbeview
     dbeview.dbemap = dbemap
-    from test_dbeview import abgrund_map
+    from test_dbeview import abyss_map
     full = bool(os.environ.get('DBEVIEW_FULL'))
     tmp = tempfile.TemporaryDirectory()
     A = dbeview.build_demo_assets(tmp.name)
@@ -1042,7 +1042,7 @@ def test_p6d(vcopy=False):
     allcodes = {}
 
     def free(m):
-        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_SOLID]
 
     tag = ' (VMS_COPY)' if vcopy else ''
 
@@ -1056,13 +1056,13 @@ def test_p6d(vcopy=False):
         total += n
         for k, v in codes.items():
             allcodes[k] = allcodes.get(k, 0) + v
-        print(f'P6d sim{tag} {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        print(f'P6d sim{tag} {label}: {n} views, {len(fails)} deviations, A-Codes {dict(sorted(codes.items()))}')
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails
         return codes
 
-    # demo: alle freien Zellen x 4 Richtungen, Bit 3 aus/an, ohne DBG, ap != 0, origin
+    # demo: all free cells x 4 directions, bit 3 off/on, without DBG, ap != 0, origin
     sc_demo = []
     for bc in (False, True):
         for i in free(demo):
@@ -1070,7 +1070,7 @@ def test_p6d(vcopy=False):
                 sc_demo.append((f'demo {i}/{v} bc{int(bc)}', dbeview.make_scene(A, demo, i, v, band_cover=bc)))
     for i in free(demo)[::3]:
         for v in range(4):
-            sc_demo.append((f'demo ohne DBG {i}/{v}', dbeview.make_scene(A, demo, i, v, dbg=False, bgfill=0x5A)))
+            sc_demo.append((f'demo without DBG {i}/{v}', dbeview.make_scene(A, demo, i, v, dbg=False, bgfill=0x5A)))
     for ap in (0x0123, 0xE200, 0xF800):
         for i in free(demo)[::4]:
             sc_demo.append((f'demo ap {ap:#x} {i}', dbeview.make_scene(A, demo, i, (i + ap) & 3, ap=ap,
@@ -1083,15 +1083,15 @@ def test_p6d(vcopy=False):
         dbeview.layout_vram(sc)
         sc_demo.append((f'demo origin 123 {i}', sc))
     go('demo', sc_demo)
-    # abgrund
-    m = abgrund_map()
-    go('abgrund', [(f'abgrund {i}/{v}', dbeview.make_scene(A, m, i, v, band_cover=bool(i & 1)))
+    # abyss
+    m = abyss_map()
+    go('abyss', [(f'abyss {i}/{v}', dbeview.make_scene(A, m, i, v, band_cover=bool(i & 1)))
                    for i in free(m) for v in range(4)])
-    # Gang
+    # corridor
     gm = corridor_map(dbemap)
-    go('gang', [(f'gang {i}/{v}', dbeview.make_scene(A, gm, i, v, band_cover=bool(v & 1)))
+    go('corridor', [(f'corridor {i}/{v}', dbeview.make_scene(A, gm, i, v, band_cover=bool(v & 1)))
                 for i in free(gm) for v in range(4)])
-    # zufall (ohne Objekte): Zufallskarten (INHALT, Lücken, blockierte Zellen), Bit 3 zufällig, DBG zufällig
+    # random (without objects): random maps (CONTENT, gaps, blocked cells), bit 3 random, DBG random
     nmaps, nviews = (200, 20) if full else (60, 6)
     for part in range(0, nmaps, 20):
         scs = []
@@ -1106,13 +1106,13 @@ def test_p6d(vcopy=False):
                 if j == nviews - 1:
                     sc.ap = rnd.choice((0x0040, 0x0123))
                     dbeview.layout_vram(sc)
-                scs.append((f'zufall {k}/{j}', sc))
-        go(f'zufall {part}-{min(part + 20, nmaps) - 1}', scs)
-    # Überlauf: kleine Puffer (A = 2/3, Kürzung, Ränder weggelassen)
+                scs.append((f'random {k}/{j}', sc))
+        go(f'random {part}-{min(part + 20, nmaps) - 1}', scs)
+    # overflow: small buffers (A = 2/3, truncation, edges omitted)
     T = dbemap.Tile
     t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((2, 2, 2, 2), 1, 1, 1, 0)]
     rows = ['#######'] * 3 + ['#.....#'] * 4
-    gm2 = dbemap.Map('gitter', 7, 7, t, [1 if ch == '#' else 0 for r in rows for ch in r], [0] * 49, [], 6 * 7 + 3, 0, 1)
+    gm2 = dbemap.Map('grating', 7, 7, t, [1 if ch == '#' else 0 for r in rows for ch in r], [0] * 49, [], 6 * 7 + 3, 0, 1)
     ov = [dbeview.make_scene(A, demo, i, v) for i in free(demo)[::2] for v in range(4)]
     ov += [dbeview.make_scene(A, gm2, 6 * 7 + x, v, band_cover=True) for x in range(1, 6) for v in (0, 1, 3)]
     ov += [dbeview.random_scene(k, A, nobj=0) for k in range(300, 312)]
@@ -1121,18 +1121,18 @@ def test_p6d(vcopy=False):
         for size in (64, 128, 256, 512, 1024):
             s2 = copy.copy(sc)
             s2.buf = (0x1300, 0x1300 + size)
-            scs.append((f'überlauf {n_} {size}', s2))
-    go('überlauf', scs)
-    # P6j: feste Listenadresse (BUFSET X Bit 0): Sprung (VCL-Typ 10) bei B0, VMS-Listen ab B0 + 3
+            scs.append((f'overflow {n_} {size}', s2))
+    go('overflow', scs)
+    # P6j: fixed list address (BUFSET X bit 0): jump (VCL type 10) at B0, VMS lists from B0 + 3
     scs = []
     for n_, sc in enumerate(ov[::2] + [dbeview.random_scene(k, A, nobj=0) for k in range(400, 430)]):
         for size in (64, 256, 1024, 2304):
             s2 = copy.copy(sc)
             s2.buf, s2.buf_fix = (0x1300, 0x1300 + size), True
             scs.append((f'fest {n_} {size}', s2))
-    codes = go('feste Listenadresse', scs)
+    codes = go('fixed list address', scs)
     ok = ok and codes.get(0, 0) > 0
-    # Abbruch über die Eintragszahl (K4): Build mit MAXITEM = 8 gegen die Referenz mit MAXITEM = 8
+    # abort via the entry count (K4): build with MAXITEM = 8 against the reference with MAXITEM = 8
     if not vcopy:
         orig = dbeview.MAXITEM
         try:
@@ -1147,56 +1147,56 @@ def test_p6d(vcopy=False):
         finally:
             dbeview.MAXITEM = orig
         total += n
-        print(f'P6d sim MAXITEM = 8: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        print(f'P6d sim MAXITEM = 8: {n} views, {len(fails)} deviations, A-Codes {dict(sorted(codes.items()))}')
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails and codes.get(2, 0) > 0
-    # zwei Fronten je Zelle (synthetische DVG)
+    # two fronts per cell (synthetic DVG)
     scs = [(f'2F demo {i}/{v} bc{int(bc)}', dbeview.make_scene(A2, demo, i, v, band_cover=bc))
            for bc in (False, True) for i in free(demo) for v in range(4)]
-    scs += [(f'2F zufall {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(80)]
-    go('zwei Fronten', scs)
-    print(f'P6d sim{tag}: {total} Ansichten bytegleich verglichen, A-Codes gesamt {dict(sorted(allcodes.items()))}'
-          f' -> {"ok" if ok else "FEHLER"}')
+    scs += [(f'2F random {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(80)]
+    go('two fronts', scs)
+    print(f'P6d sim{tag}: {total} views compared byte-identical, A codes total {dict(sorted(allcodes.items()))}'
+          f' -> {"ok" if ok else "ERROR"}')
 
-    # Zyklen je VIEW (Differenz zweier Läufe)
+    # cycles per VIEW (difference of two runs)
     if os.environ.get('DBE_NOCYCLES'):
         return ok
     R = ViewRunner(dbeview, dbetex, vcopy)
     R.dbg_bytes = dbg_prg[2:]
     rnd = random.Random(4)
     samples = {
-        'Gang (deckend, einheitlich)': [dbeview.make_scene(A, gm, i, v) for i in free(gm) for v in (1, 3)],
+        'Corridor (occluding, uniform)': [dbeview.make_scene(A, gm, i, v) for i in free(gm) for v in (1, 3)],
         'demo': [dbeview.make_scene(A, demo, i, v) for i in free(demo) for v in range(4)],
-        'zufall (offen, gemischt)': [dbeview.random_scene(k, A, nobj=0) for k in range(40)],
-        'zwei Fronten': [dbeview.make_scene(A2, demo, i, v) for i in free(demo)[::2] for v in range(4)],
+        'random (open, mixed)': [dbeview.random_scene(k, A, nobj=0) for k in range(40)],
+        'two fronts': [dbeview.make_scene(A2, demo, i, v) for i in free(demo)[::2] for v in range(4)],
     }
     for label, scs in samples.items():
         cy = [time_view(R, sc) for sc in scs]
-        print(f'P6d Zyklen{tag} {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+        print(f'P6d cycles{tag} {label}: n = {len(cy)}, min {min(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
     return ok
 
 
-# ------------------------------------------------------------------ P6e: VIEW mit Objekten
+# ------------------------------------------------------------------ P6e: VIEW with objects
 def tall_sets(dbeview, dvg):
-    """Zusätzliche Sprite-Sätze für den Rand-Test: 'hoch' (höher als das Fenster über dem Anker, ragt oben hinaus),
-    'links' (Fußpunkt rechts außen: ragt links hinaus), 'rechts' (Fußpunkt links: ragt rechts hinaus; ohne Bild für
+    """Additional sprite records for the edge test: 'up' (taller than the window above the anchor, sticks out at the top),
+    'left' (foot point at the far right: sticks out on the left), 'right' (foot point at the left: sticks out on the right; without image for
     d = 2, Index $FE)."""
     D, stride = dvg.D, dvg.stride
     out = []
-    for name, wb, h, fxf in (('hoch', 4, 90, 0.5), ('links', 30, 20, 1.0), ('rechts', 30, 20, 0.0)):
+    for name, wb, h, fxf in (('up', 4, 90, 0.5), ('left', 30, 20, 1.0), ('right', 30, 20, 0.0)):
         images = {}
         for d in range(1, D + 1):
-            if name == 'rechts' and d == 2:     # kein Bild: Index $FE (P5b 6.3, Objekt entfällt)
+            if name == 'right' and d == 2:     # no image: index $FE (P5b 6.3, object is dropped)
                 continue
             w = max(2, wb >> (d - 1))
-            hh = max(3, h >> (d - 1)) if name != 'hoch' else h
+            hh = max(3, h >> (d - 1)) if name != 'up' else h
             pix = dbeview.sprite_pixels('blob', 2 * w, hh, d & 3, 0)
             images[(0, 0, d)] = (pix, min(w - 1, int(w * fxf)), hh - 1)
         prg, vram = dbeview.make_s2(images, D, 1, 1, stride)
         out.append(dbeview.read_s2(prg, vram))
-    # 'gitter': breit, je Zeile versetzt Lauf (3 Byte), halbes Byte (Typ 8) und Lücke, keine Kerne: lange Listen
-    # (über 300 Byte) mit links/rechts beschnittenen Läufen an allen Stellen relativ zum Nachziehen von ZP1 (Y >= $FC)
+    # 'grating': wide, per row offset run (3 bytes), half byte (type 8) and gap, no cores: long lists
+    # (over 300 bytes) with runs trimmed left/right at all positions relative to the ZP1 advance (Y >= $FC)
     images = {}
     for d in range(1, D + 1):
         w, hh = max(5, 26 >> (d - 1)), max(3, 12 >> (d - 1))
@@ -1215,7 +1215,7 @@ def tall_sets(dbeview, dvg):
 
 
 def test_p6e(vcopy=False):
-    """VIEW mit Objekten und Gegenständen (5.8), Beschneiden mit VMS-Typ 3, OBJVIS: bytegleich mit dbeview.view."""
+    """VIEW with objects and items (5.8), trimming with VMS type 3, OBJVIS: byte-identical with dbeview.view."""
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import copy, random
@@ -1229,13 +1229,13 @@ def test_p6e(vcopy=False):
     demo = dbemap.load_toml(DEMO_MAP)
     extra = tall_sets(dbeview, A.dvg)
     T = dbemap.Tile
-    WEG, DECK, INH = dbeview.T_WEG, dbeview.T_DECKEND, dbeview.T_INHALT
+    SOLID, OCCL, CONT = dbeview.T_SOLID, dbeview.T_OCCLUDING, dbeview.T_CONTENT
     tag = ' (VMS_COPY)' if vcopy else ''
     ok, total, allcodes = True, 0, {}
     stats = {'obj': 0, 'vis': 0}
 
     def free(m):
-        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & WEG]
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & SOLID]
 
     def go(label, scenes, prg=None, maxitem=None):
         nonlocal ok, total
@@ -1259,18 +1259,18 @@ def test_p6e(vcopy=False):
         total += n
         for k, v in codes.items():
             allcodes[k] = allcodes.get(k, 0) + v
-        print(f'P6e sim{tag} {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        print(f'P6e sim{tag} {label}: {n} views, {len(fails)} deviations, A-Codes {dict(sorted(codes.items()))}')
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails
         return codes
 
     def with_extra(sc):
-        sc.s2 = [sc.s2[0], None] + list(sc.s2[2:4]) + extra     # Satz 1 frei (Platz); 4-7: hoch, links, rechts, gitter
+        sc.s2 = [sc.s2[0], None] + list(sc.s2[2:4]) + extra     # record 1 free (room); 4-7: up, left, right, grating
         return dbeview.layout_vram(sc)
 
     items = [0, 2, 3, 2] + [0] * 60
-    # demo: alle freien Zellen x 4 Richtungen mit 0, 1 und 5 Objekten (fester Seed), Gegenstände, ITEMPH
+    # demo: all free cells x 4 directions with 0, 1 and 5 objects (fixed seed), items, ITEMPH
     rnd = random.Random(2025)
     scs = []
     for n in (0, 1, 5):
@@ -1279,8 +1279,8 @@ def test_p6e(vcopy=False):
                 objs = dbeview.random_objects(rnd, demo, i, v, n)
                 scs.append((f'demo {n} Obj {i}/{v}', dbeview.make_scene(A, demo, i, v, objs, items, (i + v) & 3,
                                                                         band_cover=bool((i + v) & 1))))
-    go('demo 0/1/5 Objekte', scs)
-    # rand: Sprites an den Fensterrändern (s = -2 ... 2, d = 1 ... 3, alle q), oben hinaus, links/rechts hinaus
+    go('demo 0/1/5 objects', scs)
+    # edge: sprites at the window edges (s = -2 ... 2, d = 1 ... 3, all q), out at the top, out left/right
     m = open_room()
     cx, cy = m.start % m.width, m.start // m.width
     scs = []
@@ -1290,10 +1290,10 @@ def test_p6e(vcopy=False):
                 for q in range(5):
                     o = dbeview.Obj((cy - d) * m.width + cx + s_, setn, 2, 1, q)
                     sc = with_extra(dbeview.make_scene(A, m, objects=[o], buf=BIGBUF, band_cover=bool(q & 1)))
-                    scs.append((f'rand Satz {setn} d {d} s {s_} q {q}', sc))
-    go('rand', scs)
-    # rand hinter Wänden: Objekte teilweise verdeckt
-    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, WEG | DECK, 0)]
+                    scs.append((f'edge record {setn} d {d} s {s_} q {q}', sc))
+    go('edge', scs)
+    # edge behind walls: objects partly occluded
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, SOLID | OCCL, 0)]
     rows = ["#########", "#.......#", "#.#####.#", "#.#...#.#", "#.#...#.#", "#...#...#", "#########"]
     mw = mk_map(rows, t, {"#": 1, ".": 0}, outside=1, start=5 * 9 + 2, direction=0)
     scs = []
@@ -1301,12 +1301,12 @@ def test_p6e(vcopy=False):
         for v in range(4):
             for setn in (0, 3, 5):
                 objs = [dbeview.Obj(j, setn, (j + v) & 3, j & 1, q) for j in range(len(mw.cells)) for q in (0, 4)
-                        if not mw.tiles[mw.cells[j]].flags & WEG and (j + q) % 3 == 0]
-                scs.append((f'verdeckt {i}/{v} Satz {setn}', with_extra(dbeview.make_scene(A, mw, i, v, objs[:16]))))
-    go('rand verdeckt', scs)
-    # INHALT: Türen/Gitter mit Flag INHALT (deckend und nicht), Objekte und Gegenstände darauf
-    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, WEG | DECK, 0), T((2, 0, 2, 0), 1, 1, INH, 0),
-         T((3, 3, 3, 3), 1, 2, INH | DECK, 0), T((2, 2, 2, 2), 1, 1, WEG, 0)]
+                        if not mw.tiles[mw.cells[j]].flags & SOLID and (j + q) % 3 == 0]
+                scs.append((f'occluded {i}/{v} record {setn}', with_extra(dbeview.make_scene(A, mw, i, v, objs[:16]))))
+    go('edge occluded', scs)
+    # CONTENT: doors/grids with flag CONTENT (occluding and not), objects and items on them
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, SOLID | OCCL, 0), T((2, 0, 2, 0), 1, 1, CONT, 0),
+         T((3, 3, 3, 3), 1, 2, CONT | OCCL, 0), T((2, 2, 2, 2), 1, 1, SOLID, 0)]
     rows = ["#########", "#.D.G...#", "#.#E#.#.#", "#.......#", "#.G.D.E.#", "#########"]
     content = [0] * (9 * 6)
     mi = mk_map(rows, t, {"#": 1, ".": 0, "D": 2, "E": 3, "G": 4}, outside=1, start=3 * 9 + 1, direction=1)
@@ -1317,18 +1317,18 @@ def test_p6e(vcopy=False):
     for i in free(mi):
         for v in range(4):
             objs = [dbeview.Obj(j, (j + v) % 4, v, j & 1, (j + v) % 6) for j, c in enumerate(mi.cells) if c in (2, 3, 4)]
-            scs.append((f'INHALT {i}/{v}', dbeview.make_scene(A, mi, i, v, objs[:16], items, v,
+            scs.append((f'CONTENT {i}/{v}', dbeview.make_scene(A, mi, i, v, objs[:16], items, v,
                                                                band_cover=bool(i & 1))))
-    go('INHALT', scs)
-    # zwei Fronten und zwei Objektplätze je Zelle (k_ob < k_oe, synthetische DVG): demo und zufall mit Objekten
+    go('CONTENT', scs)
+    # two fronts and two object slots per cell (k_ob < k_oe, synthetic DVG): demo and random with objects
     A3 = dbeview.double_fronts(A, objs=True)
     rnd = random.Random(33)
     scs = [(f'2F2O demo {i}/{v}', dbeview.make_scene(A3, demo, i, v, dbeview.random_objects(rnd, demo, i, v, 6), items,
                                                      v, band_cover=bool(i & 1)))
            for i in free(demo)[::2] for v in range(4)]
-    scs += [(f'2F2O zufall {k}', dbeview.random_scene(2000 + k, A3, nobj=12)) for k in range(40)]
-    go('zwei Fronten, zwei Objektplätze', scs)
-    # zufall mit Objekten (bis 16, Bit 6/7, Gegenstände, ITEMPH), OBJN > 16
+    scs += [(f'2F2O random {k}', dbeview.random_scene(2000 + k, A3, nobj=12)) for k in range(40)]
+    go('two fronts, two object slots', scs)
+    # random with objects (up to 16, bit 6/7, items, ITEMPH), OBJN > 16
     nmaps, nviews = (200, 20) if full else (60, 6)
     for part in range(0, nmaps, 20):
         scs = []
@@ -1345,13 +1345,13 @@ def test_p6e(vcopy=False):
                 if j == nviews - 1:
                     sc.ap = rnd.choice((0x0040, 0x0123))
                     dbeview.layout_vram(sc)
-                if j == 1:                  # OBJN = 20: nur die ersten 16 zählen
+                if j == 1:                  # OBJN = 20: only the first 16 count
                     sc.objects = dbeview.random_objects(rnd, sc.dmp, sc.pos, sc.dir, 20)
-                    scs.append((f'zufall {k}/{j} OBJN 20', sc))
+                    scs.append((f'random {k}/{j} OBJN 20', sc))
                 else:
-                    scs.append((f'zufall {k}/{j}', sc))
-        go(f'zufall {part}-{min(part + 20, nmaps) - 1}', scs)
-    # Überlauf mit Objekten: kleine Puffer (A = 2/3)
+                    scs.append((f'random {k}/{j}', sc))
+        go(f'random {part}-{min(part + 20, nmaps) - 1}', scs)
+    # overflow with objects: small buffers (A = 2/3)
     rnd = random.Random(77)
     ov = []
     for i in free(demo)[::2]:
@@ -1363,26 +1363,26 @@ def test_p6e(vcopy=False):
         for size in (64, 128, 256, 512, 1024):
             s2 = copy.copy(sc)
             s2.buf = (0x1300, 0x1300 + size)
-            scs.append((f'überlauf {n_} {size}', s2))
-    go('überlauf', scs)
-    # P6j: feste Listenadresse (BUFSET X Bit 0) mit Objekten (beschnittene Sprites: VMS-Listen ab B0 + 3)
+            scs.append((f'overflow {n_} {size}', s2))
+    go('overflow', scs)
+    # P6j: fixed list address (BUFSET X bit 0) with objects (trimmed sprites: VMS lists from B0 + 3)
     scs = []
     for n_, sc in enumerate(ov[::2] + [dbeview.random_scene(k, A, nobj=12) for k in range(400, 430)]):
         for size in (128, 1024, 2304):
             s2 = copy.copy(sc)
             s2.buf, s2.buf_fix = (0x1300, 0x1300 + size), True
             scs.append((f'fest {n_} {size}', s2))
-    codes = go('feste Listenadresse', scs)
+    codes = go('fixed list address', scs)
     ok = ok and codes.get(0, 0) > 0
-    # MAXITEM = 8 mit Objekten (leere Sprite-Einträge zählen nicht)
+    # MAXITEM = 8 with objects (empty sprite entries do not count)
     if not vcopy:
         scs = [(f'MAXITEM 8 {k}', dbeview.random_scene(500 + k, A, nobj=16, buf=BIGBUF)) for k in range(30)]
         go('MAXITEM = 8', scs, prg=PRGM, maxitem=8)
-    print(f'P6e sim{tag}: {total} Ansichten bytegleich verglichen, A-Codes gesamt {dict(sorted(allcodes.items()))},'
-          f' Objekte {stats["obj"]}, davon ausgegeben (OBJVIS) {stats["vis"]} -> {"ok" if ok else "FEHLER"}')
+    print(f'P6e sim{tag}: {total} views compared byte-identical, A codes total {dict(sorted(allcodes.items()))},'
+          f' objects {stats["obj"]}, of which output (OBJVIS) {stats["vis"]} -> {"ok" if ok else "ERROR"}')
     if os.environ.get('DBE_NOCYCLES') or vcopy:
         return ok
-    # Zyklen: je VIEW mit Objekten, und je Objekt (Differenz zur Ansicht ohne Objekte)
+    # cycles: per VIEW with objects, and per object (difference to the view without objects)
     R = ViewRunner(dbeview, dbetex, vcopy)
     R.dbg_bytes = dbg_prg[2:]
 
@@ -1400,13 +1400,13 @@ def test_p6e(vcopy=False):
             for v in range(4):
                 sc = dbeview.make_scene(A, demo, i, v, dbeview.random_objects(rnd, demo, i, v, n), items, 0)
                 cy.append(tv(sc))
-        print(f'P6e Zyklen demo {n} Objekte: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+        print(f'P6e cycles demo {n} objects: n = {len(cy)}, min {min(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
     cy = [tv(dbeview.random_scene(k, A)) for k in range(40)]
-    print(f'P6e Zyklen zufall (0-16 Objekte): n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
-    # je Objekt: offener Raum, ein Objekt in (d, s) mit Satz; Differenz zur leeren Ansicht
-    for label, setn, cases in (('unbeschnitten', 0, [(1, 0, 4), (2, 0, 2), (3, 0, 4), (2, 1, 1)]),
-                               ('beschnitten (Rand)', 3, [(1, -1, 0), (1, 1, 4), (2, -2, 0), (2, 2, 1)]),
-                               ('beschnitten (oben)', 4, [(1, 0, 4), (2, 0, 4), (3, 0, 4)])):
+    print(f'P6e cycles random (0-16 objects): n = {len(cy)}, min {min(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
+    # per object: open room, one object at (d, s) with record; difference to the empty view
+    for label, setn, cases in (('untrimmed', 0, [(1, 0, 4), (2, 0, 2), (3, 0, 4), (2, 1, 1)]),
+                               ('trimmed (edge)', 3, [(1, -1, 0), (1, 1, 4), (2, -2, 0), (2, 2, 1)]),
+                               ('trimmed (top)', 4, [(1, 0, 4), (2, 0, 4), (3, 0, 4)])):
         per = []
         for d, s_, q in cases:
             o = dbeview.Obj((cy0 := m.start // m.width - d) * m.width + m.start % m.width + s_, setn, 2, 0, q)
@@ -1415,36 +1415,36 @@ def test_p6e(vcopy=False):
             res = dbeview.view(sc1)
             nbytes = len(res.vms)
             per.append((tv(sc1) - tv(sc0), nbytes, res.objvis))
-        print(f'P6e Zyklen je Objekt {label}: ' + ', '.join(f'{c} ({b} VMS-Byte{"" if v else ", unsichtbar"})'
+        print(f'P6e cycles per object {label}: ' + ', '.join(f'{c} ({b} VMS byte{"" if v else ", invisible"})'
                                                            for c, b, v in per))
     return ok
 
 
-# ------------------------------------------------------------------ P6f: MOVE, Automap, Zyklen
-AUTO_ADDR = 0x4000                  # Arbeitskopie der Karte (2 W H Byte) in den Automap-Tests (MAPINIT ab $4000)
-AUTO_S2 = ((0x4800, 0x6000), (0xA700, 0xB000))      # S2-Bereiche dort: $4000-$47FF gehört der Arbeitskopie
+# ------------------------------------------------------------------ P6f: MOVE, automap, cycles
+AUTO_ADDR = 0x4000                  # working copy of the map (2 W H bytes) in the automap tests (MAPINIT from $4000)
+AUTO_S2 = ((0x4800, 0x6000), (0xA700, 0xB000))      # S2 areas there: $4000-$47FF belongs to the working copy
 
 
 def move_maps(dbemap, dbeview):
-    """Karten für den MOVE-Test: (Name, Map). Mit Ereignissen (mehrere je Zelle, Indizes > 255), Türen, Objekten
-    nur in der Liste; Randfälle W = 255 (px + 1 = $FF), W = 1, H = 1."""
+    """Maps for the MOVE test: (name, map). With events (several per cell, indices > 255), doors, objects
+    in the list only; edge cases W = 255 (px + 1 = $FF), W = 1, H = 1."""
     import random
-    from test_dbeview import abgrund_map
+    from test_dbeview import abyss_map
     rnd = random.Random(61)
     T = dbemap.Tile
-    out = [('demo', dbemap.load_toml(DEMO_MAP)), ('abgrund', abgrund_map())]
+    out = [('demo', dbemap.load_toml(DEMO_MAP)), ('abyss', abyss_map())]
     for k in range(6):
-        out.append((f'zufall {k}', dbeview.random_map(rnd, rnd.randint(3, 20), rnd.randint(3, 20))))
+        out.append((f'random {k}', dbeview.random_map(rnd, rnd.randint(3, 20), rnd.randint(3, 20))))
     t = [T((0, 0, 0, 0), 1, 1, 0, 0), T((1, 1, 1, 1), 0, 0, 1 | 4, 0), T((2, 2, 2, 2), 1, 1, 1 | 8, 0)]
-    for name, w, h in (('breit 255', 255, 4), ('schmal 1', 1, 40), ('flach 40', 40, 1), ('hoch 4', 4, 255),
+    for name, w, h in (('wide 255', 255, 4), ('narrow 1', 1, 40), ('flat 40', 40, 1), ('tall 4', 4, 255),
                        ('1x1', 1, 1)):
         cells = [rnd.choice((0, 0, 0, 1, 2)) for _ in range(w * h)]
         out.append((name, dbemap.Map(name, w, h, t, cells, [rnd.randrange(64) | rnd.choice((0, 0x40, 0x80)) for _ in cells],
                                      [], 0, 0, rnd.choice((0, 1)))))
     for name, m in out:
         n = m.width * m.height
-        if name != 'demo':                                   # demo behält ihre drei Ereignisse
-            nev = 600 if name == 'breit 255' else (rnd.choice((0, 3, 40, 300)) if n > 40 else 5)   # Index > 255
+        if name != 'demo':                                   # demo keeps its three events
+            nev = 600 if name == 'wide 255' else (rnd.choice((0, 3, 40, 300)) if n > 40 else 5)   # index > 255
             evs = sorted({(rnd.randrange(n), rnd.choice((1, 2, 3, 4, 200)), rnd.randrange(256)) for _ in range(nev)})
             m.events = [dbemap.Event(*e) for e in evs]
         m.start = next((i for i, c in enumerate(m.cells) if not m.tiles[c].flags & 1), 0)
@@ -1455,8 +1455,8 @@ def move_maps(dbemap, dbeview):
 
 
 def test_p6f_move():
-    """MOVE (3.4): alle Zellen x Richtungen x Aktionen gegen tools/dbemove.py; Zufallsketten (Zustand pos/vdir/px/py
-    zwischen den Aufrufen), Objekte mit Bit 6/7 auf den Nachbarzellen, Fehlerfälle."""
+    """MOVE (3.4): all cells x directions x actions against tools/dbemove.py; random chains (state pos/vdir/px/py
+    between the calls), objects with bit 6/7 on the neighbouring cells, error cases."""
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import random
@@ -1468,7 +1468,7 @@ def test_p6f_move():
     rnd = random.Random(6)
 
     def nobjs(m, cell, v):
-        """Objekte um die Zelle: auf den Nachbarzellen (auch blockierend), mit Bit 6/7, dazu zufällige"""
+        """Objects around the cell: on the neighbouring cells (also blocking), with bit 6/7, plus random ones"""
         w = m.width
         near = [c for c in (cell - w, cell + w, cell - 1, cell + 1) if 0 <= c < w * m.height]
         n = rnd.choice((0, 0, 1, 2, 5, 16))
@@ -1487,19 +1487,19 @@ def test_p6f_move():
         dmp = dbemap.to_dmp(m)[2:]
         sc.seg(P6D_ADDR['dmp'], dmp)
         sc.call(1, p=(P6D_ADDR['dmp'], 0, 0, 0))
-        exp = []                                            # (Referenz, Aktion, Zelle, Richtung, Objekte)
+        exp = []                                            # (reference, action, cell, direction, objects)
         cells = range(n) if n <= 60 else sorted(rnd.sample(range(n), 60)) + [0, n - 1, w - 1, n - w]
         for cell in cells:
             for v in range(4):
                 for act in range(7):
                     objs = nobjs(m, cell, v)
                     sc.call(2, v, p=(cell, 0, 0, 0))
-                    nn = len(objs) if len(objs) < 16 or rnd.random() < 0.7 else 20      # OBJN > 16: nur 16 gelesen
+                    nn = len(objs) if len(objs) < 16 or rnd.random() < 0.7 else 20      # OBJN > 16: only 16 read
                     sc.call(3, act, objn=nn, objl=b''.join(
                         struct.pack('<HBBBB', o.cell, o.set, o.dir, o.phase, o.byte5()) for o in objs))
                     sc.dump(pos_a, 7)
                     exp.append((dbemove.move(m, cell, v, objs, act, nn), cell, v, act))
-        # Zufallskette: MOVE ohne SETPOS dazwischen, mit festen Objekten (Bit 6/7 gemischt)
+        # random chain: MOVE without SETPOS in between, with fixed objects (bit 6/7 mixed)
         cell, v = m.start, m.direction
         sc.call(2, v, p=(cell, 0, 0, 0))
         objs = nobjs(m, cell, v) + nobjs(m, rnd.randrange(n), 0)
@@ -1513,7 +1513,7 @@ def test_p6f_move():
             exp.append((r, cell, v, act))
             cell, v = r.pos, r.dir
         r = run(sc)
-        # Auswertung: Aufrufreihenfolge = SETPOS, MOVE, Dump je Eintrag (Ketten: erst SETPOS)
+        # Evaluation: call order = SETPOS, MOVE, dump per entry (chains: SETPOS first)
         items = list(r.items)[2:]
         k = 0
         for ei, (ref, c0, v0, act) in enumerate(exp):
@@ -1521,7 +1521,7 @@ def test_p6f_move():
                 it_pos = items[k]; it_mv = items[k + 1]; dump = items[k + 2][1]; k += 3
             else:
                 if ei == len(exp) - 300:
-                    k += 1                                  # SETPOS der Kette
+                    k += 1                                  # SETPOS of the chain
                 it_mv = items[k]; dump = items[k + 1][1]; k += 2
             want = (ref.a, ref.x, ref.y, ref.p0, ref.p1, ref.p2)
             c = it_mv
@@ -1532,10 +1532,10 @@ def test_p6f_move():
             total += 1
             xs[ref.x] = xs.get(ref.x, 0) + 1
             if have != want or st != wst:
-                fails.append(f'{name} Zelle {c0} v {v0} Aktion {act}: sim {have} {st} <> Referenz {want} {wst}')
-        print(f'P6f MOVE {name} ({w}x{h}, {len(m.events)} Ereignisse): {len(exp)} Aufrufe, {len(fails)} Abweichungen so weit')
-    print(f'P6f MOVE: {total} Aufrufe verglichen (X = 0: {xs[0]}, 1: {xs[1]}, 2: {xs[2]})')
-    # Fehlerfälle: X >= 7, MOVE ohne MAPINIT
+                fails.append(f'{name} cell {c0} v {v0} action {act}: sim {have} {st} <> reference {want} {wst}')
+        print(f'P6f MOVE {name} ({w}x{h}, {len(m.events)} events): {len(exp)} calls, {len(fails)} deviations so far')
+    print(f'P6f MOVE: {total} calls compared (X = 0: {xs[0]}, 1: {xs[1]}, 2: {xs[2]})')
+    # error cases: X >= 7, MOVE without MAPINIT
     sc = Scene()
     sc.call(0)
     sc.call(3, 0)
@@ -1547,28 +1547,28 @@ def test_p6f_move():
     sc.dump(pos_a, 7)
     r = run(sc)
     c = [i for i in r.items if isinstance(i, Call)]
-    exp_ = [(5, 0, 0), (0, 7, 5), (6, 0, 0), (6, 0, 0)]       # MOVE ohne MAPINIT, MAPINIT (W, H), X = 7, X = 255
+    exp_ = [(5, 0, 0), (0, 7, 5), (6, 0, 0), (6, 0, 0)]       # MOVE without MAPINIT, MAPINIT (W, H), X = 7, X = 255
     for cc, (a, x, y) in zip(c[1:], exp_):
         if (cc.a, cc.x, cc.y) != (a, x, y):
             fails.append(f'Fehlerfall: A/X/Y {(cc.a, cc.x, cc.y)} <> {(a, x, y)}')
     d = r.items[-1][1]
     if (d[0] | d[1] << 8, d[2]) != (m.start, m.direction):
-        fails.append('Fehlerfall: Zustand verändert')
+        fails.append('Error case: state changed')
     for f in fails[:10]:
         print('FAIL', f)
     ok = not fails
-    print(f'P6f MOVE -> {"ok" if ok else "FEHLER"}')
+    print(f'P6f MOVE -> {"ok" if ok else "ERROR"}')
     return ok
 
 
 def test_p6f_auto():
-    """Automap-Bit 6 in VIEW: Arbeitskopie der Inhaltsebene nach jeder Ansicht = dbeview (Scene.automap)."""
+    """Automap bit 6 in VIEW: working copy of the content layer after every view = dbeview (Scene.automap)."""
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import copy, random
     import dbemap, dbetex, dbeview
     dbeview.dbemap = dbemap
-    from test_dbeview import abgrund_map, open_room
+    from test_dbeview import abyss_map, open_room
     full = bool(os.environ.get('DBEVIEW_FULL'))
     tmp = tempfile.TemporaryDirectory()
     A = dbeview.build_demo_assets(tmp.name)
@@ -1578,7 +1578,7 @@ def test_p6f_auto():
     ok, total, marked = True, 0, [0, 0]
 
     def free(m):
-        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_SOLID]
 
     class AutoRunner(ViewRunner):
         mapx, mapp1 = 1, AUTO_ADDR
@@ -1594,7 +1594,7 @@ def test_p6f_auto():
             sc.vms_bank1, sc.dts_addr = self.bank1, P6D_ADDR['dts']
             self.setup(sc)
             key = dbeview.dbemap.to_dmp(sc.dmp)
-            if self.refkey != key:                          # neue Karte: MAPINIT hat die Kopie frisch angelegt
+            if self.refkey != key:                          # new map: MAPINIT has freshly created the copy
                 self.refkey, self.ref = key, copy.deepcopy(sc.dmp)
             sc.s2_addr = tuple(self.s2_addr(ss) if ss is not None else 0 for ss in sc.s2)
             sc2 = copy.copy(sc)
@@ -1617,17 +1617,17 @@ def test_p6f_auto():
         for (name, want), (addr, got) in zip(R.dumps, dumps):
             if got != want:
                 bad = [i for i in range(len(got)) if got[i] != want[i]][:4]
-                fails.append(f'{name}: Arbeitskopie weicht ab (Offsets {bad})')
+                fails.append(f'{name}: working copy deviates (offsets {bad})')
         total += n
-        print(f'P6f Automap {label}: {n} Ansichten, {len(fails)} Abweichungen, A-Codes {dict(sorted(codes.items()))}')
+        print(f'P6f Automap {label}: {n} views, {len(fails)} deviations, A-Codes {dict(sorted(codes.items()))}')
         for f in fails[:10]:
             print('FAIL', f)
         ok = ok and not fails
 
-    # Ketten über dieselbe Karte (Marken sammeln sich an): demo, abgrund, open_room, Gang
+    # chains over the same map (marks accumulate): demo, abyss, open_room, corridor
     rnd = random.Random(8)
     gm = corridor_map(dbemap)
-    for label, m in (('demo', demo), ('abgrund', abgrund_map()), ('raum', open_room()), ('gang', gm)):
+    for label, m in (('demo', demo), ('abyss', abyss_map()), ('room', open_room()), ('corridor', gm)):
         fr = free(m)
         scs = []
         for bc in (False, True):
@@ -1635,7 +1635,7 @@ def test_p6f_auto():
                 for v in range(4):
                     scs.append((f'{label} {i}/{v} bc{int(bc)}', dbeview.make_scene(A, m, i, v, band_cover=bc)))
         go(label, scs)
-    # zufall (INHALT, Lücken, blockierte Zellen), zwei Fronten, kleine Puffer (Abbruch: Marken bis dahin)
+    # random (CONTENT, gaps, blocked cells), two fronts, small buffers (abort: marks up to that point)
     nmaps, nv = (60, 8) if full else (24, 6)
     scs = []
     for k in range(nmaps):
@@ -1647,13 +1647,13 @@ def test_p6f_auto():
             sc.pos, sc.dir = rr.choice(free(base.dmp)), rr.randrange(4)
             if j == nv - 1:
                 sc.buf = (0x1300, 0x1300 + rr.choice((64, 128, 256)))
-            scs.append((f'zufall {k}/{j}', sc))
-    go('zufall', scs)
+            scs.append((f'random {k}/{j}', sc))
+    go('random', scs)
     scs = [(f'2F demo {i}/{v}', dbeview.make_scene(A2, demo, i, v)) for i in free(demo) for v in range(4)]
-    scs += [(f'2F zufall {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(20)]
-    go('zwei Fronten', scs)
-    # ohne Arbeitskopie (X = 1, P1 = 0) und mit X = 0: keine Marken, DMP unverändert
-    for label, mx in (('X=1 ohne Kopie', 1), ('X=0 mit Kopie', 0)):
+    scs += [(f'2F random {k}', dbeview.random_scene(1000 + k, A2, nobj=0)) for k in range(20)]
+    go('two fronts', scs)
+    # without working copy (X = 1, P1 = 0) and with X = 0: no marks, DMP unchanged
+    for label, mx in (('X=1 without copy', 1), ('X=0 with copy', 0)):
         R = ViewRunner(dbeview, dbetex)
         R.dbg_bytes = dbg_prg[2:]
         R.S2_AREAS = AUTO_S2
@@ -1665,18 +1665,18 @@ def test_p6f_auto():
         n, fails, codes, _ = R.run()
         got = [i for i in R.last_items if not isinstance(i, Call)][-1][1]
         if got != dbemap.to_dmp(demo)[2:]:
-            fails.append('DMP verändert')
-        print(f'P6f Automap {label}: {n} Ansichten, {len(fails)} Abweichungen')
+            fails.append('DMP changed')
+        print(f'P6f Automap {label}: {n} views, {len(fails)} deviations')
         ok = ok and not fails
         for f in fails[:5]:
             print('FAIL', f)
-    print(f'P6f Automap: {total} Ansichten, {marked[0]} Zellen markiert (über {marked[1]} Ansichten) -> '
-          f'{"ok" if ok and marked[0] else "FEHLER"}')
+    print(f'P6f automap: {total} views, {marked[0]} cells marked (over {marked[1]} views) -> '
+          f'{"ok" if ok and marked[0] else "ERROR"}')
     return ok and marked[0] > 0
 
 
 def test_p6f_cycles():
-    """Zyklen: MOVE je Fall (Lauf mit MOVE minus Lauf mit F = 7) und VIEW ohne/mit Automap."""
+    """Cycles: MOVE per case (run with MOVE minus run with F = 7) and VIEW without/with automap."""
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import random
@@ -1704,62 +1704,62 @@ def test_p6f_cycles():
         for v in range(4):
             for act in range(7):
                 r = dbemove.move(demo, cell, v, [], act)
-                kind = 'drehen' if act >= 4 else ('Schritt ok' if r.x == 0 else
-                                                  ('Schritt Karte/WEG' if r.x == 1 else 'Objekt'))
+                kind = 'turn' if act >= 4 else ('step ok' if r.x == 0 else
+                                                  ('step map/SOLID' if r.x == 1 else 'object'))
                 cases.setdefault(kind, []).append((cell, v, act))
     rnd = random.Random(3)
     for kind, lst in sorted(cases.items()):
         cy = [mv_cycles(demo, *c) for c in rnd.sample(lst, min(len(lst), 12))]
-        print(f'P6f Zyklen MOVE demo {kind}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
-    # Objekt auf der Zielzelle: 16 Objekte, das blockierende zuletzt (Worst Case der Schleife)
+        print(f'P6f cycles MOVE demo {kind}: n = {len(cy)}, min {min(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
+    # object on the target cell: 16 objects, the blocking one last (worst case of the loop)
     cell = demo.start
     tgt = cell + 1
     objs = [dbeview.Obj(0, 0, 0, 0, 4, False, False)] * 15 + [dbeview.Obj(tgt, 0, 0, 0, 4)]
-    print(f'P6f Zyklen MOVE Objekt, 16 Objekte (blockierend zuletzt): {mv_cycles(demo, cell, 1, 0, objs)}')
-    # Ereignisse: Suche über die ganze Liste (keine Übereinstimmung), 600 Ereignisse
+    print(f'P6f cycles MOVE object, 16 objects (blocking last): {mv_cycles(demo, cell, 1, 0, objs)}')
+    # events: search over the whole list (no match), 600 events
     T = dbemap.Tile
     t = [T((0, 0, 0, 0), 1, 1, 0, 0)]
     for ne in (0, 3, 100, 600):
         m = dbemap.Map('ev', 40, 30, t, [0] * 1200, [0] * 1200, [dbemap.Event(c, 4, 1) for c in range(100, 100 + ne)],
                        0, 0, 0)
-        print(f'P6f Zyklen MOVE Drehen mit {ne} Ereignissen (keines an der Position): {mv_cycles(m, 5, 0, 4)}')
+        print(f'P6f cycles MOVE turning with {ne} events (none at the position): {mv_cycles(m, 5, 0, 4)}')
     m.events = [dbemap.Event(c, 4, 1) for c in range(1, 601)]
-    print(f'P6f Zyklen MOVE Drehen, Ereignis an Position 600 (letzte): {mv_cycles(m, 600, 0, 4)}')
-    # VIEW: Automap aus / an
-    for label, mx in (('ohne Automap', 0), ('mit Automap', 1)):
+    print(f'P6f cycles MOVE turning, event at position 600 (last): {mv_cycles(m, 600, 0, 4)}')
+    # VIEW: automap off / on
+    for label, mx in (('without automap', 0), ('with automap', 1)):
         R = ViewRunner(dbeview, dbetex)
         R.dbg_bytes = dbg_prg[2:]
         R.S2_AREAS = AUTO_S2
         R.mapx, R.mapp1 = mx, (AUTO_ADDR if mx else 0)
         gm = corridor_map(dbemap)
-        for nm, m in (('Gang', gm), ('demo', demo)):
-            fr = [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+        for nm, m in (('Corridor', gm), ('demo', demo)):
+            fr = [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_SOLID]
             scs = [dbeview.make_scene(A, m, i, v) for i in fr for v in ((1, 3) if m is gm else range(4))]
             cy = [time_view(R, sc) for sc in scs]
-            print(f'P6f Zyklen VIEW {nm} {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+            print(f'P6f cycles VIEW {nm} {label}: n = {len(cy)}, min {min(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
         cy = [time_view(R, dbeview.random_scene(k, A, nobj=0)) for k in range(40)]
-        print(f'P6f Zyklen VIEW zufall {label}: n = {len(cy)}, min {min(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+        print(f'P6f cycles VIEW random {label}: n = {len(cy)}, min {min(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
     return True
 
 
-# ------------------------------------------------------------------ P6l: Fernsicht-Füllung (5.7a)
+# ------------------------------------------------------------------ P6l: far view fill (5.7a)
 def test_p6l():
     sys.path.insert(0, TOOLS)
     sys.path.insert(0, os.path.join(ROOT, 'test', 'tools'))
     import copy
     import dbemap, dbetex, dbeview
     dbeview.dbemap = dbemap
-    from test_dbeview import fern_map
+    from test_dbeview import distant_map
     tmp = tempfile.TemporaryDirectory()
     A = dbeview.build_demo_assets(tmp.name)
     A2 = dbeview.double_fronts(A)
     dbg_prg, _, _ = dbetex.build_background(dbetex.load_bg_conf(os.path.join(tmp.name, 'bg.toml')))
-    maps = [fern_map(), dbemap.load_toml(os.path.join(ROOT, 'demo', 'demo.toml')), dbemap.load_toml(DEMO_MAP)]
-    names = ['fern_map', 'demo/demo.toml', 'Beispielkarte']
+    maps = [distant_map(), dbemap.load_toml(os.path.join(ROOT, 'demo', 'demo.toml')), dbemap.load_toml(DEMO_MAP)]
+    names = ['distant_map', 'demo/demo.toml', 'Example map']
     ok, total = True, 0
 
     def free(m):
-        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_WEG]
+        return [i for i, c in enumerate(m.cells) if not m.tiles[c].flags & dbeview.T_SOLID]
 
     def go(label, scenes, vcopy=False, objs=False):
         nonlocal ok, total
@@ -1769,7 +1769,7 @@ def test_p6l():
             R.add(name, sc, objs=objs)
         n, fails, codes, _ = R.run()
         total += n
-        print(f'P6l sim{" (VMS_COPY)" if vcopy else ""} {label}: {n} Ansichten, {len(fails)} Abweichungen, '
+        print(f'P6l sim{" (VMS_COPY)" if vcopy else ""} {label}: {n} views, {len(fails)} deviations, '
               f'A-Codes {dict(sorted(codes.items()))}')
         for f in fails[:10]:
             print('FAIL', f)
@@ -1785,9 +1785,9 @@ def test_p6l():
                     scs.append((f'{mname} {i}/{v}', dbeview.make_scene(A, m, i, v, band_cover=bool(k & 4), farfill=ff,
                                                                      dbg=dbg, bgfill=0x5A)))
             go(mname, scs, vcopy)
-        go('zufall', [(f'zufall {k}', dbeview.far_variant(dbeview.random_scene(k, A), k)) for k in range(120)],
+        go('random', [(f'random {k}', dbeview.far_variant(dbeview.random_scene(k, A), k)) for k in range(120)],
            vcopy, objs=True)
-    go('zwei Fronten', [(f'2F {k}', dbeview.far_variant(dbeview.random_scene(2000 + k, A2, nobj=0), k))
+    go('two fronts', [(f'2F {k}', dbeview.far_variant(dbeview.random_scene(2000 + k, A2, nobj=0), k))
                         for k in range(60)])
     ov = [dbeview.make_scene(A, maps[0], i, v, farfill=0) for i in free(maps[0])[::3] for v in range(4)]
     ov += [dbeview.far_variant(dbeview.random_scene(k, A, nobj=0), k) for k in range(500, 520)]
@@ -1796,18 +1796,18 @@ def test_p6l():
         for size in (64, 128, 256, 512, 1024):
             s2 = copy.copy(sc)
             s2.buf, s2.buf_fix = (0x1300, 0x1300 + size), bool(n_ & 1)
-            scs.append((f'überlauf {n_} {size}', s2))
-    go('überlauf', scs)
-    print(f'P6l sim: {total} Ansichten bytegleich verglichen -> {"ok" if ok else "FEHLER"}')
+            scs.append((f'overflow {n_} {size}', s2))
+    go('overflow', scs)
+    print(f'P6l sim: {total} views compared byte-identical -> {"ok" if ok else "ERROR"}')
     if os.environ.get('DBE_NOCYCLES'):
         return ok
-    # Zyklen VIEW: Demo-Karte (demo/demo.toml) mit Demo-Assets, alle freien Zellen x 4 Richtungen, ohne/mit Füllung
+    # cycles VIEW: demo map (demo/demo.toml) with demo assets, all free cells x 4 directions, without/with fill
     R = ViewRunner(dbeview, dbetex)
     R.dbg_bytes = dbg_prg[2:]
     m = maps[1]
-    for label, ff in (('ohne Füllung', None), ('mit Füllung', 0)):
+    for label, ff in (('without fill', None), ('with fill', 0)):
         cy = [time_view(R, dbeview.make_scene(A, m, i, v, farfill=ff)) for i in free(m) for v in range(4)]
-        print(f'P6l Zyklen demo/demo.toml {label}: n = {len(cy)}, Mittel {sum(cy) // len(cy)}, max {max(cy)}')
+        print(f'P6l cycles demo/demo.toml {label}: n = {len(cy)}, mean {sum(cy) // len(cy)}, max {max(cy)}')
     return ok
 
 

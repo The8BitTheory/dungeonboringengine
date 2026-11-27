@@ -1,4 +1,4 @@
-"""Tests fuer tools/dbetex.py und tools/dbetexdemo.py (docs/specs/P5-textures.md, Abschnitt 10)."""
+"""Tests for tools/dbetex.py and tools/dbetexdemo.py (docs/specs/P5-textures.md, section 10)."""
 import binascii
 import copy
 import json
@@ -32,7 +32,7 @@ def rd(p):
 
 
 class Env:
-    """Beispiel-Assets und gebaute Sets, einmal je Testlauf."""
+    """Example assets and built sets, once per test run."""
     _inst = None
 
     @classmethod
@@ -68,7 +68,7 @@ def conf_with(base, styles=None, **kw):
 
 
 def expected_pixels(conf, geom, style_idx, slots, si, cache):
-    """Erwartete Pixel (Palettenindex | None) fuer Slot si des Stils, unabhaengig vom Entry-Aufbau."""
+    """Expected pixels (palette index | None) for slot si of the style, independent of the entry construction."""
     key = (style_idx, si)
     if key in cache:
         return cache[key]
@@ -102,7 +102,7 @@ def expected_pixels(conf, geom, style_idx, slots, si, cache):
 
 
 def run_roundtrip(case, ts, conf, geom, seed=1):
-    """Rendert alle Stile/Slots nach VRL-Entpacken und vergleicht mit dem Erwartungsbild."""
+    """Renders all styles/slots after VRL unpacking and compares with the expected image."""
     slots = ts.slots
     stream = vrl.encode(list(ts.vram))
     mem = bytearray(65536)
@@ -130,29 +130,29 @@ def run_roundtrip(case, ts, conf, geom, seed=1):
                             continue
                         a = (y + r) * stride + x + px // 2
                         ref[a] = (c << 4 | ref[a] & 15) if px % 2 == 0 else (ref[a] & 0xF0 | c)
-            case.assertEqual(fb, ref, f"Stil {sti} Slot {slot['name']}")
+            case.assertEqual(fb, ref, f"Style {sti} slot {slot['name']}")
 
 
 class TestFixed(unittest.TestCase):
-    def test_ziegel(self):
+    def test_brick(self):
         e = env()
         ts, warns, infos = dbetex.build_texset(conf_with(e.wconf, e.wconf["styles"][:1]))
         self.assertEqual(len(ts.vram), 11094)
         self.assertEqual(len(ts.entries), 25)
-        parts = [x for x in ts.entries if x.flags & dbetex.F_AUSSCHNITT]
+        parts = [x for x in ts.entries if x.flags & dbetex.F_CUTOUT]
         self.assertEqual(len(parts), 8)
         full_w = {1: 50, 2: 32, 3: 20}
         for en in ts.entries:
-            self.assertTrue(en.flags & dbetex.F_DECKEND)
+            self.assertTrue(en.flags & dbetex.F_OCCLUDING)
             slot = ts.slots[en.slot]
-            if en.flags & dbetex.F_AUSSCHNITT:
-                self.assertEqual((en.rand_len, len(en.vms)), (0, 0))
-                self.assertEqual(len(en.kerns), 1)
-                self.assertEqual(en.kerns[0].srcstep, full_w[slot["d"]])
+            if en.flags & dbetex.F_CUTOUT:
+                self.assertEqual((en.edge_len, len(en.vms)), (0, 0))
+                self.assertEqual(len(en.cores), 1)
+                self.assertEqual(en.cores[0].srcstep, full_w[slot["d"]])
             else:
-                k = en.kerns[0]
+                k = en.cores[0]
                 self.assertEqual((k.dx, k.dy, k.w, k.h), slot["kernel"])
-        own = sum(1 for x in ts.entries if not x.flags & dbetex.F_AUSSCHNITT)
+        own = sum(1 for x in ts.entries if not x.flags & dbetex.F_CUTOUT)
         self.assertEqual(own, 17)
         self.assertEqual(warns, [])
 
@@ -160,11 +160,11 @@ class TestFixed(unittest.TestCase):
         e = env()
         ts = e.floor[0]
         self.assertEqual(len(ts.vram), 3640)
-        z = [x for x in ts.entries if x.flags & dbetex.F_ZEILEN]
+        z = [x for x in ts.entries if x.flags & dbetex.F_ROWS]
         self.assertEqual([x.h for x in z], [13, 19, 13, 6])
-        self.assertTrue(all(not x.kerns and not x.vms for x in z))
+        self.assertTrue(all(not x.cores and not x.vms for x in z))
         self.assertEqual(len(e.ceil[0].vram), 1540 + 1574)
-        self.assertFalse(any(x.flags & dbetex.F_ZEILEN for x in e.ceil[0].entries))
+        self.assertFalse(any(x.flags & dbetex.F_ROWS for x in e.ceil[0].entries))
 
     def test_ns_and_slotmap(self):
         e = env()
@@ -210,8 +210,8 @@ class TestFixed(unittest.TestCase):
         self.assertEqual(back.slot_map, ts.slot_map)
         self.assertEqual(len(back.entries), len(ts.entries))
         for a, b in zip(back.entries, ts.entries):
-            self.assertEqual((a.flags, a.slot, a.kerns, a.rand_ofs, a.rand, a.vms, a.fill, a.source),
-                             (b.flags, b.slot, b.kerns, b.rand_ofs, b.rand, b.vms, b.fill, b.source))
+            self.assertEqual((a.flags, a.slot, a.cores, a.edge_ofs, a.edge, a.vms, a.fill, a.source),
+                             (b.flags, b.slot, b.cores, b.edge_ofs, b.edge, b.vms, b.fill, b.source))
 
     def test_vrl_roundtrip_data(self):
         e = env()
@@ -239,21 +239,21 @@ def px_rows(*rows):
     return [list(r) for r in rows]
 
 
-def sim_pack(pix, stride, max_kerns=0, kern_min=16, bg=None):
-    """Packt ein Bild, zeichnet es mit den Simulatoren und gibt (fb, erwartet, rand, vms, alpha) zurueck."""
+def sim_pack(pix, stride, max_cores=0, core_min=16, bg=None):
+    """Packs an image, draws it with the simulators and returns (fb, expected, edge, vms, alpha)."""
     h, w2 = len(pix), len(pix[0])
     st = dbetex.classify(pix)
-    kerns = dbetex.choose_kerns(st, max_kerns, kern_min)
-    alpha, rand, vms = dbetex.pack_image(pix, st, kerns, stride)
+    cores = dbetex.choose_cores(st, max_cores, core_min)
+    alpha, edge, vms = dbetex.pack_image(pix, st, cores, stride)
     mem = bytearray(65536)
-    kb = dbetex.kern_bytes(pix, kerns)
+    kb = dbetex.core_bytes(pix, cores)
     mem[0x4000:0x4000 + len(kb)] = kb
-    mem[0x4000 + len(kb):0x4000 + len(kb) + len(rand)] = rand
+    mem[0x4000 + len(kb):0x4000 + len(kb) + len(edge)] = edge
     rnd = random.Random(5)
     fb = bytearray(rnd.randrange(256) for _ in range(65536)) if bg is None else bytearray(bg)
     ref = bytearray(fb)
     src = 0x4000
-    for kx, ky, kw, kh in kerns:
+    for kx, ky, kw, kh in cores:
         dbetex.sim_vmc(mem, src, ky * stride + kx, kw, kh, stride, 0, fb=fb)
         src += kw * kh
     if vms:
@@ -265,22 +265,22 @@ def sim_pack(pix, stride, max_kerns=0, kern_min=16, bg=None):
                 continue
             a = r * stride + p // 2
             ref[a] = (c << 4 | ref[a] & 15) if p % 2 == 0 else (ref[a] & 0xF0 | c)
-    return fb, ref, rand, vms, alpha, kerns
+    return fb, ref, edge, vms, alpha, cores
 
 
 class TestPacking(unittest.TestCase):
     def test_alpha(self):
-        # halb-R-Bytes in Farbe 0 -> Alpha != 0
+        # half-R bytes in color 0 -> alpha != 0
         pix = px_rows([None, 0, None, 3, 5, 6, None, 0])
-        fb, ref, rand, vms, alpha, _ = sim_pack(pix, 20)
+        fb, ref, edge, vms, alpha, _ = sim_pack(pix, 20)
         self.assertNotEqual(alpha, 0)
         self.assertEqual(vms[0], alpha)
         self.assertEqual(fb, ref)
-        # halb-L-Byte: rechts steht Alpha
+        # half-L byte: alpha on the right
         pix = px_rows([4, None, 7, 7, 9, None])
-        fb, ref, rand, vms, alpha, _ = sim_pack(pix, 20)
+        fb, ref, edge, vms, alpha, _ = sim_pack(pix, 20)
         self.assertEqual(alpha, 0)
-        self.assertEqual(rand[0], 0x40)
+        self.assertEqual(edge[0], 0x40)
         self.assertEqual(fb, ref)
 
     def test_alpha_all_16(self):
@@ -290,9 +290,9 @@ class TestPacking(unittest.TestCase):
         n = dbetex.resolve_alpha_conflict(pix, st)
         self.assertEqual(n, 1)
         self.assertTrue(all(s in "FR" for s in st[0]))
-        fb, ref, rand, vms, alpha, _ = sim_pack(pix, 40)
+        fb, ref, edge, vms, alpha, _ = sim_pack(pix, 40)
         self.assertEqual(fb, ref)
-        # Warnung ueber den Builder
+        # warning via the builder
         e = env()
         slots, smap = dbetex.slot_infos(e.geom, "wall")
         b = dbetex._Builder(e.wconf, e.geom, slots, smap)
@@ -303,7 +303,7 @@ class TestPacking(unittest.TestCase):
             full[0][2 * i] = None
             full[0][2 * i + 1] = i
         b.image_entry(si, full, slots[si]["mask"], "t")
-        self.assertTrue(any("16 Farben" in x for x in b.warns))
+        self.assertTrue(any("16 colors" in x for x in b.warns))
 
     def test_vms_list_structure(self):
         e = env()
@@ -325,31 +325,31 @@ class TestPacking(unittest.TestCase):
                     used += 1
                     p += 3
             self.assertEqual(p, len(en.vms))
-            self.assertEqual(used, en.rand_len)
+            self.assertEqual(used, en.edge_len)
 
-    def test_vms_only_for_non_kern(self):
-        # Typ 8 genau fuer halbe Bytes, Typ 1 fuer volle, nichts fuer leere und Kernbytes
+    def test_vms_only_for_non_core(self):
+        # type 8 exactly for half bytes, type 1 for full ones, nothing for empty and core bytes
         pix = px_rows([None, None, 1, 2, 3, None, None, 4, 5, 6, 7, 8],
                       [None, None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1],
                       [None, None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1])
         st = dbetex.classify(pix)
-        kerns = dbetex.choose_kerns(st, 1, 1)
-        alpha, rand, vms = dbetex.pack_image(pix, st, kerns, 6)
+        cores = dbetex.choose_cores(st, 1, 1)
+        alpha, edge, vms = dbetex.pack_image(pix, st, cores, 6)
         cmds = []
         p = 3
         while p < len(vms):
             cmds.append((vms[p], vms[p + 1] | vms[p + 2] << 8))
             p += 4 if vms[p] == 1 else 3
-        self.assertEqual(kerns, [(1, 1, 5, 2)])
+        self.assertEqual(cores, [(1, 1, 5, 2)])
         self.assertEqual(cmds, [(1, 1), (8, 2), (8, 3), (1, 4)])
-        self.assertEqual(len(rand), 1 + 1 + 1 + 2)
-        self.assertEqual(vms[-1], 2)       # letzter Befehl: Typ 1 mit Laenge 2
+        self.assertEqual(len(edge), 1 + 1 + 1 + 2)
+        self.assertEqual(vms[-1], 2)       # last command: type 1 with length 2
 
     def test_long_run(self):
         pix = [[7] * 600]
-        fb, ref, rand, vms, alpha, _ = sim_pack(pix, 320)
+        fb, ref, edge, vms, alpha, _ = sim_pack(pix, 320)
         self.assertEqual(fb, ref)
-        self.assertEqual(len(rand), 300)
+        self.assertEqual(len(edge), 300)
         n = vms[1]
         lens = []
         p = 3
@@ -357,45 +357,45 @@ class TestPacking(unittest.TestCase):
             lens.append(vms[p + 3])
             p += 4
         self.assertEqual(lens, [255, 45])
-        self.assertEqual(sum(lens), len(rand))
+        self.assertEqual(sum(lens), len(edge))
 
-    def test_kerns(self):
+    def test_cores(self):
         e = env()
         ts = e.walls[0]
         for en in ts.entries:
-            self.assertLessEqual(len(en.kerns), 4)
-        # Gitter-Front
+            self.assertLessEqual(len(en.cores), 4)
+        # grid front
         slots, smap = ts.slots, ts.slot_map
         si = next(i for i, s in enumerate(slots) if s["name"] == "front_d1_s+0")
         g = ts.entries[ts.styles[1][si]]
-        self.assertGreaterEqual(len(g.kerns), 2)
-        # nur volle Bytes und disjunkt: Gitterbild neu lesen
-        c1 = conf_with(e.wconf, e.wconf["styles"][1:2], max_kerns=1)
+        self.assertGreaterEqual(len(g.cores), 2)
+        # only full bytes and disjoint: re-read the grid image
+        c1 = conf_with(e.wconf, e.wconf["styles"][1:2], max_cores=1)
         ts1, _, _ = dbetex.build_texset(c1)
         g1 = ts1.entries[ts1.styles[0][si]]
-        self.assertEqual(len(g1.kerns), 1)
+        self.assertEqual(len(g1.cores), 1)
         self.assertLess(len(g.vms), len(g1.vms))
-        c0 = conf_with(e.wconf, e.wconf["styles"][1:2], max_kerns=0)
+        c0 = conf_with(e.wconf, e.wconf["styles"][1:2], max_cores=0)
         ts0, _, _ = dbetex.build_texset(c0)
         g0 = ts0.entries[ts0.styles[0][si]]
-        self.assertEqual(g0.kerns, [])
-        self.assertEqual(g0.rand_len, g.rand_len + sum(k.w * k.h for k in g.kerns))
-        # weitere Kerne: h >= 2 und Flaeche >= kern_min
+        self.assertEqual(g0.cores, [])
+        self.assertEqual(g0.edge_len, g.edge_len + sum(k.w * k.h for k in g.cores))
+        # further cores: h >= 2 and area >= core_min
         for en in ts.entries:
-            for k in en.kerns[1:]:
-                if not en.flags & dbetex.F_AUSSCHNITT:
+            for k in en.cores[1:]:
+                if not en.flags & dbetex.F_CUTOUT:
                     self.assertGreaterEqual(k.h, 2)
                     self.assertGreaterEqual(k.w * k.h, 16)
-        # direkt: disjunkt
+        # directly: disjoint
         pix = [[3] * 20 for _ in range(10)]
         st = dbetex.classify(pix)
-        ks = dbetex.choose_kerns(st, 4, 16)
+        ks = dbetex.choose_cores(st, 4, 16)
         self.assertEqual(ks, [(0, 0, 10, 10)])
         pix = [[3] * 20 for _ in range(10)]
         for r in range(10):
             pix[r][10] = None
             pix[r][11] = None
-        ks = dbetex.choose_kerns(dbetex.classify(pix), 4, 16)
+        ks = dbetex.choose_cores(dbetex.classify(pix), 4, 16)
         self.assertEqual(len(ks), 2)
         cells = set()
         for kx, ky, kw, kh in ks:
@@ -403,18 +403,18 @@ class TestPacking(unittest.TestCase):
                 for c in range(kx, kx + kw):
                     self.assertNotIn((r, c), cells)
                     cells.add((r, c))
-        self.assertEqual(dbetex.choose_kerns(st, 0, 16), [])
+        self.assertEqual(dbetex.choose_cores(st, 0, 16), [])
 
 
-class TestDeckend(unittest.TestCase):
+class TestOccluding(unittest.TestCase):
     def test_flags(self):
         e = env()
         ts = e.walls[0]
         slots = ts.slots
         for si, s in enumerate(slots):
-            self.assertTrue(ts.entries[ts.styles[0][si]].flags & dbetex.F_DECKEND, s["name"])
+            self.assertTrue(ts.entries[ts.styles[0][si]].flags & dbetex.F_OCCLUDING, s["name"])
             if s["art"] == "front":
-                self.assertFalse(ts.entries[ts.styles[1][si]].flags & dbetex.F_DECKEND, s["name"])
+                self.assertFalse(ts.entries[ts.styles[1][si]].flags & dbetex.F_OCCLUDING, s["name"])
 
     def test_side_transparent_pixel(self):
         e = env()
@@ -428,19 +428,19 @@ class TestDeckend(unittest.TestCase):
         c0, c1 = slot["cover"]
         pl = e.geom["planes"][slot["d"] + 1]
         st = dbetex.classify(pix)
-        self.assertTrue(dbetex.is_deckend(slot, st, e.geom))
-        # ueber T_{d+1}: bleibt deckend
+        self.assertTrue(dbetex.is_occluding(slot, st, e.geom))
+        # above T_{d+1}: stays opaque
         r_out = pl["T"] - 1 - y
         cols = [bx for bx in range(w) if st[r_out][bx] == "F"]
         self.assertTrue(cols)
         p2 = copy.deepcopy(pix)
         p2[r_out][2 * cols[0]] = None
         st2 = dbetex.classify(p2)
-        self.assertTrue(dbetex.is_deckend(slot, st2, e.geom))
-        # innerhalb des Spaltenbereichs: nicht deckend
+        self.assertTrue(dbetex.is_occluding(slot, st2, e.geom))
+        # within the column range: not opaque
         p3 = copy.deepcopy(pix)
         p3[pl["T"] + 1 - y][2 * (c0 - x)] = None
-        self.assertFalse(dbetex.is_deckend(slot, dbetex.classify(p3), e.geom))
+        self.assertFalse(dbetex.is_occluding(slot, dbetex.classify(p3), e.geom))
 
 
 def copy_png_with(src, dst, edit):
@@ -464,35 +464,35 @@ class TestStyles(unittest.TestCase):
                 for c in range(el["rect"][2] * 2):
                     im.putpixel((ax + c, ay + r), (0, 0, 0, 0))
         p = os.path.join(self.tmp.name, out)
-        copy_png_with(os.path.join(self.e.dir, "ziegel_atlas.png"), p, edit)
+        copy_png_with(os.path.join(self.e.dir, "brick_atlas.png"), p, edit)
         return p
 
     def test_missing_image(self):
         e = self.e
-        p = self.blank_png("x", "front_d2_s+0", "luecke.png")
-        st = [e.wconf["styles"][0], {"name": "luecke", "png": p, "empty": [], "tag": None, "frame": None}]
+        p = self.blank_png("x", "front_d2_s+0", "gap.png")
+        st = [e.wconf["styles"][0], {"name": "gap", "png": p, "empty": [], "tag": None, "frame": None}]
         ts, warns, infos = dbetex.build_texset(conf_with(e.wconf, st))
         names = {s["name"]: i for i, s in enumerate(ts.slots)}
         for n in ("front_d2_s+0", "front_d2_s-1", "front_d2_s+1"):
             self.assertEqual(ts.styles[1][names[n]], 0xFF, n)
             self.assertLess(ts.styles[0][names[n]], 0xFE)
         self.assertEqual(ts.styles[1][names["front_d1_s+0"]], ts.styles[0][names["front_d1_s+0"]])
-        self.assertTrue(any("nicht bemalt" in i for i in infos))
-        # identische Bilder: gleicher Index, VRAM einmal
+        self.assertTrue(any("not painted" in i for i in infos))
+        # identical images: same index, VRAM once
         self.assertEqual(len(ts.vram), 11094)
-        # Stil 0 ohne Bild
+        # style 0 without image
         st = [st[1], st[0]]
         ts, warns, infos = dbetex.build_texset(conf_with(e.wconf, st))
         names = {s["name"]: i for i, s in enumerate(ts.slots)}
         for n in ("front_d2_s+0", "front_d2_s-1", "front_d2_s+1"):
             self.assertEqual(ts.styles[0][names[n]], 0xFE)
-        self.assertTrue(any("Stil 0 ohne Bild" in w and "front_d2_s+0" in w for w in warns))
+        self.assertTrue(any("Style 0 without image" in w and "front_d2_s+0" in w for w in warns))
         self.assertEqual(ts.styles[1][names["front_d2_s+0"]] < 0xFE, True)
 
     def test_empty_and_identical(self):
         e = self.e
         s0 = dict(e.wconf["styles"][0])
-        s1 = dict(s0, name="kopie", empty=["side_d3_s-3", "side_d3_s+3"])
+        s1 = dict(s0, name="copy", empty=["side_d3_s-3", "side_d3_s+3"])
         ts, _, _ = dbetex.build_texset(conf_with(e.wconf, [s0, s1]))
         names = {s["name"]: i for i, s in enumerate(ts.slots)}
         self.assertEqual(ts.styles[1][names["side_d3_s-3"]], 0xFE)
@@ -503,7 +503,7 @@ class TestStyles(unittest.TestCase):
         self.assertEqual(len(ts.vram), 11094)
         self.assertEqual(len(ts.entries), 25)
         with self.assertRaises(dbetex.TexError):
-            dbetex.build_texset(conf_with(e.wconf, [dict(s0, empty=["gibtsnicht"])]))
+            dbetex.build_texset(conf_with(e.wconf, [dict(s0, empty=["doesnotexist"])]))
 
     def test_partial_follows_empty_full(self):
         e = self.e
@@ -531,8 +531,8 @@ class TestInputs(unittest.TestCase):
         pix, w = dbetex.to_indices(im, (0, 0, 4, 2))
         self.assertEqual(pix[0][:3], [3, 3, 3])
         self.assertEqual(len(w), 1)
-        self.assertIn("2 Pixel nicht in der VDC-Palette", w[0])
-        self.assertIn("max. Abstand", w[0])
+        self.assertIn("2 pixels not in the VDC palette", w[0])
+        self.assertIn("max. distance", w[0])
         with self.assertRaises(dbetex.TexError):
             dbetex.to_indices(im, (0, 0, 4, 2), strict=True)
         _, w = dbetex.to_indices(self.img({(0, 0): PAL[3] + (255,)}), (0, 0, 4, 2), strict=True)
@@ -542,7 +542,7 @@ class TestInputs(unittest.TestCase):
         im = self.img({(0, 0): (255, 0, 0, 128)})
         with self.assertRaises(dbetex.TexError) as cm:
             dbetex.to_indices(im, (0, 0, 4, 2))
-        self.assertIn("Masken-Ebene", str(cm.exception))
+        self.assertIn("mask layer", str(cm.exception))
         pix, _ = dbetex.to_indices(im, (0, 0, 4, 2), alpha_threshold=100)
         self.assertEqual(pix[0][0], 9 if False else dbetex.nearest((255, 0, 0))[0])
         pix, _ = dbetex.to_indices(im, (0, 0, 4, 2), alpha_threshold=200)
@@ -556,7 +556,7 @@ class TestInputs(unittest.TestCase):
 
     def test_indexed_reordered(self):
         pal = [0] * 768
-        pal[3 * 7:3 * 7 + 3] = list(PAL[12])      # Index 7 im PNG = Farbe 12
+        pal[3 * 7:3 * 7 + 3] = list(PAL[12])      # index 7 in the PNG = color 12
         pal[3 * 2:3 * 2 + 3] = list(PAL[4])
         im = Image.new("P", (2, 1))
         im.putpalette(pal)
@@ -576,7 +576,7 @@ class TestInputs(unittest.TestCase):
         b = dbetex._Builder(e.wconf, e.geom, slots, smap)
         pix = [[6] * (2 * w) for _ in range(h)]
         b.image_entry(si, pix, slot["mask"], "t")
-        self.assertTrue(any("ausserhalb der Maske" in x and "abgeschnitten" in x for x in b.warns))
+        self.assertTrue(any("outside the mask" in x and "clipped" in x for x in b.warns))
 
     def test_template_unpainted(self):
         e = env()
@@ -584,16 +584,16 @@ class TestInputs(unittest.TestCase):
                                                                   "height": 96}}))
         geo.atlas_size = dbegeom.layout_atlas(geo)
         dbegeom.write_pngs(geo, self.tmp.name, "t", 1, geo.atlas_size)
-        st = [{"name": "leer", "png": os.path.join(self.tmp.name, "t_atlas.png"), "empty": [], "tag": None,
+        st = [{"name": "empty", "png": os.path.join(self.tmp.name, "t_atlas.png"), "empty": [], "tag": None,
                "frame": None}]
         ts, warns, infos = dbetex.build_texset(conf_with(e.wconf, st))
         self.assertEqual(len(ts.entries), 0)
-        self.assertEqual(sum(1 for i in infos if "nicht bemalt" in i), 25 - 8)
+        self.assertEqual(sum(1 for i in infos if "not painted" in i), 25 - 8)
 
     def test_atlas_too_small(self):
         e = env()
-        p = os.path.join(self.tmp.name, "klein.png")
-        Image.open(os.path.join(e.dir, "ziegel_atlas.png")).crop((0, 0, 100, 100)).save(p)
+        p = os.path.join(self.tmp.name, "small.png")
+        Image.open(os.path.join(e.dir, "brick_atlas.png")).crop((0, 0, 100, 100)).save(p)
         st = [{"name": "k", "png": p, "empty": [], "tag": None, "frame": None}]
         with self.assertRaises(dbetex.TexError):
             dbetex.build_texset(conf_with(e.wconf, st))
@@ -612,10 +612,10 @@ class TestAseprite(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.e = env()
-        with open(os.path.join(self.e.dir, "fenster.json")) as f:
+        with open(os.path.join(self.e.dir, "window.json")) as f:
             self.js = json.load(f)
-        with open(os.path.join(self.tmp.name, "fenster.png"), "wb") as f:
-            f.write(rd(os.path.join(self.e.dir, "fenster.png")))
+        with open(os.path.join(self.tmp.name, "window.png"), "wb") as f:
+            f.write(rd(os.path.join(self.e.dir, "window.png")))
 
     def write(self, js):
         p = os.path.join(self.tmp.name, "f.json")
@@ -623,7 +623,7 @@ class TestAseprite(unittest.TestCase):
             json.dump(js, f)
         return p
 
-    def src(self, js, tag="fenster", frame=None):
+    def src(self, js, tag="window", frame=None):
         return dbetex.AseSource(self.write(js), self.e.geom, tag, frame, None, 0)
 
     def test_array_hash_tag_frame(self):
@@ -633,7 +633,7 @@ class TestAseprite(unittest.TestCase):
         b = self.src(h)
         self.assertEqual(a.slices, b.slices)
         self.assertEqual(a.warn, [])
-        c = self.src(self.js, tag="bogen")
+        c = self.src(self.js, tag="arch")
         d = self.src(self.js, tag=None, frame=1)
         self.assertEqual(c.slices, d.slices)
         fw = self.js["frames"][1]["frame"]["x"]
@@ -644,8 +644,8 @@ class TestAseprite(unittest.TestCase):
         sl = js["meta"]["slices"][0]
         b0 = sl["keys"][0]["bounds"]
         sl["keys"].append({"frame": 1, "bounds": dict(b0, x=b0["x"] + 7)})
-        a = self.src(js, tag="fenster")
-        c = self.src(js, tag="bogen")
+        a = self.src(js, tag="window")
+        c = self.src(js, tag="arch")
         fw = js["frames"][1]["frame"]["x"]
         self.assertEqual(a.slices[sl["name"]][0], b0["x"])
         self.assertEqual(c.slices[sl["name"]][0], fw + b0["x"] + 7)
@@ -660,9 +660,9 @@ class TestAseprite(unittest.TestCase):
         with self.assertRaises(dbetex.TexError):
             self.src(js)
         js = copy.deepcopy(self.js)
-        js["meta"]["slices"].append({"name": "wasanderes", "keys": [{"frame": 0, "bounds": {"x": 0, "y": 0, "w": 1,
+        js["meta"]["slices"].append({"name": "somethingelse", "keys": [{"frame": 0, "bounds": {"x": 0, "y": 0, "w": 1,
                                                                                             "h": 1}}]})
-        self.assertTrue(any("wasanderes" in w for w in self.src(js).warn))
+        self.assertTrue(any("somethingelse" in w for w in self.src(js).warn))
         js = copy.deepcopy(self.js)
         js["meta"]["slices"].append(copy.deepcopy(js["meta"]["slices"][0]))
         with self.assertRaises(dbetex.TexError):
@@ -670,7 +670,7 @@ class TestAseprite(unittest.TestCase):
 
     def _conf(self, js):
         p = self.write(js)
-        st = [self.e.wconf["styles"][0], {"name": "f", "aseprite": p, "tag": "fenster", "frame": None, "empty": []}]
+        st = [self.e.wconf["styles"][0], {"name": "f", "aseprite": p, "tag": "window", "frame": None, "empty": []}]
         return conf_with(self.e.wconf, st)
 
     def test_moved_slice_found(self):
@@ -679,7 +679,7 @@ class TestAseprite(unittest.TestCase):
         names = {s["name"]: i for i, s in enumerate(slots)}
         v = e.walls[0].styles[2][names["front_d3_s+0"]]
         self.assertLess(v, 0xFE)
-        # fenster-Stil hat keine Seiten -> Rueckgriff
+        # window style has no sides -> fallback
         self.assertEqual(e.walls[0].styles[2][names["side_d1_s-1"]], 0xFF)
 
 
@@ -756,7 +756,7 @@ class TestBackground(unittest.TestCase):
                 else:
                     exp = bytes([bg["fill"][r]]) * 70
                 self.assertEqual(bytes(row), exp, (v, r))
-        # Versatz so, dass gewrappt wird
+        # offset chosen so that it wraps
         c2 = dict(self.conf, offsets=[0, 100, 230, 270])
         dbg2, vram2, _ = dbetex.build_background(c2)
         bg2 = dbetex.from_dbg(dbg2)
@@ -773,7 +773,7 @@ class TestBackground(unittest.TestCase):
             p = os.path.join(t, "w.png")
             wide.save(p)
             with self.assertRaises(dbetex.TexError):
-                dbetex.build_background(dict(c, png=p))        # P=278 nicht durch 4 teilbar, auto
+                dbetex.build_background(dict(c, png=p))        # P=278 not divisible by 4, auto
             ok = dict(c, png=p, offsets=[0, 70, 140, 209], wrap=False)
             with self.assertRaises(dbetex.TexError):
                 dbetex.build_background(ok)                    # 209 + 70 > 278
@@ -784,7 +784,7 @@ class TestBackground(unittest.TestCase):
             with self.assertRaises(dbetex.TexError):
                 dbetex.build_background(dict(c, png=p2))
             ok2 = dict(c, png=p, offsets=[0, 70, 140, 208], wrap=True)
-            dbetex.build_background(ok2)                       # mit WRAP gueltig
+            dbetex.build_background(ok2)                       # valid with WRAP
 
 
 class TestBudgetCheckCli(unittest.TestCase):
@@ -829,7 +829,7 @@ class TestBudgetCheckCli(unittest.TestCase):
         args = ["check", DEMO_MAP, "--floors", self.paths["floor"], "--ceils", self.paths["ceil"], "--dvg", dvg]
         r = subprocess.run([sys.executable, DBETEX, *args, "--walls", p1], capture_output=True, text=True)
         self.assertEqual(r.returncode, 1)
-        self.assertIn("gitter", r.stderr)
+        self.assertIn("grating", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
         r = subprocess.run([sys.executable, DBETEX, *args, "--walls", self.paths["walls"]], capture_output=True,
                            text=True)
@@ -842,7 +842,7 @@ class TestBudgetCheckCli(unittest.TestCase):
             r = subprocess.run([sys.executable, DBETEX, "build", os.path.join(self.e.dir, toml + ".toml"),
                                 "--out", out, "--no-preview"], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertIn("Stile", r.stdout)
+            self.assertIn("styles", r.stdout)
         r = subprocess.run([sys.executable, DBETEX, "bg", os.path.join(self.e.dir, "bg.toml"), "--out", out],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -861,19 +861,19 @@ class TestBudgetCheckCli(unittest.TestCase):
         r = subprocess.run([sys.executable, DBETEX, "budget", os.path.join(out, "demo_walls.dts"), "--pool", "100"],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 1)
-        self.assertIn("Pool ueberschritten", r.stderr)
-        # Formatfehler
+        self.assertIn("Pool exceeded", r.stderr)
+        # format error
         bad = os.path.join(t, "bad.dts")
         with open(bad, "wb") as f:
             f.write(b"\0\0DX" + bytes(60))
         r = subprocess.run([sys.executable, DBETEX, "dump", bad], capture_output=True, text=True)
         self.assertEqual(r.returncode, 1)
         self.assertNotIn("Traceback", r.stderr)
-        r = subprocess.run([sys.executable, DBETEX, "build", os.path.join(t, "gibts.toml")], capture_output=True,
+        r = subprocess.run([sys.executable, DBETEX, "build", os.path.join(t, "missing.toml")], capture_output=True,
                            text=True)
         self.assertEqual(r.returncode, 1)
         self.assertNotIn("Traceback", r.stderr)
-        r = subprocess.run([sys.executable, DBETEX, "nix"], capture_output=True, text=True)
+        r = subprocess.run([sys.executable, DBETEX, "nothing"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 
     def test_determinism(self):
@@ -886,11 +886,11 @@ class TestBudgetCheckCli(unittest.TestCase):
         self.assertEqual(dbetex.build_background(c)[:2], dbetex.build_background(c)[:2])
         with tempfile.TemporaryDirectory() as t:
             dbetexdemo.generate(t)
-            for n in ("ziegel_atlas.png", "fenster.json", "himmel.png"):
+            for n in ("brick_atlas.png", "window.json", "sky.png"):
                 self.assertEqual(rd(os.path.join(t, n)), rd(os.path.join(e.dir, n)))
 
     def test_vms_reference_example(self):
-        """Unabhaengiger Anker: Beispiel aus vdc-basic docs/reference/vms-format.md (Alpha 5, 3 x 2 Byte)."""
+        """Independent anchor: example from vdc-basic docs/reference/vms-format.md (alpha 5, 3 x 2 bytes)."""
         mem = bytearray(65536)
         mem[0x100:0x105] = bytes((0x51, 0x11, 0x15, 0x22, 0x22))
         fb = bytearray(65536)
@@ -900,10 +900,10 @@ class TestBudgetCheckCli(unittest.TestCase):
         dbetex.sim_vms(mem, 0x100, 1000, lst, fb=fb)
         self.assertEqual(bytes(fb[1000:1003]), bytes((0xA1, 0x11, 0x1F)))
         self.assertEqual(bytes(fb[1080:1083]), bytes((0x22, 0x22, 0x99)))
-        # pack_image erzeugt fuer dieselben Pixel genau diese Liste und Daten (Alpha hier 0 statt 5)
+        # pack_image produces exactly this list and data for the same pixels (alpha here 0 instead of 5)
         pix = [[None, 1, 1, 1, 1, None], [2, 2, 2, 2, None, None]]
-        alpha, rand, vms = dbetex.pack_image(pix, dbetex.classify(pix), [], 80)
-        self.assertEqual((alpha, rand), (0, bytes((0x01, 0x11, 0x10, 0x22, 0x22))))
+        alpha, edge, vms = dbetex.pack_image(pix, dbetex.classify(pix), [], 80)
+        self.assertEqual((alpha, edge), (0, bytes((0x01, 0x11, 0x10, 0x22, 0x22))))
         self.assertEqual(vms, bytes((0, 4, 0, 8, 0, 0, 1, 1, 0, 1, 8, 2, 0, 1, 80, 0, 2)))
 
     def test_vmc_srcstep_sim(self):

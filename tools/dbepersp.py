@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Perspektivisch korrekte Wand-, Boden- und Deckenbilder aus flachen Mustern (docs/specs/P5-textures.md, 10.3).
+"""Perspective-correct wall, floor and ceiling images from flat patterns (docs/specs/P5-textures.md, 10.3).
 
-Die Engine projiziert nichts: Jedes DVG-Element (Front, Seite, Boden-/Deckenkachel, Band) ist ein fertig gemaltes Bild.
-Malt man ein Muster im Bildschirmraum, laufen die Fugen auf Seitenwaenden waagerecht und senkrecht statt zum
-Fluchtpunkt. Dieses Modul rechnet fuer jedes Pixel einer Elementmaske die Weltkoordinate aus und wertet das Muster dort aus.
+The engine projects nothing: every DVG element (front, side, floor/ceiling tile, band) is a finished painted image.
+If a pattern is painted in screen space, the joints on side walls run horizontally and vertically instead of
+toward the vanishing point. This module computes the world coordinate for every pixel of an element mask and
+evaluates the pattern there.
 
-Modell (aus der geom.json: viewport.width_px, planes[k].W/T/B):
-  * Weltkoordinaten in Zellen: X seitlich (0 = Mitte), Z Tiefe, Y nach unten. Ebene k liegt bei Z_k = W_1 / W_k (Ebene 1 = 1).
-  * Bildschirm: x = C + X * W(Z), W = W_1 / Z, C = width_px / 2. Also ist 1/Z = W / W_1 linear in x, und fuer Boden und Decke
-    linear in y (Zeile = Horizont + Y * W; zwischen zwei Ebenen interpoliert linear in der Zeile von B_k nach B_{k+1}).
-  * Front (Ebene d): u = X = (x - C) / W_d, v = (y - T_d) / W_d.
-  * Seite bei seitlicher Kante e (x - C = e * W): W(x) = (x - C) / e, u = Z = W_1 / W(x), v = (y - top(x)) / W(x),
-    top(x) linear in W zwischen T_d und T_{d+1} (die Oberkante des Trapezes). An der Kante Front/Seite ist v gleich.
-  * Boden: W(y) linear zwischen W_d bei B_d und W_{d+1} bei B_{d+1}; u = X = (x - C) / W, v = Z = W_1 / W. Decke mit T_k.
-Muster sind Funktionen pattern(u, v) -> Palettenindex | None in Zellen (Wand: u entlang der Wand, v nach unten;
-Boden/Decke: u seitlich, v in der Tiefe). Je Pixel werden n x n Unterabtastungen gewaehlt; `bias` {Farbe: Gewicht}
-laesst duenne Fugen auch dort sichtbar bleiben, wo sie unter ein Pixel schrumpfen.
+Model (from geom.json: viewport.width_px, planes[k].W/T/B):
+  * World coordinates in cells: X sideways (0 = center), Z depth, Y downward. Plane k lies at Z_k = W_1 / W_k (plane 1 = 1).
+  * Screen: x = C + X * W(Z), W = W_1 / Z, C = width_px / 2. So 1/Z = W / W_1 is linear in x, and for floor and ceiling
+    linear in y (row = horizon + Y * W; between two planes it interpolates linearly in the row from B_k to B_{k+1}).
+  * Front (plane d): u = X = (x - C) / W_d, v = (y - T_d) / W_d.
+  * Side at lateral edge e (x - C = e * W): W(x) = (x - C) / e, u = Z = W_1 / W(x), v = (y - top(x)) / W(x),
+    top(x) linear in W between T_d and T_{d+1} (the upper edge of the trapezoid). At the front/side edge v is equal.
+  * Floor: W(y) linear between W_d at B_d and W_{d+1} at B_{d+1}; u = X = (x - C) / W, v = Z = W_1 / W. Ceiling with T_k.
+Patterns are functions pattern(u, v) -> palette index | None in cells (wall: u along the wall, v downward;
+floor/ceiling: u sideways, v in depth). For each pixel n x n subsamples are taken; `bias` {color: weight}
+keeps thin joints visible even where they shrink below one pixel.
 """
 import math
 
@@ -25,7 +26,8 @@ PAL = dbegeom.PALETTE
 
 
 class Persp:
-    """Weltabbildung fuer eine Geometrie (geom.json als dict)."""
+    """World mapping for one geometry (geom.json as dict)."""
+
 
     def __init__(self, geom):
         self.geom = geom
@@ -33,7 +35,7 @@ class Persp:
         self.pl = geom["planes"]
         self.W1 = self.pl[1]["W"]
 
-    # Pixel (x, y) -> (u, v) je Elementart; x, y in Bildschirmpixeln (Fliesskomma)
+    # pixel (x, y) -> (u, v) per element kind; x, y in screen pixels (floating point)
     def front_map(self, d):
         W, T = self.pl[d]["W"], self.pl[d]["T"]
         return lambda x, y: ((x - self.C) / W, (y - T) / W)
@@ -41,7 +43,7 @@ class Persp:
     def side_map(self, e):
         d = e["d"]
         a, b = self.pl[d], self.pl[d + 1]
-        edge = (e["polygon"][0][0] - self.C) / a["W"]          # seitliche Lage u der Kante, zellbreit
+        edge = (e["polygon"][0][0] - self.C) / a["W"]          # lateral position u of the edge, in cell widths
 
         def fn(x, y):
             W = (x - self.C) / edge
@@ -51,7 +53,7 @@ class Persp:
         return fn
 
     def flat_map(self, d, key):
-        """Boden (key 'B') bzw. Decke (key 'T') zwischen den Ebenen d und d+1."""
+        """Floor (key 'B') or ceiling (key 'T') between planes d and d+1."""
         a, b = self.pl[d], self.pl[d + 1]
 
         def fn(x, y):
@@ -69,11 +71,11 @@ class Persp:
             return self.flat_map(e["d"], "B")
         if art in ("ceil", "ceilband"):
             return self.flat_map(e["d"], "T")
-        raise ValueError(f"keine Perspektive fuer {art}")
+        raise ValueError(f"no perspective for {art}")
 
 
 def shade(mapfn, pattern, x0, y0, n=4, bias=None):
-    """Farbe des Pixels [x0, x0+1) x [y0, y0+1): gewichtete Mehrheit der n x n Unterabtastungen (None = transparent)."""
+    """Color of the pixel [x0, x0+1) x [y0, y0+1): weighted majority of the n x n subsamples (None = transparent)."""
     cnt = {}
     for j in range(n):
         for i in range(n):
@@ -89,15 +91,15 @@ def shade(mapfn, pattern, x0, y0, n=4, bias=None):
 
 
 def element_fn(persp, e, pattern, n=4, bias=None):
-    """fn(px, r) -> Farbe fuer dbetexdemo._paint (px, r relativ zur Rechteckecke, px in Pixeln)."""
+    """fn(px, r) -> color for dbetexdemo._paint (px, r relative to the rectangle corner, px in pixels)."""
     mp = persp.element_map(e)
     x0, y0 = 2 * e["rect"][0], e["rect"][1]
     return lambda px, r: shade(mp, pattern, x0 + px, y0 + r, n, bias)
 
 
 def flat_pattern(img, ppc, ox=0.0, oy=0.0, alpha=128):
-    """Muster aus einem flachen PNG: ppc = Bildpixel je Zelle (Welteinheit), kachelt in u und v.
-    Farben werden auf die naechste Palettenfarbe abgebildet, Alpha < `alpha` ist transparent."""
+    """Pattern from a flat PNG: ppc = image pixels per cell (world unit), tiles in u and v.
+    Colors are mapped to the nearest palette color, alpha < `alpha` is transparent."""
     img = img.convert("RGBA")
     px = img.load()
     w, h = img.size
@@ -115,7 +117,7 @@ def flat_pattern(img, ppc, ox=0.0, oy=0.0, alpha=128):
 
 
 def brick_pattern(bw=0.25, bh=0.0625, joint=0.008, c_joint=14, cols=(12, 8)):
-    """Ziegel im Laeuferverband in Zellen (Standard: 4 Ziegel je Zelle, 16 Reihen je Zellhoehe)."""
+    """Bricks in stretcher bond in cells (default: 4 bricks per cell, 16 rows per cell height)."""
     def pat(u, v):
         row = math.floor(v / bh)
         rr = v - row * bh

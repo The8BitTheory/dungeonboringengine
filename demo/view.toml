@@ -1,4 +1,4 @@
-# Demo: Westwood-Geometrie 140 x 96 (Spalten 5-74, Zeile 0 des Chunky-Bildschirms 160 x 100), Zeilen 96-99 für den Kompass
+# Demo: Westwood geometry 140 x 96 (columns 5-74, row 0 of the chunky screen 160 x 100), rows 96-99 for the compass
 [viewport]
 preset   = "westwood"
 width_px = 140
@@ -6,7 +6,7 @@ height   = 96
 origin   = 5
 stride   = 80
 depth    = 3
-# byte_edges bleibt aus: Kanten pixelgenau (Frage 4 in docs/specs/P7-crawl.md)
+# byte_edges stays off: pixel-exact edges (question 4 in docs/specs/P7-crawl.md)
 
 [output]
 name       = "west140"

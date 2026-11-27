@@ -1,9 +1,9 @@
 #!/bin/sh
-# Baut build/dbe$VERSION.stub (Bank 0, $0D00), build/dbe$VERSION.lib (Bank 1, $B000) und
-# build/dbe$VERSION-test.lib (wie .lib, mit Testfunktionen 250-252 für den VICE-Rauchtest, lib-test.cfg) mit ca65/ld65.
+# Builds build/dbe$VERSION.stub (bank 0, $0D00), build/dbe$VERSION.lib (bank 1, $B000) and
+# build/dbe$VERSION-test.lib (like .lib, with test functions 250-252 for the VICE smoke test, lib-test.cfg) using ca65/ld65.
 set -e
 cd "$(dirname "$0")"
-VERSION=$(cat ../VERSION)   # einzige Stelle für die Versionsnummer
+VERSION=$(cat ../VERSION)   # the only place for the version number
 mkdir -p ../build
 ca65 -t none -o ../build/stub.o stub.s
 ld65 -C stub.cfg -m ../build/stub.map -Ln ../build/stub.lbl -o ../build/dbe$VERSION.stub ../build/stub.o

@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
-"""VICE-Szenen P6g (docs/specs/P6-engine.md 9.4): Engine 0.2 und VDC-BASIC v3 im echten x128, ereignisgesteuert.
+"""VICE scenes P6g (docs/specs/P6-engine.md 9.4): engine 0.2 and VDC-BASIC v3 in the real x128, event-driven.
 
-Aufruf: test/vice_view.py [--port N] [--timeout S] [--only i|c] [--check] [--png DIR] [--control] [--no-sim] [--no-fast]
+Usage: test/vice_view.py [--port N] [--timeout S] [--only i|c] [--check] [--png DIR] [--control] [--no-sim] [--no-fast]
                          [--byte-edges]
-  --check   nur Python: Szenen bauen, Speicherkarte prüfen, view/run_vcl gegen paint_reference (kein VICE)
-  --png DIR Bilder der erwarteten Fenster (Montage) schreiben
-  --control Gegenprobe: Modell von Szene 5 verfälscht, der Lauf muss genau eine Abweichung melden (Exitcode 0)
-  --no-sim  ohne sim65-Gegenmessung der Zyklen (Spalte sim65)
-  --no-fast ohne den zweiten Lauf mit 2 MHz (FAST, VIC-Anzeige aus während VIEW und VCL); sonst je Lauf zwei VICE-Läufe,
-            Zyklen beider Takte in der Tabelle (Spalten "2M", Stoppuhr in Takten zu 1 MHz, also in µs)
-  --byte-edges  Demo-Geometrie mit view.toml-Schalter byte_edges (Kanten auf ganze Bytes) statt pixelgenau
-  --fix     P6j: feste Listenadresse (BUFSET X = 1, VCL-Typ 10 bei B0, braucht VDC-BASIC v3 mit P2e); das Programm
-            ruft ::VCL mit der Konstanten B0 statt P0, das Modell rechnet mit buf_fix
+  --check   Python only: build scenes, check memory map, view/run_vcl against paint_reference (no VICE)
+  --png DIR write images of the expected windows (montage)
+  --control control run: model of scene 5 corrupted, the run must report exactly one deviation (exit code 0)
+  --no-sim  without sim65 cross-measurement of the cycles (column sim65)
+  --no-fast without the second run at 2 MHz (FAST, VIC display off during VIEW and VCL); otherwise two VICE runs per mode,
+            cycles of both clocks in the table (columns "2M", stopwatch in clocks at 1 MHz, i.e. in µs)
+  --byte-edges  demo geometry with the view.toml switch byte_edges (edges on whole bytes) instead of pixel-exact
+  --fix     P6j: fixed list address (BUFSET X = 1, VCL type 10 at B0, needs VDC-BASIC v3 with P2e); the program
+            calls ::VCL with the constant B0 instead of P0, the model computes with buf_fix
 
-Ablauf (test/vice/view.bas, interpretiert und als Blitz!-Kompilat mit Runtime-Image 2):
-  BOOT (VDC-BASIC v3) -> POKE 57,0:POKE 58,64:CLR -> Stub und Lib laden, INIT -> Chunky-Modus wie Crawl (VDC-Register laut
-  crawl.bas 10059-10135, 64-KB-VRAM vorher gelöscht) -> DVG, DMP, DTS (3), DBG, S2 (4 Sätze) an die Adressen der Speicherkarte
-  (P6 2.4) in Bank 1, VRL der Texturen/Tapete/Sprites per RXV in den VRAM-Pool -> POOLSET, GEOMSET, TEXSET, BGSET,
-  SPRITESET, ITEMSET, MAPINIT -> je Schritt der Szenentabelle (Bank 0 $8000, SETPOS oder MOVE, Objektliste): VIEW, ::VCL.
-Markierungen (RTS in Bank 0): $0C4C (vor VIEW), $0C4D (nach ::VCL, Szene fertig), $0C4E (Tabellenende).
-Der Harness hält an den Markierungen, liest dort das ganze VRAM (`bank vdc`, bsave), den Puffer und die Ergebnisse
-und vergleicht pixelgleich mit dem VRAM-Modell (run_vcl auf dem 64-KB-Modell, dazu paint_reference im Fenster).
-Zyklen: Monitor-Stoppuhr (stopwatch) von $0C4C aus; Haltepunkte am Stub-Eintritt/-Ausgang (VIEW) und am Anfang/Ende
-von VCL in VDC-BASIC (`vcl` aus vdcbasic3.sym, `.vcl_done` aus dem ACME-Report, vdc_labels).
-Ereignisgesteuert: Haltepunkte, Debug-Cartridge ($D7FF); -limitcycles und das Timeout sind nur Wächter.
-Portregel (review-notes A): --port, sonst DBE_VICE_PORT, sonst 6631, Bereich 6631-6649, bind-Test, nur der eigene Prozess.
-Voraussetzung: VDC-BASIC v3 (VDCBASIC_DIR, Vorgabe ~/git/vdc-basic, Branch v3; dort wird nichts verändert);
-Blitz!-Lauf zusätzlich node und blitzc (sonst Meldung SKIP).
+Flow (test/vice/view.bas, interpreted and as a Blitz! compilation with runtime image 2):
+  BOOT (VDC-BASIC v3) -> POKE 57,0:POKE 58,64:CLR -> load stub and lib, INIT -> chunky mode as in Crawl (VDC registers per
+  crawl.bas 10059-10135, 64 KB VRAM cleared beforehand) -> DVG, DMP, DTS (3), DBG, S2 (4 sets) at the addresses of the memory map
+  (P6 2.4) in bank 1, VRL of the textures/wallpaper/sprites via RXV into the VRAM pool -> POOLSET, GEOMSET, TEXSET, BGSET,
+  SPRITESET, ITEMSET, MAPINIT -> per step of the scene table (bank 0 $8000, SETPOS or MOVE, object list): VIEW, ::VCL.
+Markers (RTS in bank 0): $0C4C (before VIEW), $0C4D (after ::VCL, scene done), $0C4E (end of table).
+The harness stops at the markers, reads the whole VRAM there (`bank vdc`, bsave), the buffer and the results
+and compares pixel-exactly with the VRAM model (run_vcl on the 64 KB model, plus paint_reference in the window).
+Cycles: monitor stopwatch (stopwatch) from $0C4C; breakpoints at stub entry/exit (VIEW) and at start/end
+of VCL in VDC-BASIC (`vcl` from vdcbasic3.sym, `.vcl_done` from the ACME report, vdc_labels).
+Event-driven: breakpoints, debug cartridge ($D7FF); -limitcycles and the timeout are only guards.
+Port rule (review-notes A): --port, else DBE_VICE_PORT, else 6631, range 6631-6649, bind test, only the own process.
+Requirement: VDC-BASIC v3 (VDCBASIC_DIR, default ~/git/vdc-basic, branch v3; nothing is changed there);
+Blitz! run additionally needs node and blitzc (otherwise message SKIP).
 """
 import argparse, copy, json, os, re, shutil, struct, subprocess, sys, tempfile
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import vice_smoke as vs                  # Monitor/Portwahl über VDC-BASIC (nur gelesen), Disk-Hilfen
+import vice_smoke as vs                  # monitor/port choice via VDC-BASIC (read only), disk helpers
 vm = vs.vm
 ROOT = vs.ROOT
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
@@ -43,31 +43,31 @@ import dbetexdemo as dd
 dbeview.dbemap = dbemap
 from PIL import Image
 
-# ------------------------------------------------------------------ Speicherkarte (P6 2.4) und VRAM
-# Vorgabe P6 2.4 (MEMSIZ $4000, P6h): DMP $4000, S2 $6000, Wand-DTS $8000 (12 KB), Lib $B000-$DBFF, DVG $E800, Boden $EE00,
-# Decke $F600, DBG $FB80. Der verbesserte Blitz!-Runtime (Image 2) macht das obere 1 KB ($FC00-$FFFF) gemeinsam und belegt
-# $FC00-$FEFF; Daten dort zerstören ihn beim BLOAD. Die kleinen Test-Assets liegen hier dicht gepackt in $E800-$FBFF (5 KB).
+# ------------------------------------------------------------------ Memory map (P6 2.4) and VRAM
+# Default P6 2.4 (MEMSIZ $4000, P6h): DMP $4000, S2 $6000, wall DTS $8000 (12 KB), lib $B000-$DBFF, DVG $E800, floor $EE00,
+# ceiling $F600, DBG $FB80. The improved Blitz! runtime (image 2) makes the upper 1 KB ($FC00-$FFFF) shared and occupies
+# $FC00-$FEFF; data there destroys it on BLOAD. The small test assets are packed densely here in $E800-$FBFF (5 KB).
 HIGH = (0xE800, 0xFC00)
-LOW = {'dmp': (0x4000, 0x6000), 'dts0': (0x8000, 0xB000)}           # Bereich (von, bis exklusiv)
+LOW = {'dmp': (0x4000, 0x6000), 'dts0': (0x8000, 0xB000)}           # range (from, to exclusive)
 S2_START, S2_END = 0x6000, 0x8000
-POOL = (9600, 46335)                     # VRAM-Pool: hinter dem Attribut-RAM (AP 0, 2 x 9600) bis zum Bildschirm-RAM
-SCN_ADDR = 0x8000                        # Szenentabelle, Bank 0
-VRL_ADDR = 0x9000                        # Ladepuffer der VRL-Dateien, Bank 0 (RXV-Quelle ab +5)
+POOL = (9600, 46335)                     # VRAM pool: after the attribute RAM (AP 0, 2 x 9600) up to the screen RAM
+SCN_ADDR = 0x8000                        # scene table, bank 0
+VRL_ADDR = 0x9000                        # load buffer of the VRL files, bank 0 (RXV source from +5)
 BUF = (0x1300, 0x1C00)
 M_VIEW, M_DONE, M_END = 0x0C4C, 0x0C4D, 0x0C4E
 VERSION = vs.VERSION
 LIBNAME, STUBNAME = f'dbe{VERSION}.lib', f'dbe{VERSION}.stub'
 OUT = os.path.join(ROOT, 'build', 'vice')
 
-# ------------------------------------------------------------------ kleine Assets
+# ------------------------------------------------------------------ Small assets
 
 
 class Small:
     pass
 
 
-def make_himmel(geom, path):
-    """Panorama P = 2 * VW Byte (statt 4 * VW im Demo): halb so viel VRAM."""
+def make_sky(geom, path):
+    """Panorama P = 2 * VW bytes (instead of 4 * VW in the demo): half as much VRAM."""
     vw = geom["viewport"]["width_px"] // 2
     hy0, hy1 = geom["horizon"]
     P, h = 2 * vw, hy1 - hy0 + 6
@@ -91,19 +91,19 @@ def make_himmel(geom, path):
 
 
 def build_assets(tmp):
-    """Kleine Sätze, die in die Bereiche von P6 2.4 und in den VRAM-Pool passen: Wand 3 Stile (ziegel, gitter, fenster;
-    Demo: 4), Boden 1 Stil, Decke 1 Stil, Tapete mit halber Panoramabreite, 4 Sprite-Sätze (blob, gem, wache, breit)."""
-    A = dbeview.build_demo_assets(tmp)               # erzeugt Atlanten, Geometrie und TOMLs im Verzeichnis
+    """Small sets that fit into the ranges of P6 2.4 and into the VRAM pool: wall 3 styles (brick, grating, window;
+    demo: 4), floor 1 style, ceiling 1 style, wallpaper with half the panorama width, 4 sprite sets (blob, gem, guard, wide)."""
+    A = dbeview.build_demo_assets(tmp)               # creates atlases, geometry and TOMLs in the directory
     P = lambda n: os.path.join(tmp, n)
     geom = json.load(open(P('west140.geom.json')))
-    make_himmel(geom, P('himmel2.png'))
-    wt = open(P('walls.toml')).read().replace('[[style]]\nname     = "bogen"\naseprite = "fenster.json"\ntag      = "bogen"\n', '')
+    make_sky(geom, P('sky2.png'))
+    wt = open(P('walls.toml')).read().replace('[[style]]\nname     = "arch"\naseprite = "window.json"\ntag      = "arch"\n', '')
     open(P('w3.toml'), 'w').write(wt)
     open(P('f1.toml'), 'w').write(dbeview.GEN_FLOOR_TOML.format(
-        name="vice_floor", kind="floor", load="0xEE00", styles='[[style]]\nname = "stein"\npng = "stein_atlas.png"\n'))
+        name="vice_floor", kind="floor", load="0xEE00", styles='[[style]]\nname = "stone"\npng = "stone_atlas.png"\n'))
     open(P('c1.toml'), 'w').write(dbeview.GEN_FLOOR_TOML.format(
-        name="vice_ceil", kind="ceiling", load="0xF600", styles='[[style]]\nname = "holz"\npng = "holz_atlas.png"\n'))
-    open(P('bg2.toml'), 'w').write(open(P('bg.toml')).read().replace('himmel.png', 'himmel2.png'))
+        name="vice_ceil", kind="ceiling", load="0xF600", styles='[[style]]\nname = "wood"\npng = "wood_atlas.png"\n'))
+    open(P('bg2.toml'), 'w').write(open(P('bg.toml')).read().replace('sky.png', 'sky2.png'))
     a = Small()
     a.dvg, a.dvg_prg, a.sprites = A.dvg, A.dvg_prg, A.sprites
     a.walls = dbetex.build_texset(dbetex.load_tex_conf(P('w3.toml')))[0]
@@ -116,21 +116,21 @@ def build_assets(tmp):
     return a
 
 
-# ------------------------------------------------------------------ Karte
+# ------------------------------------------------------------------ Map
 T = dbemap.Tile
-WEG, DECK, INH = dbeview.T_WEG, dbeview.T_DECKEND, dbeview.T_INHALT
+SOLID, OCC, CNT = dbeview.T_SOLID, dbeview.T_OCCLUDING, dbeview.T_CONTENT
 
 
 def build_map():
-    """Demo-Karte 15 x 11: Gänge, Raum mit Himmel (Tapete), Gitter, Fenster-Wand, Abgrund, INHALT-Tür, Gegenstand."""
-    t = [T((0, 0, 0, 0), 1, 1, 0, 0, "gang"),                      # 0
-         T((1, 1, 1, 1), 0, 0, WEG | DECK, 0, "wand"),            # 1 Ziegel
-         T((0, 0, 0, 0), 0, 1, 0, 0, "abgrund"),                  # 2 kein Boden
-         T((0, 0, 0, 0), 1, 0, 0, 0, "himmel"),                   # 3 keine Decke: Tapete
-         T((2, 0, 2, 0), 1, 1, WEG, 0, "gitter"),                 # 4 Gitter, nicht deckend
-         T((3, 3, 3, 3), 0, 0, WEG | DECK, 0, "fenster"),         # 5 Fenster-Wand
-         T((2, 2, 2, 2), 1, 1, WEG | INH, 0, "tuer"),             # 6 INHALT-Zelle (Gitter, Objekte darin)
-         T((0, 0, 0, 0), 1, 1, 0, 0, "gegenstand")]               # 7 Gang mit Gegenstand
+    """Demo map 15 x 11: corridors, room with sky (wallpaper), grate, window wall, abyss, CONTENT door, item."""
+    t = [T((0, 0, 0, 0), 1, 1, 0, 0, "corridor"),                      # 0
+         T((1, 1, 1, 1), 0, 0, SOLID | OCC, 0, "wall"),            # 1 brick
+         T((0, 0, 0, 0), 0, 1, 0, 0, "abyss"),                  # 2 no floor
+         T((0, 0, 0, 0), 1, 0, 0, 0, "sky"),                   # 3 no ceiling: wallpaper
+         T((2, 0, 2, 0), 1, 1, SOLID, 0, "grating"),                 # 4 grate, not opaque
+         T((3, 3, 3, 3), 0, 0, SOLID | OCC, 0, "window"),         # 5 window wall
+         T((2, 2, 2, 2), 1, 1, SOLID | CNT, 0, "door"),             # 6 CONTENT cell (grate, objects inside)
+         T((0, 0, 0, 0), 1, 1, 0, 0, "item")]               # 7 corridor with item
     rows = ["###############",
             "#.....#,,,,,,,#",
             "#.###.#,.....,#",
@@ -146,7 +146,7 @@ def build_map():
     w, h = len(rows[0]), len(rows)
     cells = [leg[c] for r in rows for c in r]
     content = [0] * (w * h)
-    content[5 * w + 10] = 2                                       # Gegenstand 2 bei 'm'
+    content[5 * w + 10] = 2                                       # item 2 at 'm'
     m = dbemap.Map("vice", w, h, t, cells, content, [], 1 * w + 1, 2, 1)
     dbemap.validate(m)
     return m
@@ -159,7 +159,7 @@ def cell(x, y):
     return y * W + x
 
 
-# ------------------------------------------------------------------ Schritte
+# ------------------------------------------------------------------ Steps
 class Step:
     def __init__(self, name, kind, cell=0, dir=0, action=0, objs=None, itemph=0, keep=False):
         self.name, self.kind, self.cell, self.dir, self.action = name, kind, cell, dir, action
@@ -170,80 +170,80 @@ Obj = dbeview.Obj
 
 
 def build_steps():
-    """Kamerazellen müssen begehbar sein (kein blocked(t)); build_steps prüft das am Ende."""
+    """Camera cells must be walkable (no blocked(t)); build_steps checks this at the end."""
     S = []
     pos = lambda n, x, y, d, objs=None, ph=0: S.append(Step(n, 'pos', cell(x, y), d, objs=objs, itemph=ph))
-    # Wände, Boden, Decke, Tapete (ohne Objekte)
-    pos('Gang Süd', 1, 1, 2)
-    pos('Gang Süd, Seitengang', 1, 4, 2)
-    pos('Wand vorn (Ost)', 1, 1, 1)
-    pos('Gang West-Ost', 5, 5, 1)
-    pos('Raum mit Himmel/Tapete, Ost', 8, 2, 1)
-    pos('Raum mit Himmel/Tapete, Süd', 10, 1, 2)
-    pos('Raum West (Wand, Tapete)', 13, 2, 3)
-    pos('Gitter West', 7, 4, 3)
-    pos('Gitter Ost', 5, 4, 1)
-    pos('Gitter Nord', 6, 5, 0)
-    pos('Fenster Süd d=1', 10, 8, 2)
-    pos('Fenster Süd d=2', 9, 7, 2)
-    pos('Fenster Ost', 7, 9, 1)                    # Review P6g: vorher (8, 9) = in der Fenster-Wand
-    # Abgrund
-    pos('Abgrund Ost', 3, 7, 1)
-    pos('Abgrund Nord', 3, 4, 0)                   # Review P6g: vorher (4, 5) = in einer Wand
-    pos('Abgrund Süd', 3, 5, 2)
-    pos('Abgrund Süd 2', 5, 5, 2)
-    # Gegenstand und Objekte (mittig, am Rand beschnitten)
-    pos('Gegenstand (Inhaltsebene)', 9, 5, 1)
-    pos('Blob mittig d=1', 1, 1, 2, [Obj(cell(1, 2), 0, 2, 0, 4)])
-    pos('Blob mittig d=2 und 3', 1, 1, 2, [Obj(cell(1, 3), 0, 0, 1, 4), Obj(cell(1, 4), 0, 1, 1, 4)])
-    pos('Blob Unterpositionen', 1, 5, 2, [Obj(cell(1, 6), 0, 2, 0, q) for q in range(4)] + [Obj(cell(1, 7), 2, 0, 0, 4)])
-    pos('Wache, Gem, ITEMPH', 5, 1, 2, [Obj(cell(5, 3), 2, 2, 0, 4), Obj(cell(5, 2), 1, 0xFF, 1, 1)], 1)
-    pos('breit, Rand links d=1', 13, 2, 3, [Obj(cell(12, 3), 3, 2, 1, 4)])
-    pos('breit, Rand rechts d=1', 13, 2, 3, [Obj(cell(12, 1), 3, 2, 1, 4)])
-    pos('breit, Rand d=2, s=+-1', 13, 2, 3, [Obj(cell(11, 1), 3, 2, 1, 0), Obj(cell(11, 3), 3, 2, 1, 3)])
-    pos('Objekte im offenen Raum', 13, 2, 3, [Obj(cell(12, 1), 0, 2, 0, 4), Obj(cell(12, 3), 0, 2, 0, 1),
+    # Walls, floor, ceiling, wallpaper (without objects)
+    pos('Corridor south', 1, 1, 2)
+    pos('Corridor south, side corridor', 1, 4, 2)
+    pos('Wall ahead (east)', 1, 1, 1)
+    pos('Corridor west-east', 5, 5, 1)
+    pos('Room with sky/wallpaper, east', 8, 2, 1)
+    pos('Room with sky/wallpaper, south', 10, 1, 2)
+    pos('Room west (wall, wallpaper)', 13, 2, 3)
+    pos('Grate west', 7, 4, 3)
+    pos('Grate east', 5, 4, 1)
+    pos('Grate north', 6, 5, 0)
+    pos('Window south d=1', 10, 8, 2)
+    pos('Window south d=2', 9, 7, 2)
+    pos('Window east', 7, 9, 1)                    # Review P6g: previously (8, 9) = inside the window wall
+    # Abyss
+    pos('Abyss east', 3, 7, 1)
+    pos('Abyss north', 3, 4, 0)                   # Review P6g: previously (4, 5) = inside a wall
+    pos('Abyss south', 3, 5, 2)
+    pos('Abyss south 2', 5, 5, 2)
+    # Item and objects (centered, clipped at the edge)
+    pos('Item (content layer)', 9, 5, 1)
+    pos('Blob centered d=1', 1, 1, 2, [Obj(cell(1, 2), 0, 2, 0, 4)])
+    pos('Blob centered d=2 and 3', 1, 1, 2, [Obj(cell(1, 3), 0, 0, 1, 4), Obj(cell(1, 4), 0, 1, 1, 4)])
+    pos('Blob subpositions', 1, 5, 2, [Obj(cell(1, 6), 0, 2, 0, q) for q in range(4)] + [Obj(cell(1, 7), 2, 0, 0, 4)])
+    pos('Guard, gem, ITEMPH', 5, 1, 2, [Obj(cell(5, 3), 2, 2, 0, 4), Obj(cell(5, 2), 1, 0xFF, 1, 1)], 1)
+    pos('wide, left edge d=1', 13, 2, 3, [Obj(cell(12, 3), 3, 2, 1, 4)])
+    pos('wide, right edge d=1', 13, 2, 3, [Obj(cell(12, 1), 3, 2, 1, 4)])
+    pos('wide, edge d=2, s=+-1', 13, 2, 3, [Obj(cell(11, 1), 3, 2, 1, 0), Obj(cell(11, 3), 3, 2, 1, 3)])
+    pos('Objects in the open room', 13, 2, 3, [Obj(cell(12, 1), 0, 2, 0, 4), Obj(cell(12, 3), 0, 2, 0, 1),
                                                 Obj(cell(11, 2), 2, 0, 0, 4), Obj(cell(10, 1), 3, 1, 1, 2),
                                                 Obj(cell(10, 3), 0, 3, 0, 4)])
-    # INHALT-Zelle (Tür mit Objekt darin)
-    pos('INHALT Tür leer', 11, 7, 3)
-    pos('INHALT Tür mit Blob d=3', 11, 7, 3, [Obj(cell(8, 7), 0, 1, 0, 4)])
-    pos('INHALT Tür mit Blob d=2', 10, 7, 3, [Obj(cell(8, 7), 0, 1, 0, 4)])
-    pos('INHALT Tür, Blobs d=1', 9, 7, 3, [Obj(cell(8, 7), 0, 1, 0, 0), Obj(cell(8, 7), 0, 3, 1, 3)])
-    # MOVE-Sequenz: Gang abwärts, drehen, gegen die Wand, gegen das Objekt
+    # CONTENT cell (door with object inside)
+    pos('CONTENT door empty', 11, 7, 3)
+    pos('CONTENT door with blob d=3', 11, 7, 3, [Obj(cell(8, 7), 0, 1, 0, 4)])
+    pos('CONTENT door with blob d=2', 10, 7, 3, [Obj(cell(8, 7), 0, 1, 0, 4)])
+    pos('CONTENT door, blobs d=1', 9, 7, 3, [Obj(cell(8, 7), 0, 1, 0, 0), Obj(cell(8, 7), 0, 3, 1, 3)])
+    # MOVE sequence: down the corridor, turn, against the wall, against the object
     S.append(Step('MOVE Start', 'pos', cell(1, 1), 2, objs=[Obj(cell(1, 5), 0, 2, 0, 4)]))
-    for a, n in ((0, 'vor'), (0, 'vor'), (4, 'drehen links'), (5, 'drehen rechts'), (0, 'vor'), (2, 'seitwärts links'),
-                 (0, 'vor (Objekt blockiert)'), (6, 'umdrehen'), (0, 'vor'), (3, 'seitwärts rechts'),
-                 (1, 'zurück')):
+    for a, n in ((0, 'forward'), (0, 'forward'), (4, 'turn left'), (5, 'turn right'), (0, 'forward'), (2, 'sideways left'),
+                 (0, 'forward (object blocks)'), (6, 'turn around'), (0, 'forward'), (3, 'sideways right'),
+                 (1, 'back')):
         S.append(Step('MOVE ' + n, 'move', action=a, keep=True))
     m = build_map()
     for st in S:
-        if st.kind == 'pos' and m.tiles[m.cells[st.cell]].flags & DECK:
-            raise SystemExit(f'Szene {st.name!r}: Kamera in einer deckenden Zelle')
+        if st.kind == 'pos' and m.tiles[m.cells[st.cell]].flags & OCC:
+            raise SystemExit(f'Scene {st.name!r}: camera in an opaque cell')
     return S
 
 
-# ------------------------------------------------------------------ Szenen, Erwartung
+# ------------------------------------------------------------------ Scenes, expectation
 def s2_layout(assets):
-    """(Adresse, Inhalt) der Sprite-Sätze dicht ab $6000 (16-Byte-Ausrichtung); je Satz eine Datei."""
+    """(address, content) of the sprite sets packed from $6000 (16-byte alignment); one file per set."""
     a, out = S2_START, []
     for ss in assets.sprites[:4]:
         data = dbespr.to_s2(ss)[2:]
         out.append((a, data))
         a = (a + len(data) + 15) & ~15
     if a > S2_END:
-        raise SystemExit(f'S2 ({a - S2_START} Byte) passt nicht in $6000-$7FFF')
+        raise SystemExit(f'S2 ({a - S2_START} bytes) does not fit in $6000-$7FFF')
     return out
 
 
 class World:
-    """Alles, was zwischen Python und VICE abgestimmt ist: Dateien, Basen, Szenenfolge, VRAM-Modell."""
+    """Everything agreed between Python and VICE: files, bases, scene sequence, VRAM model."""
 
     def __init__(self, tmp):
         self.assets = A = build_assets(tmp)
         self.map = build_map()
         self.pack()
         self.steps = build_steps()
-        self.itemtab = [0, 2, 3] + [0] * 61                        # Gegenstand 1 -> Satz 1 (Gem), 2 -> Satz 2 (Wache)
+        self.itemtab = [0, 2, 3] + [0] * 61                        # item 1 -> set 1 (gem), 2 -> set 2 (guard)
         self.s2 = s2_layout(A)
         self.s2addr = tuple(a for a, _ in self.s2) + (0,) * 4
         self.sc0 = dbeview.make_scene(A, self.map, itemtab=self.itemtab, buf=BUF, band_cover=True, start=POOL[0])
@@ -252,13 +252,13 @@ class World:
         self.bases = copy.deepcopy(sc.vram_bases)
         end = max([b + len(d) for n, b, d in sc.assets()])
         if end > POOL[1]:
-            raise SystemExit(f'VRAM-Pool: Ende {end} > {POOL[1]}')
+            raise SystemExit(f'VRAM pool: end {end} > {POOL[1]}')
         self.pool_end = end
         self.files = self.collect_files()
         self.vram0 = self.initial_vram()
 
     def pack(self):
-        """Dateiinhalte und ihre Adressen in Bank 1 (siehe HIGH)."""
+        """File contents and their addresses in bank 1 (see HIGH)."""
         A = self.assets
         self.blob = {'dvg': dbeview.dvg_bytes(dbeview.with_band_cover(A.dvg))[2:],
                      'dts0': dbetex.to_dts(A.walls)[2:], 'dts1': dbetex.to_dts(A.floor)[2:],
@@ -269,14 +269,14 @@ class World:
             a[n] = p
             p = (p + len(self.blob[n]) + 15) & ~15
         if p - 16 + len(self.blob['dbg']) > HIGH[1] or p > HIGH[1] + 15:
-            raise SystemExit(f'DVG, DTS und DBG ({p - HIGH[0]} Byte) passen nicht in ${HIGH[0]:04X}-${HIGH[1] - 1:04X}')
+            raise SystemExit(f'DVG, DTS and DBG ({p - HIGH[0]} bytes) do not fit in ${HIGH[0]:04X}-${HIGH[1] - 1:04X}')
         for n in ('dmp', 'dts0'):
             if a[n] + len(self.blob[n]) > LOW[n][1]:
-                raise SystemExit(f'{n}: {len(self.blob[n])} Byte reichen über ${LOW[n][1]:04X} hinaus')
+                raise SystemExit(f'{n}: {len(self.blob[n])} bytes extend beyond ${LOW[n][1]:04X}')
         self.addr = a
         self.dts_addr = (a['dts0'], a['dts1'], a['dts2'])
 
-    # --- Dateien (Name, Ladeadresse, Inhalt) für Bank 1 und die VRL-Dateien
+    # --- Files (name, load address, content) for bank 1 and the VRL files
     def collect_files(self):
         A, sc = self.assets, self.sc0
         f = [(n, self.addr[n], self.blob[n], 0x10000) for n in ('dvg', 'dmp', 'dbg', 'dts0', 'dts1', 'dts2')]
@@ -284,12 +284,12 @@ class World:
             f.append((f's2{k}', a_, d, S2_END))
         for n, a_, d, lim in f:
             if a_ < 0x4000 or a_ + len(d) > 0xFC00 or (a_ < 0xD000 < a_ + len(d)) or (0xD000 <= a_ < 0xE000):
-                raise SystemExit(f'{n}: ${a_:04X}+{len(d)} liegt nicht in $4000-$CFFF/$E000-$FBFF (Typ 9, Blitz!-Runtime)')
-        # Überlappungen untereinander
+                raise SystemExit(f'{n}: ${a_:04X}+{len(d)} is not within $4000-$CFFF/$E000-$FBFF (type 9, Blitz! runtime)')
+        # overlaps among each other
         spans = sorted((a, a + len(d), n) for n, a, d, lim in f)
         for (a0, a1, n0), (b0, b1, n1) in zip(spans, spans[1:]):
             if b0 < a1:
-                raise SystemExit(f'Speicherkarte: {n0} und {n1} überlappen')
+                raise SystemExit(f'Memory map: {n0} and {n1} overlap')
         self.bank1 = [(n, a, d) for n, a, d, lim in f]
         self.vrls = []
         for name, base, data in sc.assets():
@@ -298,7 +298,7 @@ class World:
         return f
 
     def initial_vram(self):
-        """VRAM nach dem Start des Testprogramms (nach den RXV, vor der ersten Szene), 64 KB."""
+        """VRAM after the start of the test program (after the RXVs, before the first scene), 64 KB."""
         v = bytearray(65536)
         v[8000:9600] = bytes([0x1F]) * 1600
         v[46335:46335 + 16000] = bytes([15]) * 16000
@@ -306,9 +306,9 @@ class World:
             v[base:base + len(data)] = data
         return v
 
-    # --- Szenen
+    # --- Scenes
     def expected(self):
-        """Je Schritt: dict(name, kind, view = dbeview.Result, scene, move = MoveResult | None, pos, dir)."""
+        """Per step: dict(name, kind, view = dbeview.Result, scene, move = MoveResult | None, pos, dir)."""
         out, pos, v, objs, itemph = [], 0, 0, [], 0
         m = self.map
         for st in self.steps:
@@ -342,7 +342,7 @@ class World:
 
 
 def model_run(world, exp):
-    """VRAM-Modell: run_vcl je Schritt nacheinander (Zustand wandert mit). Rückgabe: Liste (vram_nach, paint_ref_fenster)."""
+    """VRAM model: run_vcl per step in sequence (state carries over). Returns: list (vram_after, paint_ref_window)."""
     vram = bytearray(world.vram0)
     out = []
     for e in exp:
@@ -354,9 +354,9 @@ def model_run(world, exp):
     return out
 
 
-# ------------------------------------------------------------------ BASIC-Programm
+# ------------------------------------------------------------------ BASIC program
 def basic_listing(world, fast=False):
-    """test/vice/view.bas mit den Platzhaltern @LOADS@ (Dateien laden) und @SETUP@ (Setz-Aufrufe)."""
+    """test/vice/view.bas with the placeholders @LOADS@ (load files) and @SETUP@ (setter calls)."""
     sc = world.sc0
     fix = int(sc.buf_fix)
     B = world.bases
@@ -383,7 +383,7 @@ def basic_listing(world, fast=False):
         setup.append(f'p0={p0}:p1={p1}:f={f}:x={x}:y={y}:gosub 9500:if a<>0 then r={20 + i}:goto 8995')
     text = open(os.path.join(HERE, 'vice', 'view.bas')).read().replace('@VERSION@', VERSION)
     text = text.replace('@FAST@', 'fast:' if fast else '').replace('@SLOW@', 'slow' if fast else 'rem')
-    if fix:                         # P6j: Liste immer ab B0, ::VCL mit der Konstanten
+    if fix:                         # P6j: list always from B0, ::VCL with the constant
         text = text.replace('2120 v=peek(3072)+256*peek(3073):', f'2120 v={BUF[0]}:')
     out, n = [], 0
     for line in text.split('\n'):
@@ -394,13 +394,13 @@ def basic_listing(world, fast=False):
                 out.append(f'{300 + n}  {s}'.replace('  ', ' ', 1))
             continue
         out.append(line)
-    assert 300 + n < 2000, 'zu viele Zeilen für den Block'
+    assert 300 + n < 2000, 'too many lines for the block'
     return '\n'.join(out)
 
 
 def sim_cycles(world, exp):
-    """sim65-Zyklen je Schritt (nur VIEW, ohne Stub): Lauf mit F = 4 minus Lauf mit F = 7 (wie run_sim.time_view), mit
-    Objekten und Gegenständen. Rückgabe Liste oder None (ohne sim65)."""
+    """sim65 cycles per step (VIEW only, without stub): run with F = 4 minus run with F = 7 (as run_sim.time_view), with
+    objects and items. Returns a list or None (without sim65)."""
     if not shutil.which('sim65'):
         return None
     sys.path.insert(0, os.path.join(HERE, 'sim'))
@@ -424,17 +424,17 @@ def sim_cycles(world, exp):
     return out
 
 
-# ------------------------------------------------------------------ Disk und Lauf
+# ------------------------------------------------------------------ Disk and run
 def stub_rts():
-    """Adresse des RTS am Ende des Stubs (Ausgang von SYS 3331): Marke call_rts aus build/stub.lbl."""
+    """Address of the RTS at the end of the stub (exit of SYS 3331): label call_rts from build/stub.lbl."""
     for line in open(os.path.join(ROOT, 'build', 'stub.lbl')):
         m = re.match(r'al ([0-9A-Fa-f]+) \.call_rts$', line.strip())
         if m:
             a = int(m.group(1), 16)
             d = open(os.path.join(ROOT, 'build', STUBNAME), 'rb').read()
-            assert d[2 + a - (d[0] | d[1] << 8)] == 0x60, 'RTS bei call_rts nicht gefunden'
+            assert d[2 + a - (d[0] | d[1] << 8)] == 0x60, 'RTS at call_rts not found'
             return a
-    raise SystemExit('call_rts fehlt in build/stub.lbl')
+    raise SystemExit('call_rts missing in build/stub.lbl')
 
 
 def make_disk(world, d64, boot_prg, t_prg, workdir):
@@ -472,8 +472,8 @@ _LABELS = None
 
 
 def vdc_labels():
-    """Adressen lokaler Marken von VDC-BASIC v3 (nicht in vdcbasic3.sym): ACME-Report einer Kopie im Temp-Verzeichnis,
-    gegen vdcbasic3.bin geprüft. {'vcl', '.vcl_next_command', '.vcl_done', '.vms_arg_loop', '.vms_done'}."""
+    """Addresses of local labels of VDC-BASIC v3 (not in vdcbasic3.sym): ACME report of a copy in the temp directory,
+    checked against vdcbasic3.bin. {'vcl', '.vcl_next_command', '.vcl_done', '.vms_arg_loop', '.vms_done'}."""
     global _LABELS
     if _LABELS:
         return _LABELS
@@ -484,7 +484,7 @@ def vdc_labels():
         env = dict(os.environ, ACME=os.environ.get('ACME', os.path.expanduser('~/.local/share/acme/ACME_Lib')))
         subprocess.run(['acme', '-r', 'r.txt', 'src/vdcbasic.asm'], cwd=tmp, env=env, check=True, stdout=subprocess.DEVNULL)
         if open(os.path.join(tmp, 'vdcbasic3.bin'), 'rb').read() != open(os.path.join(vs.VDC, 'vdcbasic3.bin'), 'rb').read():
-            raise SystemExit('ACME-Bau weicht von vdcbasic3.bin ab (VDC-BASIC neu bauen)')
+            raise SystemExit('ACME build differs from vdcbasic3.bin (rebuild VDC-BASIC)')
         rep = open(os.path.join(tmp, 'r.txt'), encoding='latin-1').read().split('\n')
     finally:
         shutil.rmtree(tmp)
@@ -498,13 +498,13 @@ def vdc_labels():
                     out[m.group(1)] = int(m2.group(1), 16)
                     break
     if set(out) != set(want):
-        raise SystemExit(f'Marken im ACME-Report nicht gefunden: {out}')
+        raise SystemExit(f'Labels not found in the ACME report: {out}')
     _LABELS = out
     return out
 
 
 def run_one(world, d64, boot_prg, port, tmo, exp, workdir):
-    """Ein VICE-Lauf. Rückgabe (rc, Ergebnisliste je Szene, Fehler)."""
+    """One VICE run. Returns (rc, result list per scene, errors)."""
     syms = vm.symbols(os.path.join(vs.VDC, 'build', 'vdcbasic3.sym'))
     RTS = stub_rts()
     VD = 0x0D03
@@ -517,8 +517,8 @@ def run_one(world, d64, boot_prg, port, tmo, exp, workdir):
         m.bp(err_at)
         for a in (M_VIEW, M_DONE, M_END):
             m.bp(a)
-        # Ende von VCL: .vcl_done (lokale Marke, aus dem ACME-Report). complex_instruction_shared_exit taugt nicht: jedes
-        # VMC/VMF und jeder VMS-Kopierbefehl endet dort (das I-Flag wäre ab dem ersten Eintrag wieder frei).
+        # End of VCL: .vcl_done (local label, from the ACME report). complex_instruction_shared_exit does not work: every
+        # VMC/VMF and every VMS copy command ends there (the I flag would be free again from the first entry on).
         timing = {'vd': VD, 've': RTS, 'ce': syms['vcl'], 'cx': vdc_labels()['.vcl_done']}
         ids = {k: m.bp(a) for k, a in timing.items()}
         at = {a: k for k, a in timing.items()}
@@ -543,11 +543,11 @@ def run_one(world, d64, boot_prg, port, tmo, exp, workdir):
             elif pc in at:
                 k_ = at[pc]
                 t[k_] = stopwatch(m)
-                if k_ in ('vd', 'ce'):          # I-Flag setzen: Zyklen ohne Kernal-IRQ (vergleichbar mit sim65)
+                if k_ in ('vd', 'ce'):          # set I flag: cycles without Kernal IRQ (comparable to sim65)
                     fl = flags(m)
                     t['fl'] = fl
                     m.cmd(f'r fl = ${fl | 4:02x}')
-                else:                           # Ausgang: I-Flag wie vorher (SYS/::VCL kehren nach BASIC zurück)
+                else:                           # exit: I flag as before (SYS/::VCL return to BASIC)
                     m.cmd(f'r fl = ${(flags(m) & ~4) | (t["fl"] & 4):02x}')
             elif pc == M_DONE:
                 t['done'] = stopwatch(m)
@@ -578,37 +578,37 @@ def w16(b, i):
 
 
 def compare(world, exp, model, got, sim=None):
-    """Vergleich je Szene. Rückgabe (Zeilen, Fehlerzahl)."""
+    """Comparison per scene. Returns (lines, number of errors)."""
     lines, bad = [], 0
     sc0 = world.sc0
     if len(got['scenes']) != len(exp):
-        lines.append(f'FEHLER: {len(got["scenes"])} Szenen gemeldet, erwartet {len(exp)}')
+        lines.append(f'ERROR: {len(got["scenes"])} scenes reported, expected {len(exp)}')
         bad += 1
     for k, (e, (vram, ref), g) in enumerate(zip(exp, model, got['scenes'])):
         res, sc, st = e['res'], e['scene'], e['step']
         msg = []
         pb, tb = g['pb'], g['tb']
         if (tb[0], tb[1]) != (res.a, res.x):
-            msg.append(f'A/X VICE {tb[0]}/{tb[1]} <> Referenz {res.a}/{res.x}')
+            msg.append(f'A/X VICE {tb[0]}/{tb[1]} <> reference {res.a}/{res.x}')
         if w16(pb, 0x0A) != res.p0 or w16(pb, 0x0C) != res.vcllen or w16(pb, 0x0E) != res.vmslen or w16(pb, 0x10) != res.objvis:
             msg.append(f'VCLADR/VCLLEN/VMSLEN/OBJVIS VICE {[hex(w16(pb, i)) for i in (0x0A, 0x0C, 0x0E, 0x10)]} <> '
                        f'{[hex(res.p0), hex(res.vcllen), hex(res.vmslen), hex(res.objvis)]}')
         mv = e['move']
         if mv is not None and (tb[2], tb[3], tb[4], w16(tb, 5)) != (mv.a, mv.x, mv.y, mv.p0):
             msg.append(f'MOVE VICE A/X/Y/P0 {tb[2]}/{tb[3]}/{tb[4]}/{w16(tb, 5)} <> {mv.a}/{mv.x}/{mv.y}/{mv.p0}')
-        # Puffer: VCL-Liste [VCLADR, B1) und VMS-Listen [B0, B0 + VMSLEN) wie die Referenz
+        # Buffer: VCL list [VCLADR, B1) and VMS lists [B0, B0 + VMSLEN) as in the reference
         buf, b0 = g['buf'], BUF[0]
         vcl = bytes(buf[res.l0 - b0:res.l0 - b0 + len(res.vcl)])
         vms = bytes(buf[res.m0 - b0:res.m0 - b0 + len(res.vms)])
         if res.fix and bytes(buf[0:3]) != res.jump():
-            msg.append(f'Sprung bei B0 {bytes(buf[0:3]).hex()} <> {res.jump().hex()}')
+            msg.append(f'Jump at B0 {bytes(buf[0:3]).hex()} <> {res.jump().hex()}')
         if vcl != res.vcl or vms != res.vms:
-            msg.append('Puffer (VCL/VMS) weicht von der Referenz ab')
-        # VRAM: ganz (64 KB) gegen das Modell, Fenster gegen paint_reference
+            msg.append('buffer (VCL/VMS) differs from the reference')
+        # VRAM: whole (64 KB) against the model, window against paint_reference
         v = g['vram']
         if v != vram:
             idx = [i for i in range(65536) if v[i] != vram[i]]
-            msg.append(f'VRAM {len(idx)} Byte falsch, erstes ${idx[0]:04X}: VICE {v[idx[0]]:02X} <> Modell {vram[idx[0]]:02X}')
+            msg.append(f'VRAM {len(idx)} bytes wrong, first ${idx[0]:04X}: VICE {v[idx[0]]:02X} <> model {vram[idx[0]]:02X}')
         pix = ref is None or dbeview.window_bytes(sc, v) == dbeview.window_bytes(sc, ref)
         t = g['t']
         cyc = dict(view=t['ve'] - t['vd'], vcl=t['cx'] - t['ce'], total=t['done'])
@@ -618,44 +618,44 @@ def compare(world, exp, model, got, sim=None):
         ok = not msg
         bad += not ok
         lines.append(dict(k=k, name=st.name, kind=st.kind, a=res.a, x=res.x, items=res.items, nv=res.vcllen, nm=res.vmslen,
-                          pix=ok and v == vram, ref=('-' if ref is None else ('ja' if pix else 'NEIN')), cyc=cyc, msg=msg, ok=ok))
+                          pix=ok and v == vram, ref=('-' if ref is None else ('yes' if pix else 'NO')), cyc=cyc, msg=msg, ok=ok))
         if ref is not None and not pix:
-            lines[-1]['msg'].append('Fenster weicht von paint_reference ab (VICE = run_vcl-Modell: '
-                                    + ('ja' if v == vram else 'nein') + ')')
+            lines[-1]['msg'].append('window differs from paint_reference (VICE = run_vcl model: '
+                                    + ('yes' if v == vram else 'no') + ')')
     return lines, bad
 
 
 def report(name, lines, bad):
-    """Zyklen: Monitor-Stoppuhr (Takte zu 1 MHz). Spalten mit 2M: Lauf mit FAST (2 MHz, VIC aus), falls vorhanden."""
+    """Cycles: monitor stopwatch (clocks at 1 MHz). Columns with 2M: run with FAST (2 MHz, VIC off), if present."""
     two = any(isinstance(L, dict) and 'cyc2' in L for L in lines)
     print(f'--- {name}')
-    print(f'{"#":>2} {"Szene":<34} {"A":>1} {"X":>3} {"VCL":>4} {"VMS":>5} {"Modell":>6} {"Ref":>4} {"VIEW":>7} {"VCL":>9} '
-          f'{"VIEW+VCL":>9} {"mit BASIC":>9} {"sim65":>7}' + (f' | {"VIEW 2M":>7} {"VCL 2M":>9} {"V+V 2M":>9}' if two else ''))
+    print(f'{"#":>2} {"Scene":<34} {"A":>1} {"X":>3} {"VCL":>4} {"VMS":>5} {"Model":>6} {"Ref":>4} {"VIEW":>7} {"VCL":>9} '
+          f'{"VIEW+VCL":>9} {"with BASIC":>9} {"sim65":>7}' + (f' | {"VIEW 2M":>7} {"VCL 2M":>9} {"V+V 2M":>9}' if two else ''))
     for L in lines:
         if not isinstance(L, dict):
             print(L)
             continue
         c = L['cyc']
         print(f'{L["k"]:>2} {L["name"]:<34} {L["a"]:>1} {L["x"]:>3} {L["nv"]:>4} {L["nm"]:>5} '
-              f'{"ja" if L["pix"] else "NEIN":>6} {L["ref"]:>4} {c["view"]:>7} {c["vcl"]:>9} {c["sum"]:>9} {c["total"]:>9} {c["sim"] or "-":>7}' +
+              f'{"yes" if L["pix"] else "NO":>6} {L["ref"]:>4} {c["view"]:>7} {c["vcl"]:>9} {c["sum"]:>9} {c["total"]:>9} {c["sim"] or "-":>7}' +
               (f' | {L["cyc2"]["view"]:>7} {L["cyc2"]["vcl"]:>9} {L["cyc2"]["sum"]:>9}' if 'cyc2' in L else ''))
         for m_ in L['msg']:
             print('      ', m_)
     ds = [L for L in lines if isinstance(L, dict)]
     if ds:
         n = len(ds)
-        for key, lab in (('view', 'VIEW'), ('vcl', 'VCL'), ('sum', 'VIEW+VCL'), ('total', 'mit BASIC'), ('sim', 'sim65')):
+        for key, lab in (('view', 'VIEW'), ('vcl', 'VCL'), ('sum', 'VIEW+VCL'), ('total', 'with BASIC'), ('sim', 'sim65')):
             vals = [L['cyc'][key] for L in ds]
             if not any(vals):
                 continue
-            print(f'    {lab:<10} Mittel {sum(vals) // n:>9}  min {min(vals):>9}  max {max(vals):>9}')
+            print(f'    {lab:<10} mean {sum(vals) // n:>9}  min {min(vals):>9}  max {max(vals):>9}')
         if two:
             for key, lab in (('view', 'VIEW'), ('vcl', 'VCL'), ('sum', 'VIEW+VCL')):
                 v1 = [L['cyc'][key] for L in ds]
                 v2 = [L['cyc2'][key] for L in ds]
-                print(f'    {lab + " 2 MHz":<14} Mittel {sum(v2) // n:>9}  min {min(v2):>9}  max {max(v2):>9}'
-                      f'  (Verhaeltnis zu 1 MHz {sum(v2) / sum(v1):.2f})')
-    print(f'    {"alle gleich" if not bad else str(bad) + " Fehler"}', flush=True)
+                print(f'    {lab + " 2 MHz":<14} mean {sum(v2) // n:>9}  min {min(v2):>9}  max {max(v2):>9}'
+                      f'  (ratio to 1 MHz {sum(v2) / sum(v1):.2f})')
+    print(f'    {"all equal" if not bad else str(bad) + " errors"}', flush=True)
 
 
 def check_only(world, exp, model, png=None):
@@ -666,10 +666,10 @@ def check_only(world, exp, model, png=None):
         if res.a != 0:
             note = f' A={res.a}'
         if ref is not None and dbeview.window_bytes(e['scene'], vram) != dbeview.window_bytes(e['scene'], ref):
-            note += ' paint_reference weicht ab'
+            note += ' paint_reference differs'
             bad += 1
         print(f'{k:>2} {e["step"].name:<34} pos {e["pos"]:>3} dir {e["dir"]} VCL {res.vcllen:>4} VMS {res.vmslen:>5} '
-              f'Eintraege {res.x:>3} objvis {res.objvis:#06x}{note}')
+              f'entries {res.x:>3} objvis {res.objvis:#06x}{note}')
     if png:
         os.makedirs(png, exist_ok=True)
         ims = [dbeview.window_image(e['scene'], vram, 2) for e, (vram, ref) in zip(exp, model)]
@@ -678,10 +678,10 @@ def check_only(world, exp, model, png=None):
         sheet = Image.new('RGB', (cols * (w + 4), ((len(ims) + cols - 1) // cols) * (h + 4)), (40, 40, 40))
         for i, im in enumerate(ims):
             sheet.paste(im, ((i % cols) * (w + 4), (i // cols) * (h + 4)))
-        sheet.save(os.path.join(png, 'szenen.png'))
-    print('Speicherkarte:', ', '.join(f'{n} ${a:04X}-${a + len(d) - 1:04X}' for n, a, d in sorted(world.bank1, key=lambda x: x[1])))
-    print(f'VRAM-Pool: ${POOL[0]:04X}-${world.pool_end - 1:04X} von {POOL[0]}-{POOL[1] - 1}, '
-          f'Basen {world.bases}')
+        sheet.save(os.path.join(png, 'scenes.png'))
+    print('Memory map:', ', '.join(f'{n} ${a:04X}-${a + len(d) - 1:04X}' for n, a, d in sorted(world.bank1, key=lambda x: x[1])))
+    print(f'VRAM pool: ${POOL[0]:04X}-${world.pool_end - 1:04X} of {POOL[0]}-{POOL[1] - 1}, '
+          f'bases {world.bases}')
     return bad
 
 
@@ -693,11 +693,11 @@ def main():
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--png')
     ap.add_argument('--control', action='store_true',
-                    help='Gegenprobe: ein Byte im Fenster des Modells von Szene 5 verfälschen; der Lauf muss genau diese Szene melden')
-    ap.add_argument('--no-sim', action='store_true', help='keine sim65-Gegenmessung')
-    ap.add_argument('--byte-edges', action='store_true', help='Demo-Geometrie mit byte_edges = true (Kanten auf ganze Bytes)')
-    ap.add_argument('--no-fast', action='store_true', help='ohne den zweiten Lauf mit 2 MHz (FAST)')
-    ap.add_argument('--fix', action='store_true', help='P6j: feste Listenadresse (BUFSET X = 1, ::VCL B0)')
+                    help='control run: corrupt one byte in the window of the model of scene 5; the run must report exactly this scene')
+    ap.add_argument('--no-sim', action='store_true', help='no sim65 cross-measurement')
+    ap.add_argument('--byte-edges', action='store_true', help='demo geometry with byte_edges = true (edges on whole bytes)')
+    ap.add_argument('--no-fast', action='store_true', help='without the second run at 2 MHz (FAST)')
+    ap.add_argument('--fix', action='store_true', help='P6j: fixed list address (BUFSET X = 1, ::VCL B0)')
     a = ap.parse_args()
     vs.sh(['sh', os.path.join(ROOT, 'engine', 'build.sh')], stdout=subprocess.DEVNULL)
     if a.byte_edges:
@@ -729,7 +729,7 @@ def main():
     node, blitzc = vm.find_node(), vm.find_blitzc()
 
     def build(compiled, fast):
-        """Programm bauen (interpretiert: getokenisiert ab $4001; kompiliert: Blitz!). Rückgabe PRG oder None."""
+        """Build the program (interpreted: tokenized from $4001; compiled: Blitz!). Returns PRG or None."""
         suf = ('c' if compiled else 'i') + ('f' if fast else '')
         src_bas = os.path.join(OUT, f'view{"-f" if fast else ""}.bas')
         open(src_bas, 'w').write(basic_listing(world, fast))
@@ -746,7 +746,7 @@ def main():
         c = subprocess.run([node, blitzc, src, cdir, '--name', 'T'], capture_output=True, text=True)
         cprg = os.path.join(cdir, 'c.prg')
         if c.returncode or not os.path.exists(cprg) or open(cprg, 'rb').read(2) != b'\x01\x40':
-            print(f'kompiliert: Compiler rc {c.returncode}: {c.stdout.strip()}')
+            print(f'compiled: compiler rc {c.returncode}: {c.stdout.strip()}')
             scr = os.path.join(cdir, 'screen.txt')
             if os.path.exists(scr):
                 print(open(scr).read())
@@ -754,15 +754,15 @@ def main():
         return cprg
 
     def one(compiled, fast):
-        """Ein Lauf. Rückgabe (Zeilen, Fehlerzahl, Fehlerbit) oder None, wenn das Programm nicht gebaut werden konnte."""
+        """One run. Returns (lines, number of errors, error bit) or None if the program could not be built."""
         prg = build(compiled, fast)
         if prg is None:
             return None
         d64 = os.path.join(OUT, f'view-{"c" if compiled else "i"}{"f" if fast else ""}.d64')
         make_disk(world, d64, boot_prg, prg, wd)
         rc, got = run_one(world, d64, boot_prg, port, a.timeout, exp, wd)
-        what = 'kompiliert (Blitz!, Image 2)' if compiled else 'interpretiert'
-        print(f'{what}{", 2 MHz (FAST)" if fast else ""}: exit {rc}, BASIC-Fehler {got["errors"]}, Ende erreicht {got["end"]}')
+        what = 'compiled (Blitz!, image 2)' if compiled else 'interpreted'
+        print(f'{what}{", 2 MHz (FAST)" if fast else ""}: exit {rc}, BASIC error {got["errors"]}, end reached {got["end"]}')
         lines_, b = compare(world, exp, model, got, sim)
         return lines_, b, (rc != 0) | (b != (1 if a.control else 0)) | bool(got['errors']) | (not got['end'])
 
@@ -770,7 +770,7 @@ def main():
         if (a.only == 'c' and not compiled) or (a.only == 'i' and compiled):
             continue
         if compiled and (not node or not blitzc):
-            print('kompiliert: SKIP (blitzc nicht gefunden)')
+            print('compiled: SKIP (blitzc not found)')
             bad |= 2
             continue
         r1 = one(compiled, False)
@@ -779,9 +779,9 @@ def main():
             continue
         lines1, b1, e1 = r1
         bad |= e1
-        name = 'kompiliert (Blitz!, Image 2)' if compiled else 'interpretiert'
+        name = 'compiled (Blitz!, image 2)' if compiled else 'interpreted'
         if not a.no_fast:
-            # Zweiter Lauf mit FAST (2 MHz, VIC-Anzeige aus waehrend VIEW und VCL): gleiche Pruefung, Zyklen als cyc2
+            # Second run with FAST (2 MHz, VIC display off during VIEW and VCL): same check, cycles as cyc2
             r2 = one(compiled, True)
             if r2 is None:
                 bad |= 1

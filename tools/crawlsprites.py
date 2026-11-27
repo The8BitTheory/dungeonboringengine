@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
-"""Sprite-Sätze für Crawl 128 erzeugen: Geister (RED.VDC, RED1.VDC) und Edelsteine (Font-Zeichen).
+"""Generate sprite sets for Crawl 128: ghosts (RED.VDC, RED1.VDC) and gems (font characters).
 
-Aufruf: crawlsprites.py RED.VDC RED1.VDC <ausgabeordner>
-Ausgabe:
-  ghosts.vdc  gepackte Geisterbilder (nur sichtbare Bytes, in VMS-Reihenfolge), per RTV ins VRAM
-  ghost.spr   Sprite-Satz Geister (VMS, transparent), Ladeadresse $E200
-  gem.spr     Sprite-Satz Edelstein (VMC aus dem Font, Basis = Zeichensatz CA), Ladeadresse $EA00
+Usage: crawlsprites.py RED.VDC RED1.VDC <output directory>
+Output:
+  ghosts.vdc  packed ghost images (visible bytes only, in VMS order), copied into VRAM via RTV
+  ghost.spr   sprite set ghosts (VMS, transparent), load address $E200
+  gem.spr     sprite set gem (VMC from the font, base = character set CA), load address $EA00
 
-Format: docs/formats.md (Sprite-Metadaten v1). Positionen wie in crawl.bas (Zeilen 4670-5000, 6300-6560):
-die Halbbilder an den Seiten werden zu ganzen Bildern ergänzt; Verdecken übernimmt VIEW.
+Format: docs/formats.md (sprite metadata v1). Positions as in crawl.bas (lines 4670-5000, 6300-6560):
+the half images at the sides are completed to full images; occlusion is handled by VIEW.
 
-Transparenz: schwarze Pixel (0), die mit dem Bildrand verbunden sind. Schwarze Pixel innerhalb
-der Figur (Augen) bleiben deckend.
+Transparency: black pixels (0) connected to the image border. Black pixels inside
+the figure (eyes) stay opaque.
 """
 import os
 import struct
 import sys
 
-ROW = 80            # Zeilenbreite des Bildpuffers (EI%)
-VIEW_COL0 = 6       # erste Spalte des Sichtfensters (406 = 5 * 80 + 6)
+ROW = 80            # row width of the image buffer (EI%)
+VIEW_COL0 = 6       # first column of the viewport (406 = 5 * 80 + 6)
 ANY = 0xFF
 
-# Geister: Tiefe -> (Datei-Index, Zeile, {Seite: Spalte}); Spalten absolut (relativ zu AP)
+# Ghosts: depth -> (file index, row, {side: column}); columns absolute (relative to AP)
 GHOST_POS = {
     1: (0, 53, {0: 36, -1: 9, 1: 59}),
     2: (1, 44, {0: 31, -1: 21, 1: 51}),
 }
-# Edelsteine: (d, s) -> (Zeile, [(Spalte, Font-Index), ...]); Zeichen 3 x 6 Byte, 18 Byte je Zeichen.
-# Font-Index = PETSCII - 32 (wie FN TX in crawl.bas): CR$ = CHR$(36)+CHR$(37) sind die Zeichen 4 und 5.
+# Gems: (d, s) -> (row, [(column, font index), ...]); characters 3 x 6 bytes, 18 bytes per character.
+# Font index = PETSCII - 32 (as FN TX in crawl.bas): CR$ = CHR$(36)+CHR$(37) are characters 4 and 5.
 GEM_POS = {
     (1, 0): (80, [(40, 4), (43, 5)]),
     (1, -1): (74, [(12, 4), (15, 5)]),
@@ -40,7 +40,7 @@ CHAR_W, CHAR_H = 3, 6
 
 
 def read_vdc(path):
-    """Crawl-Bilddatei: Byte 0 Anzahl, je 7 Byte Kopf, Pixel ab Offset 29 (bei 4 Einträgen)."""
+    """Crawl image file: byte 0 count, 7 bytes header each, pixels from offset 29 (with 4 entries)."""
     d = open(path, 'rb').read()[2:]
     n = d[0]
     data = 1 + 7 * n
@@ -52,7 +52,7 @@ def read_vdc(path):
 
 
 def transparent_mask(w, h, px):
-    """Pixelraster 2w x h; True = transparent (schwarz und mit dem Rand verbunden)."""
+    """Pixel grid 2w x h; True = transparent (black and connected to the border)."""
     W = 2 * w
     val = [[(px[r * w + c // 2] >> (4 if c % 2 == 0 else 0)) & 15 for c in range(W)] for r in range(h)]
     t = [[False] * W for _ in range(h)]
@@ -70,7 +70,7 @@ def transparent_mask(w, h, px):
 
 
 def vms_rows(w, h, px):
-    """Je Zeile: (VMS-Befehle mit Offsets relativ zur Zeile, gepackte Bytes)."""
+    """Per row: (VMS commands with offsets relative to the row, packed bytes)."""
     t = transparent_mask(w, h, px)
     rows = []
     for r in range(h):
@@ -103,7 +103,7 @@ def vms_rows(w, h, px):
 
 
 def vms_pack(w, h, px):
-    """VMS-Liste (Alpha 0, Anzahl als Wort) und gepackte Bytes für ein ganzes Bild."""
+    """VMS list (alpha 0, count as word) and packed bytes for a whole image."""
     cmds, packed = [], bytearray()
     for r, (rc, rp) in enumerate(vms_rows(w, h, px)):
         cmds += [(k, r, c, n) for k, c, n in rc]
@@ -147,13 +147,13 @@ def main():
     with open(os.path.join(outdir, 'ghosts.vdc'), 'wb') as f:
         f.write(struct.pack('<H', 0x2000) + packed)
     n = write_spr(os.path.join(outdir, 'ghost.spr'), 0xE200, parts, lists)
-    print(f'ghost.spr: {len(parts)} Teile, {len(lists)} Listen ({min(map(len, lists))}-{max(map(len, lists))} Byte), {n} Byte; ghosts.vdc {len(packed)} Byte')
+    print(f'ghost.spr: {len(parts)} parts, {len(lists)} lists ({min(map(len, lists))}-{max(map(len, lists))} bytes), {n} bytes; ghosts.vdc {len(packed)} bytes')
     gparts = []
     for (d, s), (row, chars) in GEM_POS.items():
         for col, ch in chars:
             gparts.append((d, s, ANY, 0, CHAR_W, CHAR_H, ch * CHAR_W * CHAR_H, row * ROW + col, col - VIEW_COL0, None))
     n = write_spr(os.path.join(outdir, 'gem.spr'), 0xEA00, gparts, [])
-    print(f'gem.spr: {len(gparts)} Teile, {n} Byte')
+    print(f'gem.spr: {len(gparts)} parts, {n} bytes')
 
 
 if __name__ == '__main__':

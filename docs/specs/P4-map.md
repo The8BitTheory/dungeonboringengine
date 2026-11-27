@@ -1,131 +1,131 @@
-# P4: Karte – DMP, `tools/dbemap.py`, `tools/crawlmap.py`
+# P4: Map – DMP, `tools/dbemap.py`, `tools/crawlmap.py`
 
-Stand: 2026-11-25. Detailspezifikation zu Schritt P4 aus `docs/plan-0.2.md` (Abschnitt 6) und `engine-design.md` 5.1. Umsetzung: Sonnet. Review: Opus. Abhängigkeiten: Python ≥ 3.11 (`tomllib`), für `--d81` das VICE-Werkzeug `c1541`.
+As of 2026-11-25. Detailed specification for step P4 of `docs/plan-0.2.md` (section 6) and `engine-design.md` 5.1. Implementation: Sonnet. Review: Opus. Dependencies: Python ≥ 3.11 (`tomllib`), for `--d81` the VICE tool `c1541`.
 
-## 1. Begriffe
+## 1. Terms
 
-- Zelle (x, y), Zellindex i = y · W + x. Richtungen 0 = N, 1 = O, 2 = S, 3 = W; Norden = kleineres y.
-- **Kachel**: Eintrag der Kacheltabelle (Aussehen und Eigenschaften). Die Kachelebene sagt je Zelle, welche Kachel dort liegt.
-- **Inhalt**: Gegenstand und Automap-Bits je Zelle.
-- **Stilnummer** in DMP: 0 = nichts, n ≥ 1 = Stil n − 1 im zugehörigen DTS (Wand-, Boden- bzw. Decken-Texturset, P5).
+- Cell (x, y), cell index i = y · W + x. Directions 0 = N, 1 = E (east), 2 = S, 3 = W; north = smaller y.
+- **Tile**: entry of the tile table (appearance and properties). The tile layer says per cell which tile lies there.
+- **Content**: item and automap bits per cell.
+- **Style number** in DMP: 0 = nothing, n ≥ 1 = style n − 1 in the associated DTS (wall, floor or ceiling texture set, P5).
 
-## 2. DMP-Format (Version 1)
+## 2. DMP format (version 1)
 
-PRG-Datei: 2 Byte Ladeadresse (Standard `$8000`, Bank 1), dann der Inhalt. Offsets relativ zum Inhalt. Wörter Low/High.
+PRG file: 2 bytes load address (default `$8000`, bank 1), then the content. Offsets relative to the content. Words low/high.
 
-### 2.1 Kopf (24 Byte)
+### 2.1 Header (24 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
 | 0–1 | `"D" "M"` (`$44 $4D`) |
-| 2 | Version = 1 |
+| 2 | version = 1 |
 | 3 | W (1 … 255) |
 | 4 | H (1 … 255) |
-| 5 | NT: Anzahl Kacheln (1 … 256; 256 wird als 0 gespeichert) |
-| 6–7 | NE: Anzahl Ereignisse |
-| 8–9 | Startzelle (Zellindex) |
-| 10 | Startrichtung (0–3) |
-| 11 | Kachel für Zellen außerhalb der Karte (Index < NT) |
-| 12–13 | Offset Kachelebene (= 24) |
-| 14–15 | Offset Inhaltsebene (= 24 + W·H) |
-| 16–17 | Offset Kacheltabelle (= 24 + 2·W·H) |
-| 18–19 | Offset Ereignisse (= Kacheltabelle + 8·NT) |
-| 20–21 | Gesamtlänge des Inhalts (= Ereignisse + 4·NE) |
-| 22–23 | reserviert 0 |
+| 5 | NT: number of tiles (1 … 256; 256 is stored as 0) |
+| 6–7 | NE: number of events |
+| 8–9 | start cell (cell index) |
+| 10 | start direction (0–3) |
+| 11 | tile for cells outside the map (index < NT) |
+| 12–13 | offset of tile layer (= 24) |
+| 14–15 | offset of content layer (= 24 + W·H) |
+| 16–17 | offset of tile table (= 24 + 2·W·H) |
+| 18–19 | offset of events (= tile table + 8·NT) |
+| 20–21 | total length of the content (= events + 4·NE) |
+| 22–23 | reserved 0 |
 
-W · H ≤ 16384 (Fehler darüber; Warnung über 4096, weil die Lib die Karte in Bank 1 hält).
+W · H ≤ 16384 (error above that; warning above 4096, because the lib keeps the map in bank 1).
 
-### 2.2 Kachelebene (W·H Byte)
+### 2.2 Tile layer (W·H bytes)
 
-Zeilenweise, ein Byte je Zelle: Kachelindex < NT. Statisch (ändert sich zur Laufzeit nur über eine eigene Lib-Funktion, z. B. Tür öffnen = andere Kachel).
+Row by row, one byte per cell: tile index < NT. Static (changes at runtime only via a lib function of its own, e.g. open door = different tile).
 
-### 2.3 Inhaltsebene (W·H Byte)
+### 2.3 Content layer (W·H bytes)
 
-| Bit | Bedeutung |
+| Bit | Meaning |
 |---|---|
-| 0–5 | Gegenstand 0–63 (0 = keiner); Zuordnung zu einem Sprite-Satz über `ITEMSET` wie in 0.1 |
-| 6 | Automap: gesehen (Laufzeit; in der Datei normalerweise 0) |
-| 7 | Automap: Marke (Laufzeit oder vom Kartenautor vorbelegt) |
+| 0–5 | item 0–63 (0 = none); mapping to a sprite set via `ITEMSET` as in 0.1 |
+| 6 | automap: seen (runtime; normally 0 in the file) |
+| 7 | automap: mark (runtime or pre-set by the map author) |
 
-Ein Gegenstand je Zelle; er liegt auf Unterposition **Mitte** (p = 2, siehe 2.6). Weitere Gegenstände an anderen Plätzen kommen über die Objektliste (P6).
+One item per cell; it lies at sub-position **center** (p = 2, see 2.6). Further items at other spots come via the object list (P6).
 
-### 2.4 Kacheltabelle (NT × 8 Byte)
+### 2.4 Tile table (NT × 8 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
-| 0 | Wandstil Nordfläche |
-| 1 | Wandstil Ostfläche |
-| 2 | Wandstil Südfläche |
-| 3 | Wandstil Westfläche |
-| 4 | Bodenstil (0 = kein Boden: Tapete/Abgrund sichtbar) |
-| 5 | Deckenstil (0 = keine Decke: Himmel/Tapete) |
-| 6 | Flags |
-| 7 | Automap-Zeichen (0 = Standard nach Flag AUTOMAP) |
+| 0 | wall style north face |
+| 1 | wall style east face |
+| 2 | wall style south face |
+| 3 | wall style west face |
+| 4 | floor style (0 = no floor: wallpaper/abyss visible) |
+| 5 | ceiling style (0 = no ceiling: sky/wallpaper) |
+| 6 | flags |
+| 7 | automap character (0 = default according to flag AUTOMAP) |
 
 Flags:
 
-| Bit | Name | Bedeutung |
+| Bit | Name | Meaning |
 |---|---|---|
-| 0 | WEG | versperrt den Weg (`MOVE`) |
-| 1 | SICHT | versperrt die Sicht für die Spiellogik (Gegner sehen nicht hindurch) |
-| 2 | DECKEND | `VIEW`: Flächen dieser Kachel decken ihre Spaltenbereiche ab (nur, wenn auch das Bild im DTS deckend ist); dahinter wird dann nicht mehr gezeichnet |
-| 3 | TÜR | Tür (Spiellogik; `VIEW` behandelt sie wie jede Kachel mit Flächen) |
-| 4 | AUTOMAP | auf der Automap als Wand zeichnen (sonst als Boden) |
-| 5 | INHALT | „Inhalt zeichnen“ (Nutzerentscheidung 4, Plan 9): `VIEW` zeichnet in einer Zelle mit Flächen zusätzlich ihre Objekte (Gegenstand der Inhaltsebene und Objektliste, P6 5.8); Malreihenfolge Seitenfläche, Objekte nach Unterposition, Front. Für Tür, Gitter, Bogen. Ohne Flächen (alle Wandstile 0) ohne Wirkung (`dbemap` warnt). Das Flag ändert nicht, ob die Flächen abdecken (DECKEND) |
-| 6 | FERN | Fernsicht (P6 5.7a, P6l): kehrt die Deckenregel der Fernsicht-Füllung um. Ohne Flag zeigt das Horizontband hinter einer Kachel der Tiefe D mit Deckenstil ≠ 0 das Füllbyte, mit Deckenstil 0 die Tapete; mit Flag umgekehrt (überdachte Arkade mit Blick ins Freie, Höhle ohne Deckentextur). Ohne Fernsicht-Füllung (`BGSET` Y = 0) ohne Wirkung. `dbemap`: `flags = ["fern"]` |
-| 7 | – | 0 (reserviert; `dbemap` lehnt ein gesetztes Bit ab) |
+| 0 | SOLID | blocks the way (`MOVE`) |
+| 1 | BLOCKSIGHT | blocks the line of sight for the game logic (enemies cannot see through) |
+| 2 | OCCLUDING | `VIEW`: faces of this tile cover their column ranges (only if the image in the DTS is also occluding); nothing is drawn behind them any more |
+| 3 | DOOR | door (game logic; `VIEW` treats it like any tile with faces) |
+| 4 | AUTOMAP | draw as wall on the automap (otherwise as floor) |
+| 5 | CONTENT | “draw content” (user decision 4, plan 9): in a cell with faces, `VIEW` additionally draws its objects (item of the content layer and object list, P6 5.8); paint order side face, objects by sub-position, front. For door, grating, arch. Without faces (all wall styles 0) it has no effect (`dbemap` warns). The flag does not change whether the faces cover (OCCLUDING) |
+| 6 | DISTANT | distant view (P6 5.7a, P6l): reverses the ceiling rule of the distant-view fill. Without the flag, the horizon band behind a tile of depth D with ceiling style ≠ 0 shows the fill byte, with ceiling style 0 the wallpaper; with the flag the other way round (covered arcade with a view outdoors, cave without ceiling texture). Without distant-view fill (`BGSET` Y = 0) it has no effect. `dbemap`: `flags = ["distant"]` |
+| 7 | – | 0 (reserved; `dbemap` rejects a set bit) |
 
-Regeln für `VIEW` (P6):
+Rules for `VIEW` (P6):
 
-- Eine Zelle hat **Flächen**, wenn mindestens einer der Wandstile ≠ 0 ist. Gezeigt wird je nach Lage (d, s) und Blickrichtung v:
+- A cell has **faces** if at least one of the wall styles is ≠ 0. Which face is shown depends on position (d, s) and viewing direction v:
 
-  | Fläche im Sichtgitter | Kachelfläche |
+  | Face in the view grid | Tile face |
   |---|---|
-  | Front (der Spieler sieht auf sie) | (v + 2) AND 3 |
-  | Seite, s < 0 (links) | (v + 1) AND 3 |
-  | Seite, s > 0 (rechts) | (v + 3) AND 3 |
+  | Front (the player looks at it) | (v + 2) AND 3 |
+  | Side, s < 0 (left) | (v + 1) AND 3 |
+  | Side, s > 0 (right) | (v + 3) AND 3 |
 
-  Beispiel: Blick nach Norden, Block vorne → seine Südfläche; Block links → Ostfläche.
-- Boden und Decke werden auch in Zellen mit Flächen gezeichnet (Gitter, Tür, Fenster in einer Zelle). Bei einer Kachel mit DECKEND und vier Wandstilen ≠ 0 sind Boden und Decke unsichtbar; `VIEW` behandelt solche Zellen bei der Lückenprüfung der Bänder nicht als Lücke (Inhalt der Felder egal, `dbemap` setzt 0).
-- Eine Zelle mit Flächen zeigt **keine** Objekte, außer die Kachel hat das Flag INHALT: dann malt `VIEW` (Plan 5, Entscheidung 4) in dieser Reihenfolge Seitenfläche, Objekte der Zelle nach Unterposition (2.6), Front. Bei mehreren Elementen je Zelle: erst alle Fronten, dann die Objekte, dann alle Seiten in Sichtreihenfolge (Ausgabe rückwärts: Seiten, Objekte, Fronten).
-- Zellen außerhalb der Karte verhalten sich wie die Kachel aus Kopf-Byte 11.
+  Example: looking north, block ahead → its south face; block on the left → east face.
+- Floor and ceiling are also drawn in cells with faces (grating, door, window in a cell). For a tile with OCCLUDING and four wall styles ≠ 0, floor and ceiling are invisible; `VIEW` does not treat such cells as a gap in the gap check of the bands (content of the fields irrelevant, `dbemap` sets 0).
+- A cell with faces shows **no** objects unless the tile has the flag CONTENT: then `VIEW` paints (plan 5, decision 4) in this order side face, objects of the cell by sub-position (2.6), front. With several elements per cell: first all fronts, then the objects, then all sides in view order (output backwards: sides, objects, fronts).
+- Cells outside the map behave like the tile from header byte 11.
 
-### 2.5 Ereignisse (NE × 4 Byte)
+### 2.5 Events (NE × 4 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
-| 0–1 | Zellindex |
-| 2 | Typ |
-| 3 | Parameter |
+| 0–1 | cell index |
+| 2 | type |
+| 3 | parameter |
 
-Sortiert nach (Zellindex, Typ, Parameter); mehrere Ereignisse je Zelle erlaubt.
+Sorted by (cell index, type, parameter); several events per cell allowed.
 
-| Typ | Name | Parameter |
+| Type | Name | Parameter |
 |---|---|---|
-| 0 | – | ungültig |
-| 1 | `gegner` | Startpunkt Gegner, Parameter = Gegnernummer |
-| 2 | `teleport` | Gruppe; Ziel = die andere Zelle mit gleicher Gruppe |
-| 3 | `ausgang` | 0 = geschlossen, 1 = offen |
-| 4 | `text` | Textnummer (Spiel) |
-| 5–127 | – | reserviert für die Engine |
-| 128–255 | – | frei für das Spiel, Parameter beliebig |
+| 0 | – | invalid |
+| 1 | `enemy` | enemy start point, parameter = enemy number |
+| 2 | `teleport` | group; destination = the other cell with the same group |
+| 3 | `exit` | 0 = closed, 1 = open |
+| 4 | `text` | text number (game) |
+| 5–127 | – | reserved for the engine |
+| 128–255 | – | free for the game, parameter arbitrary |
 
-Der Startpunkt des Spielers steht im Kopf, nicht als Ereignis.
+The player's start point is in the header, not an event.
 
-### 2.6 Unterpositionen (Konvention für Objektliste und Gegenstände)
+### 2.6 Sub-positions (convention for object list and items)
 
-In der Karte und der Objektliste stehen Unterpositionen **absolut**: q = 0 NW, 1 NO, 2 SW, 3 SO, 4 Mitte. `VIEW` rechnet sie mit der Blickrichtung v in die Zeichenposition p der Geometrie (P3, 3.3: 0 hinten links, 1 hinten rechts, 2 Mitte, 3 vorne links, 4 vorne rechts) um:
+In the map and the object list, sub-positions are **absolute**: q = 0 NW, 1 NE, 2 SW, 3 SE, 4 center (E = east). `VIEW` converts them with the viewing direction v into the drawing position p of the geometry (P3, 3.3: 0 back left, 1 back right, 2 center, 3 front left, 4 front right):
 
-| v | NW | NO | SW | SO | Mitte |
+| v | NW | NE | SW | SE | center |
 |---|---|---|---|---|---|
 | 0 N | 0 | 1 | 3 | 4 | 2 |
-| 1 O | 3 | 0 | 4 | 1 | 2 |
+| 1 E | 3 | 0 | 4 | 1 | 2 |
 | 2 S | 4 | 3 | 1 | 0 | 2 |
 | 3 W | 1 | 4 | 0 | 3 | 2 |
 
-(Probe: Blick nach Osten, „hinten“ = Osthälfte, „links“ = Norden → NO = hinten links = 0.)
+(Check: looking east, “back” = east half, “left” = north → NE = back left = 0.)
 
-## 3. Textformat für `dbemap.py` (TOML)
+## 3. Text format for `dbemap.py` (TOML)
 
 ```toml
 format  = "dbemap"
@@ -134,37 +134,37 @@ version = 1
 [map]
 name    = "demo"
 start   = [2, 1]        # x, y
-dir     = "O"           # N, O, S, W
-outside = "wand"        # Kachelname für Zellen außerhalb
+dir     = "E"           # N, E (east), S, W
+outside = "wall"        # tile name for cells outside
 
-[tiles.wand]            # Reihenfolge der Tabellen = Kachelindex (0, 1, …)
-walls   = 1             # alle vier Flächen Stil 1; oder [N, O, S, W]
+[tiles.wall]            # order of the tables = tile index (0, 1, …)
+walls   = 1             # all four faces style 1; or [N, E, S, W]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 
-[tiles.gang]
+[tiles.corridor]
 floor   = 1
 ceiling = 1
 
-[tiles.himmel]
-floor   = 1             # ceiling fehlt = 0: Himmel
+[tiles.sky]
+floor   = 1             # ceiling missing = 0: sky
 
-[tiles.gitter]
+[tiles.grating]
 walls   = 2
 floor   = 1
 ceiling = 1
-flags   = ["weg"]       # nicht deckend: dahinter sichtbar
+flags   = ["solid"]       # not occluding: visible behind it
 automap_char = 35
 
 [legend]
-"#" = "wand"
-"." = "gang"
-"," = "himmel"
-"+" = "gitter"
-"m" = { tile = "gang", item = 2 }
-"T" = { tile = "gang", events = [{ type = "teleport", param = 1 }] }
-"X" = { tile = "gang", events = [{ type = "ausgang", param = 0 }] }
+"#" = "wall"
+"." = "corridor"
+"," = "sky"
+"+" = "grating"
+"m" = { tile = "corridor", item = 2 }
+"T" = { tile = "corridor", events = [{ type = "teleport", param = 1 }] }
+"X" = { tile = "corridor", events = [{ type = "exit", param = 0 }] }
 
 [layers]
 tiles = """
@@ -175,24 +175,24 @@ tiles = """
 #######
 """
 
-[[events]]              # zusätzliche Ereignisse an Koordinaten
+[[events]]              # additional events at coordinates
 at    = [3, 1]
-type  = "gegner"        # Name aus 2.5 oder Zahl
+type  = "enemy"        # name from 2.5 or number
 param = 1
 
-[[marks]]               # optional: Automap-Marke (Bit 7) vorbelegen
+[[marks]]               # optional: pre-set automap mark (bit 7)
 at = [1, 1]
 ```
 
-Regeln:
+Rules:
 
-- Kachelschlüssel: `walls` (Zahl oder Liste mit 4 Zahlen, 0 … 255, Standard 0), `floor`, `ceiling` (0 … 255, Standard 0), `flags` (Liste aus `weg`, `sicht`, `deckend`, `tuer`, `automap`, `inhalt`, `fern`), `automap_char` (0 … 255), `index` (optional: feste Nummer; dann müssen alle Kacheln `index` haben, Lücken werden mit Nullkacheln gefüllt, NT = höchster Index + 1).
-- Legende: Schlüssel genau ein Zeichen (kein Leerzeichen); Wert ist ein Kachelname oder eine Tabelle mit `tile` (Pflicht), `item` (0 … 63), `events` (Liste aus Tabellen mit `type`, `param`).
-- `layers.tiles`: Zeilen gleicher Länge = W, Anzahl = H. Eine leere erste/letzte Zeile (durch `"""`) wird ignoriert; Leerzeichen am Zeilenende sind ein Fehler (unsichtbar, meist Versehen).
-- `[[marks]]`: `at` (Pflicht), `mark` (Standard `true`: Bit 7), `seen` (Standard `false`: Bit 6).
-- Unbekannte Schlüssel (oberste Ebene, `[map]`, `[layers]`, Kacheln, Legende, Ereignisse, Marken) sind Fehler.
-- `start` muss auf einer Kachel ohne WEG liegen.
-- Fehlermeldungen nennen Datei, Zeile/Spalte in der Karte bzw. den Schlüssel (z. B. `demo.toml: Karte Zeile 3, Spalte 5: Zeichen 'q' nicht in der Legende`). Exitcode 1.
+- Tile keys: `walls` (number or list of 4 numbers, 0 … 255, default 0), `floor`, `ceiling` (0 … 255, default 0), `flags` (list of `solid`, `blocksight`, `occluding`, `door`, `automap`, `content`, `distant`), `automap_char` (0 … 255), `index` (optional: fixed number; then all tiles must have `index`, gaps are filled with zero tiles, NT = highest index + 1).
+- Legend: key exactly one character (no space); value is a tile name or a table with `tile` (mandatory), `item` (0 … 63), `events` (list of tables with `type`, `param`).
+- `layers.tiles`: rows of equal length = W, count = H. An empty first/last line (caused by `"""`) is ignored; spaces at the end of a line are an error (invisible, usually a slip).
+- `[[marks]]`: `at` (mandatory), `mark` (default `true`: bit 7), `seen` (default `false`: bit 6).
+- Unknown keys (top level, `[map]`, `[layers]`, tiles, legend, events, marks) are errors.
+- `start` must lie on a tile without SOLID.
+- Error messages name the file, row/column in the map or the key (e.g. `demo.toml: map row 3, column 5: character 'q' not in the legend`). Exit code 1.
 
 ## 4. `tools/dbemap.py`
 
@@ -200,13 +200,13 @@ Regeln:
 
 ```
 dbemap.py build MAP.toml OUT.dmp [--load ADDR]
-dbemap.py dump  IN.dmp [--toml OUT.toml]       # ohne --toml: Textübersicht auf stdout
+dbemap.py dump  IN.dmp [--toml OUT.toml]       # without --toml: text overview on stdout
 dbemap.py check MAP.toml
 ```
 
-`dump --toml` erzeugt eine TOML-Datei, die mit `build` wieder bytegleich dieselbe DMP ergibt. Kachelnamen `k<index>` (z. B. `k0`), Kacheln mit `index = …`; Legende: je vorkommendes Paar (Kachel, Gegenstand) ein Zeichen aus dem Vorrat `#.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*+-/:;<=>?@^_~|` in der Reihenfolge (Kachel, Gegenstand) aufsteigend; mehr Paare als Zeichen → Fehler „zu viele Kombinationen für eine ASCII-Karte“. Ereignisse als `[[events]]` mit `at`, Marken als `[[marks]]`. Der Schreiber ist eigener Code (keine TOML-Schreibbibliothek nötig); Strings mit `"` und `\` korrekt maskieren.
+`dump --toml` produces a TOML file that yields exactly the same DMP again, byte for byte, via `build`. Tile names `k<index>` (e.g. `k0`), tiles with `index = …`; legend: one character per occurring pair (tile, item) from the supply `#.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!$%&*+-/:;<=>?@^_~|` in ascending order of (tile, item); more pairs than characters → error “too many combinations for an ASCII map”. Events as `[[events]]` with `at`, marks as `[[marks]]`. The writer is code of its own (no TOML writer library needed); escape strings with `"` and `\` correctly.
 
-### 4.2 Python-API
+### 4.2 Python API
 
 ```python
 @dataclass
@@ -219,90 +219,90 @@ class Map:
     tiles: list[Tile]; cells: list[int]; content: list[int]; events: list[Event]
     start: int; direction: int; outside: int
 
-FLAGS = {"weg": 1, "sicht": 2, "deckend": 4, "tuer": 8, "automap": 16, "inhalt": 32}
-EVENT_TYPES = {"gegner": 1, "teleport": 2, "ausgang": 3, "text": 4}
+FLAGS = {"solid": 1, "blocksight": 2, "occluding": 4, "door": 8, "automap": 16, "content": 32}
+EVENT_TYPES = {"enemy": 1, "teleport": 2, "exit": 3, "text": 4}
 SUBPOS_VIEW = [[0,1,3,4,2], [3,0,4,1,2], [4,3,1,0,2], [1,4,0,3,2]]   # [v][q] -> p (2.6)
 
 def load_toml(path) -> Map
 def to_dmp(m: Map, load=0x8000) -> bytes
-def from_dmp(data: bytes) -> Map            # prüft Magic, Version, Offsets, Länge, Indizes
+def from_dmp(data: bytes) -> Map            # checks magic, version, offsets, length, indices
 def to_toml(m: Map) -> str
-def validate(m: Map) -> None                # ValueError mit Meldung
-def face(view_dir: int, s: int, front: bool) -> int   # Kachelfläche nach 2.4
+def validate(m: Map) -> None                # ValueError with message
+def face(view_dir: int, s: int, front: bool) -> int   # tile face per 2.4
 ```
 
-## 5. `tools/crawlmap.py` – Konverter aus Crawl 128
+## 5. `tools/crawlmap.py` – converter from Crawl 128
 
-### 5.1 Quelle `CRAWL128.CD1`
+### 5.1 Source `CRAWL128.CD1`
 
-Liegt nicht als Datei im Repo dungeoncrawlerjam2025, sondern auf dessen Disk-Images: `game/crawl.d81` (Entwicklungsdisk), ebenso `crawl128-100f.d81` und `game/blitzcrawl.d81`; Dateiname auf der Disk `crawl128.cd1`. Auslesen: `c1541 -attach game/crawl.d81 -read crawl128.cd1 crawl128.cd1`. Erzeugt von `game/mapgen.bas`.
+It is not a file in the repo dungeoncrawlerjam2025 but lives on its disk images: `game/crawl.d81` (development disk), likewise `crawl128-100f.d81` and `game/blitzcrawl.d81`; file name on the disk `crawl128.cd1`. Reading it out: `c1541 -attach game/crawl.d81 -read crawl128.cd1 crawl128.cd1`. Produced by `game/mapgen.bas`.
 
-Aufbau (PRG, Ladeadresse `$213C` = `BE` beim Speichern, ohne Bedeutung):
+Layout (PRG, load address `$213C` = `BE` at save time, meaningless):
 
-| Offset (nach Ladeadresse) | Inhalt |
+| Offset (after load address) | Content |
 |---|---|
-| 0 | OS: Offset der Kartendaten (Crawl: 14) |
+| 0 | OS: offset of the map data (Crawl: 14) |
 | 1 | W (Crawl: 20) |
 | 2 | H (Crawl: 11) |
-| 3–4 | Anzahl Edelsteine (Crawl: 92) |
-| 5 … OS − 1 | Datensätze zu 3 Byte: Zeichen (ASCII), Zellindex (Wort) |
-| OS … OS + W·H − 1 | Karte, 1 Byte je Zelle: Wert = ASCII − 48 des Zeichens aus den DATA-Zeilen |
-| danach | Kartenname als ASCII (`CRAWL128`) |
+| 3–4 | number of gems (Crawl: 92) |
+| 5 … OS − 1 | records of 3 bytes: character (ASCII), cell index (word) |
+| OS … OS + W·H − 1 | map, 1 byte per cell: value = ASCII − 48 of the character from the DATA lines |
+| after that | map name as ASCII (`CRAWL128`) |
 
-Zellwerte (`crawl.bas`, Kommentar ab Zeile 11019, und tatsächliche Werte): ungerade = nicht begehbar (Bit 0 = Wand; 1 Wand, 3 Wand Gegnerhöhle, 5 Tür Gegnerhöhle), 0 leer, 2 Edelstein, 4 Kraft-Edelstein, 6 Startpunkt, 8 Teleport, 18 (`B`) Start Geist 1, 40 (`X`) Ausgang geschlossen, 42 (`Z`) Ausgang offen. Datensätze: `6` Spielerstart, `8` Teleport, `B` Geist 1, `X` Ausgang. Die Karte im Repo enthält die Werte 0, 1, 2, 4, 6, 18, 40 (Zähler: 3, 120, 92, 2, 1, 1, 1) und die Datensätze `X` → 29, `B` → 68, `6` → 198.
+Cell values (`crawl.bas`, comment from line 11019, and actual values): odd = not walkable (bit 0 = wall; 1 wall, 3 wall enemy lair, 5 door enemy lair), 0 empty, 2 gem, 4 power gem, 6 start point, 8 teleport, 18 (`B`) start ghost 1, 40 (`X`) exit closed, 42 (`Z`) exit open. Records: `6` player start, `8` teleport, `B` ghost 1, `X` exit. The map in the repo contains the values 0, 1, 2, 4, 6, 18, 40 (counts: 3, 120, 92, 2, 1, 1, 1) and the records `X` → 29, `B` → 68, `6` → 198.
 
-### 5.2 Abbildung (verlustfrei)
+### 5.2 Mapping (lossless)
 
-- **Kachelindex = Crawl-Zellwert** (die Spiellogik von Crawl vergleicht Zellwerte; `CELL` liefert so dieselben Zahlen). NT = max(größter vorkommender Wert, 42) + 1, weil `crawl.bas` 5550 den Ausgang zur Laufzeit auf 42 setzt (offen); nicht vorkommende Indizes = Nullkachel, ungerade wie unten Wand, gerade leer.
-- Kachel für vorkommende Werte v:
+- **Tile index = Crawl cell value** (Crawl's game logic compares cell values; `CELL` thus returns the same numbers). NT = max(largest occurring value, 42) + 1, because `crawl.bas` 5550 sets the exit to 42 (open) at runtime; non-occurring indices = zero tile, odd as wall below, even empty.
+- Tile for occurring values v:
 
   | v | walls | floor | ceiling | flags | automap_char |
   |---|---|---|---|---|---|
-  | ungerade | 1 (alle vier) | 0 | 0 | weg, sicht, deckend, automap | 0 |
-  | gerade | 0 | 0 | 0 | – | 0 |
+  | odd | 1 (all four) | 0 | 0 | solid, blocksight, occluding, automap | 0 |
+  | even | 0 | 0 | 0 | – | 0 |
 
-  Crawl hat keine Boden- und Deckentexturen (schwarz, wie 0.1 mit Clear). Option `--floor N --ceiling N` setzt sie für gerade Werte.
-- Inhalt: Gegenstand = v für v ∈ `--items` (Standard `2,4`), sonst 0. Automap-Bits 0.
-- Start: Zelle aus Datensatz `6`, Richtung 0 (N; `crawl.bas` 3870 `PF%(0)=0`). Fehlt `6` → Fehler (wie `crawl.bas` 82).
-- Ereignisse aus den Datensätzen: `8` → `teleport` Gruppe 1 (alle Teleporter von Crawl bilden eine Gruppe), `B` → `gegner` 1, `D` → `gegner` 2, `F` → `gegner` 3, `H` → `gegner` 4, `X` → `ausgang` 0, `Z` → `ausgang` 1. Unbekanntes Zeichen c → Typ 255, Parameter = ASCII-Code, Warnung.
-- Außerhalb: Kachel 1 (Wand; Crawl: Zellen außerhalb zählen als Wand).
-- Doppelte Datensätze: `6` mehrfach → Fehler (Start mehrdeutig); mehr als zwei `8` → Fehler (`crawl.bas`: `DIM TL%(1)`); andere Zeichen mehrfach → Warnung (Crawl nimmt den letzten, die DMP enthält alle Ereignisse).
-- Prüfungen mit Warnung (kein Abbruch): Anzahl Zellen mit Wert 2 ≠ Kopf-Edelsteinzahl; Datensatz-Zelle ≥ W·H (dann Fehler); Kartenname ≠ ASCII.
-- `--toml`: zusätzlich Textform; Legende: Zeichen = `chr(48 + v)` (die Zeichen aus `mapgen.bas`, z. B. `B`, `X`), für Zellen mit Gegenstand dasselbe Zeichen (Gegenstand = Wert). Für v > 78 Fehler.
+  Crawl has no floor and ceiling textures (black, as 0.1 with Clear). The option `--floor N --ceiling N` sets them for even values.
+- Content: item = v for v ∈ `--items` (default `2,4`), otherwise 0. Automap bits 0.
+- Start: cell from record `6`, direction 0 (N; `crawl.bas` 3870 `PF%(0)=0`). If `6` is missing → error (as `crawl.bas` 82).
+- Events from the records: `8` → `teleport` group 1 (all teleporters of Crawl form one group), `B` → `enemy` 1, `D` → `enemy` 2, `F` → `enemy` 3, `H` → `enemy` 4, `X` → `exit` 0, `Z` → `exit` 1. Unknown character c → type 255, parameter = ASCII code, warning.
+- Outside: tile 1 (wall; Crawl: cells outside count as wall).
+- Duplicate records: `6` several times → error (start ambiguous); more than two `8` → error (`crawl.bas`: `DIM TL%(1)`); other characters several times → warning (Crawl takes the last one, the DMP contains all events).
+- Checks with warning (no abort): number of cells with value 2 ≠ gem count in the header; record cell ≥ W·H (then error); map name ≠ ASCII.
+- `--toml`: additionally text form; legend: character = `chr(48 + v)` (the characters from `mapgen.bas`, e.g. `B`, `X`), for cells with an item the same character (item = value). For v > 78 error.
 
 ### 5.3 CLI
 
 ```
 crawlmap.py CRAWL128.CD1 OUT.dmp [--toml OUT.toml] [--load ADDR] [--items 2,4] [--floor N] [--ceiling N]
-crawlmap.py --d81 IMAGE.d81 OUT.dmp [...]       # liest crawl128.cd1 per c1541 in ein temporäres Verzeichnis
+crawlmap.py --d81 IMAGE.d81 OUT.dmp [...]       # reads crawl128.cd1 via c1541 into a temporary directory
 ```
 
-Ausgabe auf stdout: Größe, Anzahl Kacheln, Gegenstände, Ereignisse, Start.
+Output on stdout: size, number of tiles, items, events, start.
 
 ## 6. Tests (`test/tools/test_dbemap.py`, `test/tools/test_crawlmap.py`, unittest)
 
-Testdaten: `test/tools/data/crawl128.cd1` (Kopie aus `game/crawl.d81`, 244 Byte inklusive Ladeadresse; das Repo dungeoncrawlerjam2025 steht unter MIT-Lizenz – Herkunft in `test/tools/data/README.md` vermerken). Kein Test greift auf fremde Repos oder `c1541` zu, außer `test_d81` (wird übersprungen, wenn `c1541` oder das Image fehlt: `unittest.skipUnless`).
+Test data: `test/tools/data/crawl128.cd1` (copy from `game/crawl.d81`, 244 bytes including load address; the repo dungeoncrawlerjam2025 is under the MIT license – note the origin in `test/tools/data/README.md`). No test accesses foreign repos or `c1541`, except `test_d81` (skipped if `c1541` or the image is missing: `unittest.skipUnless`).
 
 ### 6.1 dbemap
 
-- Beispiel aus Abschnitt 3 bauen: W = 7, H = 5, NT = 4, NE = 3 (Teleport bei (1,3), Ausgang bei (5,3), Gegner bei (3,1)), Start = 1·7 + 2 = 9, Richtung 1; Zelle (3,1) hat Kachel 1 und Gegenstand 2; Kachel `wand` = `01 01 01 01 00 00 17 00`, `gitter` = `02 02 02 02 01 01 01 23`. Kopf-Offsets 24 / 59 / 94 / 126, Gesamtlänge 138.
-- Rundlauf: `from_dmp(to_dmp(m))` == m (bis auf Namen); `to_dmp(load_toml(to_toml(from_dmp(d))))` == d für das Beispiel, die Crawl-Karte und 50 Zufallskarten (Seed fest, W, H 1 … 40, bis 12 Kacheln, Gegenstände, Ereignisse).
-- Ereignisse sortiert nach (Zelle, Typ, Parameter).
-- Flag `inhalt` (Bit 5): TOML-Rundlauf, `from_dmp`/`validate` lehnen gesetzte Bits 6/7 ab, Warnung bei `inhalt` ohne Wandflächen.
-- Fehlerfälle (je eine kleine TOML im Test): unbekanntes Zeichen (Meldung mit Zeile/Spalte), ungleiche Zeilenlängen, Start auf WEG-Kachel, `item = 64`, Stil 256, unbekanntes Flag, unbekannter Ereignistyp, W = 256, W·H > 16384, Leerzeichen am Zeilenende, `index` nur bei einem Teil der Kacheln.
-- `face`: alle 4 Richtungen × (Front, links, rechts) gegen Tabelle 2.4.
-- `SUBPOS_VIEW`: jede Zeile ist eine Permutation von 0 … 4; Mitte immer 2; Drehung um 90° nach rechts (v + 1) verschiebt die Ecken NW → NO → SO → SW in der Weltsicht konsistent (Probe aus 2.6).
-- `from_dmp`: falsches Magic, Version 2, Länge zu kurz, Kachelindex ≥ NT, Startzelle ≥ W·H → `ValueError`.
+- Build the example from section 3: W = 7, H = 5, NT = 4, NE = 3 (teleport at (1,3), exit at (5,3), enemy at (3,1)), start = 1·7 + 2 = 9, direction 1; cell (3,1) has tile 1 and item 2; tile `wall` = `01 01 01 01 00 00 17 00`, `grating` = `02 02 02 02 01 01 01 23`. Header offsets 24 / 59 / 94 / 126, total length 138.
+- Round trip: `from_dmp(to_dmp(m))` == m (except names); `to_dmp(load_toml(to_toml(from_dmp(d))))` == d for the example, the Crawl map and 50 random maps (fixed seed, W, H 1 … 40, up to 12 tiles, items, events).
+- Events sorted by (cell, type, parameter).
+- Flag `content` (bit 5): TOML round trip, `from_dmp`/`validate` reject set bits 6/7, warning for `content` without wall faces.
+- Error cases (one small TOML each in the test): unknown character (message with row/column), unequal row lengths, start on SOLID tile, `item = 64`, style 256, unknown flag, unknown event type, W = 256, W·H > 16384, space at the end of a line, `index` on only some of the tiles.
+- `face`: all 4 directions × (front, left, right) against table 2.4.
+- `SUBPOS_VIEW`: every row is a permutation of 0 … 4; center always 2; rotation by 90° to the right (v + 1) shifts the corners NW → NO → SO → SW consistently in the world view (check from 2.6).
+- `from_dmp`: wrong magic, version 2, length too short, tile index ≥ NT, start cell ≥ W·H → `ValueError`.
 
 ### 6.2 crawlmap
 
-- `crawl128.cd1` → DMP: W = 20, H = 11, NT = 43 (Kachel 42 = Ausgang offen, leer), Start = 198, Richtung 0; Kacheln 0, 2, 4, 6, 18, 40 ohne Flags, Kachel 1 mit `$17`; Kachelebene = Crawl-Werte zellweise; Gegenstände: 92 Zellen mit 2, 2 mit 4; Ereignisse genau `(29, ausgang, 0)`, `(68, gegner, 1)`; außerhalb = 1.
-- `--toml` → `dbemap build` → bytegleich mit der direkten DMP.
-- Synthetische CD1 im Test erzeugt (3 × 2, Datensätze `6`, `8`, `8`, `Z`, unbekanntes `Q`): Teleport-Gruppe 1 zweimal, `ausgang` 1, Typ 255 mit Parameter 81 und Warnung; fehlendes `6` → Fehler; `6` doppelt bzw. drei `8` → Fehler, `X` doppelt → Warnung.
-- `test_d81`: `--d81 /home/martin/git/dungeoncrawlerjam2025/game/crawl.d81` ergibt dieselbe DMP wie die Testdatei.
+- `crawl128.cd1` → DMP: W = 20, H = 11, NT = 43 (tile 42 = exit open, empty), start = 198, direction 0; tiles 0, 2, 4, 6, 18, 40 without flags, tile 1 with `$17`; tile layer = Crawl values cell by cell; items: 92 cells with 2, 2 with 4; events exactly `(29, exit, 0)`, `(68, enemy, 1)`; outside = 1.
+- `--toml` → `dbemap build` → byte-identical to the direct DMP.
+- Synthetic CD1 generated in the test (3 × 2, records `6`, `8`, `8`, `Z`, unknown `Q`): teleport group 1 twice, `exit` 1, type 255 with parameter 81 and warning; missing `6` → error; `6` twice or three `8` → error, `X` twice → warning.
+- `test_d81`: `--d81 /home/martin/git/dungeoncrawlerjam2025/game/crawl.d81` yields the same DMP as the test file.
 
-## 7. Abnahme
+## 7. Acceptance
 
-- `tools/dbemap.py`, `tools/crawlmap.py` mit Docstrings im Stil von `wallconv.py`; Tests grün, Laufzeit < 30 s.
-- Beispielkarte `docs/specs/examples/demo.toml` (Abschnitt 3) und daraus erzeugte `crawl128.toml` (aus `crawlmap --toml`) im Repo.
-- `docs/formats.md` erhält „DMP v1“ (Tabellen 2.1–2.5, 2.6) und ersetzt den Abschnitt „Karte (vorläufig)“ durch einen Verweis.
+- `tools/dbemap.py`, `tools/crawlmap.py` with docstrings in the style of `wallconv.py`; tests green, run time < 30 s.
+- Example map `docs/specs/examples/demo.toml` (section 3) and `crawl128.toml` generated from it (from `crawlmap --toml`) in the repo.
+- `docs/formats.md` gets “DMP v1” (tables 2.1–2.5, 2.6) and replaces the section “Map (provisional)” with a reference.

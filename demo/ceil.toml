@@ -1,7 +1,7 @@
 format  = "dbetex"
 version = 1
 
-# Decke: ein Stil. Himmel = Deckenstil 0 (Lücke im Band: Tapete).
+# Ceiling: one style. Sky = ceiling style 0 (gap in the band: wallpaper).
 [texset]
 name       = "ceil"
 kind       = "ceiling"
@@ -13,5 +13,5 @@ vrl_load   = 0x9000
 pool_bytes = 36735
 
 [[style]]
-name = "holz"
-png  = "art/holz_atlas.png"
+name = "wood"
+png  = "art/wood_atlas.png"

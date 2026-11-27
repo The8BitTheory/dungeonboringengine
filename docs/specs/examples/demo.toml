@@ -4,37 +4,37 @@ version = 1
 [map]
 name    = "demo"
 start   = [2, 1]        # x, y
-dir     = "O"           # N, O, S, W
-outside = "wand"        # Kachelname für Zellen außerhalb
+dir     = "E"           # N, E, S, W
+outside = "wall"        # tile name for cells outside the map
 
-[tiles.wand]            # Reihenfolge der Tabellen = Kachelindex (0, 1, …)
-walls   = 1             # alle vier Flächen Stil 1; oder [N, O, S, W]
+[tiles.wall]            # order of the tables = tile index (0, 1, ...)
+walls   = 1             # all four faces style 1; or [N, E, S, W]
 floor   = 0
 ceiling = 0
-flags   = ["weg", "sicht", "deckend", "automap"]
+flags   = ["solid", "blocksight", "occluding", "automap"]
 
-[tiles.gang]
+[tiles.corridor]
 floor   = 1
 ceiling = 1
 
-[tiles.himmel]
-floor   = 1             # ceiling fehlt = 0: Himmel
+[tiles.sky]
+floor   = 1             # ceiling missing = 0: sky
 
-[tiles.gitter]
+[tiles.grating]
 walls   = 2
 floor   = 1
 ceiling = 1
-flags   = ["weg"]       # nicht deckend: dahinter sichtbar
+flags   = ["solid"]       # not occluding: visible behind it
 automap_char = 35
 
 [legend]
-"#" = "wand"
-"." = "gang"
-"," = "himmel"
-"+" = "gitter"
-"m" = { tile = "gang", item = 2 }
-"T" = { tile = "gang", events = [{ type = "teleport", param = 1 }] }
-"X" = { tile = "gang", events = [{ type = "ausgang", param = 0 }] }
+"#" = "wall"
+"." = "corridor"
+"," = "sky"
+"+" = "grating"
+"m" = { tile = "corridor", item = 2 }
+"T" = { tile = "corridor", events = [{ type = "teleport", param = 1 }] }
+"X" = { tile = "corridor", events = [{ type = "exit", param = 0 }] }
 
 [layers]
 tiles = """
@@ -45,10 +45,10 @@ tiles = """
 #######
 """
 
-[[events]]              # zusätzliche Ereignisse an Koordinaten
+[[events]]              # additional events at coordinates
 at    = [3, 1]
-type  = "gegner"        # Name aus 2.5 oder Zahl
+type  = "enemy"        # name from 2.5 or number
 param = 1
 
-[[marks]]               # optional: Automap-Marke (Bit 7) vorbelegen
+[[marks]]               # optional: preset the automap mark (bit 7)
 at = [1, 1]

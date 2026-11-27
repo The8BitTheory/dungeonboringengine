@@ -1,14 +1,14 @@
-# P6g VICE-Szenen (docs/specs/P6-engine.md 9.4); Vorlage fuer test/vice_view.py (@...@ werden ersetzt).
-# @FAST@ = "fast:" (2 MHz, VIC-Anzeige aus waehrend VIEW und VCL; Lauf mit --fast) oder leer, @SLOW@ = "slow" oder "rem".
-# Marken (RTS in Bank 0): 3148 = $0C4C vor VIEW, 3149 = $0C4D nach ::VCL (Szene fertig), 3150 = $0C4E Tabellenende.
-# Ergebnisse fuer den Harness: $0C40 A, $0C41 X von VIEW; $0C42 A, $0C43 X, $0C44 Y, $0C45/6 P0 von SETPOS/MOVE.
-# Exitcode: 0 = fertig, 61-63 = Datei fehlt, 10 = INIT, 20+n = Setz-Aufruf n fehlgeschlagen, 199 = kein VDC-BASIC v3, 200+ = BASIC-Fehler.
+# P6g VICE scenes (docs/specs/P6-engine.md 9.4); template for test/vice_view.py (@...@ are substituted).
+# @FAST@ = "fast:" (2 MHz, VIC display off during VIEW and VCL; run with --fast) or empty, @SLOW@ = "slow" or "rem".
+# Markers (RTS in bank 0): 3148 = $0C4C before VIEW, 3149 = $0C4D after ::VCL (scene done), 3150 = $0C4E end of table.
+# Results for the harness: $0C40 A, $0C41 X from VIEW; $0C42 A, $0C43 X, $0C44 Y, $0C45/6 P0 from SETPOS/MOVE.
+# Exit code: 0 = done, 61-63 = file missing, 10 = INIT, 20+n = setter call n failed, 199 = no VDC-BASIC v3, 200+ = BASIC error.
 1 poke 57,0:poke 58,64:clr:trap 9000
 2 if peek(dec("1c03"))<>dec("30") then r=199:goto 8995
 10 bank 0:poke 3148,96:poke 3149,96:poke 3150,96
 20 bload"dbe@VERSION@.stub",b0,u8:bload"dbe@VERSION@.lib",b1,u8:if ds<>0 then r=60:goto 8995
 30 sys 3328:rreg a,x,y:if a<>0 or x<>3 then r=10:goto 8995
-# Chunky-Modus wie Crawl (crawl.bas 10059-10135); vorher 64 KB VRAM, ganz geloescht
+# Chunky mode as in Crawl (crawl.bas 10059-10135); 64 KB VRAM cleared completely beforehand
 100 rgo 28,24
 110 vmf 0,0,65535:vmw 65535,0
 120 disp 46335:attr 0

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Tour der Demo für test/vice_demo.py: Tastenfolge, die die Demo-Karte mit den Goblin-Routen von demo.bas abfährt.
+"""Tour of the demo for test/vice_demo.py: key sequence that walks the demo map with the goblin routes of demo.bas.
 
-Aufruf: demo/tour.py   (gibt die Tour aus; Voraussetzung: demo/build.py ist gelaufen)
+Usage: demo/tour.py   (prints the tour; requires demo/build.py to have run)
 
-Die Goblins ziehen je gültiger Taste einen Schritt (demo.bas 3000-3030), die Tour ist also eine Suche in den Zuständen
-(Position, Richtung, Routenschritt der drei Goblins): Dijkstra mit Kosten W, Q, E = 1 und A, D, S = 2, blockierte Züge
-(MOVE X != 0) sind verboten. Jedes Ziel ist ein Zustand (Spielerzelle, Richtung, Zellen einzelner Goblins); die Wartefolgen
-(Drehen hin und her) ergeben sich aus dem Ziel. Stöße (Wand, Goblin, Gitter) sind eigene Schritte mit erwartetem X.
+The goblins take one step per valid key (demo.bas 3000-3030), so the tour is a search over the states
+(position, direction, route step of the three goblins): Dijkstra with costs W, Q, E = 1 and A, D, S = 2, blocked moves
+(MOVE X != 0) are forbidden. Each goal is a state (player cell, direction, cells of individual goblins); the waiting sequences
+(turning back and forth) follow from the goal. Bumps (wall, goblin, grate) are separate steps with an expected X.
 
-Jeder Tourschritt: (Tasten, Bezeichnung, erwartetes X des letzten MOVE oder None).
-Ändern sich Karte, Routen oder demo.bas, ändert sich die Tour von selbst; die Ziele gelten weiter (Abbruch, wenn eins fehlt).
+Each tour step: (keys, label, expected X of the last MOVE or None).
+If the map, routes or demo.bas change, the tour changes by itself; the goals remain valid (abort if one is missing).
 """
 import heapq, os, sys
 
@@ -46,7 +46,7 @@ class Planner:
         return (mv.pos, mv.dir, self._gstep(gi, mv.pos)), mv.x
 
     def at(self, x, y, d=None, g=None):
-        """Ziel: Spieler auf (x, y), Richtung d (optional), Goblin n auf (x, y) für {n: (x, y)} (optional)."""
+        """Goal: player at (x, y), direction d (optional), goblin n at (x, y) for {n: (x, y)} (optional)."""
         def f(s):
             pos, dr, gi = s
             return (pos == self.cell(x, y) and (d is None or dr == d) and
@@ -72,43 +72,43 @@ class Planner:
                     seen[s2] = d + wgt
                     cnt += 1
                     if cnt > limit:
-                        raise SystemExit(f'Tour: Suche nach "{label}" abgebrochen')
+                        raise SystemExit(f'Tour: search for "{label}" aborted')
                     heapq.heappush(pq, (d + wgt, cnt, s2, k + key))
-        raise SystemExit(f'Tour: kein Weg zu "{label}"')
+        raise SystemExit(f'Tour: no path to "{label}"')
 
     def raw(self, label, keys, want_x=None):
         x = None
         for k in keys:
             self.state, x = self._apply(self.state, k)
         if want_x is not None and x != want_x:
-            raise SystemExit(f'Tour: "{label}": MOVE X = {x}, erwartet {want_x}')
+            raise SystemExit(f'Tour: "{label}": MOVE X = {x}, expected {want_x}')
         self.segs.append((keys, label, want_x))
         self.keys += keys
 
 
 def plan(dmp, bas):
-    """Tour für die Karte dmp und die Routen in bas. Rückgabe Liste (Tasten, Bezeichnung, erwartetes X)."""
+    """Tour for the map dmp and the routes in bas. Returns a list (keys, label, expected X)."""
     p = Planner(dmp, bas)
     at = p.at
-    p.raw('Fenster West d=1', 'W')
-    p.go('Fenster Süd', at(2, 14, 2))
-    p.go('Abgrund von Westen', at(13, 8, 1))
-    p.raw('seitwärts rechts, zurück (Abgrund aus anderer Zelle)', 'DS')
-    p.go('Tür mit Goblin darin', at(13, 7, 0, {0: (13, 6)}))
-    p.raw('Stoß gegen Goblin in der Tür', 'WW', 2)
-    p.raw('zurück', 'S')
-    p.go('durch die Tür in den Hof (Himmel)', at(13, 5, 0))
-    p.go('Goblin am linken Rand beschnitten', at(14, 5, 0, {0: (13, 4)}))
-    p.go('Fenster Nord d=3', at(14, 3, 0))
-    p.go('Fenster Nord d=1', at(14, 1, 0))
-    p.raw('Stoß gegen die Fensterwand', 'W', 1)
-    p.go('Fenster Ost d=3', at(16, 2, 1))
-    p.go('Fenster Ost d=1', at(18, 2, 1))
-    p.go('Gitter mit Edelstein, Goblin davor', at(17, 4, 2, {1: (17, 5)}))
-    p.raw('Stoß gegen Goblin vor dem Gitter', 'W', 2)
-    p.go('Gitter d=1', at(17, 5, 2))
-    p.raw('Stoß gegen das Gitter', 'W', 1)
-    p.go('Hof, Blick West', at(17, 3, 3))
+    p.raw('Window west d=1', 'W')
+    p.go('Window south', at(2, 14, 2))
+    p.go('Abyss from the west', at(13, 8, 1))
+    p.raw('sideways right, back (abyss from another cell)', 'DS')
+    p.go('Door with goblin in it', at(13, 7, 0, {0: (13, 6)}))
+    p.raw('Bump against goblin in the door', 'WW', 2)
+    p.raw('back', 'S')
+    p.go('through the door into the courtyard (sky)', at(13, 5, 0))
+    p.go('Goblin clipped at the left edge', at(14, 5, 0, {0: (13, 4)}))
+    p.go('Window north d=3', at(14, 3, 0))
+    p.go('Window north d=1', at(14, 1, 0))
+    p.raw('Bump against the window wall', 'W', 1)
+    p.go('Window east d=3', at(16, 2, 1))
+    p.go('Window east d=1', at(18, 2, 1))
+    p.go('Grate with gem, goblin in front', at(17, 4, 2, {1: (17, 5)}))
+    p.raw('Bump against goblin in front of the grate', 'W', 2)
+    p.go('Grate d=1', at(17, 5, 2))
+    p.raw('Bump against the grate', 'W', 1)
+    p.go('Courtyard, looking west', at(17, 3, 3))
     return p.segs
 
 
@@ -120,7 +120,7 @@ def main():
     for k, label, x in segs:
         print(f'{n:3} {k:<22} {label}' + (f'  (X = {x})' if x is not None else ''))
         n += len(k)
-    print(f'{n} Tasten')
+    print(f'{n} keys')
 
 
 if __name__ == '__main__':

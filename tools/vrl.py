@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""VRL: RLE-Strom für `RXV` (VDC-BASIC v3) – Encoder, Decoder, Statistik.
+"""VRL: RLE stream for `RXV` (VDC-BASIC v3) - encoder, decoder, statistics.
 
-Strom (Token; Wörter Low/High):
-  $00            Ende
-  $01-$7F  n Bytes   n Literale (1..127)
-  $80-$FD  v         Lauf: L = b-$80+2 (2..127) mal v
-  $FE      lo hi     Skip: Ziel um n weiter (0 = 65536), nichts schreiben
-  $FF      lo hi v   langer Lauf: L = hi*256+lo (0 = 65536) mal v
-Dateirahmen (PRG): Ladeadresse (2), "VR", Version 1, entpackte Länge U (Wort), Strom.
-Skips am Stromende werden nicht kodiert; U <= 65535. Details: docs/specs/P1-vrl.md,
+Stream (tokens; words low/high):
+  $00            end
+  $01-$7F  n bytes   n literals (1..127)
+  $80-$FD  v         run: L = b-$80+2 (2..127) times v
+  $FE      lo hi     skip: advance the target by n (0 = 65536), write nothing
+  $FF      lo hi v   long run: L = hi*256+lo (0 = 65536) times v
+File frame (PRG): load address (2), "VR", version 1, unpacked length U (word), stream.
+Skips at the end of the stream are not encoded; U <= 65535. Details: docs/specs/P1-vrl.md,
 docs/formats.md (VRL v1).
 
-Aufruf:
+Usage:
   vrl.py encode IN OUT [--load ADDR] [--raw] [--in-prg]
   vrl.py rect   IN OUT --width W --height H --stride S [--mask MASK] [--load ADDR] [--raw] [--in-prg]
   vrl.py decode IN OUT [--raw] [--base BASE] [--out-prg ADDR]
   vrl.py stats  IN [--raw] [-T N] [--bench P0.json] [--json]
-Exitcode: 0 ok, 1 Formatfehler, 2 falscher Aufruf.
+Exit code: 0 ok, 1 format error, 2 wrong usage.
 """
 import argparse
 import collections
@@ -38,24 +38,24 @@ PLACEHOLDER = {
 
 def _check_len(n):
     if n > MAX_U:
-        raise ValueError("VRL: entpackte Länge über 65535")
+        raise ValueError("VRL: unpacked length exceeds 65535")
 
 
 def encode(data):
-    """Folge aus int | None -> Strom (inkl. $00), größenoptimal (Spec 4.2)."""
+    """Sequence of int | None -> stream (incl. $00), size-optimal (spec 4.2)."""
     seq = list(data)
     for v in seq:
         if v is not None and not (isinstance(v, int) and 0 <= v <= 255):
-            raise ValueError("VRL: Wert außerhalb 0..255: %r" % (v,))
-    while seq and seq[-1] is None:      # Skips am Ende entfallen
+            raise ValueError("VRL: value outside 0..255: %r" % (v,))
+    while seq and seq[-1] is None:      # skips at the end are dropped
         seq.pop()
     n = len(seq)
     _check_len(n)
 
-    # Hilfstabellen rückwärts in O(n)
-    skip = [0] * (n + 1)    # Länge der Skip-Strecke ab i
-    rep = [0] * (n + 1)     # Länge der Wiederholung gleicher Werte ab i (kein SKIP)
-    lit = [0] * (n + 1)     # längste Strecke ohne SKIP ab i
+    # helper tables backwards in O(n)
+    skip = [0] * (n + 1)    # length of the skip stretch from i
+    rep = [0] * (n + 1)     # length of the repetition of equal values from i (no SKIP)
+    lit = [0] * (n + 1)     # longest stretch without SKIP from i
     for i in range(n - 1, -1, -1):
         v = seq[i]
         if v is None:
@@ -64,17 +64,17 @@ def encode(data):
             lit[i] = lit[i + 1] + 1
             rep[i] = rep[i + 1] + 1 if (i + 1 < n and seq[i + 1] == v) else 1
 
-    # best[i] = Bytes << 20 | Token (Bytes zuerst, dann Anzahl Token).
-    # Kandidatenschlüssel je Zielposition j (best << 16 | 65535 - j): kleiner = besser, bei
-    # Gleichstand größeres j = mehr Abdeckung. Läufe (feste Kosten 2) und Literale (Kosten
-    # 1 + m = 1 + j - i, daher best[j] + j*UNIT) liegen in getrennten Feldern, damit die
-    # Minimumsuche über eine Scheibe in C läuft (O(n * 127) ohne Python-Schleife je Kandidat).
+    # best[i] = bytes << 20 | tokens (bytes first, then token count).
+    # Candidate key per target position j (best << 16 | 65535 - j): smaller = better, on a
+    # tie greater j = more coverage. Runs (fixed cost 2) and literals (cost
+    # 1 + m = 1 + j - i, hence best[j] + j*UNIT) are kept in separate arrays so that the
+    # minimum search over a slice runs in C (O(n * 127) without a Python loop per candidate).
     UNIT = 1 << 20
     INF = 1 << 60
     best = [INF] * (n + 1)
     key_run = [INF << 16] * (n + 1)
     key_lit = [INF << 16] * (n + 1)
-    choice = [None] * (n + 1)   # (Art, Länge)
+    choice = [None] * (n + 1)   # (kind, length)
 
     def publish(j, val):
         best[j] = val
@@ -90,7 +90,7 @@ def encode(data):
             choice[i] = ("skip", k)
             continue
         R = rep[i]
-        cands = []      # (Bytes+Token, -Abdeckung, Art 0 = Lauf / 1 = Literal, Art, Länge)
+        cands = []      # (bytes+tokens, -coverage, kind 0 = run / 1 = literal, kind, length)
         if R >= 2:
             kk = min(key_run[i + 2:i + min(127, R) + 1])
             L = 65535 - (kk & MASK) - i
@@ -124,20 +124,20 @@ def encode(data):
 
 
 def encode_rect(data, width, height, stride, mask=None):
-    """Rechteck width x height mit Stride (und optionaler Maske) kodieren (Spec 4.5)."""
+    """Encode a rectangle width x height with stride (and optional mask) (spec 4.5)."""
     if width < 1 or height < 1 or stride < width:
-        raise ValueError("VRL: ungültige Rechteckgeometrie")
+        raise ValueError("VRL: invalid rectangle geometry")
     if stride > 65535:
-        raise ValueError("VRL: stride über 65535")
+        raise ValueError("VRL: stride exceeds 65535")
     data = list(data)
     if len(data) != width * height:
-        raise ValueError("VRL: Datenlänge passt nicht zu width x height")
+        raise ValueError("VRL: data length does not match width x height")
     if mask is not None:
         mask = list(mask)
         if len(mask) != len(data):
-            raise ValueError("VRL: Maskenlänge passt nicht zu width x height")
-    # Zielfolge nur bis hinter das letzte geschriebene Byte (Skips am Ende entfallen ohnehin),
-    # damit sie bei großem Stride und fast leerer Maske klein bleibt.
+            raise ValueError("VRL: mask length does not match width x height")
+    # target sequence only up to past the last written byte (skips at the end are dropped anyway),
+    # so that it stays small with a large stride and an almost empty mask.
     last = len(data) - 1 if mask is None else max((k for k, m in enumerate(mask) if m), default=-1)
     total = 0 if last < 0 else (last // width) * stride + last % width + 1
     _check_len(total)
@@ -149,49 +149,49 @@ def encode_rect(data, width, height, stride, mask=None):
 
 
 def decode_tokens(stream):
-    """Token bis einschließlich Ende als Liste von Token(kind, length, value, offset)."""
+    """Tokens up to and including the end as a list of Token(kind, length, value, offset)."""
     s = bytes(stream)
     toks = []
     p = 0
     n = len(s)
     while True:
         if p >= n:
-            raise ValueError("VRL: unerwartetes Ende bei Offset %d" % p)
+            raise ValueError("VRL: unexpected end at offset %d" % p)
         b = s[p]
         if b == 0:
             toks.append(Token("end", 0, None, p))
             return toks
         if b <= 0x7F:
             if p + 1 + b > n:
-                raise ValueError("VRL: Literal über das Stromende hinaus bei Offset %d" % p)
+                raise ValueError("VRL: literal beyond the end of the stream at offset %d" % p)
             toks.append(Token("lit", b, s[p + 1:p + 1 + b], p))
             p += 1 + b
         elif b <= 0xFD:
             if p + 2 > n:
-                raise ValueError("VRL: Lauf über das Stromende hinaus bei Offset %d" % p)
+                raise ValueError("VRL: run beyond the end of the stream at offset %d" % p)
             toks.append(Token("run", b - 0x80 + 2, s[p + 1], p))
             p += 2
         elif b == 0xFE:
             if p + 3 > n:
-                raise ValueError("VRL: Skip über das Stromende hinaus bei Offset %d" % p)
+                raise ValueError("VRL: skip beyond the end of the stream at offset %d" % p)
             toks.append(Token("skip", (s[p + 1] | s[p + 2] << 8) or 65536, None, p))
             p += 3
         else:
             if p + 4 > n:
-                raise ValueError("VRL: langer Lauf über das Stromende hinaus bei Offset %d" % p)
+                raise ValueError("VRL: long run beyond the end of the stream at offset %d" % p)
             toks.append(Token("lrun", (s[p + 1] | s[p + 2] << 8) or 65536, s[p + 3], p))
             p += 4
 
 
 def decode(stream, base=None):
-    """Strom ausführen; Kopie von base (ggf. mit 0 verlängert), Skips lassen base unverändert."""
+    """Execute the stream; copy of base (extended with 0 if needed), skips leave base unchanged."""
     out = bytearray(base) if base is not None else bytearray()
     pos = 0
     for t in decode_tokens(stream):
         if t.kind == "end":
             break
         if pos + t.length > 65536:
-            raise ValueError("VRL: Ziel über 65536 hinaus bei Offset %d" % t.offset)
+            raise ValueError("VRL: target beyond 65536 at offset %d" % t.offset)
         if len(out) < pos + t.length:
             out.extend(bytes(pos + t.length - len(out)))
         if t.kind == "lit":
@@ -203,34 +203,34 @@ def decode(stream, base=None):
 
 
 def unpacked_length(stream):
-    """U: Summe aller Literal-, Lauf- und Skip-Längen."""
+    """U: sum of all literal, run and skip lengths."""
     return sum(t.length for t in decode_tokens(stream))
 
 
 def pack_file(stream, load=0x2000):
-    """PRG mit Kopf (Spec 3); U aus dem Strom."""
+    """PRG with header (spec 3); U from the stream."""
     u = unpacked_length(stream)
     _check_len(u)
     return struct.pack("<H", load) + b"VR" + bytes((VERSION,)) + struct.pack("<H", u) + bytes(stream)
 
 
 def unpack_file(data):
-    """-> (load, version, U, stream); prüft Magic, Version und U."""
+    """-> (load, version, U, stream); checks magic, version and U."""
     data = bytes(data)
     if len(data) < 8:
-        raise ValueError("VRL: Datei zu kurz")
+        raise ValueError("VRL: file too short")
     load, = struct.unpack_from("<H", data, 0)
     if data[2:4] != b"VR":
-        raise ValueError("VRL: falsches Magic")
+        raise ValueError("VRL: wrong magic")
     version = data[4]
     if version != VERSION:
-        raise ValueError("VRL: unbekannte Version %d" % version)
+        raise ValueError("VRL: unknown version %d" % version)
     u, = struct.unpack_from("<H", data, 5)
     stream = data[7:]
     toks = decode_tokens(stream)
     stream = stream[:toks[-1].offset + 1]
     if sum(t.length for t in toks) != u:
-        raise ValueError("VRL: entpackte Länge im Kopf passt nicht zum Strom")
+        raise ValueError("VRL: unpacked length in the header does not match the stream")
     return load, version, u, stream
 
 
@@ -250,7 +250,7 @@ def _fill_cost(L, p):
 
 
 def threshold(params=None):
-    """Kleinstes L >= 2, ab dem Block fill gewinnt (Spec 8.2); sonst 65537."""
+    """Smallest L >= 2 from which block fill wins (spec 8.2); otherwise 65537."""
     p = _params(params)
     if not p["fill_byte"] < p["cpu_byte"]:
         return 65537
@@ -261,11 +261,11 @@ def threshold(params=None):
 
 
 def load_bench(path):
-    """`engine` aus der P0-JSON lesen; fehlende Schlüssel bleiben Platzhalter, T wird übernommen."""
+    """Read `engine` from the P0 JSON; missing keys remain placeholders, T is taken over."""
     with open(path, encoding="utf-8") as f:
         doc = json.load(f)
     if not isinstance(doc, dict) or not isinstance(doc.get("engine"), dict):
-        raise ValueError("VRL: Schlüssel \"engine\" fehlt in %s" % path)
+        raise ValueError("VRL: key \"engine\" missing in %s" % path)
     eng = doc["engine"]
     res = dict(PLACEHOLDER)
     for k, v in eng.items():
@@ -284,7 +284,7 @@ def _hist_label(i):
 
 
 def stats(stream, T=None, params=None):
-    """Statistik und Zyklenschätzung (Spec 8)."""
+    """Statistics and cycle estimate (spec 8)."""
     params = params or {}
     p = _params(params)
     if T is None:
@@ -342,7 +342,7 @@ def _addr(s):
     s = s.strip()
     v = int(s[1:], 16) if s.startswith("$") else int(s, 0)
     if not 0 <= v <= 0xFFFF:
-        raise argparse.ArgumentTypeError("Adresse außerhalb 0..65535: " + s)
+        raise argparse.ArgumentTypeError("Address outside 0..65535: " + s)
     return v
 
 
@@ -351,7 +351,7 @@ def _read(path, skip_prg=False):
         d = f.read()
     if skip_prg:
         if len(d) < 2:
-            raise ValueError("VRL: PRG-Eingabe ohne Ladeadresse")
+            raise ValueError("VRL: PRG input without load address")
         d = d[2:]
     return d
 
@@ -406,7 +406,7 @@ def _cmd_stats(a):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="VRL-Werkzeug (RLE-Strom für RXV)")
+    ap = argparse.ArgumentParser(description="VRL tool (RLE stream for RXV)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def common(p, out=True):

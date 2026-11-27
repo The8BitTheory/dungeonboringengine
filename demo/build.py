@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Demo bauen (docs/specs/P7-crawl.md 8.4): Geometrie, Texturen, Tapete, Sprites, Karte, Programm, Disk.
+"""Build the demo (docs/specs/P7-crawl.md 8.4): geometry, textures, wallpaper, sprites, map, program, disk.
 
-Aufruf: demo/build.py [--out DIR] [--no-disk] [--budget [N]] [--blitz] [-q]
-  Ohne Optionen: alle Dateien nach build/demo/files/, Disk build/demo/dbe-demo.d81 (+ .d64, interpretiert), Bericht
-  build/demo/report.md, Belegung build/demo/layout.json.
-  --budget [N]  dbeview-Budget über alle Ansichten der Karte (4 Richtungen je begehbarer Zelle) mit 0 bis 3 Goblins;
-                N = Zahl zufälliger Goblin-Zustände (Standard 30); A muss überall 0 sein.
-  --blitz       zusätzlich die Blitz!-Fassung (Disk build/demo/dbe-demo-blitz.d81; braucht node und blitzc)
-  --no-disk     nur die Dateien
+Usage: demo/build.py [--out DIR] [--no-disk] [--budget [N]] [--blitz] [-q]
+  Without options: all files to build/demo/files/, disk build/demo/dbe-demo.d81 (+ .d64, interpreted), report
+  build/demo/report.md, layout build/demo/layout.json.
+  --budget [N]  dbeview budget over all views of the map (4 directions per walkable cell) with 0 to 3 goblins;
+                N = number of random goblin states (default 30); A must be 0 everywhere.
+  --blitz       additionally the Blitz! version (disk build/demo/dbe-demo-blitz.d81; needs node and blitzc)
+  --no-disk     files only
 
-Bauschritte (Werkzeuge aus tools/, Quellen in demo/):
-  dbegeom view.toml -> DVG, dbetex build (walls/floor/ceil), mkbg.py + dbetex bg (Tapete), Goblin-Blatt + dbespr build
-  (goblin, gem), dbemap build -> demo.dmp. Danach: Bank-1-Bereiche (dbemem, schon von den Werkzeugen geprüft),
-  VRAM-Pool (Basen dicht ab 9600, Ende <= 46335), DATA-Zeilen von demo.bas gegen die Belegung, Programmgröße (< $9000).
-Ausserhalb von demo/ und build/ wird nichts geschrieben; Voraussetzung: Python 3 mit Pillow, c1541 (VICE), VDC-BASIC v3
-(VDCBASIC_DIR, nur gelesen: boot/boot.bas, vdcbasic3.bin, test/bastok.py, test/blitzprep.py).
+Build steps (tools from tools/, sources in demo/):
+  dbegeom view.toml -> DVG, dbetex build (walls/floor/ceil), mkbg.py + dbetex bg (wallpaper), goblin sheet + dbespr build
+  (goblin, gem), dbemap build -> demo.dmp. Then: bank 1 ranges (dbemem, already checked by the tools),
+  VRAM pool (bases packed from 9600, end <= 46335), DATA lines of demo.bas against the layout, program size (< $9000).
+Nothing is written outside demo/ and build/; requirements: Python 3 with Pillow, c1541 (VICE), VDC-BASIC v3
+(VDCBASIC_DIR, read only: boot/boot.bas, vdcbasic3.bin, test/bastok.py, test/blitzprep.py).
 """
 import argparse, json, os, re, shutil, subprocess, sys
 
@@ -28,22 +28,22 @@ dbeview.dbemap = dbemap
 VERSION = open(os.path.join(ROOT, 'VERSION')).read().strip()
 VDC = os.environ.get('VDCBASIC_DIR', os.path.expanduser('~/git/vdc-basic'))
 OUT = os.path.join(ROOT, 'build', 'demo')
-FARFILL = 0x11                  # Fernsicht-Füllbyte (BGSET Y = 1, P2; P6 5.7a): dunkelgrau, 2 Pixel Farbe 1
-POOL = (9600, 46335)            # VRAM-Pool: hinter dem Attribut-RAM (Puffer 0 und Textzeilen) bis vor das Bildschirm-RAM
-VRL_BUF = 0x9000                # Ladepuffer der VRL-Dateien in Bank 0 (vrl_load in den TOMLs), RXV-Quelle ab +5
-BAS_LIMIT = VRL_BUF             # das Programm (interpretiert oder Kompilat) muss darunter enden
+FARFILL = 0x11                  # far-view fill byte (BGSET Y = 1, P2; P6 5.7a): dark gray, 2 pixels of color 1
+POOL = (9600, 46335)            # VRAM pool: after the attribute RAM (buffer 0 and text lines) up to the screen RAM
+VRL_BUF = 0x9000                # load buffer of the VRL files in bank 0 (vrl_load in the TOMLs), RXV source from +5
+BAS_LIMIT = VRL_BUF             # the program (interpreted or compiled) must end below it
 
-# Bank-1-Ladeadressen (Speicherkarte P6 2.4); DMP und S2 stehen in den TOMLs bzw. hier
+# Bank 1 load addresses (memory map P6 2.4); DMP and S2 are in the TOMLs or here
 ADDR = {'dmp': 0x4000, 'work': 0x5000, 'goblin.s2': 0x6000, 'gem.s2': 0x6500, 'walls.dts': 0x8000,
         'demo.dvg': 0xE800, 'floor.dts': 0xEE00, 'ceil.dts': 0xF600, 'land.dbg': 0xFB80}
-# Reihenfolge der VRL-Dateien = Reihenfolge der VRAM-Basen = DATA 600
+# order of the VRL files = order of the VRAM bases = DATA 600
 VRL_NAMES = ('walls', 'floor', 'ceil', 'land', 'goblin', 'gem')
 
 
 def sh(cmd, **kw):
     r = subprocess.run(cmd, **kw)
     if r.returncode:
-        sys.exit(f'Fehler ({r.returncode}): {" ".join(cmd)}')
+        sys.exit(f'Error ({r.returncode}): {" ".join(cmd)}')
     return r
 
 
@@ -56,10 +56,10 @@ def rd(path):
         return f.read()
 
 
-# ------------------------------------------------------------------ Bauen
+# ------------------------------------------------------------------ Build
 def make_goblin_png(out):
-    """Blatt aus goblin1.bmp: Bilder 0, 2, 4, 6 (4 Phasen), 2fach vergrößert (64 x 64 je Phase), Schwarz (1, 1, 1) -> (0, 0, 0)
-    (VDC-Palette), Hintergrund bleibt der Schlüssel 5555FF (goblin.toml)."""
+    """Sheet from goblin1.bmp: images 0, 2, 4, 6 (4 phases), scaled 2x (64 x 64 per phase), black (1, 1, 1) -> (0, 0, 0)
+    (VDC palette), background stays the key 5555FF (goblin.toml)."""
     from PIL import Image
     src = Image.open(os.path.join(HERE, 'art', 'goblin1.bmp')).convert('RGB')
     sheet = Image.new('RGB', (64 * 4, 64), (0x55, 0x55, 0xFF))
@@ -76,7 +76,7 @@ def make_goblin_png(out):
 
 
 def build_files(out, log):
-    """Alle Dateien der Disk (außer Programm und VDC-BASIC) nach out/files. Rückgabe: Dict Name -> Pfad."""
+    """All files of the disk (except program and VDC-BASIC) to out/files. Returns: dict name -> path."""
     F = os.path.join(out, 'files')
     shutil.rmtree(F, ignore_errors=True)
     for d in (F, os.path.join(out, 'tex'), os.path.join(out, 'spr'), os.path.join(out, 'art'), os.path.join(out, 'geom')):
@@ -105,7 +105,7 @@ def build_files(out, log):
 
 
 def layout(files):
-    """Belegung aus den gebauten Dateien: Bank-1-Adressen (Ladeadresse im PRG-Kopf), VRAM-Basen (dicht ab POOL[0])."""
+    """Layout from the built files: bank 1 addresses (load address in the PRG header), VRAM bases (packed from POOL[0])."""
     L = {'bank1': {}, 'vram': {}, 'vrl_buf': VRL_BUF}
     for n, p in files.items():
         if n.endswith('.vrl'):
@@ -115,22 +115,22 @@ def layout(files):
         L['bank1'][n] = [load, len(d) - 2]
     for n, a in ADDR.items():
         if n in L['bank1'] and L['bank1'][n][0] != a:
-            sys.exit(f'{n}: Ladeadresse ${L["bank1"][n][0]:04X} im PRG-Kopf, erwartet ${a:04X}')
+            sys.exit(f'{n}: load address ${L["bank1"][n][0]:04X} in the PRG header, expected ${a:04X}')
     base = POOL[0]
     for n in VRL_NAMES:
         load, ver, u, stream = vrl.unpack_file(rd(files[n + '.vrl']))
         if load != VRL_BUF:
-            sys.exit(f'{n}.vrl: Ladeadresse ${load:04X}, erwartet ${VRL_BUF:04X} (vrl_load in der TOML)')
+            sys.exit(f'{n}.vrl: load address ${load:04X}, expected ${VRL_BUF:04X} (vrl_load in the TOML)')
         L['vram'][n] = [base, u]
         base += u
     L['pool_end'] = base
     if base > POOL[1]:
-        sys.exit(f'VRAM-Pool: Ende {base} > {POOL[1]} (Streichliste P7 8.4: bogen, Goblin-Phasen, Panoramahöhe)')
-    # Bank-1-Bereiche und Überlappungen (die Werkzeuge prüfen nur ihren eigenen Bereich)
+        sys.exit(f'VRAM pool: end {base} > {POOL[1]} (cut list P7 8.4: arch, goblin phases, panorama height)')
+    # bank 1 ranges and overlaps (the tools only check their own range)
     spans = sorted((a, a + n, name) for name, (a, n) in L['bank1'].items())
     for (a0, a1, n0), (b0, b1, n1) in zip(spans, spans[1:]):
         if b0 < a1:
-            sys.exit(f'Bank 1: {n0} und {n1} überlappen')
+            sys.exit(f'Bank 1: {n0} and {n1} overlap')
     for a0, a1, name in spans:
         err = dbemem.range_error({'demo.dmp': 'dmp', 'goblin.s2': 's2', 'gem.s2': 's2', 'walls.dts': 'wall',
                                   'demo.dvg': 'dvg', 'floor.dts': 'floor', 'ceil.dts': 'ceiling', 'land.dbg': 'dbg'}[name],
@@ -140,21 +140,21 @@ def layout(files):
     m = dbemap.from_dmp(rd(files['demo.dmp']))
     L['map'] = {'w': m.width, 'h': m.height, 'work': ADDR['work'], 'work_end': ADDR['work'] + 2 * m.width * m.height}
     if L['map']['work_end'] > 0x6000:
-        sys.exit('Arbeitskopie der Karte reicht über $5FFF')
+        sys.exit('working copy of the map extends beyond $5FFF')
     if ADDR['work'] < L['bank1']['demo.dmp'][0] + L['bank1']['demo.dmp'][1]:
-        sys.exit('Arbeitskopie überlappt die DMP')
+        sys.exit('working copy overlaps the DMP')
     return L
 
 
 def expected_data(L):
-    """DATA-Zeilen von demo.bas: Zeilennummer -> Text (Basen und Setz-Aufrufe)."""
+    """DATA lines of demo.bas: line number -> text (bases and setter calls)."""
     v = L['vram']
     b1 = L['bank1']
     ex = {600: ','.join(str(v[n][0]) for n in VRL_NAMES)}
     calls = [(11, 0, 0, POOL[0], POOL[1], 0), (12, 0, 0, b1['demo.dvg'][0], 65535, 0),
              (13, 0, 0, b1['walls.dts'][0], v['walls'][0], 0), (13, 1, 0, b1['floor.dts'][0], v['floor'][0], 0),
              (13, 2, 0, b1['ceil.dts'][0], v['ceil'][0], 0),
-             (14, 0x33, 1, b1['land.dbg'][0], v['land'][0], FARFILL),       # Y = 1, P2 = Fernsicht-Füllbyte
+             (14, 0x33, 1, b1['land.dbg'][0], v['land'][0], FARFILL),       # Y = 1, P2 = far-view fill byte
              (9, 0, 0, b1['goblin.s2'][0], v['goblin'][0], 0), (9, 1, 0, b1['gem.s2'][0], v['gem'][0], 0),
              (10, 1, 2, 0, 0, 0), (1, 1, 0, b1['demo.dmp'][0], ADDR['work'], 0)]
     for i, c in enumerate(calls):
@@ -171,14 +171,14 @@ def check_bas(L, bas_path):
             got[int(m.group(1))] = m.group(2).replace(' ', '')
     bad = [n for n in ex if got.get(n) != ex[n]]
     if bad:
-        msg = '\n'.join(f'{n} data {ex[n]}   (steht in demo.bas: {got.get(n)})' for n in bad)
-        sys.exit(f'demo.bas passt nicht zur gebauten Belegung, DATA-Zeilen ändern:\n{msg}')
+        msg = '\n'.join(f'{n} data {ex[n]}   (in demo.bas: {got.get(n)})' for n in bad)
+        sys.exit(f'demo.bas does not match the built layout, change the DATA lines:\n{msg}')
 
 
-# ------------------------------------------------------------------ Welt (Modell) für Tests
+# ------------------------------------------------------------------ World (model) for tests
 def load_world(out=OUT):
-    """dbeview.Scene aus den gebauten Dateien (genau die Bytes, die auf der Disk liegen), mit Bank-1-Adressen, Basen und
-    ITEMSET wie demo.bas. Rückgabe (Scene, Layout)."""
+    """dbeview.Scene from the built files (exactly the bytes on the disk), with bank 1 addresses, bases and
+    ITEMSET as in demo.bas. Returns (scene, layout)."""
     F = os.path.join(out, 'files')
     L = json.load(open(os.path.join(out, 'layout.json')))
     dvg = dbeview.parse_dvg(rd(os.path.join(F, 'demo.dvg')))
@@ -196,22 +196,22 @@ def load_world(out=OUT):
     for i, n in enumerate(('goblin', 'gem')):
         sc.s2[i] = dbeview.read_s2(rd(os.path.join(F, n + '.s2')), vram(n))
         sc.vram_bases['s2'][i] = L['vram'][n][0]
-    sc.itemtab[1] = 2                       # Gegenstand 1 -> Satz 1 (gem)
+    sc.itemtab[1] = 2                       # item 1 -> set 1 (gem)
     sc.bgfill = 0x33
-    sc.farfill = FARFILL                    # BGSET Y = 1, P2 = $11 (P6 5.7a): Fernsicht unter Decken dunkelgrau
+    sc.farfill = FARFILL                    # BGSET Y = 1, P2 = $11 (P6 5.7a): far view under ceilings dark gray
     sc.ap = 0
     sc.buf = (0x1300, 0x1C00)
-    sc.buf_fix = True                       # BUFSET X = 1 (demo.bas 315, P6j): Sprung bei $1300
+    sc.buf_fix = True                       # BUFSET X = 1 (demo.bas 315, P6j): jump at $1300
     sc.vms_bank1 = True
     sc.dts_addr = tuple(L['bank1'][n + '.dts'][0] for n in ('walls', 'floor', 'ceil'))
     sc.s2_addr = (L['bank1']['goblin.s2'][0], L['bank1']['gem.s2'][0]) + (0,) * 6
-    sc.automap = True                       # MAPINIT mit Automap-Bit (X = 1)
+    sc.automap = True                       # MAPINIT with automap bit (X = 1)
     sc.check_layout()
     return sc, L
 
 
 def routes(bas_path):
-    """Goblin-Routen aus den DATA-Zeilen 620 ff. von demo.bas: Liste von Listen (x, y)."""
+    """Goblin routes from the DATA lines 620 ff. of demo.bas: list of lists (x, y)."""
     nums = []
     for line in open(bas_path):
         m = re.match(r'(\d+)\s+data\s+(.*)$', line.strip())
@@ -226,8 +226,8 @@ def routes(bas_path):
 
 
 def budget(out, step, log):
-    """dbeview-Budget: alle begehbaren Zellen x 4 Richtungen, mit 0 Goblins und mit 1 bis 3 Goblins in `step` zufälligen
-    Zuständen der Routen (feste Saat), alle Gegenstände. A muss überall 0 sein."""
+    """dbeview budget: all walkable cells x 4 directions, with 0 goblins and with 1 to 3 goblins in `step` random
+    states of the routes (fixed seed), all items. A must be 0 everywhere."""
     import copy
     sc0, L = load_world(out)
     m = sc0.dmp
@@ -236,7 +236,7 @@ def budget(out, step, log):
     import random
     rnd = random.Random(1)
     states = [()]
-    for k in range(step):                   # zufällige Zustände der drei Routen, auch mit nur 1 oder 2 Goblins
+    for k in range(step):                   # random states of the three routes, also with only 1 or 2 goblins
         st = tuple(rnd.randrange(len(r)) for r in R)
         states += [st[:1], st[:2], st]
     rep = {'views': 0, 'max_total': 0, 'max_vcl': 0, 'max_vms': 0, 'max_entries': 0, 'bad': []}
@@ -258,19 +258,19 @@ def budget(out, step, log):
                 rep['max_entries'] = max(rep['max_entries'], r.x)
                 if r.a:
                     rep['bad'].append((pos, d, st, r.a))
-    log(f'Budget: {rep["views"]} Ansichten, VCL max {rep["max_vcl"]}, VMS max {rep["max_vms"]}, zusammen max '
-        f'{rep["max_total"]} von {sc0.buf[1] - sc0.buf[0]}, Einträge max {rep["max_entries"]}, A != 0: {len(rep["bad"])}')
+    log(f'Budget: {rep["views"]} views, VCL max {rep["max_vcl"]}, VMS max {rep["max_vms"]}, total max '
+        f'{rep["max_total"]} of {sc0.buf[1] - sc0.buf[0]}, entries max {rep["max_entries"]}, A != 0: {len(rep["bad"])}')
     return rep
 
 
-# ------------------------------------------------------------------ Programm und Disk
+# ------------------------------------------------------------------ Program and disk
 def tok(bas, prg, start=None):
     sh(['python3', '-B', os.path.join(VDC, 'test', 'bastok.py')] + (['--start', start] if start else []) + [bas, prg])
 
 
 def program(out, compiled=False, fs=None, tag=''):
-    """Programm-PRG: interpretiert (getokenisiert ab $4001) oder Blitz!-Kompilat (Image 2). fs: Wert der Zeile 3 (1 =
-    2 MHz während VIEW/VCL, 0 = 1 MHz), sonst wie in demo.bas. Rückgabe Pfad oder None (ohne Blitz)."""
+    """Program PRG: interpreted (tokenized from $4001) or Blitz! compilation (image 2). fs: value of line 3 (1 =
+    2 MHz during VIEW/VCL, 0 = 1 MHz), otherwise as in demo.bas. Returns path or None (without Blitz)."""
     text = open(os.path.join(HERE, 'demo.bas')).read()
     if fs is not None:
         text = text.replace('3 fs=1:', f'3 fs={fs}:', 1)
@@ -282,7 +282,7 @@ def program(out, compiled=False, fs=None, tag=''):
         tok(bas, prg, '0x4001')
         size = os.path.getsize(prg) - 2
         if 0x4001 + size > BAS_LIMIT:
-            sys.exit(f'Programm endet bei ${0x4001 + size:04X}, Ladepuffer der VRL ab ${BAS_LIMIT:04X}')
+            sys.exit(f'Program ends at ${0x4001 + size:04X}, VRL load buffer from ${BAS_LIMIT:04X}')
         return prg
     sys.path.insert(0, os.path.join(VDC, 'test'))
     import vicemon as vm
@@ -298,15 +298,15 @@ def program(out, compiled=False, fs=None, tag=''):
     c = subprocess.run([node, blitzc, src, cdir, '--name', 'DEMO'], capture_output=True, text=True)
     cprg = os.path.join(cdir, 'c.prg')
     if c.returncode or not os.path.exists(cprg) or rd(cprg)[:2] != b'\x01\x40':
-        sys.exit(f'Blitz!-Compiler rc {c.returncode}: {c.stdout.strip()}')
+        sys.exit(f'Blitz! compiler rc {c.returncode}: {c.stdout.strip()}')
     size = os.path.getsize(cprg) - 2
     if 0x4001 + size > BAS_LIMIT:
-        sys.exit(f'Kompilat endet bei ${0x4001 + size:04X}, Ladepuffer der VRL ab ${BAS_LIMIT:04X}')
+        sys.exit(f'Compilation ends at ${0x4001 + size:04X}, VRL load buffer from ${BAS_LIMIT:04X}')
     return cprg
 
 
 def boot_prg(out, run='DEMO'):
-    """Boot-Lader von VDC-BASIC v3 (boot/boot.bas) mit `50 RUN"DEMO"` statt `50 NEW`."""
+    """Boot loader of VDC-BASIC v3 (boot/boot.bas) with `50 RUN"DEMO"` instead of `50 NEW`."""
     bas = os.path.join(out, 'boot.bas')
     lines = [(f'50 RUN"{run}"\n' if l.startswith('50 ') else l) for l in open(os.path.join(VDC, 'boot', 'boot.bas'))]
     open(bas, 'w').write(''.join(lines))
@@ -316,7 +316,7 @@ def boot_prg(out, run='DEMO'):
 
 
 def make_disk(path, files, prog, boot, name='dbe demo'):
-    """Disk (d81 oder d64 nach Endung): boot, vdcbasic3, Stub, Lib, demo (Programm), Daten."""
+    """Disk (d81 or d64 by extension): boot, vdcbasic3, stub, lib, demo (program), data."""
     if os.path.exists(path):
         os.remove(path)
     kind = path.rsplit('.', 1)[1]
@@ -331,7 +331,7 @@ def make_disk(path, files, prog, boot, name='dbe demo'):
 
 
 def engine_build():
-    """Stub und Lib bauen, falls sie fehlen oder älter als die Quellen sind."""
+    """Build stub and lib if they are missing or older than the sources."""
     stub, lib = (os.path.join(ROOT, 'build', f'dbe{VERSION}.{e}') for e in ('stub', 'lib'))
     srcs = [os.path.join(ROOT, 'engine', n) for n in os.listdir(os.path.join(ROOT, 'engine'))]
     if all(os.path.exists(p) for p in (stub, lib)) and \
@@ -341,22 +341,22 @@ def engine_build():
 
 
 def report(out, L, files, rep, extra):
-    lines = ['# Demo: Belegung und Budget', '', f'Stand der Dateien: {len(files)} Dateien in `build/demo/files/`.', '',
-             '## Bank 1', '', '| Datei | Ladeadresse | Länge | Ende |', '|---|---|---|---|']
+    lines = ['# Demo: layout and budget', '', f'Files: {len(files)} files in `build/demo/files/`.', '',
+             '## Bank 1', '', '| File | Load address | Length | End |', '|---|---|---|---|']
     for n, (a, ln) in sorted(L['bank1'].items(), key=lambda x: x[1][0]):
         lines.append(f'| {n} | ${a:04X} | {ln} | ${a + ln - 1:04X} |')
-    lines += [f'| Arbeitskopie Karte | ${L["map"]["work"]:04X} | {2 * L["map"]["w"] * L["map"]["h"]} | '
-              f'${L["map"]["work_end"] - 1:04X} |', '', '## VRAM-Pool', '', '| Name | Basis | Länge |', '|---|---|---|']
+    lines += [f'| Working copy of map | ${L["map"]["work"]:04X} | {2 * L["map"]["w"] * L["map"]["h"]} | '
+              f'${L["map"]["work_end"] - 1:04X} |', '', '## VRAM pool', '', '| Name | Base | Length |', '|---|---|---|']
     for n in VRL_NAMES:
         b, u = L['vram'][n]
         lines.append(f'| {n} | {b} | {u} |')
-    lines += [f'', f'Pool {POOL[0]} .. {POOL[1] - 1} ({POOL[1] - POOL[0]} Byte): belegt {L["pool_end"] - POOL[0]}, '
-                   f'frei {POOL[1] - L["pool_end"]} Byte.', '']
+    lines += [f'', f'Pool {POOL[0]} .. {POOL[1] - 1} ({POOL[1] - POOL[0]} bytes): used {L["pool_end"] - POOL[0]}, '
+                   f'free {POOL[1] - L["pool_end"]} bytes.', '']
     lines += extra
     if rep:
-        lines += ['## Budget (dbeview)', '', f'{rep["views"]} Ansichten mit 0 bis 3 Goblins: VCL max {rep["max_vcl"]}, VMS max '
-                  f'{rep["max_vms"]}, zusammen max {rep["max_total"]}, Einträge max {rep["max_entries"]}, '
-                  f'A != 0 in {len(rep["bad"])} Ansichten.', '']
+        lines += ['## Budget (dbeview)', '', f'{rep["views"]} views with 0 to 3 goblins: VCL max {rep["max_vcl"]}, VMS max '
+                  f'{rep["max_vms"]}, total max {rep["max_total"]}, entries max {rep["max_entries"]}, '
+                  f'A != 0 in {len(rep["bad"])} views.', '']
     open(os.path.join(out, 'report.md'), 'w').write('\n'.join(lines))
 
 
@@ -368,24 +368,24 @@ def build(out=OUT, disk=True, blitz=False, budget_step=None, quiet=False):
     L = layout(files)
     check_bas(L, os.path.join(HERE, 'demo.bas'))
     json.dump(L, open(os.path.join(out, 'layout.json'), 'w'), indent=1)
-    log(f'VRAM-Pool: {L["pool_end"] - POOL[0]} von {POOL[1] - POOL[0]} Byte belegt, frei {POOL[1] - L["pool_end"]}')
+    log(f'VRAM pool: {L["pool_end"] - POOL[0]} of {POOL[1] - POOL[0]} bytes used, free {POOL[1] - L["pool_end"]}')
     rep = budget(out, budget_step, log) if budget_step else None
     if rep and rep['bad']:
-        sys.exit(f'Budget: {len(rep["bad"])} Ansichten mit A != 0, erste: {rep["bad"][0]}')
+        sys.exit(f'Budget: {len(rep["bad"])} views with A != 0, first: {rep["bad"][0]}')
     report(out, L, files, rep, [])
     if disk:
         boot = boot_prg(out)
         prog = program(out)
         make_disk(os.path.join(out, 'dbe-demo.d81'), files, prog, boot)
         make_disk(os.path.join(out, 'dbe-demo.d64'), files, prog, boot)
-        log(f'{out}/dbe-demo.d81, .d64 ({os.path.getsize(prog) - 2} Byte Programm)')
+        log(f'{out}/dbe-demo.d81, .d64 ({os.path.getsize(prog) - 2} bytes program)')
         if blitz:
             cp = program(out, compiled=True, tag='-c')
             if cp is None:
-                log('Blitz!-Fassung: SKIP (node oder blitzc nicht gefunden)')
+                log('Blitz! version: SKIP (node or blitzc not found)')
             else:
                 make_disk(os.path.join(out, 'dbe-demo-blitz.d81'), files, cp, boot)
-                log(f'{out}/dbe-demo-blitz.d81 ({os.path.getsize(cp) - 2} Byte Programm)')
+                log(f'{out}/dbe-demo-blitz.d81 ({os.path.getsize(cp) - 2} bytes program)')
     return files, L
 
 

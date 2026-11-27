@@ -1,4 +1,4 @@
-"""Tests fuer tools/crawlmap.py (unittest)."""
+"""Tests for tools/crawlmap.py (unittest)."""
 import io
 import os
 import shutil
@@ -82,20 +82,20 @@ class TestCrawl(unittest.TestCase):
         self.assertEqual(len(m.tiles), 43)
 
     def test_duplicate_records(self):
-        with self.assertRaisesRegex(ValueError, "'6'.*mehrfach"):
+        with self.assertRaisesRegex(ValueError, "'6'.*repeated"):
             crawlmap.convert(synth(2, 1, [0, 0], [("6", 0), ("6", 1)]))
-        with self.assertRaisesRegex(ValueError, "zwei"):
+        with self.assertRaisesRegex(ValueError, "two"):
             crawlmap.convert(synth(3, 1, [8, 8, 8], [("6", 0), ("8", 0), ("8", 1), ("8", 2)]))
         _, warn = crawlmap.convert(synth(2, 1, [0, 0], [("6", 0), ("X", 0), ("X", 1)]))
         self.assertEqual(len(warn), 1)
-        self.assertIn("'X' mehrfach", warn[0])
+        self.assertIn("'X' repeated", warn[0])
 
     def test_missing_start(self):
         with self.assertRaisesRegex(ValueError, "'6'"):
             crawlmap.convert(synth(2, 1, [0, 0], [("8", 0)]))
 
     def test_record_out_of_range(self):
-        with self.assertRaisesRegex(ValueError, "Zelle 2"):
+        with self.assertRaisesRegex(ValueError, "cell 2"):
             crawlmap.convert(synth(2, 1, [0, 0], [("6", 2)]))
 
     def test_gem_warning_and_name(self):
@@ -110,7 +110,7 @@ class TestCrawl(unittest.TestCase):
             err = io.StringIO()
             with redirect_stderr(err):
                 self.assertEqual(crawlmap.main([src, out]), 0)
-            self.assertIn("Warnung", err.getvalue())
+            self.assertIn("Warning", err.getvalue())
 
     def test_legend_limit(self):
         data = synth(2, 1, [80, 6], [("6", 1)])
@@ -118,7 +118,7 @@ class TestCrawl(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "78"):
             crawlmap.legend_for(m)
 
-    @unittest.skipUnless(shutil.which("c1541") and os.path.exists(D81), "c1541 oder Image fehlt")
+    @unittest.skipUnless(shutil.which("c1541") and os.path.exists(D81), "c1541 or image missing")
     def test_d81(self):
         with tempfile.TemporaryDirectory() as td:
             out = os.path.join(td, "d.dmp")

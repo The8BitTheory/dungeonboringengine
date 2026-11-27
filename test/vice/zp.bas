@@ -1,6 +1,6 @@
-# Nachweis Zeropage-Block (test/vice_zp.py): Lib-Aufrufe mit belegtem ZPB ($63-$72) unter Interrupts
-# (Tastatur/Jiffy, SOUND mit Sweep, MOVSPR); danach rechnet BASIC (Fliesskomma, STR$) weiter richtig.
-# Exitcode der Debug-Cartridge: 0 = gruen, 10.. = Nummer der Pruefung, 200+ = BASIC-Fehler.
+# Zero page block proof (test/vice_zp.py): lib calls with ZPB ($63-$72) occupied under interrupts
+# (keyboard/jiffy, SOUND with sweep, MOVSPR); afterwards BASIC (floating point, STR$) still computes correctly.
+# Exit code of the debug cartridge: 0 = green, 10.. = number of the check, 200+ = BASIC error.
 1 poke 57,0:poke 58,64:clr:trap 9000
 10 bank 0:bload"dbe0.2.stub",b0,u8:bload"dbe0.2-test.lib",b1,u8
 20 sys 3328:rreg a,x,y:if a<>0 then r=10:goto 8995

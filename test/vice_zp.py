@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""Nachweis für den Zeropage-Block der Lib (docs/specs/P6-engine.md, Entscheidungen nach dem P6d-Review, Punkt 3).
+"""Proof for the zero page block of the lib (docs/specs/P6-engine.md, decisions after the P6d review, item 3).
 
-Aufruf: test/vice_zp.py [--port N] [--timeout S] [--only i|c] [--control | --funcs]
-Der Stub rettet $63-$72 (ZPB, FAC/ARG des Interpreters) vor den Lib-Aufrufen, die ihn benutzen (VIEW, GEOMSET,
-Testfunktion 253; seit P6j nur diese), und schreibt den Block danach zurück; die Lib benutzt ihn dort frei. test/vice/zp.bas (interpretiert und als Blitz!-Kompilat, Image 2) ruft 20-mal die
-Testfunktion 253 auf (Block füllen, etwa 330 000 Zyklen warten, Muster prüfen), während Interrupts laufen
-(Jiffy-Uhr/Tastatur, SOUND mit Sweep, MOVSPR), und prüft danach Fließkomma (SIN, STR$, VAL, Division) und dass
-Uhr und Sprite weitergelaufen sind.
-Zusätzlich setzt das Skript einen Watchpoint (Lesen und Schreiben) auf $63-$72, der nur zwischen JSR LIB und der
-Rückkehr im Stub aktiv ist (Haltepunkte call_lib/call_ret aus build/stub.lbl). Jeder Treffer mit $FF00 <> $7F
-(also nicht aus der Lib, z. B. aus einer Interruptroutine mit ROM) ist ein Fehler.
---control prüft das Verfahren: derselbe Lauf mit dem Watchpoint auf der Jiffy-Uhr $A0-$A2 muss fremde Zugriffe
-(Kernal-IRQ während des Aufrufs) finden.
---funcs (P6j): Zeropage-Nutzung je Funktion. Programm und Dateien von test/vice_view.py (alle Setz-Aufrufe, Szenen mit
-SETPOS/MOVE und VIEW), dazu CELL, SETCELL, SETITEM, BUFSET mit X = 1 und X = 0 und nicht umgesetzte Funktionen (7, 8, 17).
-Je Lib-Aufruf (Haltepunkte call_lib/call_ret, F = A beim Eintritt) sind zwei Watchpoints (Lesen und Schreiben) aktiv:
-ZPB ($63-$72) und ZP0/ZP1 ($FA-$FD); der erste Treffer je Bereich und Aufruf wird mit $FF00 vermerkt und der Watchpoint
-bis zum Ende des Aufrufs abgeschaltet. Erwartet: ZPB nur bei F in {4, 12} (ZPB_F1/ZPB_F2 aus engine/dbe.inc, die
-Funktionen, für die der Stub den Block rettet), keine Treffer mit $FF00 <> $7F, jede Funktion 0-16 außer 7/8 mindestens
-einmal aufgerufen; Ausgabe: Tabelle F -> Aufrufe, ZPB, ZP0/ZP1.
-Ereignisgesteuert (Haltepunkte, Watchpoint, Debug-Cartridge), Timeout/-limitcycles nur als Wächter; Portregel wie
-vice_smoke.py (DBE_VICE_PORT), nur der eigene VICE-Prozess wird beendet.
+Usage: test/vice_zp.py [--port N] [--timeout S] [--only i|c] [--control | --funcs]
+The stub saves $63-$72 (ZPB, FAC/ARG of the interpreter) before the lib calls that use it (VIEW, GEOMSET,
+test function 253; since P6j only these), and writes the block back afterwards; the lib uses it freely there. test/vice/zp.bas (interpreted and as a Blitz! compilation, image 2) calls test function 253
+20 times (fill block, wait about 330,000 cycles, check pattern) while interrupts are running
+(jiffy clock/keyboard, SOUND with sweep, MOVSPR), and afterwards checks floating point (SIN, STR$, VAL, division) and that
+clock and sprite kept running.
+In addition the script sets a watchpoint (read and write) on $63-$72 that is only active between JSR LIB and the
+return in the stub (breakpoints call_lib/call_ret from build/stub.lbl). Every hit with $FF00 <> $7F
+(i.e. not from the lib, e.g. from an interrupt routine with ROM) is an error.
+--control checks the method: the same run with the watchpoint on the jiffy clock $A0-$A2 must find foreign accesses
+(Kernal IRQ during the call).
+--funcs (P6j): zero page usage per function. Program and files of test/vice_view.py (all setter calls, scenes with
+SETPOS/MOVE and VIEW), plus CELL, SETCELL, SETITEM, BUFSET with X = 1 and X = 0 and unimplemented functions (7, 8, 17).
+Per lib call (breakpoints call_lib/call_ret, F = A on entry) two watchpoints (read and write) are active:
+ZPB ($63-$72) and ZP0/ZP1 ($FA-$FD); the first hit per range and call is recorded with $FF00 and the watchpoint
+is disabled until the end of the call. Expected: ZPB only for F in {4, 12} (ZPB_F1/ZPB_F2 from engine/dbe.inc, the
+functions for which the stub saves the block), no hits with $FF00 <> $7F, every function 0-16 except 7/8 called at least
+once; output: table F -> calls, ZPB, ZP0/ZP1.
+Event-driven (breakpoints, watchpoint, debug cartridge), timeout/-limitcycles only as guards; port rule as in
+vice_smoke.py (DBE_VICE_PORT), only the own VICE process is terminated.
 """
 import argparse, os, re, shutil, subprocess, sys
 
@@ -92,14 +92,14 @@ NAMES = ['INIT', 'MAPINIT', 'SETPOS', 'MOVE', 'VIEW', 'CELL', 'SETCELL', '(7)', 
 
 
 def funcs_main(a, port):
-    """--funcs: Zeropage-Nutzung je Funktion (Programm von vice_view.py, erweitert)."""
+    """--funcs: zero page usage per function (program of vice_view.py, extended)."""
     import tempfile
     import vice_view as vv
     tmp = tempfile.TemporaryDirectory()
     world = vv.World(tmp.name)
     extra = ['1900 p0=0:p1=0:f=5:x=0:y=0:gosub 9500:if a<>0 then r=90:goto 8995',            # CELL 0
-             '1901 t=x:i=y:p0=0:f=6:x=t:y=0:gosub 9500:if a<>0 then r=91:goto 8995',           # SETCELL 0 (gleich)
-             '1902 p0=0:f=16:x=i:gosub 9500:if a<>0 then r=92:goto 8995',                      # SETITEM 0 (gleich)
+             '1901 t=x:i=y:p0=0:f=6:x=t:y=0:gosub 9500:if a<>0 then r=91:goto 8995',           # SETCELL 0 (unchanged)
+             '1902 p0=0:f=16:x=i:gosub 9500:if a<>0 then r=92:goto 8995',                      # SETITEM 0 (unchanged)
              f'1903 p0={vv.BUF[0]}:p1={vv.BUF[1]}:f=15:x=1:gosub 9500:if a<>0 then r=93:goto 8995',   # BUFSET X = 1
              f'1904 p0={vv.BUF[0]}:p1={vv.BUF[1]}:f=15:x=0:gosub 9500:if a<>0 then r=94:goto 8995',   # BUFSET X = 0
              '1905 for f=7 to 8:p0=0:x=0:gosub 9500:if a<>255 then r=95:goto 8995',
@@ -142,7 +142,7 @@ def funcs_main(a, port):
                 cr = m.mem(0xFF00, 1)[0]
                 wn = re.search(r'#(\d+)', out)
                 w = int(wn.group(1)) if wn else None
-                if w is None:           # Watchpoint-Nummer nicht erkannt: beide abschalten, als ZPB vermerken
+                if w is None:           # watchpoint number not recognized: disable both, record as ZPB
                     w = wb
                 rng = zpb if w == wb else zp01
                 if cr != 0x7F:
@@ -167,18 +167,18 @@ def funcs_main(a, port):
             '-limitcycles', '1500000000']
     _, rc = vm.run_vice(args, port, a.timeout, script)
     want = zpb_funcs()
-    print(f'--funcs (interpretiert, Programm von vice_view.py): exit {rc}, BASIC-Fehler {errors}')
-    print('  F  Funktion    Aufrufe  ZPB $63-$72  ZP0/ZP1 $FA-$FD')
+    print(f'--funcs (interpreted, program of vice_view.py): exit {rc}, BASIC error {errors}')
+    print('  F  Function    Calls    ZPB $63-$72  ZP0/ZP1 $FA-$FD')
     for f in sorted(calls):
         n = NAMES[f] if f < len(NAMES) else f'({f})'
-        print(f'  {f:<3}{n:<12}{calls[f]:>7}  {"ja" if f in zpb else "nein":<11}  {"ja" if f in zp01 else "nein"}')
+        print(f'  {f:<3}{n:<12}{calls[f]:>7}  {"yes" if f in zpb else "no":<11}  {"yes" if f in zp01 else "no"}')
     used = set(zpb)
     missing = [f for f in range(17) if f not in (7, 8) and f not in calls]
     ok = rc == 0 and not errors and not foreign and used == want and not missing
-    print(f'  ZPB benutzt von {sorted(used)}, Stub rettet für {sorted(want)}; fremde Zugriffe {len(foreign)}; '
-          f'nicht aufgerufen {missing} -> {"ok" if ok else "FEHLER"}')
+    print(f'  ZPB used by {sorted(used)}, stub saves for {sorted(want)}; foreign accesses {len(foreign)}; '
+          f'not called {missing} -> {"ok" if ok else "ERROR"}')
     for v in foreign[:10]:
-        print('  fremd:', v)
+        print('  foreign:', v)
     return 0 if ok else 1
 
 
@@ -188,8 +188,8 @@ def main():
     ap.add_argument('--timeout', type=int, default=300)
     ap.add_argument('--only', choices='ic')
     ap.add_argument('--control', action='store_true',
-                    help='Gegenprobe: Watchpoint auf die Jiffy-Uhr $A0-$A2 statt ZPB; erwartet fremde Zugriffe')
-    ap.add_argument('--funcs', action='store_true', help='P6j: Zeropage-Nutzung je Funktion (Programm von vice_view.py)')
+                    help='control run: watchpoint on the jiffy clock $A0-$A2 instead of ZPB; expects foreign accesses')
+    ap.add_argument('--funcs', action='store_true', help='P6j: zero page usage per function (program of vice_view.py)')
     a = ap.parse_args()
     vs.sh(['sh', os.path.join(vs.ROOT, 'engine', 'build.sh')], stdout=subprocess.DEVNULL)
     os.makedirs(vs.OUT, exist_ok=True)
@@ -209,10 +209,10 @@ def main():
 
     def report(name, rc, r):
         ok = rc == 0 and bool(r['viol']) == a.control and not r['errors'] and r['calls'] >= 21
-        print(f'{name}: exit {rc}, Aufrufe {r["calls"]}, Watchpoint-Treffer {r["hits"]} (Lib), '
-              f'fremde Zugriffe {len(r["viol"])}, BASIC-Fehler {r["errors"]} -> {"ok" if ok else "FEHLER"}', flush=True)
+        print(f'{name}: exit {rc}, calls {r["calls"]}, watchpoint hits {r["hits"]} (lib), '
+              f'foreign accesses {len(r["viol"])}, BASIC error {r["errors"]} -> {"ok" if ok else "ERROR"}', flush=True)
         for v in r['viol'][:3 if a.control else 10]:
-            print('  fremd:', v)
+            print('  foreign:', v)
         return 0 if ok else 1
 
     if a.only != 'c':
@@ -220,11 +220,11 @@ def main():
         vs.tok(src_bas, prg, '0x4001')
         d64 = os.path.join(vs.OUT, 'zp-i.d64')
         vs.make_disk(d64, boot_prg, prg)
-        bad |= report('interpretiert', *run_one(d64, boot_prg, port, a.timeout, rng))
+        bad |= report('interpreted', *run_one(d64, boot_prg, port, a.timeout, rng))
     if a.only != 'i':
         node, blitzc = vm.find_node(), vm.find_blitzc()
         if not node or not blitzc:
-            print('kompiliert: SKIP (blitzc nicht gefunden)')
+            print('compiled: SKIP (blitzc not found)')
             bad |= 2
         else:
             prep = os.path.join(vs.OUT, 'zp-b.bas')
@@ -236,12 +236,12 @@ def main():
             c = subprocess.run([node, blitzc, src, cdir, '--name', 'T'], capture_output=True, text=True)
             cprg = os.path.join(cdir, 'c.prg')
             if c.returncode or not os.path.exists(cprg) or open(cprg, 'rb').read(2) != b'\x01\x40':
-                print(f'kompiliert: Compiler rc {c.returncode}: {c.stdout.strip()}')
+                print(f'compiled: compiler rc {c.returncode}: {c.stdout.strip()}')
                 bad |= 1
             else:
                 d64 = os.path.join(vs.OUT, 'zp-c.d64')
                 vs.make_disk(d64, boot_prg, cprg)
-                bad |= report('kompiliert (Blitz!, Image 2)', *run_one(d64, boot_prg, port, a.timeout, rng))
+                bad |= report('compiled (Blitz!, image 2)', *run_one(d64, boot_prg, port, a.timeout, rng))
     sys.exit(1 if bad else 0)
 
 

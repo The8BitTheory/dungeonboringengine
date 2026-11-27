@@ -1,4 +1,4 @@
-"""Tests für tools/vrl.py (Spec docs/specs/P1-vrl.md, Abschnitt 9)."""
+"""Tests for tools/vrl.py (spec docs/specs/P1-vrl.md, section 9)."""
 import functools
 import json
 import os
@@ -80,7 +80,7 @@ def expected_image(x, base):
 
 
 def brute(x):
-    """Unabhängige erschöpfende Suche: minimale Stromlänge ohne End-Byte."""
+    """Independent exhaustive search: minimal stream length without end byte."""
     x = list(x)
     while x and x[-1] is None:
         x.pop()
@@ -161,7 +161,7 @@ class Properties(unittest.TestCase):
             with self.subTest(s=s):
                 with self.assertRaises(ValueError):
                     vrl.decode(s)
-        with self.assertRaises(ValueError):          # Ziel über 65536
+        with self.assertRaises(ValueError):          # target beyond 65536
             vrl.decode(hx("FE 00 00 FE 01 00 00"))
 
     def test_decoder_foreign(self):
@@ -206,7 +206,7 @@ class Stats(unittest.TestCase):
         self.assertAlmostEqual(st["ratio"], len(s) / 304)
 
     def test_threshold(self):
-        # 200 + L < 10 + 15 L  <=>  L >= 14 (die Spec nennt 15; Rechenfehler dort)
+        # 200 + L < 10 + 15 L  <=>  L >= 14 (the spec says 15; arithmetic error there)
         self.assertEqual(vrl.threshold({}), 14)
         self.assertEqual(vrl.stats(vrl.encode([5] * 14))["bytes_by_kind"]["run_fill"], 14)
         self.assertEqual(vrl.stats(vrl.encode([5] * 13))["bytes_by_kind"]["run_cpu"], 13)
@@ -217,12 +217,12 @@ class Stats(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "b.json")
             with open(p, "w") as f:
-                json.dump({"engine": {"tok": 40, "T": 9, "unbekannt": 1}}, f)
+                json.dump({"engine": {"tok": 40, "T": 9, "unknown": 1}}, f)
             b = vrl.load_bench(p)
             self.assertEqual(b["tok"], 40)
             self.assertEqual(b["T"], 9)
             self.assertEqual(b["cpu_byte"], vrl.PLACEHOLDER["cpu_byte"])
-            self.assertNotIn("unbekannt", b)
+            self.assertNotIn("unknown", b)
             self.assertEqual(vrl.stats(vrl.encode([5] * 12), params=b)["T"], 9)
 
 

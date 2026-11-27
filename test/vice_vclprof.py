@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""P6g-Analyse: VCL-Kosten je Eintrag und je VMS-Befehl in VICE (Szenen aus test/vice_view.py, nur interpretiert).
+"""P6g analysis: VCL cost per entry and per VMS command in VICE (scenes from test/vice_view.py, interpreted only).
 
-Aufruf: test/vice_vclprof.py [--port N] [--timeout S] [--static] [--json DATEI]
-  --static  nur Python: Einträge nach Herkunft, geschriebene Bytes, Overdraw (kein VICE)
+Usage: test/vice_vclprof.py [--port N] [--timeout S] [--static] [--json FILE]
+  --static  Python only: entries by origin, bytes written, overdraw (no VICE)
 
-Haltepunkte (Monitor-Stoppuhr) im VCL-Interpreter von VDC-BASIC v3: Eintritt `vcl`, `.vcl_next_command` (vor jedem
-Eintrag), `.vcl_done` (Ende), in VMS `.vms_arg_loop` (vor jedem Befehl) und `.vms_done`. Die lokalen Marken stehen
-nicht in vdcbasic3.sym; sie werden aus dem ACME-Report (`acme -r`, Bau einer Kopie im Temp-Verzeichnis, geprüft
-gegen vdcbasic3.bin) gelesen. Zwischen `vcl` und `.vcl_done` ist das I-Flag gesetzt (keine Kernal-IRQs).
-Ereignisgesteuert: Haltepunkte, Debug-Cartridge; Timeout nur als Wächter. Port wie vice_view.py (DBE_VICE_PORT).
+Breakpoints (monitor stopwatch) in the VCL interpreter of VDC-BASIC v3: entry `vcl`, `.vcl_next_command` (before each
+entry), `.vcl_done` (end), in VMS `.vms_arg_loop` (before each command) and `.vms_done`. The local labels are not
+in vdcbasic3.sym; they are read from the ACME report (`acme -r`, build of a copy in the temp directory, checked
+against vdcbasic3.bin). Between `vcl` and `.vcl_done` the I flag is set (no Kernal IRQs).
+Event-driven: breakpoints, debug cartridge; timeout only as a guard. Port as in vice_view.py (DBE_VICE_PORT).
 """
 import argparse, collections, json, os, re, shutil, subprocess, sys, tempfile
 
@@ -19,14 +19,14 @@ import vice_view as vv
 dbeview, vs, vm = vv.dbeview, vv.vs, vv.vm
 V = dbeview._View
 
-# ------------------------------------------------------------------ Herkunft der Einträge (Referenz markieren)
-_wall, _band, _bg, _obj, _add = V.wall_item, V.band_item, V.bg_item, V.objekte, V.add
-KN = {dbeview.KIND_WALL: 'wand', dbeview.KIND_FLOOR: 'boden', dbeview.KIND_CEIL: 'decke'}
+# ------------------------------------------------------------------ Origin of the entries (mark the reference)
+_wall, _band, _bg, _obj, _add = V.wall_item, V.band_item, V.bg_item, V.objects, V.add
+KN = {dbeview.KIND_WALL: 'wall', dbeview.KIND_FLOOR: 'floor', dbeview.KIND_CEIL: 'ceiling'}
 
 
 def _t_wall(self, kind, e, ent):
     it = _wall(self, kind, e, ent)
-    it.tag = 'wand' if kind == dbeview.KIND_WALL else 'kachel'
+    it.tag = 'wall' if kind == dbeview.KIND_WALL else 'tile'
     it.tagk = KN[kind]
     return it
 
@@ -39,7 +39,7 @@ def _t_band(self, kind, ent, y0, rows, c0, c1):
 
 def _t_bg(self, *a):
     it = _bg(self, *a)
-    it.tag, it.tagk = 'tapete', 'tapete'
+    it.tag, it.tagk = 'wallpaper', 'wallpaper'
     return it
 
 
@@ -57,7 +57,7 @@ def _t_add(self, item):
     return _add(self, item)
 
 
-V.wall_item, V.band_item, V.bg_item, V.objekte, V.add = _t_wall, _t_band, _t_bg, _t_obj, _t_add
+V.wall_item, V.band_item, V.bg_item, V.objects, V.add = _t_wall, _t_band, _t_bg, _t_obj, _t_add
 _out = V.output
 
 
@@ -67,22 +67,22 @@ def _t_output(self):
     for i, item in enumerate(self.items):
         for e in item.ents:
             tags.append((item.tag, item.tagk, e[0], i))
-    res.tags = list(reversed(tags))              # Reihenfolge der VCL-Liste (hinten -> vorne)
+    res.tags = list(reversed(tags))              # order of the VCL list (back -> front)
     return res
 
 
 V.output = _t_output
 
 
-# ------------------------------------------------------------------ Einträge zerlegen, Bytes zählen
+# ------------------------------------------------------------------ Decompose entries, count bytes
 def entries(res):
-    """Je VCL-Eintrag dict(typ, tag, kind, ops, rows, bytes, cmds{1,3,8}, writes=[(adr, n)])."""
+    """Per VCL entry dict(type, tag, kind, ops, rows, bytes, cmds{1,3,8}, writes=[(adr, n)])."""
     b0, b1 = res.bank0(), res.bank1()
     p, out = res.l0, []
     w = lambda i: b0[p + i] | b0[p + i + 1] << 8
     for tag, kind, et, item in res.tags:
         t = b0[p]
-        E = dict(typ=t, tag=tag, kind=kind, et=et, item=item, rows=0, bytes=0, cmds=collections.Counter(), cbytes=0, writes=[])
+        E = dict(type=t, tag=tag, kind=kind, et=et, item=item, rows=0, bytes=0, cmds=collections.Counter(), cbytes=0, writes=[])
         if t in (2, 3, 4, 5):
             cnt = w(5)
             reps = (w(7) & 255 or 256) if t in (2, 3, 5) else 1
@@ -113,34 +113,34 @@ def entries(res):
                     E['writes'].append((None, 0))
                     q += 3
                 else:
-                    raise SystemExit(f'VMS-Befehl {c}')
+                    raise SystemExit(f'VMS command {c}')
             E['bytes'] = E['cbytes'] + E['cmds'][8]
             E['ncmd'] = n
             p += 7
         else:
-            raise SystemExit(f'VCL-Typ {t} unerwartet')
+            raise SystemExit(f'VCL type {t} unexpected')
         out.append(E)
-    assert b0[p] == 0, 'Ende der VCL-Liste nicht erreicht'
+    assert b0[p] == 0, 'end of the VCL list not reached'
     return out
 
 
 def cat(E):
-    """Kategorie für die Tabelle."""
-    tag, kind, t = E['tag'], E['kind'], E['typ']
-    if tag == 'tapete':
-        return 'Tapete VMF (Zeilen über/unter Panorama)' if t in (4, 5) else 'Tapete VMC (Panorama)'
+    """Category for the table."""
+    tag, kind, t = E['tag'], E['kind'], E['type']
+    if tag == 'wallpaper':
+        return 'Wallpaper VMF (rows above/below panorama)' if t in (4, 5) else 'Wallpaper VMC (panorama)'
     if tag == 'sprite':
-        return 'Sprite VMC (Kerne)' if t in (2, 3) else f'Sprite VMS (Typ {t})'
-    if tag == 'wand':
-        return 'Wand VMC (Kerne)' if t in (2, 3) else ('Wand VMF (ZEILEN)' if t in (4, 5) else f'Wand VMS (Typ {t})')
-    k = 'Kachel' if tag == 'kachel' else 'Band'
+        return 'Sprite VMC (kernels)' if t in (2, 3) else f'Sprite VMS (type {t})'
+    if tag == 'wall':
+        return 'Wall VMC (kernels)' if t in (2, 3) else ('Wall VMF (ROWS)' if t in (4, 5) else f'Wall VMS (type {t})')
+    k = 'Tile' if tag == 'tile' else 'Band'
     if t in (4, 5):
-        return f'{k} VMF (Farbverlauf/ZEILEN)'
-    return f'{k} VMC (Kerne)' if t in (2, 3) else f'{k} VMS (Typ {t})'
+        return f'{k} VMF (gradient/ROWS)'
+    return f'{k} VMC (kernels)' if t in (2, 3) else f'{k} VMS (type {t})'
 
 
 def overdraw(sc, ents):
-    """Schreibzähler je Fensterbyte: (geschrieben gesamt, Fenster, Fensterbytes >= 1 mal, verdeckt-geschrieben je Kat)."""
+    """Write counter per window byte: (total written, window, window bytes >= 1 time, overdrawn-written per category)."""
     g = sc.dvg
     win = {}
     for y in range(g.vh):
@@ -161,11 +161,11 @@ def overdraw(sc, ents):
                 if ad in win:
                     win[ad] += 1
                 else:
-                    wasted['AUSSERHALB'] += 1
+                    wasted['OUTSIDE'] += 1
     return dict(total=total, window=len(win), covered=sum(1 for v in win.values() if v), wasted=wasted)
 
 
-# ------------------------------------------------------------------ VICE-Lauf
+# ------------------------------------------------------------------ VICE run
 def run_prof(world, d64, boot_prg, port, tmo, L):
     res = {'scenes': [], 'errors': [], 'end': False}
 
@@ -220,7 +220,7 @@ def run_prof(world, d64, boot_prg, port, tmo, L):
 
 
 def split(ev):
-    """Ereignisse einer Szene -> (gesamt, [Eintrag: dict(t, vms=[Befehlszeiten], setup)])."""
+    """Events of a scene -> (total, [entry: dict(t, vms=[command times], setup)])."""
     assert ev[0][0] == 'c' and ev[-1][0] == 'e', ev[:3]
     n_idx = [i for i, (k, _) in enumerate(ev) if k == 'n']
     out = []
@@ -236,7 +236,7 @@ def split(ev):
             for a, b in zip(vt, vt[1:] + dt[:1]):
                 cmds.append(b - a)
         out.append(dict(t=t1 - t0, vms=cmds, v0=(vt[0] - t0) if vt else None, vd=(t1 - dt[0]) if dt else None))
-    # letzter 'n' liest das Ende-Byte: das ist kein Eintrag
+    # the last 'n' reads the end byte: that is not an entry
     last = out.pop()
     return ev[-1][1], out, last['t'], n_idx and ev[n_idx[0]][1]
 
@@ -282,21 +282,21 @@ def main():
         d64 = os.path.join(vv.OUT, 'prof-i.d64')
         vv.make_disk(world, d64, boot_prg, prg, wd)
         rc, got = run_prof(world, d64, boot_prg, port, a.timeout, L)
-        print(f'VICE: exit {rc}, Fehler {got["errors"]}, Ende {got["end"]}, Szenen {len(got["scenes"])}', flush=True)
+        print(f'VICE: exit {rc}, errors {got["errors"]}, end {got["end"]}, scenes {len(got["scenes"])}', flush=True)
         if len(got['scenes']) != len(exp) or got['errors']:
             sys.exit(1)
         for s, ev, o in zip(stat, got['scenes'], out['scenes']):
             total, per, tail, head = split(ev)
             if len(per) != len(s['ents']):
-                sys.exit(f'{s["name"]}: {len(per)} Einträge gemessen, {len(s["ents"])} erwartet')
+                sys.exit(f'{s["name"]}: {len(per)} entries measured, {len(s["ents"])} expected')
             o['total'], o['tail'], o['head'] = total, tail, head
             for E, P in zip(o['ents'], per):
                 E['t'], E['vmsc'], E['v0'], E['vd'] = P['t'], P['vms'], P['v0'], P['vd']
-                if E['typ'] in (9, 12) and len(P['vms']) != E['ncmd']:
-                    sys.exit(f'{s["name"]}: VMS {len(P["vms"])} Befehle gemessen, {E["ncmd"]} erwartet')
+                if E['type'] in (9, 12) and len(P['vms']) != E['ncmd']:
+                    sys.exit(f'{s["name"]}: VMS {len(P["vms"])} commands measured, {E["ncmd"]} expected')
     if a.json:
         json.dump(out, open(a.json, 'w'))
-    # Kurzbericht
+    # Short report
     agg = collections.defaultdict(lambda: collections.Counter())
     for o in out['scenes']:
         for E in o['ents']:
@@ -307,12 +307,12 @@ def main():
             c['cmds'] += sum(E['cmds'].values())
             c['t'] += E.get('t', 0)
     n = len(out['scenes'])
-    print(f'{"Kategorie":<42} {"Eintr.":>7} {"Zeilen":>7} {"VMS-Bef.":>8} {"Bytes":>8} {"Zyklen":>9}  (je Szene)')
+    print(f'{"Category":<42} {"Entries":>7} {"Rows":>7} {"VMS cmds":>8} {"Bytes":>8} {"Cycles":>9}  (per scene)')
     for k in sorted(agg, key=lambda k: -agg[k]['t'] or -agg[k]['bytes']):
         c = agg[k]
         print(f'{k:<42} {c["n"] / n:>7.1f} {c["rows"] / n:>7.1f} {c["cmds"] / n:>8.1f} {c["bytes"] / n:>8.0f} {c["t"] / n:>9.0f}')
     tb = sum(o['od']['total'] for o in out['scenes']) / n
-    print(f'geschrieben je Szene {tb:.0f} Byte, Fenster {out["scenes"][0]["od"]["window"]} Byte')
+    print(f'written per scene {tb:.0f} bytes, window {out["scenes"][0]["od"]["window"]} bytes')
 
 
 if __name__ == '__main__':

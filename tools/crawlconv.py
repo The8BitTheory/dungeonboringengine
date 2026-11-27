@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""Daten von Crawl 128 (1.0f, Engine 0.1) in Engine-0.2-Dateien umwandeln (P7a, docs/specs/P7-crawl.md Abschnitt 3).
+"""Convert Crawl 128 data (1.0f, engine 0.1) into engine 0.2 files (P7a, docs/specs/P7-crawl.md section 3).
 
-Eingaben (1.0f-Dateien, unveraendert): walls.vdc, walls.wsm, ghost.spr, ghosts.vdc, gem.spr, font3o.vdc
-(optional crawl128.cd1 fuer crawl.dmp und die Groesse der Automap).
-Freie Crawl-DVG statt Westwood-Preset (review-notes G.6): jedes der 19 Wandbilder ist ein DVG-Element mit seinem
-Rechteck, das DTS enthaelt nur Kerne (Bild = ein Kern = volles Rechteck), Geister und Edelsteine sind S2-Bilder mit
-Ankern auf den 1.0f-Positionen. Die Tapete ist das Fuellbyte 0 (BGSET ohne DBG).
+Inputs (1.0f files, unchanged): walls.vdc, walls.wsm, ghost.spr, ghosts.vdc, gem.spr, font3o.vdc
+(optionally crawl128.cd1 for crawl.dmp and the size of the automap).
+Free Crawl DVG instead of the Westwood preset (review-notes G.6): each of the 19 wall images is a DVG element with its
+rectangle, the DTS contains only cores (image = one core = full rectangle), ghosts and gems are S2 images with
+anchors at the 1.0f positions. The wallpaper is the fill byte 0 (BGSET without DBG).
 
-Ausgabe in OUT_DIR:
-  crawl.dvg          Geometrie (Bank 1 $E800)
-  walls.dts          Wand-DTS, nur Kerne (Bank 1 $8000)
-  walls.vrl | walls1.vrl ... wallsN.vrl   Bilddaten per RXV nach DA (mehrere Teile mit --max-part)
-  ghost.s2 + ghost.vrl   Sprite-Satz Geist (Bank 1 $6000)
-  gem.s2 + gem.vrl       Sprite-Satz Edelstein (Bank 1 $7000)
-  crawl.dmp          Karte (nur mit crawl128.cd1; crawlmap, Bank 1 $4000)
-  crawlconv.md       Bericht;  crawlconv.json mit --json
+Output in OUT_DIR:
+  crawl.dvg          geometry (bank 1 $E800)
+  walls.dts          wall DTS, cores only (bank 1 $8000)
+  walls.vrl | walls1.vrl ... wallsN.vrl   image data via RXV to DA (several parts with --max-part)
+  ghost.s2 + ghost.vrl   sprite set ghost (bank 1 $6000)
+  gem.s2 + gem.vrl       sprite set gem (bank 1 $7000)
+  crawl.dmp          map (only with crawl128.cd1; crawlmap, bank 1 $4000)
+  crawlconv.md       report;  crawlconv.json with --json
 
-Aufruf:
+Usage:
   crawlconv.py --d81 crawl128-100f.d81 OUT_DIR [--max-part N] [--font-bytes N] [--json]
-  crawlconv.py --dir DIR_MIT_DEN_DATEIEN OUT_DIR [...]
-Als Modul: build(files, ...) -> Result, write(result, out_dir), read_dir(dir), read_d81(image, work_dir).
-Exitcode 0 ok, 1 Fehler, 2 Aufruf.
+  crawlconv.py --dir DIR_WITH_THE_FILES OUT_DIR [...]
+As a module: build(files, ...) -> Result, write(result, out_dir), read_dir(dir), read_d81(image, work_dir).
+Exit code 0 ok, 1 error, 2 usage.
 """
 import argparse
 import dataclasses
@@ -47,28 +47,28 @@ OPTIONAL = ("crawl128.cd1",)
 
 VW, VH, D, S = 68, 96, 3, 1
 STRIDE, ORIGIN = 80, 406
-HY0, HY1 = 0, 95                      # Zeile 95 des Fensters bleibt den Waenden (Bildschirmzeile 100, Spec 1.2)
-FULL = 96                             # Hoehe der deckenden Bilder
-VIEW_COL0, VIEW_ROW0 = 6, 5           # linke obere Ecke des Fensters im 1.0f-Bildpuffer (406 = 5 * 80 + 6)
+HY0, HY1 = 0, 95                      # row 95 of the window stays with the walls (screen row 100, spec 1.2)
+FULL = 96                             # height of the covering images
+VIEW_COL0, VIEW_ROW0 = 6, 5           # top left corner of the window in the 1.0f image buffer (406 = 5 * 80 + 6)
 ROW = 80
 LOAD = {"dvg": 0xE800, "wall": 0x8000, "ghost": 0x6000, "gem": 0x7000, "dmp": 0x4000}
-S2_MAX = 0x1000                       # Bereich je Sprite-Satz bis zur naechsten Ladeadresse
-CA = 19200                            # Zeichensatz im VRAM (AP + VR(1) + VR(1))
-VR0 = 46335                           # Bildschirm-RAM (Bitmap)
-GEM_CHARS = (4, 5)                    # Font-Zeichen des Edelsteins (CHR$(36) CHR$(37))
+S2_MAX = 0x1000                       # area per sprite set up to the next load address
+CA = 19200                            # character set in VRAM (AP + VR(1) + VR(1))
+VR0 = 46335                           # screen RAM (bitmap)
+GEM_CHARS = (4, 5)                    # font characters of the gem (CHR$(36) CHR$(37))
 GHOST_ANGLES = 4
-MASK_BG = (0x00, 0xFF)                # zwei Hintergrundmuster fuer die Transparenzmaske (3.4)
-P_GEM, P_GHOST = 2, 3                 # Objektplaetze: Mitte = Edelstein, vorne links = Geist
+MASK_BG = (0x00, 0xFF)                # two background patterns for the transparency mask (3.4)
+P_GEM, P_GHOST = 2, 3                 # object slots: center = gem, front left = ghost
 
 
 class ConvError(Exception):
     pass
 
 
-# ---------------------------------------------------------------- Eingaben lesen
+# ---------------------------------------------------------------- read inputs
 
 def read_dir(path):
-    """Dateien aus einem Ordner (Namen kleingeschrieben) -> {name: bytes}."""
+    """Files from a folder (names in lower case) -> {name: bytes}."""
     out = {}
     for n in FILES + OPTIONAL:
         p = os.path.join(path, n)
@@ -76,12 +76,12 @@ def read_dir(path):
             with open(p, "rb") as f:
                 out[n] = f.read()
         elif n in FILES:
-            raise ConvError(f"{n} fehlt in {path}")
+            raise ConvError(f"{n} missing in {path}")
     return out
 
 
 def read_d81(image, work_dir):
-    """Dateien per c1541 aus dem Image lesen (work_dir: Arbeitsordner unterhalb von OUT_DIR)."""
+    """Read files from the image via c1541 (work_dir: working folder below OUT_DIR)."""
     os.makedirs(work_dir, exist_ok=True)
     for n in FILES + OPTIONAL:
         out = os.path.join(work_dir, n)
@@ -89,12 +89,12 @@ def read_d81(image, work_dir):
             os.remove(out)
         r = subprocess.run(["c1541", "-attach", image, "-read", n, out], capture_output=True, text=True)
         if not os.path.exists(out) and n in FILES:
-            raise ConvError(f"c1541 konnte {n} nicht aus {image} lesen: {(r.stderr or r.stdout).strip()}")
+            raise ConvError(f"c1541 could not read {n} from {image}: {(r.stderr or r.stdout).strip()}")
     return read_dir(work_dir)
 
 
 def parse_walls(data):
-    """walls.vdc (PRG) -> (Eintraege [(slot, src, w, h, size, col)], Bilddaten ab 1 + 7 n)."""
+    """walls.vdc (PRG) -> (entries [(slot, src, w, h, size, col)], image data from 1 + 7 n)."""
     b = data[2:]
     n = b[0]
     hdr = 1 + 7 * n
@@ -102,15 +102,15 @@ def parse_walls(data):
     for i in range(n):
         src, w, h, size, col = struct.unpack_from("<HBBHB", b, 1 + 7 * i)
         if src + w * h > len(b) - hdr or size != w * h:
-            raise ConvError(f"walls.vdc: Bild {i + 1} (src {src}, {w} x {h}, size {size}) passt nicht in die Datei")
+            raise ConvError(f"walls.vdc: image {i + 1} (src {src}, {w} x {h}, size {size}) does not fit in the file")
         ents.append((i + 1, src, w, h, size, col))
     if n != len(wallconv.SLOTS):
-        raise ConvError(f"walls.vdc: {n} Bilder, erwartet {len(wallconv.SLOTS)}")
+        raise ConvError(f"walls.vdc: {n} images, expected {len(wallconv.SLOTS)}")
     return ents, bytes(b[hdr:])
 
 
 def parse_spr(data):
-    """ghost.spr / gem.spr (PRG, Sprite-Metadaten v1) -> Liste von Teilen (dict)."""
+    """ghost.spr / gem.spr (PRG, sprite metadata v1) -> list of parts (dict)."""
     b = data[2:]
     if b[:2] != b"SP" or b[2] != 1:
         raise ConvError("SPR: Magic/Version")
@@ -125,12 +125,12 @@ def parse_spr(data):
 # ---------------------------------------------------------------- DVG
 
 def _anchor(dest):
-    """Ziel (relativ zu AP) -> (Byte-Spalte, Zeile) relativ zum Fenster."""
+    """Target (relative to AP) -> (byte column, row) relative to the window."""
     return dest % ROW - VIEW_COL0, dest // ROW - VIEW_ROW0
 
 
 def wall_elements(walls):
-    """Wandbilder nach Zelle (d, s) gruppiert, je Zelle erst Fronten, dann Seiten, je Art in Slotreihenfolge."""
+    """Wall images grouped by cell (d, s), per cell first fronts, then sides, per kind in slot order."""
     by_cell = {}
     for slot, src, w, h, _size, col in walls:
         d, s, face = wallconv.SLOTS[slot]
@@ -141,7 +141,7 @@ def wall_elements(walls):
 
 
 def build_dvg(walls, ghost_anchor, gem_anchor):
-    """-> (Dvg, wall_order); wall_order = [(slot_nr, src, w, h)] in Elementreihenfolge (= Slotreihenfolge im DTS)."""
+    """-> (Dvg, wall_order); wall_order = [(slot_nr, src, w, h)] in element order (= slot order in the DTS)."""
     by_cell = wall_elements(walls)
     elems, order, depth = [], [], []
     for d in range(D + 1):
@@ -174,7 +174,7 @@ def build_dvg(walls, ghost_anchor, gem_anchor):
 # ---------------------------------------------------------------- DTS
 
 def build_dts(dvg, order, vram):
-    """Wand-DTS, nur Kerne: Bild k = Slot k = k-tes Wandelement; VRAM-Daten = die Bilddaten von walls.vdc."""
+    """Wall DTS, cores only: image k = slot k = k-th wall element; VRAM data = the image data of walls.vdc."""
     smap, k = [], 0
     for e in dvg.elems:
         if e.art == dbeview.ART_OBJ:
@@ -185,7 +185,7 @@ def build_dts(dvg, order, vram):
     smap += [dbetex.FALLBACK] * (2 * (dvg.D + 1))
     entries = []
     for k, (slot, src, w, h) in enumerate(order):
-        entries.append(dbetex.Entry(k, dbetex.F_DECKEND if h == FULL else 0, [dbetex.Kern(src, 0, 0, w, h, 0)], h=h))
+        entries.append(dbetex.Entry(k, dbetex.F_OCCLUDING if h == FULL else 0, [dbetex.Core(src, 0, 0, w, h, 0)], h=h))
     ts = dbetex.TexSet(0, dvg.gid, len(dvg.elems), dvg.D, dvg.stride, smap, [list(range(len(order)))], entries,
                        bytes(vram))
     prg = dbetex.to_dts(ts, LOAD["wall"])
@@ -193,11 +193,11 @@ def build_dts(dvg, order, vram):
     return prg, ts2
 
 
-# ---------------------------------------------------------------- S2: Geist und Edelstein
+# ---------------------------------------------------------------- S2: ghost and gem
 
 def _ghost_mask(vram, part):
-    """Pixelzeilen (Palettenindex oder None) des Geistteils: zweimal mit sim_vms auf verschiedene Hintergruende
-    rendern, deckend ist ein Pixel, wenn beide Laeufe denselben Wert zeigen (3.4)."""
+    """Pixel rows (palette index or None) of the ghost part: render twice with sim_vms on different backgrounds,
+    a pixel is opaque if both runs show the same value (3.4)."""
     w, h = part["w"], part["h"]
     runs = []
     for bg in MASK_BG:
@@ -215,18 +215,18 @@ def _ghost_mask(vram, part):
 
 
 def build_ghost(gparts, ghost_vram, gid):
-    """-> (S2-PRG, VRAM-Daten, SpriteSet, {(d, s, angle): rows}); Pruefung: Seiten gleich der Mitte."""
+    """-> (S2 PRG, VRAM data, SpriteSet, {(d, s, angle): rows}); check: sides equal the center."""
     mid = {}
     for p in gparts:
         if p["flags"] != 1 or p["w"] > 127:
-            raise ConvError(f"ghost.spr: Teil {(p['d'], p['s'], p['angle'])} ist kein VMS-Teil")
+            raise ConvError(f"ghost.spr: part {(p['d'], p['s'], p['angle'])} is not a VMS part")
         key = (p["d"], p["angle"])
         sig = (p["w"], p["h"], p["src"], p["list"])
         if p["s"] == 0:
             mid[key] = sig
     for p in gparts:
         if (p["w"], p["h"], p["src"], p["list"]) != mid.get((p["d"], p["angle"])):
-            raise ConvError(f"ghost.spr: Teil {(p['d'], p['s'], p['angle'])} weicht von (d, 0, a) ab (Liste/Daten)")
+            raise ConvError(f"ghost.spr: part {(p['d'], p['s'], p['angle'])} differs from (d, 0, a) (list/data)")
     images, rows_by = {}, {}
     for p in gparts:
         if p["s"] != 0:
@@ -235,14 +235,14 @@ def build_ghost(gparts, ghost_vram, gid):
         rows_by[(p["d"], p["angle"])] = rows
         images[(0, p["angle"], p["d"])] = (rows, 0, 0)
     if sorted({d for d, _ in rows_by}) != [1, 2] or {a for _, a in rows_by} != set(range(GHOST_ANGLES)):
-        raise ConvError("ghost.spr: erwartet Tiefen 1 und 2 und Blickwinkel 0-3")
-    prg, vram = dbeview.make_s2(images, D, GHOST_ANGLES, 1, STRIDE, angle_map=[0, 1, 2, 3], gid=gid, max_kerns=16,
+        raise ConvError("ghost.spr: expects depths 1 and 2 and view angles 0-3")
+    prg, vram = dbeview.make_s2(images, D, GHOST_ANGLES, 1, STRIDE, angle_map=[0, 1, 2, 3], gid=gid, max_cores=16,
                                 load=LOAD["ghost"])
     return prg, vram, dbeview.read_s2(prg, vram), rows_by
 
 
 def build_gem(font, gid):
-    """Ein Bild 6 x 6 Byte aus den Font-Zeichen 4 und 5 (je 3 Byte x 6 Zeilen), ganz deckend."""
+    """One image 6 x 6 bytes from the font characters 4 and 5 (3 bytes x 6 rows each), fully opaque."""
     rows = []
     for r in range(6):
         line = []
@@ -251,13 +251,13 @@ def build_gem(font, gid):
                 line += [b >> 4, b & 15]
         rows.append(line)
     images = {(0, 0, d): (rows, 0, 0) for d in (1, 2)}
-    prg, vram = dbeview.make_s2(images, D, 1, 1, STRIDE, angle_map=[0, 0, 0, 0], gid=gid, flags=1, max_kerns=16,
+    prg, vram = dbeview.make_s2(images, D, 1, 1, STRIDE, angle_map=[0, 0, 0, 0], gid=gid, flags=1, max_cores=16,
                                 load=LOAD["gem"])
     return prg, vram, dbeview.read_s2(prg, vram)
 
 
 def anchors_from_parts(ghost_parts, gem_parts):
-    """Anker je Tiefe (1, 2) und Seite: Geist = Ecke des Teils (d, s, 0), Edelstein = Ecke des ersten Zeichens."""
+    """Anchors per depth (1, 2) and side: ghost = corner of the part (d, s, 0), gem = corner of the first character."""
     ga = {d: {} for d in (1, 2)}
     ma = {d: {} for d in (1, 2)}
     for p in ghost_parts:
@@ -268,25 +268,25 @@ def anchors_from_parts(ghost_parts, gem_parts):
         by.setdefault((p["d"], p["s"]), []).append(p)
     for (d, s), ps in by.items():
         if len(ps) != 2 or [q["src"] for q in ps] != [c * 18 for c in GEM_CHARS]:
-            raise ConvError(f"gem.spr: Zelle {(d, s)}: erwartet die Font-Zeichen {GEM_CHARS}")
+            raise ConvError(f"gem.spr: cell {(d, s)}: expects the font characters {GEM_CHARS}")
         a, b = ps
         if (b["dest"] != a["dest"] + 3 or (a["w"], a["h"], b["w"], b["h"]) != (3, 6, 3, 6)
                 or a["flags"] or b["flags"] or a["angle"] != 0xFF):
-            raise ConvError(f"gem.spr: Zelle {(d, s)}: zweites Zeichen nicht 3 Byte rechts daneben")
+            raise ConvError(f"gem.spr: cell {(d, s)}: second character not 3 bytes to the right")
         ma[d][s] = _anchor(a["dest"])
     for t in (ga, ma):
         for d in (1, 2):
             if sorted(t[d]) != [-1, 0, 1]:
-                raise ConvError(f"Anker fuer Tiefe {d} unvollstaendig: {sorted(t[d])}")
+                raise ConvError(f"anchors for depth {d} incomplete: {sorted(t[d])}")
     return ga, ma
 
 
-# ---------------------------------------------------------------- VRL, Teile
+# ---------------------------------------------------------------- VRL, parts
 
 def vrl_parts(vram, bounds, max_part):
-    """VRL-Dateien (PRG-Rahmen). max_part 0 = eine Datei; sonst Teile an Bildgrenzen (bounds = Anfaenge der Bilder),
-    jeder Teil beginnt (ausser bei Offset 0) mit einem Skip auf seinen Offset, damit alle Teile an dasselbe Ziel
-    gehen (RXV BE+5,DA). Ein Bild, das allein schon groesser als max_part ist, bildet einen eigenen Teil."""
+    """VRL files (PRG frame). max_part 0 = one file; otherwise parts at image boundaries (bounds = starts of the images),
+    each part begins (except at offset 0) with a skip to its offset so that all parts go to the same
+    target (RXV BE+5,DA). An image that alone is already larger than max_part forms a part of its own."""
     whole = vrl.pack_file(vrl.encode(list(vram)))
     if not max_part or len(whole) <= max_part:
         return [whole]
@@ -308,11 +308,11 @@ def vrl_parts(vram, bounds, max_part):
     return parts
 
 
-# ---------------------------------------------------------------- Gesamtumwandlung
+# ---------------------------------------------------------------- overall conversion
 
 @dataclass
 class Result:
-    files: dict = field(default_factory=dict)         # Dateiname -> bytes
+    files: dict = field(default_factory=dict)         # file name -> bytes
     dvg: object = None
     dts: object = None
     ghost: object = None
@@ -327,17 +327,17 @@ class Result:
 
 
 def build(files, max_part=0, font_bytes=None):
-    """files: Eingabedateien (read_dir/read_d81). ConvError bei Fehlern.
-    font_bytes: Laenge des Zeichensatzes im VRAM; Standard = Dateilaenge von font3o.vdc ohne die 2 Byte Ladeadresse."""
+    """files: input files (read_dir/read_d81). ConvError on errors.
+    font_bytes: length of the character set in VRAM; default = file length of font3o.vdc without the 2 bytes load address."""
     if font_bytes is None:
         font_bytes = len(files["font3o.vdc"]) - 2
     walls, wvram = parse_walls(files["walls.vdc"])
-    # Gegenprobe gegen walls.wsm (Lage, Flaechen, Spalten): die Datei der 1.0f-Disk muss zu walls.vdc passen
+    # Cross-check against walls.wsm (position, faces, columns): the file of the 1.0f disk must match walls.vdc
     wsm_ents = [(e[1], e[2], e[3], e[4], e[5], e[6], e[7]) for e in wsm_entries(files["walls.wsm"]) if not e[3] & 0x80]
     mine = sorted((SL(slot)[0], SL(slot)[1], 1 if h == FULL else 0, w, h, src, wallconv.DEST_BASE + col)
                   for slot, src, w, h, _s, col in walls)
     if sorted(wsm_ents) != mine:
-        raise ConvError("walls.wsm passt nicht zu walls.vdc")
+        raise ConvError("walls.wsm does not match walls.vdc")
     gparts = parse_spr(files["ghost.spr"])
     mparts = parse_spr(files["gem.spr"])
     ga, ma = anchors_from_parts(gparts, mparts)
@@ -348,7 +348,7 @@ def build(files, max_part=0, font_bytes=None):
     dvg_prg = dbeview.dvg_bytes(dvg, LOAD["dvg"])
     dvg2 = dbeview.parse_dvg(dvg_prg)
     if dvg2.gid == 0 or dbetex.dvg_id(dvg_prg[2:]) != dvg2.gid:
-        raise ConvError("Geometrie-ID falsch")
+        raise ConvError("geometry ID wrong")
     err = dbemem.range_error("dvg", LOAD["dvg"], len(dvg_prg) - 2)
     if err:
         raise ConvError(err)
@@ -360,7 +360,7 @@ def build(files, max_part=0, font_bytes=None):
     eprg, ev, ess = build_gem(font, dvg2.gid)
     for name, prg in (("ghost.s2", gprg), ("gem.s2", eprg)):
         if len(prg) - 2 > S2_MAX:
-            raise ConvError(f"{name}: {len(prg) - 2} Byte > ${S2_MAX:X}")
+            raise ConvError(f"{name}: {len(prg) - 2} bytes > ${S2_MAX:X}")
     r = Result(dvg=dvg2, dts=ts, ghost=gss, gem=ess, ghost_rows=rows_by, wall_vram=wvram, ghost_vram=gv, gem_vram=ev,
                anchors={"ghost": ga, "gem": ma})
     f = r.files
@@ -375,7 +375,7 @@ def build(files, max_part=0, font_bytes=None):
             f[f"walls{i + 1}.vrl"] = p
     f["ghost.vrl"] = vrl.pack_file(vrl.encode(list(gv)))
     f["gem.vrl"] = vrl.pack_file(vrl.encode(list(ev)))
-    # Karte
+    # map
     mw = mh = None
     if "crawl128.cd1" in files:
         m, warn = crawlmap.convert(files["crawl128.cd1"])
@@ -384,7 +384,7 @@ def build(files, max_part=0, font_bytes=None):
         f["crawl.dmp"] = dmp
         mw, mh = m.width, m.height
     mw, mh = mw or 20, mh or 11
-    # VRAM-Summe (2.3)
+    # VRAM total (2.3)
     da = CA + font_bytes
     g0 = da + len(wvram)
     g1 = g0 + len(gv)
@@ -394,7 +394,7 @@ def build(files, max_part=0, font_bytes=None):
                   vram_reserve=VR0 - end, map_wh=(mw, mh), u_walls=len(wvram), u_ghost=len(gv), u_gem=len(ev),
                   max_part=max_part, nparts=len(wparts))
     if end > VR0:
-        raise ConvError(f"VRAM-Summe {end} > {VR0} (MA + 2*W*H)")
+        raise ConvError(f"VRAM total {end} > {VR0} (MA + 2*W*H)")
     return r
 
 
@@ -404,7 +404,7 @@ def SL(slot):
 
 
 def wsm_entries(data):
-    """walls.wsm (PRG) -> [(index, d, s, flags, w, h, src, dest)] ohne Kopf."""
+    """walls.wsm (PRG) -> [(index, d, s, flags, w, h, src, dest)] without header."""
     b = data[2:]
     if b[:3] != b"WS\x01":
         raise ConvError("walls.wsm: Magic/Version")
@@ -415,35 +415,35 @@ def wsm_entries(data):
     return out
 
 
-# ---------------------------------------------------------------- Bericht
+# ---------------------------------------------------------------- report
 
 def report_md(r, files_in=None):
     g, i = r.dvg, r.info
-    L = ["# crawlconv: Crawl 128 auf Engine 0.2", "",
-         f"DVG: {g.vw} x {g.vh}, D = {g.D}, S = {g.S}, stride {g.stride}, origin {g.origin}, Geometrie-ID "
-         f"{g.gid:#06x}, Horizont [{g.hy0}, {g.hy1}), {len(g.elems)} Elemente", "",
-         "## Elemente", "", "| # | Art | d | s | Flags | x | y | w | h | c0 | c1 |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+    L = ["# crawlconv: Crawl 128 to engine 0.2", "",
+         f"DVG: {g.vw} x {g.vh}, D = {g.D}, S = {g.S}, stride {g.stride}, origin {g.origin}, geometry ID "
+         f"{g.gid:#06x}, horizon [{g.hy0}, {g.hy1}), {len(g.elems)} elements", "",
+         "## Elements", "", "| # | Kind | d | s | Flags | x | y | w | h | c0 | c1 |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     for e in g.elems:
-        art = ("Front", "Seite", "Boden", "Decke", "Obj")[e.art]
+        art = ("front", "side", "floor", "ceiling", "Obj")[e.art]
         if e.art == dbeview.ART_OBJ:
             L.append(f"| {e.index} | Obj | {e.d} | {e.s:+d} | - | " + ", ".join(f"p{p} ({a[0]},{a[1]})" for p, a in
                                                                        enumerate(e.anchors) if p in (P_GEM, P_GHOST))
                      + " | | | | | |")
         else:
             L.append(f"| {e.index} | {art} | {e.d} | {e.s:+d} | {e.flags} | {e.x} | {e.y} | {e.w} | {e.h} | {e.c0} | {e.c1} |")
-    L += ["", "Anker: p = 2 (Mitte) Edelstein, p = 3 (vorne links) Geist, Byte-Spalte und Zeile relativ zum Fenster; "
-          "Tiefe 3 = Werte der Tiefe 2.", "",
-          "## Dateien", "", "| Datei | Bank / Ziel | Byte |", "|---|---|---|"]
-    where = {"crawl.dvg": "Bank 1 $E800", "walls.dts": "Bank 1 $8000", "ghost.s2": "Bank 1 $6000",
-             "gem.s2": "Bank 1 $7000", "crawl.dmp": "Bank 1 $4000"}
+    L += ["", "Anchors: p = 2 (center) gem, p = 3 (front left) ghost, byte column and row relative to the window; "
+          "depth 3 = values of depth 2.", "",
+          "## Files", "", "| File | Bank / target | Bytes |", "|---|---|---|"]
+    where = {"crawl.dvg": "bank 1 $E800", "walls.dts": "bank 1 $8000", "ghost.s2": "bank 1 $6000",
+             "gem.s2": "bank 1 $7000", "crawl.dmp": "bank 1 $4000"}
     for n, d in sorted(r.files.items()):
-        L.append(f"| {n} | {where.get(n, 'Bank 0 bei BE, per RXV')} | {len(d)} |")
-    L += ["", f"VRL-Teile der Wandbilder: N = {r.nparts} (--max-part {i['max_part']}).", "",
-          "## VRAM (2.3)", "", "| Name | Adresse | Byte |", "|---|---|---|",
-          f"| CA Zeichensatz | {i['CA']} | {i['font_bytes']} |", f"| DA Wand-DTS-Daten | {i['DA']} | {i['u_walls']} |",
-          f"| GA(0) Geist | {i['GA0']} | {i['u_ghost']} |", f"| GA(1) Edelstein | {i['GA1']} | {i['u_gem']} |",
+        L.append(f"| {n} | {where.get(n, 'bank 0 at BE, via RXV')} | {len(d)} |")
+    L += ["", f"VRL parts of the wall images: N = {r.nparts} (--max-part {i['max_part']}).", "",
+          "## VRAM (2.3)", "", "| Name | Address | Bytes |", "|---|---|---|",
+          f"| CA character set | {i['CA']} | {i['font_bytes']} |", f"| DA wall DTS data | {i['DA']} | {i['u_walls']} |",
+          f"| GA(0) ghost | {i['GA0']} | {i['u_ghost']} |", f"| GA(1) gem | {i['GA1']} | {i['u_gem']} |",
           f"| GA(2) = MA Automap | {i['MA']} | {2 * i['map_wh'][0] * i['map_wh'][1]} |", "",
-          f"Ende {i['vram_end']}, Grenze {i['vram_limit']}, Reserve {i['vram_reserve']} Byte.", ""]
+          f"End {i['vram_end']}, limit {i['vram_limit']}, reserve {i['vram_reserve']} bytes.", ""]
     return "\n".join(L)
 
 
@@ -468,8 +468,8 @@ def main(argv=None):
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--d81", metavar="IMAGE.d81")
     g.add_argument("--dir", metavar="DIR")
-    ap.add_argument("--max-part", type=int, default=0, metavar="N", help="VRL-Teile hoechstens N Byte (0 = ungeteilt)")
-    ap.add_argument("--font-bytes", type=int, default=None, help="Standard: Laenge von font3o.vdc ohne Ladeadresse")
+    ap.add_argument("--max-part", type=int, default=0, metavar="N", help="VRL parts at most N bytes (0 = unsplit)")
+    ap.add_argument("--font-bytes", type=int, default=None, help="default: length of font3o.vdc without load address")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     try:
@@ -477,13 +477,13 @@ def main(argv=None):
         r = build(files, a.max_part, a.font_bytes)
         write(r, a.out_dir, a.json)
     except (ConvError, dbeview.ViewError, dbetex.TexError, OSError, ValueError) as e:
-        print(f"Fehler: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         return 1
     i = r.info
-    print(f"{a.out_dir}: {len(r.dvg.elems)} Elemente, gid {r.dvg.gid:#06x}; "
+    print(f"{a.out_dir}: {len(r.dvg.elems)} elements, gid {r.dvg.gid:#06x}; "
           + ", ".join(f"{n} {len(d)}" for n, d in sorted(r.files.items())))
-    print(f"VRAM: DA {i['DA']}, GA(0) {i['GA0']}, GA(1) {i['GA1']}, MA {i['MA']}, Ende {i['vram_end']} "
-          f"(Reserve {i['vram_reserve']}); Wand-VRL-Teile N = {r.nparts}")
+    print(f"VRAM: DA {i['DA']}, GA(0) {i['GA0']}, GA(1) {i['GA1']}, MA {i['MA']}, end {i['vram_end']} "
+          f"(reserve {i['vram_reserve']}); wall VRL parts N = {r.nparts}")
     return 0
 
 

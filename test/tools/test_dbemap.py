@@ -1,4 +1,4 @@
-"""Tests fuer tools/dbemap.py (unittest)."""
+"""Tests for tools/dbemap.py (unittest)."""
 import os
 import random
 import sys
@@ -21,7 +21,7 @@ dir = "N"
 outside = "w"
 [tiles.w]
 walls = 1
-flags = ["weg"]
+flags = ["solid"]
 [tiles.g]
 floor = 1
 [legend]
@@ -60,7 +60,7 @@ class TestBuild(unittest.TestCase):
         self.assertEqual(m.content[1 * 7 + 1], 0x80)
         self.assertEqual(b[94:102], bytes.fromhex("01 01 01 01 00 00 17 00"))
         self.assertEqual(b[118:126], bytes.fromhex("02 02 02 02 01 01 01 23"))
-        # Ereignisse sortiert: Gegner (3,1)=10, Teleport (1,3)=22, Ausgang (5,3)=26
+        # events sorted: enemy (3,1)=10, teleport (1,3)=22, exit (5,3)=26
         self.assertEqual([(e.cell, e.type, e.param) for e in m.events], [(10, 1, 1), (22, 2, 1), (26, 3, 0)])
 
     def test_load_address(self):
@@ -111,7 +111,7 @@ class TestBuild(unittest.TestCase):
         cells = [i % nt for i in range(nt * 5)]
         content = [i // nt for i in range(nt * 5)]
         m = Map("", nt * 5, 1, tiles, cells, content, [], 0, 0, 0)
-        with self.assertRaisesRegex(ValueError, "zu viele Kombinationen"):
+        with self.assertRaisesRegex(ValueError, "too many combinations"):
             dbemap.to_toml(m)
 
     def test_toml_escape(self):
@@ -156,13 +156,13 @@ class TestErrors(unittest.TestCase):
         self.assertEqual(load(BASE).width, 3)
 
     def test_unknown_char(self):
-        self.fails(BASE.replace("#.#", "#q#"), r"t\.toml: Karte Zeile 2, Spalte 2: Zeichen 'q' nicht in der Legende")
+        self.fails(BASE.replace("#.#", "#q#"), r"t\.toml: map row 2, column 2: character 'q' not in the legend")
 
     def test_row_length(self):
-        self.fails(BASE.replace("#.#", "#.##"), "Zeile 2: Laenge 4 statt 3")
+        self.fails(BASE.replace("#.#", "#.##"), "row 2: length 4 instead of 3")
 
     def test_start_on_weg(self):
-        self.fails(BASE.replace("[1, 1]", "[0, 0]"), "WEG")
+        self.fails(BASE.replace("[1, 1]", "[0, 0]"), "SOLID")
 
     def test_item_64(self):
         self.fails(BASE.replace('"." = "g"', '"." = { tile = "g", item = 64 }'), "item")
@@ -171,71 +171,71 @@ class TestErrors(unittest.TestCase):
         self.fails(BASE.replace("floor = 1", "floor = 256"), "floor")
 
     def test_unknown_flag(self):
-        self.fails(BASE.replace('["weg"]', '["weg", "foo"]'), "unbekanntes Flag 'foo'")
+        self.fails(BASE.replace('["solid"]', '["solid", "foo"]'), "unknown flag 'foo'")
 
     def test_flag_inhalt(self):
-        m = load(BASE.replace('["weg"]', '["weg", "inhalt"]'))
+        m = load(BASE.replace('["solid"]', '["solid", "content"]'))
         self.assertEqual(m.tiles[0].flags, 1 | 32)
-        self.assertEqual(dbemap.FLAGS["inhalt"], 32)
+        self.assertEqual(dbemap.FLAGS["content"], 32)
         self.assertEqual(dbemap.warnings_for(m), [])
         d = dbemap.to_dmp(m)
         m2 = dbemap.from_dmp(d)
         self.assertEqual(m2.tiles[0].flags, 33)
         self.assertEqual(dbemap.to_dmp(dbemap.loads_toml(dbemap.to_toml(m2), "x")), d)
-        self.assertIn('"inhalt"', dbemap.to_toml(m2))
-        self.assertIn("inhalt", dbemap.describe(m2))
+        self.assertIn('"content"', dbemap.to_toml(m2))
+        self.assertIn("content", dbemap.describe(m2))
 
     def test_flag_inhalt_without_faces_warns(self):
-        m = load(BASE.replace("floor = 1", 'floor = 1\nflags = ["inhalt"]'))
-        self.assertTrue(any("inhalt" in w for w in dbemap.warnings_for(m)))
+        m = load(BASE.replace("floor = 1", 'floor = 1\nflags = ["content"]'))
+        self.assertTrue(any("content" in w for w in dbemap.warnings_for(m)))
 
     def test_reserved_flag_bits(self):
         m = load(BASE)
         m.tiles[0].flags = 128
-        with self.assertRaisesRegex(ValueError, "Flags"):
+        with self.assertRaisesRegex(ValueError, "flags"):
             dbemap.validate(m)
         m.tiles[0].flags = 1
         d = bytearray(dbemap.to_dmp(m))
-        d[2 + 24 + 2 * 9 + 6] = 0x80          # Flags der Kachel 0 (nach Kachel- und Inhaltsebene)
-        with self.assertRaisesRegex(ValueError, "Flag-Bit 7"):
+        d[2 + 24 + 2 * 9 + 6] = 0x80          # flags of tile 0 (after tile and content plane)
+        with self.assertRaisesRegex(ValueError, "flag bit 7"):
             dbemap.from_dmp(bytes(d))
 
-    def test_flag_fern(self):                  # Bit 6 (P6 5.7a): TOML-Rundlauf und DMP
-        m = load(BASE.replace("floor = 1", 'floor = 1\nflags = ["fern"]'))
+    def test_flag_fern(self):                  # bit 6 (P6 5.7a): TOML round trip and DMP
+        m = load(BASE.replace("floor = 1", 'floor = 1\nflags = ["distant"]'))
         self.assertEqual([t.flags for t in m.tiles if t.name == "g"], [0x40])
         dbemap.validate(m)
         m2 = dbemap.from_dmp(dbemap.to_dmp(m))
         self.assertEqual([t.flags for t in m2.tiles], [t.flags for t in m.tiles])
-        self.assertIn('"fern"', dbemap.to_toml(m))
+        self.assertIn('"distant"', dbemap.to_toml(m))
 
     def test_unknown_event_type(self):
         self.fails(BASE.replace('"." = "g"', '"." = { tile = "g", events = [{ type = "xyz" }] }'),
-                   "unbekannter Ereignistyp 'xyz'")
+                   "unknown event type 'xyz'")
 
     def test_width_256(self):
         row = "#" * 256
-        self.fails(BASE.replace("###\n#.#\n###", row), "Breite/Hoehe")
+        self.fails(BASE.replace("###\n#.#\n###", row), "width/height")
 
     def test_too_large(self):
         rows = "\n".join(["#" * 200] * 100)
         self.fails(BASE.replace("###\n#.#\n###", rows), "16384")
 
     def test_trailing_space(self):
-        self.fails(BASE.replace("#.#\n", "#.# \n"), "Zeile 2, Spalte 4: Leerzeichen am Zeilenende")
+        self.fails(BASE.replace("#.#\n", "#.# \n"), "row 2, column 4: trailing whitespace")
 
     def test_index_partial(self):
         self.fails(BASE.replace("[tiles.w]", "[tiles.w]\nindex = 0"), "index")
 
     def test_unknown_key(self):
         self.fails(BASE.replace("floor = 1", "flor = 1"), "flor")
-        self.fails(BASE.replace('dir = "N"', 'dir = "N"\nstrat = [1, 1]'), "map: unbekannter Schluessel 'strat'")
-        self.fails("titel = 1\n" + BASE, "unbekannter Schluessel 'titel'")
-        self.fails(BASE + "walls = 1\n", "layers: unbekannter Schluessel 'walls'")
+        self.fails(BASE.replace('dir = "N"', 'dir = "N"\nstrat = [1, 1]'), "map: unknown key 'strat'")
+        self.fails("titel = 1\n" + BASE, "unknown key 'titel'")
+        self.fails(BASE + "walls = 1\n", "layers: unknown key 'walls'")
 
 
 class TestFaceSubpos(unittest.TestCase):
     def test_face(self):
-        # Blick N: Front S(2), links O(1), rechts W(3); Rest durch Drehung
+        # facing N: front S(2), left E(1), right W(3); rest by rotation
         for v in range(4):
             self.assertEqual(dbemap.face(v, 0, True), (v + 2) % 4)
             self.assertEqual(dbemap.face(v, -1, False), (v + 1) % 4)
@@ -250,10 +250,10 @@ class TestFaceSubpos(unittest.TestCase):
             self.assertEqual(row[4], 2)
 
     def test_subpos_rotation(self):
-        # Weltsicht: NW=(0,0), NO=(1,0), SW=(0,1), SO=(1,1); Kamera dreht um 90 Grad nach rechts.
-        # Position p: 0 hinten links, 1 hinten rechts, 3 vorne links, 4 vorne rechts.
-        # Blick v: Welt-Ecke -> (hinten?, links?) ueber Vektoren.
-        corners = {0: (-1, -1), 1: (1, -1), 2: (-1, 1), 3: (1, 1)}   # x, y (y nach Sueden)
+        # world view: NW=(0,0), NE=(1,0), SW=(0,1), SE=(1,1); camera turns 90 degrees to the right.
+        # position p: 0 back left, 1 back right, 3 front left, 4 front right.
+        # view v: world corner -> (back?, left?) via vectors.
+        corners = {0: (-1, -1), 1: (1, -1), 2: (-1, 1), 3: (1, 1)}   # x, y (y toward south)
         fwd = [(0, -1), (1, 0), (0, 1), (-1, 0)]
         right = [(1, 0), (0, 1), (-1, 0), (0, -1)]
         for v in range(4):
@@ -276,22 +276,22 @@ class TestFromDmp(unittest.TestCase):
 
     def test_magic(self):
         self.d[2] = ord("X")
-        self.bad(self.d, "Magic")
+        self.bad(self.d, "magic")
 
     def test_version(self):
         self.d[4] = 2
         self.bad(self.d, "Version")
 
     def test_short(self):
-        self.bad(self.d[:-1], "zu kurz")
+        self.bad(self.d[:-1], "too short")
 
     def test_tile_index(self):
         self.d[2 + 24] = 4
-        self.bad(self.d, "Kachelindex")
+        self.bad(self.d, "tile index")
 
     def test_start(self):
         self.d[2 + 8] = 35
-        self.bad(self.d, "Startzelle")
+        self.bad(self.d, "start cell")
 
 
 if __name__ == "__main__":

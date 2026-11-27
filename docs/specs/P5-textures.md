@@ -1,77 +1,77 @@
-# P5: Texturen – `tools/dbetex.py`, DTS, DBG, VRL-Daten, Budget
+# P5: Textures – `tools/dbetex.py`, DTS, DBG, VRL data, budget
 
-Stand: 2026-11-25. Detailspezifikation zu Schritt P5 aus `docs/plan-0.2.md` (Abschnitte 5, 6). Umsetzung: Sonnet. Review: Opus. Abhängigkeiten: Python ≥ 3.11 (`tomllib`), Pillow, `tools/vrl.py` (P1), `tools/dbegeom.py` (P3, nur als Modul für Hilfsfunktionen und in Tests). Aseprite ist nicht installiert und wird nicht gebraucht.
+As of: 2026-11-25. Detailed specification for step P5 of `docs/plan-0.2.md` (sections 5, 6). Implementation: Sonnet. Review: Opus. Dependencies: Python ≥ 3.11 (`tomllib`), Pillow, `tools/vrl.py` (P1), `tools/dbegeom.py` (P3, only as a module for helper functions and in tests). Aseprite is not installed and is not needed.
 
-Sprite-Sätze v2 (dynamische Objekte) sind **nicht** Teil von P5, sondern ein eigener Schritt **P5b**; Abschnitt 11 skizziert nur die Schnittstelle.
+Sprite sets v2 (dynamic objects) are **not** part of P5 but a separate step, **P5b**; section 11 only sketches the interface.
 
-## 1. Überblick
+## 1. Overview
 
-`dbetex.py` liest gemalte Texturen (PNG-Atlas nach der dbegeom-Vorlage oder Aseprite-Export) und die Geometrie (`<geom>.geom.json` aus P3) und schreibt:
+`dbetex.py` reads painted textures (PNG atlas following the dbegeom template, or Aseprite export) and the geometry (`<geom>.geom.json` from P3) and writes:
 
-| Ausgabe | Bank / Ziel | Inhalt |
+| Output | Bank / target | Content |
 |---|---|---|
-| `<name>.dts` | Bank 1 (Engine, `TEXSET`, P6) | Texturset: Stile, Bildverzeichnis, Kerne, VMS-Listen, Zeilenfüllungen |
-| `<name>.vrl` | Bank 0 (Ladepuffer des Spiels), dann `RXV` an die VRAM-Basis | alle Bilddaten des Sets (Kerne und gepackte Randbytes), VRL v1 mit Dateirahmen (P1, 3) |
-| `<name>.dbg` + `<name>.vrl` | wie oben | Tapete (Abschnitt 6) |
-| `<name>.tex.json`, `<name>.tex.md` | Werkzeuge, Mensch | Bericht: Verzeichnis, Größen, Warnungen, Budget (Abschnitt 8) |
-| `<name>_<stil>_preview.png` | Mensch | Probebild je Stil mit dem Referenz-Renderer (7.3) |
+| `<name>.dts` | Bank 1 (engine, `TEXSET`, P6) | Texture set: styles, image directory, cores, VMS lists, row fills |
+| `<name>.vrl` | Bank 0 (the game's load buffer), then `RXV` to the VRAM base | all image data of the set (cores and packed edge bytes), VRL v1 with file frame (P1, 3) |
+| `<name>.dbg` + `<name>.vrl` | as above | Wallpaper (section 6) |
+| `<name>.tex.json`, `<name>.tex.md` | tools, human | Report: directory, sizes, warnings, budget (section 8) |
+| `<name>_<style>_preview.png` | human | Preview image per style using the reference renderer (7.3) |
 
-**Warum zwei Dateien:** `RXV` liest den VRL-Strom aus Bank 0 (Plan 7.2), die Engine liest ihre Metadaten aus Bank 1 (wie DVG und DMP). Die VMS-Listen stehen in der DTS und werden von `VIEW` ohnehin in den Puffer bei `$1300` kopiert (gemeinsames RAM, für `VMS` in Bank 0 sichtbar). Der VRL-Strom wird nach dem Entpacken nicht mehr gebraucht; sein Ladepuffer ist danach frei.
+**Why two files:** `RXV` reads the VRL stream from bank 0 (plan 7.2); the engine reads its metadata from bank 1 (like DVG and DMP). The VMS lists live in the DTS and are copied by `VIEW` into the buffer at `$1300` anyway (shared RAM, visible to `VMS` in bank 0). The VRL stream is no longer needed after unpacking; its load buffer is free afterwards.
 
-Ein DTS enthält genau **eine Art**: Wand, Boden oder Decke. Ein Spiel lädt je Zone bis zu drei DTS (je eine VRAM-Basis im Pool) und eine DBG.
+A DTS contains exactly **one kind**: wall, floor or ceiling. A game loads up to three DTS per zone (one VRAM base each in the pool) and one DBG.
 
-Begriffe (wie P3): Element = Eintrag der DVG-Elementtabelle; Rechteck (x, y, w, h) in Byte-Spalten und Zeilen; Pixel (px, r) im Rechteck, px = 0 … 2w − 1; Byte bx = ⌊px / 2⌋.
+Terms (as in P3): element = entry of the DVG element table; rectangle (x, y, w, h) in byte columns and rows; pixel (px, r) in the rectangle, px = 0 … 2w − 1; byte bx = ⌊px / 2⌋.
 
-## 2. Pixel, Palette, Transparenz, Nibbles
+## 2. Pixels, palette, transparency, nibbles
 
-### 2.1 Nibble-Packung
+### 2.1 Nibble packing
 
-1 Byte = 2 chunky-Pixel. **Linkes Pixel (gerades px) = High-Nibble (Bits 7–4), rechtes Pixel = Low-Nibble (Bits 3–0)** – wie `crawlsprites.py` (`>> 4` für `c % 2 == 0`), VDC-BASIC (`docs/reference/vms-format.md`) und P3 (`L` = High-Nibble).
+1 byte = 2 chunky pixels. **Left pixel (even px) = high nibble (bits 7–4), right pixel = low nibble (bits 3–0)** – like `crawlsprites.py` (`>> 4` for `c % 2 == 0`), VDC-BASIC (`docs/reference/vms-format.md`) and P3 (`L` = high nibble).
 
 ### 2.2 Palette
 
-Die 16 VDC-Farben sind die VICE-Palette `vdc_deft.vpl` („VDC (RGB with brown)“), identisch mit `dbegeom.PALETTE` (P3, 7.1). `dbetex` importiert die Tabelle aus `dbegeom` (keine zweite Kopie).
+The 16 VDC colors are the VICE palette `vdc_deft.vpl` ("VDC (RGB with brown)"), identical to `dbegeom.PALETTE` (P3, 7.1). `dbetex` imports the table from `dbegeom` (no second copy).
 
-Zuordnung eines deckenden Pixels (R, G, B):
+Mapping of an opaque pixel (R, G, B):
 
-1. Exakt gleich einem Paletteneintrag → dieser Index.
-2. Sonst nächste Farbe nach quadratischem RGB-Abstand (R² + G² + B² der Differenzen), bei Gleichstand der kleinere Index. Je Bild eine **Warnung** mit Anzahl der Pixel, größtem Abstand und erster Position (`side_d1_s-1: 37 Pixel nicht in der VDC-Palette, max. Abstand 41 bei (3, 12)`).
-3. `--strict`: jede Abweichung ist ein Fehler (Exitcode 1).
+1. Exactly equal to a palette entry → that index.
+2. Otherwise nearest color by squared RGB distance (R² + G² + B² of the differences), the smaller index on a tie. One **warning** per image with the number of pixels, the largest distance and the first position (`side_d1_s-1: 37 Pixel nicht in der VDC-Palette, max. Abstand 41 bei (3, 12)`).
+3. `--strict`: any deviation is an error (exit code 1).
 
-Indizierte PNGs (Modus `P`) werden über ihre Palette in RGB(A) umgerechnet; der Index im PNG zählt nicht (Aseprite-Paletten können umsortiert sein). Graustufen- und RGB-PNGs werden ebenso nach RGBA gewandelt.
+Indexed PNGs (mode `P`) are converted to RGB(A) via their palette; the index in the PNG does not count (Aseprite palettes may be reordered). Grayscale and RGB PNGs are likewise converted to RGBA.
 
-### 2.3 Transparenz
+### 2.3 Transparency
 
-| Pixel | Bedeutung |
+| Pixel | Meaning |
 |---|---|
 | Alpha = 0 | transparent |
-| Alpha = 255 | deckend, Farbe nach 2.2 |
-| 0 < Alpha < 255 | **Fehler** (Anzahl, erste Position), mit Hinweis: „Halbtransparenz – Masken-Ebene der Vorlage mitexportiert? Aseprite: `--layer Bild`“. Mit `--alpha-threshold N` stattdessen: Alpha < N transparent, sonst deckend. |
-| RGB = `key` (Option `key = "FF00FF"` bzw. `--key`) | transparent (für PNGs ohne Alpha-Kanal) |
+| Alpha = 255 | opaque, color per 2.2 |
+| 0 < Alpha < 255 | **error** (count, first position), with the hint: "semi-transparency: mask layer of the template exported as well? Aseprite: `--layer Image`". With `--alpha-threshold N` instead: alpha < N transparent, otherwise opaque. |
+| RGB = `key` (option `key = "FF00FF"` or `--key`) | transparent (for PNGs without an alpha channel) |
 
-Zusätzlich gilt die **Maske des Elements** (P3, 4.4, `mask` in der JSON): Pixel außerhalb sind immer transparent. Deckende Pixel außerhalb der Maske werden verworfen, mit Warnung (Anzahl je Bild): „übermalt, abgeschnitten“. Transparente Pixel innerhalb der Maske sind gewollte Transparenz (Fenster, Gitter, Bögen).
+In addition, the **mask of the element** applies (P3, 4.4, `mask` in the JSON): pixels outside it are always transparent. Opaque pixels outside the mask are discarded, with a warning (count per image): "N pixels outside the mask, painted over, clipped". Transparent pixels inside the mask are intentional transparency (windows, grilles, arches).
 
-### 2.4 Byte-Zustand je Bild
+### 2.4 Byte state per image
 
-Je Byte des Rechtecks aus den beiden Pixeln (nach 2.3):
+Per byte of the rectangle, from its two pixels (after 2.3):
 
-| Zustand | Pixel | Zeichnen |
+| State | Pixels | Drawing |
 |---|---|---|
-| voll | beide deckend | Kern (`VMC`) oder VMS Typ 1 |
-| halb-L | nur links deckend | VMS Typ 8, Low-Nibble = Alpha der Liste |
-| halb-R | nur rechts deckend | VMS Typ 8, Low-Nibble ≠ Alpha der Liste |
-| leer | beide transparent | nichts (keine Daten) |
+| full | both opaque | core (`VMC`) or VMS type 1 |
+| half-L | only left opaque | VMS type 8, low nibble = alpha of the list |
+| half-R | only right opaque | VMS type 8, low nibble ≠ alpha of the list |
+| empty | both transparent | nothing (no data) |
 
-**Alpha je VMS-Liste:** `VMS` Typ 8 vergleicht nur das **rechte** Nibble mit dem Alpha-Wert (`vms-format.md`): gleich → links aus dem Bild, rechts vom Schirm; sonst → rechts aus dem Bild, links vom Schirm. Daraus:
+**Alpha per VMS list:** `VMS` type 8 compares only the **right** nibble with the alpha value (`vms-format.md`): equal → left from the image, right from the screen; otherwise → right from the image, left from the screen. From this:
 
-- C = Menge der Farben rechter Pixel in halb-R-Bytes des Bildes.
-- Alpha = kleinster Index in {0 … 15} \ C (meist 0).
-- halb-L-Byte: `(links << 4) | alpha`. halb-R-Byte: `(0 << 4) | rechts` (High-Nibble wird nicht gelesen; 0 fest, damit die Ausgabe eindeutig ist).
-- C = alle 16 Farben (praktisch nie): Alpha = Farbe mit den wenigsten halb-R-Bytes (Gleichstand: kleinerer Index); diese halb-R-Bytes werden voll (linkes Pixel = Farbe des rechten), Warnung mit Anzahl.
+- C = set of colors of right pixels in half-R bytes of the image.
+- Alpha = smallest index in {0 … 15} \ C (usually 0).
+- half-L byte: `(left << 4) | alpha`. half-R byte: `(0 << 4) | right` (the high nibble is not read; fixed to 0 so the output is deterministic).
+- C = all 16 colors (practically never): alpha = the color with the fewest half-R bytes (tie: smaller index); these half-R bytes become full (left pixel = color of the right one), warning with count.
 
-## 3. Eingaben
+## 3. Inputs
 
-### 3.1 Projektdatei `tex.toml`
+### 3.1 Project file `tex.toml`
 
 ```toml
 format  = "dbetex"
@@ -80,299 +80,299 @@ version = 1
 [texset]
 name       = "zone1_walls"
 kind       = "wall"                        # wall | floor | ceiling
-geom       = "../geom/west140.geom.json"   # Pflicht (P3)
-dvg        = "../geom/west140.dvg"         # optional: Geometrie-ID gegenprüfen
-out        = "build/tex"                   # relativ zur tex.toml
-load       = 0xA000                        # Ladeadresse der DTS (Bank 1), siehe review-notes F.6
-vrl_load   = 0x4000                        # Ladeadresse im Dateirahmen der VRL (nur Vorgabe; BLOAD ...,P() überschreibt)
-pool_bytes = 26624                         # optional, für die Warnung in 8.2
-max_kerns  = 4                             # 0 … 4 (5.4)
-kern_min   = 16                            # Mindestfläche weiterer Kerne in Byte
-fill_rows  = true                          # Bänder mit einheitlichen Zeilen als Zeilenfüllung (5.6)
+geom       = "../geom/west140.geom.json"   # required (P3)
+dvg        = "../geom/west140.dvg"         # optional: cross-check geometry ID
+out        = "build/tex"                   # relative to tex.toml
+load       = 0xA000                        # load address of the DTS (bank 1), see review-notes F.6
+vrl_load   = 0x4000                        # load address in the VRL file frame (default only; BLOAD ...,P() overrides)
+pool_bytes = 26624                         # optional, for the warning in 8.2
+max_cores  = 4                             # 0 … 4 (5.4)
+core_min   = 16                            # minimum area of further cores in bytes
+fill_rows  = true                          # bands with uniform rows as row fill (5.6)
 key        = "FF00FF"                      # optional
-alpha_threshold = 0                        # 0 = aus (2.3)
+alpha_threshold = 0                        # 0 = off (2.3)
 
-[[style]]                                  # Reihenfolge = Stil 0, 1, … (DMP-Stilnummer = Index + 1)
-name = "ziegel"
-png  = "ziegel_atlas.png"                  # Atlas nach der dbegeom-Vorlage (3.2)
+[[style]]                                  # order = style 0, 1, … (DMP style number = index + 1)
+name = "brick"
+png  = "brick_atlas.png"                  # atlas following the dbegeom template (3.2)
 
 [[style]]
-name     = "gitter"
-aseprite = "gitter.json"                   # Aseprite-Export (3.3)
-tag      = "gitter"                        # oder frame = 0
-empty    = ["side_d3_s-3", "side_d3_s+3"]  # ausdrücklich ohne Bild ($FE, 4.4)
+name     = "grating"
+aseprite = "grating.json"                   # Aseprite export (3.3)
+tag      = "grating"                        # or frame = 0
+empty    = ["side_d3_s-3", "side_d3_s+3"]  # explicitly without image ($FE, 4.4)
 ```
 
-Regeln: unbekannte Schlüssel sind Fehler; je Stil genau eine Quelle (`png` oder `aseprite`); 1 … 32 Stile; Namen eindeutig. CLI-Optionen überschreiben die gleichnamigen Werte aus `[texset]`.
+Rules: unknown keys are errors; exactly one source per style (`png` or `aseprite`); 1 … 32 styles; names unique. CLI options override the same-named values from `[texset]`.
 
-### 3.2 PNG-Atlas
+### 3.2 PNG atlas
 
-Ein PNG je Stil, Layout exakt wie `<geom>_atlas.png` (P3, 7.2): das Bild für `name` liegt bei `atlas` (x, y in Pixeln) aus der `geom.json` (`elements[]` und `band_images[]`), Größe 2w × h. Das PNG muss mindestens `atlas_size` groß sein (sonst Fehler), größer ist erlaubt.
+One PNG per style, layout exactly like `<geom>_atlas.png` (P3, 7.2): the image for `name` lies at `atlas` (x, y in pixels) from the `geom.json` (`elements[]` and `band_images[]`), size 2w × h. The PNG must be at least `atlas_size` large (otherwise error); larger is allowed.
 
-Welche Bilder gelten (je nach `kind`):
+Which images apply (depending on `kind`):
 
-| kind | Bilder (Slice-Namen) |
+| kind | Images (slice names) |
 |---|---|
-| wall | `front_d<d>_s+0` (Vollfronten), `side_d<d>_s<±s>` |
+| wall | `front_d<d>_s+0` (full fronts), `side_d<d>_s<±s>` |
 | floor | `floorband_d<d>`, `floor_d<d>_s<±s>` |
 | ceiling | `ceilband_d<d>`, `ceil_d<d>_s<±s>` |
 
-Ein Bild gilt als **nicht vorhanden**, wenn es nach 2.3 ganz transparent ist **oder** genau der unbemalten Vorlage entspricht (Maske `AAAAAA`, Kern `555555`, wie `_atlas.png`) – Meldung „nicht bemalt“ (Info, keine Warnung).
+An image counts as **not present** if it is entirely transparent after 2.3 **or** exactly equals the unpainted template (mask `AAAAAA`, core `555555`, as in `_atlas.png`) – message "nicht bemalt" (info, not a warning).
 
-### 3.3 Aseprite-Export (JSON + Sprite-Sheet)
+### 3.3 Aseprite export (JSON + sprite sheet)
 
-Kein Parser für `.aseprite`-Binärdateien: Wer malt, hat Aseprite und damit die CLI; der JSON-Export ist dokumentiert, textbasiert und deckt Frames, Tags und Slices ab. Erwarteter Aufruf (steht auch im Docstring und im Bericht):
+No parser for `.aseprite` binary files: whoever paints has Aseprite and thus the CLI; the JSON export is documented, text-based and covers frames, tags and slices. Expected invocation (also in the docstring and in the report):
 
 ```
-aseprite -b zone1.aseprite --layer Bild --sheet zone1.png --data zone1.json \
+aseprite -b zone1.aseprite --layer Image --sheet zone1.png --data zone1.json \
          --format json-array --list-slices --list-tags
 ```
 
-Gelesen wird:
+What is read:
 
-- `meta.image` (Sheet-PNG, relativ zur JSON), `meta.size`.
-- `frames`: Liste (`json-array`) oder Objekt (`json-hash`, Reihenfolge der Schlüssel = Framenummer). Je Frame `frame` {x, y, w, h}. `rotated` = true oder `trimmed` = true → Fehler („ohne `--trim`/`--sheet-pack`-Rotation exportieren“).
-- `meta.frameTags` (optional): Stil über `tag = "<name>"` → erster Frame des Tags; sonst `frame = n` (Standard 0). Tag über mehrere Frames → Warnung, erster Frame gilt.
-- `meta.slices`: je Slice `name` und `keys[]` mit `frame`, `bounds` {x, y, w, h}. Gültig ist der Key mit dem größten `frame` ≤ gewähltem Frame (Aseprite-Semantik). `bounds` sind Koordinaten **im Sprite** (nicht im Sheet): Pixel im Sheet = `frame.x + bounds.x`, `frame.y + bounds.y`.
-- Slice-Größe muss 2w × h des Elements sein (Fehler sonst, mit Soll und Ist); die Lage ist frei (Slices dürfen verschoben werden). `center` (9-Patch) und `data` (User Data) werden ignoriert.
-- Fehlende Slice → Bild nicht vorhanden. Slice mit unbekanntem Namen → Warnung. Gleicher Name doppelt → Fehler.
+- `meta.image` (sheet PNG, relative to the JSON), `meta.size`.
+- `frames`: list (`json-array`) or object (`json-hash`, order of keys = frame number). Per frame `frame` {x, y, w, h}. `rotated` = true or `trimmed` = true → error ("export without `--trim`/`--sheet-pack` rotation").
+- `meta.frameTags` (optional): style via `tag = "<name>"` → first frame of the tag; otherwise `frame = n` (default 0). Tag spanning several frames → warning, first frame applies.
+- `meta.slices`: per slice `name` and `keys[]` with `frame`, `bounds` {x, y, w, h}. The key with the largest `frame` ≤ the chosen frame is valid (Aseprite semantics). `bounds` are coordinates **in the sprite** (not in the sheet): pixel in sheet = `frame.x + bounds.x`, `frame.y + bounds.y`.
+- Slice size must be 2w × h of the element (error otherwise, with expected and actual); the position is free (slices may be moved). `center` (9-patch) and `data` (user data) are ignored.
+- Missing slice → image not present. Slice with an unknown name → warning. Same name twice → error.
 
-Die Aseprite-Vorlage aus P3 hat dieselben Slice-Namen; Ebene „Maske“ darf nicht mitexportiert werden (sonst Fehler nach 2.3).
+The Aseprite template from P3 has the same slice names; the "Maske" layer must not be exported along with it (otherwise error per 2.3).
 
-### 3.4 Geometrie
+### 3.4 Geometry
 
-Aus `geom.json` werden gelesen: `geometry_id`, `viewport` (width_px, height, stride, depth), `planes` (T, B je Ebene, für 5.5), `bands`, `band_images`, `elements` (index, name, art, d, s, rect, kernel, cover, flags, src_dx, mask, atlas), `atlas_size`. Mit `dvg` wird zusätzlich die DVG gelesen: Magic, Version, ID nachgerechnet (P3, 5.5; Bytes 10–11 `origin` und 12–13 vor der CRC 0) und gleich der JSON-ID, NE gleich (Fehler sonst).
+Read from `geom.json`: `geometry_id`, `viewport` (width_px, height, stride, depth), `planes` (T, B per plane, for 5.5), `bands`, `band_images`, `elements` (index, name, art, d, s, rect, kernel, cover, flags, src_dx, mask, atlas), `atlas_size`. With `dvg`, the DVG is additionally read: magic, version, ID recomputed (P3, 5.5; bytes 10–11 `origin` and 12–13 before the CRC 0) and compared with the JSON ID, NE equal (error otherwise).
 
-## 4. DTS-Format (Version 1)
+## 4. DTS format (version 1)
 
-PRG-Datei: 2 Byte Ladeadresse (`load`, Standard `$A000`, Bank 1), dann der Inhalt. Alle Offsets relativ zum Inhalt (Byte nach der Ladeadresse), Wörter Low/High; das gilt auch für die Offsets im Bildverzeichnis (Kerne: Byte-Offset des ersten Kerns in der Kerntabelle, ZEILEN-Füllbytes, VMS-Listen). **VRAM-Offsets** sind relativ zur VRAM-Basis, die das Spiel bei `TEXSET` angibt (dorthin geht auch `RXV` mit der zugehörigen VRL).
+PRG file: 2-byte load address (`load`, default `$A000`, bank 1), then the content. All offsets are relative to the content (the byte after the load address), words low/high; this also applies to the offsets in the image directory (cores: byte offset of the first core in the core table, ROWS fill bytes, VMS lists). **VRAM offsets** are relative to the VRAM base that the game specifies at `TEXSET` (that is also where `RXV` goes with the corresponding VRL).
 
-### 4.1 Kopf (32 Byte)
+### 4.1 Header (32 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
 | 0–1 | `"D" "T"` (`$44 $54`) |
 | 2 | Version = 1 |
-| 3 | Art: 0 Wand, 1 Boden, 2 Decke |
-| 4–5 | Geometrie-ID (aus der DVG; `TEXSET` lehnt bei Abweichung ab). `origin` gehört nicht zur ID (P3, 5.5): DTS und DBG gelten für jede Lage des Fensters im Puffer |
-| 6 | NE: Anzahl DVG-Elemente (Kontrolle) |
-| 7 | D (Kontrolle) |
-| 8 | NS: Anzahl Slots |
-| 9 | NST: Anzahl Stile (1 … 32) |
-| 10 | NI: Anzahl Bildeinträge (≤ 254) |
-| 11 | NK: Anzahl Kerneinträge |
-| 12–13 | Offset Slotkarte |
-| 14–15 | Offset Stiltabelle |
-| 16–17 | Offset Bildverzeichnis |
-| 18–19 | Offset Kerntabelle |
-| 20–21 | Offset Datenbereich (VMS-Listen, Zeilenfüllungen) |
-| 22–23 | Gesamtlänge des Inhalts |
-| 24–25 | VRAM-Länge U (= entpackte Länge der VRL) |
-| 26–27 | CRC der VRAM-Daten: `binascii.crc_hqx(daten, 0xFFFF)` (Kontrolle für Werkzeuge und Tests) |
-| 28–29 | stride (Kontrolle; steckt auch in der Geometrie-ID) |
-| 30–31 | reserviert 0 |
+| 3 | Kind: 0 wall, 1 floor, 2 ceiling |
+| 4–5 | Geometry ID (from the DVG; `TEXSET` rejects on mismatch). `origin` is not part of the ID (P3, 5.5): DTS and DBG are valid for any position of the window in the buffer |
+| 6 | NE: number of DVG elements (check) |
+| 7 | D (check) |
+| 8 | NS: number of slots |
+| 9 | NST: number of styles (1 … 32) |
+| 10 | NI: number of image entries (≤ 254) |
+| 11 | NK: number of core entries |
+| 12–13 | Offset slot map |
+| 14–15 | Offset style table |
+| 16–17 | Offset image directory |
+| 18–19 | Offset core table |
+| 20–21 | Offset data area (VMS lists, row fills) |
+| 22–23 | Total length of the content |
+| 24–25 | VRAM length U (= unpacked length of the VRL) |
+| 26–27 | CRC of the VRAM data: `binascii.crc_hqx(data, 0xFFFF)` (check for tools and tests) |
+| 28–29 | stride (check; also contained in the geometry ID) |
+| 30–31 | reserved 0 |
 
-Reihenfolge der Bereiche: Kopf, Slotkarte, Stiltabelle, Bildverzeichnis, Kerntabelle, Datenbereich (lückenlos).
+Order of the areas: header, slot map, style table, image directory, core table, data area (gapless).
 
-### 4.2 Slotkarte (NE + 2·(D + 1) Byte)
+### 4.2 Slot map (NE + 2·(D + 1) bytes)
 
-Ordnet jedem Zeichenplatz einen Slot dieses Sets zu (`$FF` = gehört nicht zu dieser Art):
+Assigns each drawing position a slot of this set (`$FF` = does not belong to this kind):
 
-| Index | Zeichenplatz |
+| Index | Drawing position |
 |---|---|
-| 0 … NE − 1 | DVG-Element mit diesem Index |
-| NE + d | Deckenband der Tiefe d |
-| NE + (D + 1) + d | Bodenband der Tiefe d |
+| 0 … NE − 1 | DVG element with this index |
+| NE + d | Ceiling band of depth d |
+| NE + (D + 1) + d | Floor band of depth d |
 
-Slots werden in dieser Index-Reihenfolge vergeben: erst die Elemente der Art in DVG-Reihenfolge, dann die Bänder der Art (d = 0 … D, nur Bänder mit Höhe > 0).
+Slots are assigned in this index order: first the elements of the kind in DVG order, then the bands of the kind (d = 0 … D, only bands with height > 0).
 
-| Art | Elemente mit Slot | Bänder |
+| Kind | Elements with slot | Bands |
 |---|---|---|
-| Wand | Front (auch Teilfronten), Seite | – |
-| Boden | Boden | Bodenbänder |
-| Decke | Decke | Deckenbänder |
+| Wall | front (including partial fronts), side | – |
+| Floor | floor | floor bands |
+| Ceiling | ceiling | ceiling bands |
 
-Westwood 140 × 96: Wand NS = 25 (11 Fronten, 14 Seiten), Boden NS = 22 (18 + 4), Decke NS = 22.
+Westwood 140 × 96: wall NS = 25 (11 fronts, 14 sides), floor NS = 22 (18 + 4), ceiling NS = 22.
 
-### 4.3 Stiltabelle (NST × NS Byte)
+### 4.3 Style table (NST × NS bytes)
 
-Stil st, Slot k → Byte bei `st · NS + k`:
+Style st, slot k → byte at `st · NS + k`:
 
-| Wert | Bedeutung |
+| Value | Meaning |
 |---|---|
-| 0 … `$FD` | Index ins Bildverzeichnis |
-| `$FE` | kein Bild: nichts zeichnen, nichts abdecken |
-| `$FF` | **Rückgriff auf Stil 0** (Eintrag `0 · NS + k`); in Stil 0 selbst nicht erlaubt |
+| 0 … `$FD` | Index into the image directory |
+| `$FE` | no image: draw nothing, cover nothing |
+| `$FF` | **Fallback to style 0** (entry `0 · NS + k`); not allowed in style 0 itself |
 
-Zusammenspiel mit der DMP (review-notes D.4): DMP-Stilnummer 0 = nichts, n ≥ 1 = Stil n − 1 dieses DTS. n − 1 ≥ NST ist ein Kartenfehler (`dbetex check`, 9.5; `VIEW` behandelt ihn wie `$FE`).
+Interplay with the DMP (review-notes D.4): DMP style number 0 = nothing, n ≥ 1 = style n − 1 of this DTS. n − 1 ≥ NST is a map error (`dbetex check`, 9.5; `VIEW` treats it like `$FE`).
 
-Der Importer schreibt `$FF`, wenn einem Stil ≥ 1 ein Bild fehlt (3.2, 3.3), `$FE` für Bilder aus `empty` und für fehlende Bilder in Stil 0 (Warnung „Stil 0 ohne Bild für …“). Eine **Teilfront** bekommt den Wert ihres Ausschnitt-Eintrags (4.4), abgeleitet aus der Vollfront desselben Stils; fehlt die Vollfront, gilt für die Teilfront derselbe Wert (`$FF` oder `$FE`).
+The importer writes `$FF` when an image is missing for a style ≥ 1 (3.2, 3.3), `$FE` for images from `empty` and for missing images in style 0 (warning "style 0 without image for …"). A **partial front** gets the value of its cutout entry (4.4), derived from the full front of the same style; if the full front is missing, the same value applies to the partial front (`$FF` or `$FE`).
 
-### 4.4 Bildverzeichnis (NI × 16 Byte)
+### 4.4 Image directory (NI × 16 bytes)
 
-Jeder Eintrag gehört zu genau einem Slot (ein Bild ist an Rechteck, Maske und stride seines Zeichenplatzes gebunden). Gleiche Einträge verschiedener Stile im selben Slot (gleiche Pixel nach 2.3) werden zusammengelegt: ein Eintrag, gleiche VRAM-Daten.
+Each entry belongs to exactly one slot (an image is bound to the rectangle, mask and stride of its drawing position). Identical entries of different styles in the same slot (identical pixels per 2.3) are merged: one entry, identical VRAM data.
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
-| 0 | Flags: Bit 0 DECKEND (5.5); Bit 1 AUSSCHNITT (Teilfront, 5.3); Bit 2 ZEILEN (Zeilenfüllung, 5.6); Bit 3 RAND (VMS-Liste vorhanden); Rest 0 |
+| 0 | Flags: bit 0 OCCLUDING (5.5); bit 1 CUTOUT (partial front, 5.3); bit 2 ROWS (row fill, 5.6); bit 3 EDGE (VMS list present); rest 0 |
 | 1 | Slot |
-| 2 | nk: Anzahl Kerne (0 … 4; 0 bei ZEILEN) |
-| 3 | h: Zeilen des Zeichenplatzes (Kontrolle; bei ZEILEN Anzahl Füllbytes) |
-| 4–5 | Offset des ersten Kerns in der Kerntabelle (nk aufeinanderfolgende Einträge); bei ZEILEN Offset der h Füllbytes im Datenbereich; sonst 0 |
-| 6–7 | VRAM-Offset der gepackten Randbytes (0 ohne Rand) |
-| 8–9 | Anzahl Randbytes |
-| 10–11 | Offset der VMS-Liste (0 = keine) |
-| 12–13 | Länge der VMS-Liste in Byte (Kopf + Befehle) |
-| 14 | Quellbild: bei AUSSCHNITT Index des Vollfront-Eintrags, sonst eigener Index |
-| 15 | reserviert 0 |
+| 2 | nk: number of cores (0 … 4; 0 for ROWS) |
+| 3 | h: rows of the drawing position (check; for ROWS the number of fill bytes) |
+| 4–5 | Offset of the first core in the core table (nk consecutive entries); for ROWS the offset of the h fill bytes in the data area; otherwise 0 |
+| 6–7 | VRAM offset of the packed edge bytes (0 without edge) |
+| 8–9 | Number of edge bytes |
+| 10–11 | Offset of the VMS list (0 = none) |
+| 12–13 | Length of the VMS list in bytes (header + commands) |
+| 14 | Source image: for CUTOUT the index of the full-front entry, otherwise own index |
+| 15 | reserved 0 |
 
-**Zeichnen eines Eintrags** (P6; Ziel T0 = `AP + origin + y · stride + x` des Zeichenplatzes aus der DVG bzw. Band-Zeile y0, x = 0):
+**Drawing an entry** (P6; target T0 = `AP + origin + y · stride + x` of the drawing position from the DVG or band row y0, x = 0):
 
-1. Je Kern: `VMC VB + src, T0 + dy · stride + dx, w, h, stride[, srcstep]` – VCL-Typ 2, bei srcstep ≠ 0 Typ 3.
-2. Bei RAND: `VMS VB + rand_ofs, T0, Liste` – VCL-Typ 12, Liste in den VMS-Puffer kopiert.
-3. Bei ZEILEN: je Zeile i `VMF T0 + i · stride, byte_i, w` – aufeinanderfolgende gleiche Bytes zusammengefasst zu VCL-Typ 5 (reps, step = stride).
+1. Per core: `VMC VB + src, T0 + dy · stride + dx, w, h, stride[, srcstep]` – VCL type 2, with srcstep ≠ 0 type 3.
+2. With EDGE: `VMS VB + edge_ofs, T0, list` – VCL type 12, list copied into the VMS buffer.
+3. With ROWS: per row i `VMF T0 + i · stride, byte_i, w` – consecutive identical bytes merged into VCL type 5 (reps, step = stride).
 
-Kerne und Rand überschneiden sich nicht; die Reihenfolge ist frei.
+Cores and edge do not overlap; the order is free.
 
-### 4.5 Kerntabelle (NK × 8 Byte)
+### 4.5 Core table (NK × 8 bytes)
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
-| 0–1 | VRAM-Offset des ersten Quellbytes |
-| 2 | dx (Byte-Spalte relativ zum Rechteck des Zeichenplatzes) |
-| 3 | dy (Zeile relativ zum Rechteck) |
-| 4 | w (Byte, ≥ 1) |
-| 5 | h (Zeilen, ≥ 1) |
-| 6–7 | srcstep: 0 = Quelle gepackt (w Byte je Zeile, `VMC` „weiter hinter dem letzten Lauf“), sonst Abstand zweier Quellzeilen (Ausschnitt: Breite des Vollfront-Kerns) |
+| 0–1 | VRAM offset of the first source byte |
+| 2 | dx (byte column relative to the rectangle of the drawing position) |
+| 3 | dy (row relative to the rectangle) |
+| 4 | w (bytes, ≥ 1) |
+| 5 | h (rows, ≥ 1) |
+| 6–7 | srcstep: 0 = source packed (w bytes per row, `VMC` "continue after the last run"), otherwise distance between two source rows (cutout: width of the full-front core) |
 
-### 4.6 Datenbereich
+### 4.6 Data area
 
-VMS-Listen und Füllbytes, in Verzeichnisreihenfolge. VMS-Liste im Format von VDC-BASIC (`vms-format.md`, wie SPR v1):
+VMS lists and fill bytes, in directory order. VMS list in the VDC-BASIC format (`vms-format.md`, like SPR v1):
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
 | 0 | Alpha (0 … 15, 2.4) |
-| 1–2 | Anzahl Befehle n |
-| 3 … | n Befehle: Typ 1 = `01 ofs_lo ofs_hi len` (len 1 … 255), Typ 8 = `08 ofs_lo ofs_hi` |
+| 1–2 | Number of commands n |
+| 3 … | n commands: type 1 = `01 ofs_lo ofs_hi len` (len 1 … 255), type 8 = `08 ofs_lo ofs_hi` |
 
-ofs = Zeile · stride + Byte-Spalte, relativ zur linken oberen Ecke des Zeichenplatzes (stride aus der DVG). Typ 2 wird nicht erzeugt.
+ofs = row · stride + byte column, relative to the top-left corner of the drawing position (stride from the DVG). Type 2 is not generated.
 
-### 4.7 Grenzen
+### 4.7 Limits
 
-NI ≤ 254, NST ≤ 32, NK ≤ 255, Inhalt ≤ 65535, U ≤ 65535 (VRL). Überschreitung: Fehler mit Ursache (z. B. „zu viele Bilder: 261 > 254 – Stile auf zwei DTS verteilen“).
+NI ≤ 254, NST ≤ 32, NK ≤ 255, content ≤ 65535, U ≤ 65535 (VRL). On overflow: error with cause (e.g. "too many images: 261 > 254 - split styles across two DTS files").
 
-## 5. Umwandlung je Bild
+## 5. Conversion per image
 
-### 5.1 Ablauf
+### 5.1 Flow
 
-1. Pixel aus der Quelle lesen (3.2/3.3), nach 2.2/2.3 in Index oder transparent wandeln, Elementmaske anwenden.
-2. Byte-Zustände (2.4); Bild ohne deckende Pixel → nicht vorhanden.
-3. Zeilenfüllung prüfen (5.6, nur Bänder).
-4. Kerne wählen (5.4), Rest = Rand.
-5. Alpha wählen, Randbytes packen, VMS-Liste bauen (5.2).
-6. DECKEND bestimmen (5.5).
-7. Für Vollfronten: Ausschnitte der Teilfronten derselben Tiefe ableiten (5.3).
+1. Read pixels from the source (3.2/3.3), convert to index or transparent per 2.2/2.3, apply element mask.
+2. Byte states (2.4); image without opaque pixels → not present.
+3. Check row fill (5.6, bands only).
+4. Choose cores (5.4), the rest = edge.
+5. Choose alpha, pack edge bytes, build VMS list (5.2).
+6. Determine OCCLUDING (5.5).
+7. For full fronts: derive cutouts of the partial fronts of the same depth (5.3).
 
-### 5.2 Rand und VMS-Liste
+### 5.2 Edge and VMS list
 
-Zeilen r = 0 … h − 1, Bytes bx = 0 … w − 1 von links nach rechts; Kernbytes und leere Bytes werden übersprungen:
+Rows r = 0 … h − 1, bytes bx = 0 … w − 1 from left to right; core bytes and empty bytes are skipped:
 
-- maximal lange Folge voller Bytes (nicht im Kern) → Typ 1, bei mehr als 255 Byte geteilt;
-- halbes Byte → Typ 8.
+- maximally long run of full bytes (not in a core) → type 1, split if more than 255 bytes;
+- half byte → type 8.
 
-Die gepackten Randbytes stehen in genau der Reihenfolge, in der die Befehle sie verbrauchen. Ohne Randbytes: keine Liste, Bit RAND = 0.
+The packed edge bytes appear in exactly the order in which the commands consume them. Without edge bytes: no list, bit EDGE = 0.
 
-### 5.3 Teilfronten (Ausschnitt der Vollfront)
+### 5.3 Partial fronts (cutout of the full front)
 
-Teilfront-Element (d, s ≠ 0) mit Rechteck (x, y, w, h) und src_dx (P3, 4.4); Vollfront der Tiefe d mit Breite Wf. Je vorhandener Vollfront eines Stils und je Teilfront ihrer Tiefe entsteht ein Eintrag mit Bit AUSSCHNITT (Quellbild = Vollfront-Eintrag):
+Partial-front element (d, s ≠ 0) with rectangle (x, y, w, h) and src_dx (P3, 4.4); full front of depth d with width Wf. For each existing full front of a style and each partial front of its depth, an entry with bit CUTOUT is created (source image = full-front entry):
 
-- **Kerne:** je Kern (kx, ky, kw, kh, src) der Vollfront der Schnitt mit den Spalten [src_dx, src_dx + w): a = max(kx, src_dx), b = min(kx + kw, src_dx + w); leer → entfällt; sonst dx = a − src_dx, dy = ky, w' = b − a, h = kh, src' = src + (a − kx), **srcstep = kw** (immer, auch wenn der Ausschnitt den Kern ganz enthält). Keine neuen VRAM-Daten (VCL-Typ 3, review-notes C.2).
-- **Rand:** Die Randbytes der Vollfront in den sichtbaren Spalten werden **neu gepackt** (eigene VRAM-Daten, eigene VMS-Liste mit Offsets relativ zum Teilfront-Rechteck, Alpha neu nach 2.4). Grund: `VMS` liest die Quelle streng fortlaufend und kann Bytes nicht überspringen (review-notes F.2). Bei deckenden Fronten ohne Rand kostet ein Ausschnitt nur Verzeichnis- und Kerneinträge.
-- DECKEND: nach 5.5 für das Teilfront-Element.
+- **Cores:** for each core (kx, ky, kw, kh, src) of the full front, the intersection with the columns [src_dx, src_dx + w): a = max(kx, src_dx), b = min(kx + kw, src_dx + w); empty → dropped; otherwise dx = a − src_dx, dy = ky, w' = b − a, h = kh, src' = src + (a − kx), **srcstep = kw** (always, even if the cutout contains the core entirely). No new VRAM data (VCL type 3, review-notes C.2).
+- **Edge:** The edge bytes of the full front in the visible columns are **repacked** (own VRAM data, own VMS list with offsets relative to the partial-front rectangle, alpha recomputed per 2.4). Reason: `VMS` reads the source strictly sequentially and cannot skip bytes (review-notes F.2). For opaque fronts without edge, a cutout costs only directory and core entries.
+- OCCLUDING: per 5.5 for the partial-front element.
 
-### 5.4 Kerne
+### 5.4 Cores
 
-Bis zu `max_kerns` Rechtecke aus vollen Bytes, gierig:
+Up to `max_cores` rectangles of full bytes, greedy:
 
-1. Kandidaten = volle Bytes, die noch in keinem Kern liegen.
-2. Größtes Rechteck aus Kandidaten nach P3, 4.4 (Fläche maximal; Gleichstand: größere Breite, kleineres ky, kleineres kx). Den Algorithmus übernimmt `dbetex` aus `dbegeom` (Funktion auf Byte-Raster auslagern, falls nötig; beide nutzen dieselbe).
-3. Der **erste** Kern wird genommen, wenn h ≥ 1 und Fläche ≥ 1; jeder **weitere** nur bei h ≥ 2 und Fläche ≥ `kern_min`. Sonst Ende.
+1. Candidates = full bytes not yet in any core.
+2. Largest rectangle of candidates per P3, 4.4 (maximum area; tie: larger width, smaller ky, smaller kx). `dbetex` takes the algorithm from `dbegeom` (factor the function out onto the byte grid if necessary; both use the same one).
+3. The **first** core is taken if h ≥ 1 and area ≥ 1; every **further** one only if h ≥ 2 and area ≥ `core_min`. Otherwise stop.
 
-Folge: Für ein vollständig bemaltes, deckendes Bild ist Kern 1 gleich dem DVG-Kern; die Summe Kern + Rand ist immer die Zahl der nicht leeren Bytes. Mehrere Kerne entlasten den VMS-Puffer (Fenster, Gitter: Rahmenbalken als Kerne statt einer langen VMS-Liste). Daten im VRAM je Bild: Kern 1, Kern 2, …, Rand.
+Consequence: for a fully painted, opaque image, core 1 equals the DVG core; the sum of core + edge is always the number of non-empty bytes. Multiple cores relieve the VMS buffer (windows, grilles: frame bars as cores instead of one long VMS list). Data in VRAM per image: core 1, core 2, …, edge.
 
-Die Engine zeichnet mit den Kernen des DTS, nicht mit dem DVG-Kern (der dient nur Vorlage und Budget, review-notes F.4).
+The engine draws with the cores of the DTS, not with the DVG core (which only serves the template and the budget, review-notes F.4).
 
-### 5.5 DECKEND
+### 5.5 OCCLUDING
 
-Nur für Elemente mit DVG-Flag „Spaltenbereich gültig“ (Front, Seite); sonst 0. Bit 0 = 1, wenn im Bild alle Bytes in den Spalten c0 … c1 − 1 (absolut, aus der DVG) und den Zeilen max(T_{d+1}, 0) … min(B_{d+1}, VH) − 1 (absolut; `planes` der JSON) **voll** sind. Das ist genau die Bedingung, unter der P3 den Spaltenbereich berechnet, angewandt auf die tatsächlichen Pixel. Für Fronten ergibt das: alle Bytes des Rechtecks voll.
+Only for elements with the DVG flag "column range valid" (front, side); otherwise 0. Bit 0 = 1 if in the image all bytes in columns c0 … c1 − 1 (absolute, from the DVG) and rows max(T_{d+1}, 0) … min(B_{d+1}, VH) − 1 (absolute; `planes` of the JSON) are **full**. This is exactly the condition under which P3 computes the column range, applied to the actual pixels. For fronts this means: all bytes of the rectangle full.
 
-`VIEW` (P6) deckt ab, wenn DVG-Flag Bit 0, Kachel-Flag DECKEND (DMP) **und** DTS-Bit DECKEND gesetzt sind (review-notes D.5). Nicht abzudecken ist immer korrekt (nur Mehrarbeit).
+`VIEW` (P6) covers if DVG flag bit 0, tile flag OCCLUDING (DMP) **and** DTS bit OCCLUDING are set (review-notes D.5). Not covering is always correct (just extra work).
 
-### 5.6 Zeilenfüllung (Bänder)
+### 5.6 Row fill (bands)
 
-Bei `fill_rows = true`: Besteht jede Zeile eines Bandbildes aus einem einzigen, wiederholten Bytewert (einfarbig oder ein Zwei-Pixel-Muster) und ist das Band ganz voll, wird es als Eintrag mit Bit ZEILEN gespeichert: h Füllbytes im Datenbereich, **kein VRAM**. Farbverläufe (Plan 5.2, `VMF` je Zeile) entstehen so automatisch aus einem gemalten Verlauf. Sonst normales Bild (ein Kern über das ganze Band).
+With `fill_rows = true`: if every row of a band image consists of a single repeated byte value (solid color or a two-pixel pattern) and the band is entirely full, it is stored as an entry with bit ROWS: h fill bytes in the data area, **no VRAM**. Gradients (plan 5.2, `VMF` per row) thus arise automatically from a painted gradient. Otherwise a normal image (one core over the whole band).
 
-## 6. DBG-Format (Tapete, Version 1)
+## 6. DBG format (wallpaper, version 1)
 
-### 6.1 Projektdatei `bg.toml`
+### 6.1 Project file `bg.toml`
 
 ```toml
 format  = "dbebg"
 version = 1
 
 [background]
-name      = "himmel"
+name      = "sky"
 geom      = "../geom/west140.geom.json"
-png       = "himmel.png"       # Panorama: Breite 2·P Pixel, Höhe h
-y0        = "horizon"          # Zeile im Sichtfenster für die erste Panoramazeile; Zahl oder "horizon"
-                               # ("horizon": Panorama mittig auf dem Horizontband, P3 4.5)
-offsets   = "auto"             # oder [o_N, o_O, o_S, o_W] in Byte; auto: o_v = v · P / 4 (P durch 4 teilbar)
-wrap      = true               # zyklisch: o_v + VW darf über P hinausgehen
-above     = 2                  # Farbe (0 … 15) oder Liste je Zeile für Zeilen über dem Panorama
-below     = 0                  # ebenso unter dem Panorama
+png       = "sky.png"       # panorama: width 2·P pixels, height h
+y0        = "horizon"          # row in the viewport for the first panorama row; number or "horizon"
+                               # ("horizon": panorama centered on the horizon band, P3 4.5)
+offsets   = "auto"             # or [o_N, o_O, o_S, o_W] in bytes; auto: o_v = v · P / 4 (P divisible by 4)
+wrap      = true               # cyclic: o_v + VW may extend beyond P
+above     = 2                  # color (0 … 15) or list per row for rows above the panorama
+below     = 0                  # likewise below the panorama
 out       = "build/tex"
 load      = 0xA900
 vrl_load  = 0x4000
 ```
 
-Das Panorama darf keine transparenten Pixel haben (Fehler). Palette nach 2.2. P ≥ VW, P · h ≤ 65535, y0 + h ≤ VH (Fehler sonst; y0 < 0 → Fehler).
+The panorama must not have transparent pixels (error). Palette per 2.2. P ≥ VW, P · h ≤ 65535, y0 + h ≤ VH (error otherwise; y0 < 0 → error).
 
-### 6.2 Datei
+### 6.2 File
 
-PRG-Datei, Ladeadresse `load` (Bank 1). Offsets relativ zum Inhalt.
+PRG file, load address `load` (bank 1). Offsets relative to the content.
 
-| Offset | Inhalt |
+| Offset | Content |
 |---|---|
 | 0–1 | `"D" "B"` (`$44 $42`) |
 | 2 | Version = 1 |
-| 3 | VW (Kontrolle) |
-| 4 | VH (Kontrolle) |
-| 5–6 | Geometrie-ID |
-| 7–8 | P: Panoramabreite in Byte |
-| 9 | y0: Sichtfensterzeile der Panoramazeile 0 |
-| 10 | h: Panoramahöhe in Zeilen |
-| 11 | Flags: Bit 0 WRAP |
-| 12–19 | Versatz o_v je Blickrichtung v = 0 N, 1 O, 2 S, 3 W (Wort, 0 … P − 1): Panoramaspalte am linken Fensterrand |
-| 20–21 | VRAM-Länge U = P · h |
-| 22–23 | CRC der VRAM-Daten (wie 4.1) |
-| 24 … 24 + VH − 1 | Füllbyte je Sichtfensterzeile (Farbe · 17) für Zeilen außerhalb [y0, y0 + h); innerhalb 0 |
+| 3 | VW (check) |
+| 4 | VH (check) |
+| 5–6 | Geometry ID |
+| 7–8 | P: panorama width in bytes |
+| 9 | y0: viewport row of panorama row 0 |
+| 10 | h: panorama height in rows |
+| 11 | Flags: bit 0 WRAP |
+| 12–19 | Offset o_v per viewing direction v = 0 N, 1 E, 2 S, 3 W (word, 0 … P − 1): panorama column at the left window edge |
+| 20–21 | VRAM length U = P · h |
+| 22–23 | CRC of the VRAM data (as in 4.1) |
+| 24 … 24 + VH − 1 | Fill byte per viewport row (color · 17) for rows outside [y0, y0 + h); 0 inside |
 
-VRAM-Daten (eigene VRL, ein `RXV` an die Basis): das Panorama zeilenweise, P Byte je Zeile.
+VRAM data (own VRL, one `RXV` to the base): the panorama row by row, P bytes per row.
 
-**Zeichnen** einer Zeilenspanne [r0, r1) (P6, Plan 5.1): innerhalb des Panoramas `VMC VB + (r0 − y0) · P + o_v, T0, n, r1 − r0, stride, P` mit n = VW; ist WRAP gesetzt und o_v + VW > P, zwei Teile (n1 = P − o_v ab o_v, n2 = VW − n1 ab Spalte 0, Ziel + n1). Außerhalb: `VMF` je Zeile mit dem Füllbyte (gleiche Folgezeilen als VCL-Typ 5). Ohne WRAP prüft der Importer o_v + VW ≤ P für alle v (Fehler sonst).
+**Drawing** a row span [r0, r1) (P6, plan 5.1): within the panorama `VMC VB + (r0 − y0) · P + o_v, T0, n, r1 − r0, stride, P` with n = VW; if WRAP is set and o_v + VW > P, two parts (n1 = P − o_v from o_v, n2 = VW − n1 from column 0, target + n1). Outside: `VMF` per row with the fill byte (identical consecutive rows as VCL type 5). Without WRAP the importer checks o_v + VW ≤ P for all v (error otherwise).
 
-Drehrichtung: Rechtsdrehung (N → O) vergrößert o_v; bei `auto` zeigt jede Richtung ein Viertel eines 360°-Panoramas.
+Direction of rotation: turning right (N → E) increases o_v; with `auto` each direction shows a quarter of a 360° panorama.
 
-## 7. Python-API und Referenz-Renderer
+## 7. Python API and reference renderer
 
 ### 7.1 API (`tools/dbetex.py`)
 
 ```python
 @dataclass
-class Kern: src: int; dx: int; dy: int; w: int; h: int; srcstep: int
+class Core: src: int; dx: int; dy: int; w: int; h: int; srcstep: int
 @dataclass
 class Entry:
-    slot: int; flags: int; kerns: list[Kern]; rand: bytes; rand_ofs: int
+    slot: int; flags: int; cores: list[Core]; edge: bytes; edge_ofs: int
     vms: bytes; fill: bytes; source: int; style_names: list[str]
 @dataclass
 class TexSet:
@@ -380,11 +380,11 @@ class TexSet:
     slot_map: list[int]; styles: list[list[int]]; entries: list[Entry]; vram: bytes
 
 def load_geom(path, dvg=None) -> dict
-def read_rgba(path) -> PIL.Image                         # nach RGBA
+def read_rgba(path) -> PIL.Image                         # to RGBA
 def to_indices(img, box, key=None, alpha_threshold=0, strict=False) -> (list[list[int|None]], list[str])
-def classify(pix, mask) -> list[list[str]]                # 'F', 'L', 'R', '.' je Byte (2.4)
-def choose_kerns(states, max_kerns, kern_min) -> list[tuple]
-def pack_image(pix, states, kerns, stride) -> (alpha, rand: bytes, vms: bytes)
+def classify(pix, mask) -> list[list[str]]                # 'F', 'L', 'R', '.' per byte (2.4)
+def choose_cores(states, max_cores, core_min) -> list[tuple]
+def pack_image(pix, states, cores, stride) -> (alpha, edge: bytes, vms: bytes)
 def build_texset(conf) -> (TexSet, warnings)
 def to_dts(ts, load) -> bytes ; def from_dts(data) -> TexSet
 def build_background(conf) -> (dbg: bytes, vram: bytes, warnings)
@@ -392,45 +392,45 @@ def from_dbg(data) -> dict
 def budget(paths, pool, vms_buffer) -> dict
 ```
 
-`pack_image` und `classify` sind bewusst unabhängig von DTS, damit P5b (Sprite-Sätze) sie wiederverwendet.
+`pack_image` and `classify` are deliberately independent of DTS so that P5b (sprite sets) can reuse them.
 
 ### 7.2 Simulator
 
 ```python
-def sim_vmc(vram, src, dst, count, reps=1, dststep=0, srcstep=0)    # Semantik wie VDC-BASIC VMC (srcstep 0 = fortlaufend)
+def sim_vmc(vram, src, dst, count, reps=1, dststep=0, srcstep=0)    # semantics like VDC-BASIC VMC (srcstep 0 = sequential)
 def sim_vmf(vram, dst, byte, count)
-def sim_vms(vram, src, dst, vms_list)                               # Typ 1 und 8 genau nach vms-format.md
+def sim_vms(vram, src, dst, vms_list)                               # types 1 and 8 exactly per vms-format.md
 ```
 
-`vram` ist ein `bytearray(65536)`. Die Simulatoren sind die Referenz für die Tests hier und für den Listenvergleich in P6.
+`vram` is a `bytearray(65536)`. The simulators are the reference for the tests here and for the list comparison in P6.
 
-### 7.3 Referenz-Renderer
+### 7.3 Reference renderer
 
-`render(ts, style, slot, vram, fb, ap=0, origin=0, stride=None, vb=0, geom=None, t0=None)` (`vb` = VRAM-Basis der Bilddaten in `vram`, `fb` = Zielpuffer, darf dasselbe Array sein) zeichnet einen Eintrag (nach Auflösen von `$FF`) nach 4.4 mit den Simulatoren in einen Bildpuffer. `_preview.png` je Stil: Wand – „Gang“ (alle Zellen s ≠ 0 Wand, Zelle (D, 0) Wand), je Tiefe D … 0 erst die Seiten (|s| = 1), dann (nur bei d = D) die Fronten von außen nach innen – Maleralgorithmus: Seite d liegt zwischen den Ebenen d und d + 1, also hinter Front d; Boden/Decke – alle Bänder bzw. alle Kacheln. Grund schwarz, Ausgabe mit Palette 2.2, vergrößert ×4.
+`render(ts, style, slot, vram, fb, ap=0, origin=0, stride=None, vb=0, geom=None, t0=None)` (`vb` = VRAM base of the image data in `vram`, `fb` = target buffer, may be the same array) draws an entry (after resolving `$FF`) per 4.4 with the simulators into an image buffer. `_preview.png` per style: wall – "corridor" (all cells s ≠ 0 wall, cell (D, 0) wall), for each depth D … 0 first the sides (|s| = 1), then (only at d = D) the fronts from outside to inside – painter's algorithm: side d lies between planes d and d + 1, thus behind front d; floor/ceiling – all bands or all tiles. Background black, output with palette 2.2, enlarged ×4.
 
-## 8. Bericht und Budget
+## 8. Report and budget
 
-### 8.1 Bericht je Build (`.tex.md`, `.tex.json`)
+### 8.1 Report per build (`.tex.md`, `.tex.json`)
 
-- Kopfdaten (Art, Geometrie-ID, NS, NST, NI, NK), Größen: DTS-Inhalt, VRAM U, VRL-Strom (Bytes, Verhältnis aus `vrl.stats`).
-- Tabelle je Stil × Slot: Eintrag, Quelle (eigen, geteilt mit Stil n, `$FF`, `$FE`), Kerne (Anzahl, Bytes), Randbytes, VMS-Länge, Alpha, DECKEND, ZEILEN.
-- Summen je Stil: VRAM (geteilte Einträge beim ersten Stil gezählt), VMS-Summe.
-- **VMS-Schranke**: Σ über die Slots des Maximums der VMS-Längen aller Stile (Wand: Fronten + Seiten; Boden/Decke: nur Kacheln, Bänder getrennt) – obere Schranke für ein Bild, wenn alle Plätze sichtbar sind. Vergleich mit `vms_buffer` (Standard 1300, Plan 3), Warnung bei Überschreitung.
-- Warnungen (Palette, abgeschnitten, Stil 0 ohne Bild, Alpha-Konflikt), Infos (nicht bemalt, zusammengelegt).
-- Die Ausgabe auf stdout ist eine Zusammenfassung von wenigen Zeilen (`zone1_walls: 3 Stile, 41 Bilder, VRAM 19 732 Byte, VRL 8 120 Byte, VMS-Schranke 1 184/1300`).
+- Header data (kind, geometry ID, NS, NST, NI, NK), sizes: DTS content, VRAM U, VRL stream (bytes, ratio from `vrl.stats`).
+- Table per style × slot: entry, source (own, shared with style n, `$FF`, `$FE`), cores (count, bytes), edge bytes, VMS length, alpha, OCCLUDING, ROWS.
+- Totals per style: VRAM (shared entries counted at the first style), VMS total.
+- **VMS bound**: Σ over the slots of the maximum of the VMS lengths of all styles (wall: fronts + sides; floor/ceiling: tiles only, bands separate) – upper bound for one frame if all positions are visible. Compared with `vms_buffer` (default 1300, plan 3), warning on overflow.
+- Warnings (palette, clipped, style 0 without image, alpha conflict), infos (not painted, merged).
+- The output on stdout is a summary of a few lines (`zone1_walls: 3 styles, 41 images, VRAM 19 732 bytes, VRL 8 120 bytes, VMS bound 1 184/1300`).
 
-### 8.2 Pool-Prüfung (`budget`)
+### 8.2 Pool check (`budget`)
 
-`dbetex.py budget FILE… --pool N [--vms-buffer N]` liest beliebig viele DTS/DBG, summiert U und listet:
+`dbetex.py budget FILE… --pool N [--vms-buffer N]` reads any number of DTS/DBG, sums U and lists:
 
-| Zeile | Inhalt |
+| Row | Content |
 |---|---|
-| je Datei | Art, U, Anteil am Pool |
-| Summe | Σ U gegen `pool`; Exitcode 1 bei Überschreitung (Meldung „Pool überschritten um n Byte“) |
-| VMS | Wand-Schranke + Kachel-Schranken (Boden, Decke) gegen den VMS-Puffer (nur Warnung) |
-| Rest | freie Bytes für Sprites (P5b) |
+| per file | Kind, U, share of the pool |
+| Total | Σ U against `pool`; exit code 1 on overflow (message "Pool exceeded by n bytes") |
+| VMS | wall bound + tile bounds (floor, ceiling) against the VMS buffer (warning only) |
+| Remainder | free bytes for sprites (P5b) |
 
-Die VRAM-Basen legt das Spiel fest; das Werkzeug empfiehlt nur eine dichte Folge (Basis_i = Pool-Anfang + Σ U der vorigen), mit `--pool-start ADDR` als Adressen.
+The game determines the VRAM bases; the tool merely recommends a dense sequence (base_i = pool start + Σ U of the previous ones), with `--pool-start ADDR` for the addresses.
 
 ## 9. CLI
 
@@ -442,78 +442,78 @@ dbetex.py budget FILE... --pool N [--pool-start ADDR] [--vms-buffer N] [--json]
 dbetex.py check  MAP.dmp|MAP.toml [--walls W.dts] [--floors F.dts] [--ceils C.dts] [--dvg G.dvg]
 ```
 
-- `dump`: Kopf, Slotkarte mit Elementnamen (bei `--json` oder neben einer `geom.json` mit gleicher ID), Stiltabelle, Verzeichnis; mit `--vrl` CRC und U gegen den Kopf prüfen.
-- `check` (9.5; bei `.toml` statt `.dmp` mit den Kachelnamen aus der Karte, sonst `k<Index>`): jede in der DMP benutzte Stilnummer n ≥ 1 hat n − 1 < NST im DTS der Art; Geometrie-IDs aller DTS gleich (und gleich der DVG); Fehlerliste mit Kachelname/-index, Exitcode 1.
-- Ladeadressen wie P1 (`0xA000`, `$A000`, `40960`). Exitcode 0 ok, 1 Format-/Validierungsfehler (Meldung auf stderr ohne Traceback), 2 Aufruf.
+- `dump`: header, slot map with element names (with `--json` or next to a `geom.json` with the same ID), style table, directory; with `--vrl` check CRC and U against the header.
+- `check` (9.5; for `.toml` instead of `.dmp` with the tile names from the map, otherwise `k<index>`): every style number n ≥ 1 used in the DMP has n − 1 < NST in the DTS of the kind; geometry IDs of all DTS equal (and equal to the DVG); error list with tile name/index, exit code 1.
+- Load addresses as in P1 (`0xA000`, `$A000`, `40960`). Exit code 0 ok, 1 format/validation error (message on stderr without traceback), 2 usage.
 
-## 10. Tests (`test/tools/test_dbetex.py`, unittest) und Beispiel-Assets
+## 10. Tests (`test/tools/test_dbetex.py`, unittest) and example assets
 
-### 10.1 Beispiel-Assets
+### 10.1 Example assets
 
-`tools/dbetexdemo.py OUTDIR [--geom GEOM.json]` erzeugt deterministisch (ohne Zufall oder mit festem Seed) aus der Geometrie (Standard: `dbegeom` für 140 × 96 im Speicher):
+`tools/dbetexdemo.py OUTDIR [--geom GEOM.json]` generates deterministically (without randomness or with a fixed seed) from the geometry (default: `dbegeom` for 140 × 96 in memory):
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `ziegel_atlas.png` | Wand, deckend: Ziegelmuster im **Wandraum** (10.4: Fronten und Seiten perspektivisch, Fugen laufen zum Fluchtpunkt; Fuge hellgrau 14, Ziegel braun 12/rot 8 im Wechsel; 4 Ziegel je Zelle, 16 Reihen je Zellhöhe), nur innerhalb der Maske |
-| `gitter_atlas.png` | Wand, nicht deckend: Vollfronten als Gitter (senkrechte Stäbe, zwei Querbalken, Rest transparent), Seiten wie Ziegel (perspektivisch); Stabbreite 1 Byte, Abstand 1/6 Zelle auf Bytes gerundet |
-| `fenster.json` + `fenster.png` | Aseprite-artiger Export (2 Frames, Tags `fenster`, `bogen`; Slices nur für Vollfronten, eine Slice verschoben): Front mit transparentem Fenster bzw. Rundbogen |
-| `stein_atlas.png` | Boden: Bänder einfarbige Zeilen (Verlauf dunkelgrau → schwarz, wird ZEILEN), Kacheln Pflaster im Bodenraum (Quadrate 1/4 Zelle, Querfugen je Tiefe, Längsfugen zum Fluchtpunkt) |
-| `holz_atlas.png` | Decke: Bänder und Kacheln Dielen im Deckenraum (Längsbretter 1/6 Zelle zum Fluchtpunkt, Stöße alle 1/2 Zelle; kein ZEILEN) |
-| `himmel.png` | Panorama P = 4 · VW Byte, h = Horizontbandhöhe + 6: Himmel hellblau, Berge dunkelgrau mit Zacken, je Viertel ein Merkmal (für den Versatz-Test sichtbar) |
-| `walls.toml`, `floor.toml`, `ceil.toml`, `bg.toml` | Projektdateien (Stile: ziegel, gitter, fenster, bogen) |
+| `brick_atlas.png` | Wall, occluding: brick pattern in **wall space** (10.4: fronts and sides in perspective, joints run to the vanishing point; joint light gray 14, bricks alternating brown 12/red 8; 4 bricks per cell, 16 rows per cell height), only inside the mask |
+| `grating_atlas.png` | Wall, not occluding: full fronts as a grille (vertical bars, two crossbars, rest transparent), sides like brick (in perspective); bar width 1 byte, spacing 1/6 cell rounded to bytes |
+| `window.json` + `window.png` | Aseprite-style export (2 frames, tags `window`, `arch`; slices only for full fronts, one slice moved): front with transparent window or round arch |
+| `stone_atlas.png` | Floor: bands solid-color rows (gradient dark gray → black, becomes ROWS), tiles paving in floor space (squares 1/4 cell, transverse joints per depth, longitudinal joints to the vanishing point) |
+| `wood_atlas.png` | Ceiling: bands and tiles planks in ceiling space (longitudinal boards 1/6 cell to the vanishing point, butt joints every 1/2 cell; no ROWS) |
+| `sky.png` | Panorama P = 4 · VW bytes, h = horizon band height + 6: sky light blue, mountains dark gray with peaks, one feature per quarter (visible for the offset test) |
+| `walls.toml`, `floor.toml`, `ceil.toml`, `bg.toml` | Project files (styles: brick, grating, window, arch) |
 
-Die erzeugten Dateien liegen in `docs/specs/examples/tex/` im Repo (klein, für die Doku); die Tests erzeugen sie neu in `tempfile.TemporaryDirectory`.
+The generated files live in `docs/specs/examples/tex/` in the repo (small, for the docs); the tests regenerate them in `tempfile.TemporaryDirectory`.
 
-### 10.4 Perspektivische Ableitung (`tools/dbepersp.py`)
+### 10.4 Perspective derivation (`tools/dbepersp.py`)
 
-Die Engine projiziert nichts, jedes Element ist ein fertiges Bild. Ein im Bildschirmraum gemaltes Muster ist daher auf Seiten, Boden und Decke falsch (Fugen waagerecht/senkrecht statt zum Fluchtpunkt). `dbepersp` rechnet je Maskenpixel die Weltkoordinate und wertet ein flaches Muster dort aus (Weltmaß: Zellen, Ebene 1 bei Z = 1, Z_k = W_1 / W_k):
+The engine projects nothing; every element is a finished image. A pattern painted in screen space is therefore wrong on sides, floor and ceiling (joints horizontal/vertical instead of toward the vanishing point). `dbepersp` computes the world coordinate per mask pixel and evaluates a flat pattern there (world unit: cells, plane 1 at Z = 1, Z_k = W_1 / W_k):
 
-- 1/Z = W / W_1 ist in x linear (x = C + X · W), bei Boden und Decke linear in der Zeile (W zwischen den Ebenen linear von B_d nach B_{d+1} bzw. T).
-- Front (Ebene d): u = (x − C) / W_d, v = (y − T_d) / W_d.
-- Seite an der Kante e: W(x) = (x − C) / e, u = Z = W_1 / W(x), v = (y − top(x)) / W(x), top linear in W zwischen T_d und T_{d+1}. Auf der Frontkante ist v gleich der Front: Reihen schließen an, Reihenhöhe gleich.
-- Boden/Decke: u = X = (x − C) / W, v = Z = W_1 / W.
+- 1/Z = W / W_1 is linear in x (x = C + X · W), for floor and ceiling linear in the row (W linear between planes from B_d to B_{d+1} or T).
+- Front (plane d): u = (x − C) / W_d, v = (y − T_d) / W_d.
+- Side at edge e: W(x) = (x − C) / e, u = Z = W_1 / W(x), v = (y − top(x)) / W(x), top linear in W between T_d and T_{d+1}. On the front edge v equals that of the front: rows connect, row height equal.
+- Floor/ceiling: u = X = (x − C) / W, v = Z = W_1 / W.
 
-API: `Persp(geom)`, `element_fn(persp, element, pattern, n=4, bias=None)` (liefert `fn(px, r)` für Maskenmalen), Muster `pattern(u, v) -> Index | None` in Zellen (`brick_pattern()`, `flat_pattern(img, pixel_je_zelle)` kachelt ein flaches PNG und bildet auf die Palette ab). Je Pixel n × n Unterabtastungen, gewichtete Mehrheit; `bias={Farbe: Gewicht}` erhält dünne Fugen. Eigene flache Texturen: `flat_pattern(Image.open(...), ppc)` an `element_fn` übergeben und mit `_paint`-artiger Schleife in den Atlas malen (Vorbild `dbetexdemo.make_ziegel`).
+API: `Persp(geom)`, `element_fn(persp, element, pattern, n=4, bias=None)` (returns `fn(px, r)` for mask painting), patterns `pattern(u, v) -> index | None` in cells (`brick_pattern()`, `flat_pattern(img, pixels_per_cell)` tiles a flat PNG and maps it to the palette). Per pixel n × n subsamples, weighted majority; `bias={color: weight}` preserves thin joints. Custom flat textures: pass `flat_pattern(Image.open(...), ppc)` to `element_fn` and paint into the atlas with a `_paint`-style loop (model: `dbetexdemo.make_ziegel`).
 
-### 10.2 Feste Werte (140 × 96, Westwood)
+### 10.2 Fixed values (140 × 96, Westwood)
 
-- Ziegel deckend: U = **11 094** (= P3-Budget `wall_style`; Summe Kern + Rand = nicht leere Bytes), alle 25 Wandeinträge außer 8 Ausschnitten mit eigenem VRAM; Ausschnitte ohne Rand und ohne VRAM, je 1 Kern mit srcstep = Vollfrontbreite (d = 1: 50, d = 2: 32, d = 3: 20); Kern 1 jedes Bildes = DVG-Kern; DECKEND bei allen 25.
-- Boden „stein“: U = 3 640 (nur Kacheln; Bänder ZEILEN, 0 VRAM), 4 Einträge mit ZEILEN und h = 13, 19, 13, 6.
-- Decke „holz“: U = 1 540 + 1 574 = 3 114.
-- NS: Wand 25, Boden 22, Decke 22; Slotkarte im Wand-DTS: `side_d0_s-1` (DVG-Index 3) → Slot 0, `side_d0_s+1` (7) → 1, `front_d1_s+0` (11) → 2, `front_d1_s-1` (15) → 3; Boden-, Decken- und Objektplatz-Elemente → `$FF`.
-- Kopf: Magic, Version, Offsets lückenlos, Gesamtlänge, U = `vrl.unpacked_length` des Stroms, CRC.
+- Brick occluding: U = **11 094** (= P3 budget `wall_style`; sum core + edge = non-empty bytes), all 25 wall entries except 8 cutouts with own VRAM; cutouts without edge and without VRAM, 1 core each with srcstep = full-front width (d = 1: 50, d = 2: 32, d = 3: 20); core 1 of every image = DVG core; OCCLUDING on all 25.
+- Floor "stone": U = 3 640 (tiles only; bands ROWS, 0 VRAM), 4 entries with ROWS and h = 13, 19, 13, 6.
+- Ceiling "wood": U = 1 540 + 1 574 = 3 114.
+- NS: wall 25, floor 22, ceiling 22; slot map in the wall DTS: `side_d0_s-1` (DVG index 3) → slot 0, `side_d0_s+1` (7) → 1, `front_d1_s+0` (11) → 2, `front_d1_s-1` (15) → 3; floor, ceiling and object-position elements → `$FF`.
+- Header: magic, version, offsets gapless, total length, U = `vrl.unpacked_length` of the stream, CRC.
 
-### 10.3 Eigenschaften
+### 10.3 Properties
 
-- **Rundlauf Bild:** Für jeden Stil und Slot: VRL entpacken (`vrl.decode`) in ein VRAM-Abbild bei Basis VB = `$5000`; Referenz-Renderer (7.3) zeichnet in einen Puffer mit zufälligem Hintergrund (Seed fest); Ergebnis pixelgleich mit dem Erwartungsbild: deckende Pixel aus dem PNG (Palette 2.2, Maske), transparente Pixel = Hintergrund. Gilt auch für Teilfronten (Erwartung: Spalten src_dx … der Vollfront) und für Zeilenfüllungen.
-- **Alpha:** synthetische Bilder mit halb-R-Bytes in Farbe 0 → Alpha ≠ 0, Rundlauf stimmt; alle 16 Farben → Warnung, Rundlauf mit der dokumentierten Ersetzung.
-- **VMS-Liste:** Typ 1 nur für volle Bytes, Typ 8 nur für halbe, keine Befehle für leere oder Kernbytes; Länge ≤ 255 je Typ 1 (Bild mit 300 Byte breitem Lauf über `sim_vms` aus einem Testrechteck mit stride 320); Randbytes = Summe der Längen.
-- **Kerne:** nur volle Bytes, disjunkt, ≤ `max_kerns`, weitere Kerne mit h ≥ 2 und Fläche ≥ `kern_min`; `max_kerns = 0` → alles Rand; Gitter-Front: ≥ 2 Kerne, VMS-Länge kleiner als mit `max_kerns = 1`.
-- **DECKEND:** Ziegel 1; Gitter-Vollfront 0, deren Teilfronten 0; Seite mit einem transparenten Pixel außerhalb des Spaltenbereichs (über T_{d+1}) bleibt 1, innerhalb → 0.
-- **Stile:** fehlendes Bild in Stil 1 → `$FF`; in Stil 0 → `$FE` und Warnung; `empty` → `$FE`; identische Bilder in zwei Stilen → gleicher Index, VRAM einmal; Teilfront folgt der Vollfront (`$FF`/`$FE`).
-- **Eingaben:** Palette exakt / Abweichung (Warnung, `--strict` Fehler); Alpha 128 → Fehler mit Hinweis „Masken-Ebene“; `key`; indiziertes PNG mit umsortierter Palette ergibt dieselben Indizes; Pixel außerhalb der Maske → Warnung, verworfen; unbemalte Vorlage (`_atlas.png` aus dbegeom) → alle Bilder „nicht bemalt“; Atlas zu klein → Fehler.
-- **Aseprite-JSON:** `json-array` und `json-hash`; Tag und Frame; Slice-Key-Auswahl nach Frame; falsche Slice-Größe → Fehler; `trimmed` → Fehler; verschobene Slice wird gefunden; unbekannte Slice → Warnung.
-- **Geometrie:** `dvg` mit anderer ID → Fehler; DTS aus 136 × 92 mit der Geometrie 140 × 96 in `check` → Fehler.
-- **DBG:** Kopf; Rundlauf: für v = 0 … 3 Horizontzeilen über `sim_vmc` (mit WRAP-Teilung) = erwartetes Fenster aus dem Panorama ab o_v (zyklisch); Füllbytes über/unter dem Panorama; P nicht durch 4 teilbar mit `auto` → Fehler; ohne WRAP und o_v + VW > P → Fehler; transparentes Pixel → Fehler.
-- **Budget/Check:** Summe dreier Dateien gegen Pool (unter/über, Exitcode 0/1); `check` mit der Demo-Karte (`demo.toml`, Wandstile 1, 2; Boden 1; Decke 1) gegen 1-Stil-DTS: Wandstil 2 fehlt → Fehler mit Kachelname `gitter`; mit 2 Stilen ok.
-- **Determinismus:** zweimal gebaut = gleiche Bytes (DTS, VRL, DBG).
-- **CLI:** `build`, `bg`, `dump --json`, `budget`, `check` über `subprocess`; Formatfehler → Exitcode 1 ohne Traceback.
+- **Image round trip:** For every style and slot: unpack VRL (`vrl.decode`) into a VRAM image at base VB = `$5000`; the reference renderer (7.3) draws into a buffer with random background (fixed seed); result pixel-identical to the expected image: opaque pixels from the PNG (palette 2.2, mask), transparent pixels = background. Also applies to partial fronts (expectation: columns src_dx … of the full front) and to row fills.
+- **Alpha:** synthetic images with half-R bytes in color 0 → alpha ≠ 0, round trip correct; all 16 colors → warning, round trip with the documented replacement.
+- **VMS list:** type 1 only for full bytes, type 8 only for half bytes, no commands for empty or core bytes; length ≤ 255 per type 1 (image with a 300-byte-wide run via `sim_vms` from a test rectangle with stride 320); edge bytes = sum of the lengths.
+- **Cores:** full bytes only, disjoint, ≤ `max_cores`, further cores with h ≥ 2 and area ≥ `core_min`; `max_cores = 0` → everything edge; grille front: ≥ 2 cores, VMS length smaller than with `max_cores = 1`.
+- **OCCLUDING:** brick 1; grille full front 0, its partial fronts 0; side with one transparent pixel outside the column range (above T_{d+1}) stays 1, inside → 0.
+- **Styles:** missing image in style 1 → `$FF`; in style 0 → `$FE` and warning; `empty` → `$FE`; identical images in two styles → same index, VRAM once; partial front follows the full front (`$FF`/`$FE`).
+- **Inputs:** palette exact / deviation (warning, `--strict` error); alpha 128 → error with hint "mask layer"; `key`; indexed PNG with reordered palette yields the same indices; pixels outside the mask → warning, discarded; unpainted template (`_atlas.png` from dbegeom) → all images "nicht bemalt"; atlas too small → error.
+- **Aseprite JSON:** `json-array` and `json-hash`; tag and frame; slice key selection by frame; wrong slice size → error; `trimmed` → error; moved slice is found; unknown slice → warning.
+- **Geometry:** `dvg` with a different ID → error; DTS from 136 × 92 with the geometry 140 × 96 in `check` → error.
+- **DBG:** header; round trip: for v = 0 … 3 horizon rows via `sim_vmc` (with WRAP split) = expected window from the panorama starting at o_v (cyclic); fill bytes above/below the panorama; P not divisible by 4 with `auto` → error; without WRAP and o_v + VW > P → error; transparent pixel → error.
+- **Budget/check:** sum of three files against pool (under/over, exit code 0/1); `check` with the demo map (`demo.toml`, wall styles 1, 2; floor 1; ceiling 1) against a 1-style DTS: wall style 2 missing → error with tile name `grating`; with 2 styles ok.
+- **Determinism:** built twice = same bytes (DTS, VRL, DBG).
+- **CLI:** `build`, `bg`, `dump --json`, `budget`, `check` via `subprocess`; format errors → exit code 1 without traceback.
 
-Laufzeit der Testdatei < 60 s.
+Runtime of the test file < 60 s.
 
-## 11. Ausblick P5b: Sprite-Sätze v2 (nur Schnittstelle)
+## 11. Outlook P5b: sprite sets v2 (interface only)
 
-Eigener Schritt, weil zwei Fragen offen sind, die P6 mitbestimmen (Beschneiden, Tiefenstufen) und weil das VRAM-Budget die Asset-Planung prägt.
+A separate step, because two questions are open that co-determine P6 (clipping, depth levels) and because the VRAM budget shapes asset planning.
 
-- **Bild je (Phase, Blickwinkel, Tiefe d = 1 … D)**, handgemalt, keine Skalierung zur Laufzeit; unabhängig von s und Unterposition. Blickwinkel: 1 (Gegenstand), 2 oder 4. d = 0 wird nicht gezeichnet (Plan 5).
-- Je Bild ein **Fußpunkt** (Byte-Spalte, Zeile im Bild); `VIEW` setzt ihn auf den DVG-Anker (d, s, p): Ziel = Anker − Fußpunkt.
-- Bilddaten wie DTS-Einträge (Kerne + Rand + VMS-Liste, `pack_image` aus 7.1), Verzeichnis-Eintrag 16 Byte zuzüglich Fußpunkt; Daten wieder als eine VRL je Satz.
-- **Beschneiden am Fensterrand ist ungelöst:** Ein Bild auf s = ±1 ragt seitlich aus dem Fenster; `VMS` würde außerhalb schreiben (HUD, Zeilenumbruch). Kerne lassen sich per `VMC` mit srcstep beschneiden; VMS-Listen nicht, weil die Quelle fortlaufend gelesen wird. Optionen: (a) `VIEW` leitet Befehle außerhalb beim Kopieren der Liste auf einen Schmierbereich im VRAM um (Offset = Schmierbereich − Ziel, mod 65536; Läufe an der Kante geteilt), (b) vorberechnete Listen je Randlage, (c) VDC-BASIC bekommt einen Skip-Befehl in `VMS`. **Entschieden (Plan 9): (c)**, neuer Listenbefehl „Quelle n Byte weiter“ in VDC-BASIC v3; die Engine kürzt die Listen beim Kopieren in den Puffer. Folge für DTS v2 (nicht v1): Teilfronten könnten dann die Randbytes der Vollfront mitbenutzen statt sie neu zu packen (5.3, review-notes F.2).
-- **Budget:** Ein Gegner mit 4 Blickwinkeln × 2 Phasen × 3 Tiefen braucht grob 6–9 KB; nach einem Wandstil und Bändern bleiben im 26-KB-Pool etwa 10 KB (review-notes C.2). P5b muss Sparformen vorsehen (weniger Blickwinkel, Phasen nur für d = 1, gemeinsame Bilder).
-- Objektliste und Blickwinkel wie Plan 5; Satzformat „SPR v2“ mit Magic `"S" "2"`.
+- **One image per (phase, viewing angle, depth d = 1 … D)**, hand-painted, no scaling at runtime; independent of s and sub-position. Viewing angles: 1 (object), 2 or 4. d = 0 is not drawn (plan 5).
+- Per image a **foot point** (byte column, row in the image); `VIEW` places it at the DVG anchor (d, s, p): target = anchor − foot point.
+- Image data like DTS entries (cores + edge + VMS list, `pack_image` from 7.1), directory entry 16 bytes plus foot point; data again as one VRL per set.
+- **Clipping at the window edge is unsolved:** An image at s = ±1 sticks out sideways from the window; `VMS` would write outside (HUD, line wrap). Cores can be clipped via `VMC` with srcstep; VMS lists cannot, because the source is read sequentially. Options: (a) `VIEW` redirects commands outside to a scratch area in VRAM while copying the list (offset = scratch area − target, mod 65536; runs at the edge split), (b) precomputed lists per edge position, (c) VDC-BASIC gets a skip command in `VMS`. **Decided (plan 9): (c)**, new list command "advance source by n bytes" in VDC-BASIC v3; the engine trims the lists while copying into the buffer. Consequence for DTS v2 (not v1): partial fronts could then reuse the edge bytes of the full front instead of repacking them (5.3, review-notes F.2).
+- **Budget:** An enemy with 4 viewing angles × 2 phases × 3 depths needs roughly 6–9 KB; after one wall style and bands, about 10 KB remain in the 26 KB pool (review-notes C.2). P5b must provide savings variants (fewer viewing angles, phases only for d = 1, shared images).
+- Object list and viewing angles as in plan 5; set format "SPR v2" with magic `"S" "2"`.
 
-## 12. Abnahme
+## 12. Acceptance
 
-- `tools/dbetex.py` (Docstring im Stil von `wallconv.py`, mit dem Aseprite-Aufruf aus 3.3), `tools/dbetexdemo.py`, `test/tools/test_dbetex.py` grün.
-- Beispiele in `docs/specs/examples/tex/` (10.1) mit den daraus gebauten Berichten (`.tex.md`).
-- `docs/formats.md` erhält „DTS v1“ (4.1–4.6) und „DBG v1“ (6.2), kurz, mit Verweis hierher.
+- `tools/dbetex.py` (docstring in the style of `wallconv.py`, with the Aseprite invocation from 3.3), `tools/dbetexdemo.py`, `test/tools/test_dbetex.py` green.
+- Examples in `docs/specs/examples/tex/` (10.1) with the reports built from them (`.tex.md`).
+- `docs/formats.md` gets "DTS v1" (4.1–4.6) and "DBG v1" (6.2), brief, with a reference to here.

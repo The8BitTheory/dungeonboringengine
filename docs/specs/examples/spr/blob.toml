@@ -9,8 +9,8 @@ load      = 0x6000
 vrl_load  = 0x4000
 angles    = 4
 phases    = 2
-max_kerns = 4
-kern_min  = 16
+max_cores = 4
+core_min  = 16
 
 [source]
 aseprite = "blob.json"

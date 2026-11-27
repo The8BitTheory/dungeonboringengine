@@ -9,5 +9,5 @@ out  = "build"
 load = 0xEE00
 
 [[style]]
-name = "stein"
-png  = "stein_atlas.png"
+name = "stone"
+png  = "stone_atlas.png"

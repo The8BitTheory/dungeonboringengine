@@ -1,74 +1,74 @@
 ; dungeonboringengine 0.2 – Lib in Bank 1 ($B000)
 ;
-; Aufruf nur über den Stub (SYS 3331,F,X,Y). Läuft mit $FF00 = $7F (Bank 1, nur RAM, ohne I/O; Code bis $DBFF, LIBTAB $DC00-$DFFF)
-; und gemeinsamem RAM unten 8 KB ($0000-$1FFF); Parameterblock P0..P3 bei $0C00 (Bank 0).
-; Speicherkarte, Funktionen und Fehlercodes: docs/specs/P6-engine.md (2, 3).
+; Called only via the stub (SYS 3331,F,X,Y). Runs with $FF00 = $7F (Bank 1, RAM only, no I/O; code up to $DBFF, LIBTAB $DC00-$DFFF)
+; and shared RAM in the lower 8 KB ($0000-$1FFF); parameter block P0..P3 at $0C00 (Bank 0).
+; Memory map, functions and error codes: docs/specs/P6-engine.md (2, 3).
 ;
-; Stand P6a (Gerüst): Dispatcher mit der Funktionstabelle aus 3, davon umgesetzt
-;   0 INIT      Zustand gelöscht (BSS, OBJN = 0, Puffer = Standard, Pool aus); X = DBE_VERSION;
-;               P0 = Codeende, P1 = BSS-Ende
-;  11 POOLSET   P0 = Poolanfang, P1 = Poolende (exklusiv, 0 = 65536); beide 0 = keine Prüfung
-;  15 BUFSET    P0 = Pufferanfang, P1 = Pufferende (exklusiv); A = 6 bei Anfang < $1300,
-;               Ende > $1C00 oder Länge < 64 (alter Puffer bleibt); X Bit 0 = feste Listenadresse (P6j)
-; Stand P6c (Karte und Assets): MAPINIT, SETPOS, CELL, SETCELL, SETITEM, GEOMSET, TEXSET, BGSET,
-; SPRITESET, ITEMSET (Prüfungen 3.2; Fehlerreihenfolge: E_STATE, E_RANGE (Nummer), E_FORMAT, E_GEOM, E_RANGE (Pool)).
-; Festlegungen zu P6c: siehe docs/specs/P6-engine.md "Ergebnis P6c".
-; Alle anderen Funktionen (und F >= 17): A = E_NOTIMPL, bis ihr Teilschritt (P6d-P6f) sie umsetzt.
-; Stand P6d: VIEW ohne Objekte (engine/view.s, docs/specs/P6-engine.md "Ergebnis P6d").
-; Stand P6e: VIEW mit Objekten und Gegenständen (5.8; "Ergebnis P6e").
-; Stand P6f: MOVE (3.4) und Automap-Bit 6 in VIEW (nur MAPINIT X Bit 0 mit Arbeitskopie; "Ergebnis P6f").
-; Stand P6j: BUFSET X Bit 0 = feste Listenadresse (VIEW kopiert die VCL-Liste nach B0; "Ergebnis P6j").
+; Status P6a (skeleton): dispatcher with the function table from 3, of which implemented
+;   0 INIT      state cleared (BSS, OBJN = 0, buffer = default, pool off); X = DBE_VERSION;
+;               P0 = code end, P1 = BSS end
+;  11 POOLSET   P0 = pool start, P1 = pool end (exclusive, 0 = 65536); both 0 = no check
+;  15 BUFSET    P0 = buffer start, P1 = buffer end (exclusive); A = 6 if start < $1300,
+;               end > $1C00 or length < 64 (old buffer is kept); X bit 0 = fixed list address (P6j)
+; Status P6c (map and assets): MAPINIT, SETPOS, CELL, SETCELL, SETITEM, GEOMSET, TEXSET, BGSET,
+; SPRITESET, ITEMSET (checks 3.2; error order: E_STATE, E_RANGE (number), E_FORMAT, E_GEOM, E_RANGE (pool)).
+; Decisions for P6c: see docs/specs/P6-engine.md "Result P6c".
+; All other functions (and F >= 17): A = E_NOTIMPL, until their substep (P6d-P6f) implements them.
+; Status P6d: VIEW without objects (engine/view.s, docs/specs/P6-engine.md "Result P6d").
+; Status P6e: VIEW with objects and items (5.8; "Result P6e").
+; Status P6f: MOVE (3.4) and automap bit 6 in VIEW (only MAPINIT X bit 0 with working copy; "Result P6f").
+; Status P6j: BUFSET X bit 0 = fixed list address (VIEW copies the VCL list to B0; "Result P6j").
 ;
-; Übersetzen mit -DDBE_TEST (nur Tests, nie im Spiel, mit lib-test.cfg): Funktionen 250 (MMU-/Common-RAM-Probe),
-; 251 (Warteschleife von P0 x etwa 1300 Zyklen), 252 (Code unter I/O bei $DBF8) für den VICE-Rauchtest und 253
-; (Zeropage-Block ZPB unter Interrupts, test/vice_zp.py).
-; Übersetzen mit -DSIM: ohne LOADADDR (sim65-Harness, test/sim).
+; Assemble with -DDBE_TEST (tests only, never in the game, with lib-test.cfg): functions 250 (MMU/common RAM probe),
+; 251 (wait loop of P0 x about 1300 cycles), 252 (code under I/O at $DBF8) for the VICE smoke test and 253
+; (zero page block ZPB under interrupts, test/vice_zp.py).
+; Assemble with -DSIM: without LOADADDR (sim65 harness, test/sim).
 
         .include "dbe.inc"
         .macpack longbranch
 .ifdef SIM
-.define LIBSEG "LIBCODE"        ; sim65-Harness: Lib-Code an $B000 (test/sim/sim.cfg), getrennt vom C-Code
+.define LIBSEG "LIBCODE"        ; sim65 harness: lib code at $B000 (test/sim/sim.cfg), separate from the C code
 .else
 .define LIBSEG "CODE"
 .endif
 
-; Zeropage-Block ZPB ($63-$72, vom Stub gerettet und zurückgeschrieben): Zeiger und heiße Variablen von VIEW
-vp      = ZPB+0         ; VCL-Schreibzeiger (abwärts, zeigt auf den zuletzt geschriebenen Eintrag)
-mp      = ZPB+2         ; VMS-Schreibzeiger (aufwärts)
-tp      = ZPB+4         ; Kachel der Zelle (Kacheltabelle + 8 t)
-dp      = ZPB+6         ; Verzeichniseintrag des Bildes (resolve)
-op      = ZPB+8         ; Hilfszeiger der Erzeuger (beschnittene VMS-Liste), GEOMSET
-zt      = ZPB+10        ; 6 Byte heiße Einzelwerte (view.s)
+; Zero page block ZPB ($63-$72, saved by the stub and written back): pointers and hot variables of VIEW
+vp      = ZPB+0         ; VCL write pointer (downwards, points to the most recently written entry)
+mp      = ZPB+2         ; VMS write pointer (upwards)
+tp      = ZPB+4         ; tile of the cell (tile table + 8 t)
+dp      = ZPB+6         ; directory entry of the image (resolve)
+op      = ZPB+8         ; helper pointer of the producers (clipped VMS list), GEOMSET
+zt      = ZPB+10        ; 6 bytes of hot single values (view.s)
 
-gei     = zt+0          ; gcells (GEOMSET): Elementindex, Rest, Art, Platz, s der Zelle, s + 15
+gei     = zt+0          ; gcells (GEOMSET): element index, remainder, kind, slot, s of the cell, s + 15
 gn      = zt+1
 gart    = zt+2
 gj      = zt+3
 gcs     = zt+4
 gsi     = zt+5
 
-MAXCELL = 48            ; Zellentabelle (GEOMSET): Zellen aller Tiefen
-MAXWALL = 96            ; Wandelemente (Art 0/1) aller Tiefen
-MAXPEND = 16            ; Wartebereich je Tiefe (deckende Seiten bzw. Fronten ohne DVG-Bit 3)
+MAXCELL = 48            ; cell table (GEOMSET): cells of all depths
+MAXWALL = 96            ; wall elements (kind 0/1) of all depths
+MAXPEND = 16            ; pending area per depth (covering sides or fronts without DVG bit 3)
 
 .ifndef SIM
         .segment "LOADADDR"
 .ifdef DBE_TEST
-        .word   LIB-$100        ; Testbuild: Testfunktionen davor ($AF00, TESTLO in lib-test.cfg)
+        .word   LIB-$100        ; test build: test functions in front ($AF00, TESTLO in lib-test.cfg)
 .else
         .word   LIB
 .endif
 .endif
 
         .export dbe_entry := entry
-        .export bss_start, bss_end, code_end            ; für Tests (Labeldatei)
+        .export bss_start, bss_end, code_end            ; for tests (label file)
         .export argx, buf_b0, buf_b1, buf_fix, pool_a, pool_b, pool_on
         .export t0, val, ptrs, recs, rows, itemtab, geom_ok, map_ok, map_w, map_h, map_wh, map_nt, map_ne, map_auto
         .export pos, vdir, px, py, map_out, dvg_vw, dvg_origin, dvg_id, dbg_ok, dbg_vram, dbg_base, dbg_p, bgfill
         .export ffon, ffill, hs
 
         .segment "LIBBSS"
-bss_start:                      ; erster Teil von LIBBSS (view.s legt weitere Variablen an)
+bss_start:                      ; first part of LIBBSS (view.s adds more variables)
         .segment LIBSEG
 entry:  jmp     dispatch
         .byte   "DBE", DBE_VERSION
@@ -79,7 +79,7 @@ dispatch:
         cmp     #NFUNC
 .ifdef DBE_TEST
         bcc     @norm
-        jmp     t_disp          ; F >= NFUNC: Testfunktionen 250-253 (TESTLO), sonst notimpl
+        jmp     t_disp          ; F >= NFUNC: test functions 250-253 (TESTLO), otherwise notimpl
 @norm:
 .else
         bcs     notimpl
@@ -98,7 +98,7 @@ notimpl:
         ldy     #0
         rts
 
-; Tabelle aus 3: F = 0 ... 16; nicht umgesetzte Einträge = notimpl
+; Table from 3: F = 0 ... 16; unimplemented entries = notimpl
 functab:
         .word   f_init-1,     f_mapinit-1,  f_setpos-1,   f_move-1      ; 0 INIT, 1 MAPINIT, 2 SETPOS, 3 MOVE
         .word   f_view-1,     f_cell-1,     f_setcell-1,  notimpl-1     ; 4 VIEW, 5 CELL, 6 SETCELL, 7 (ENEMYSTEP)
@@ -138,12 +138,12 @@ f_init:
         cmp     #>bss_end
         bne     @clr
         lda     #0
-        ldx     #9              ; ITEMPH ... OBJVIS ($0C08-$0C11) löschen
+        ldx     #9              ; clear ITEMPH ... OBJVIS ($0C08-$0C11)
 @parm:  sta     PARM+$08,x
         dex
         bpl     @parm
         sta     OBJN
-        lda     #<BUF_B0        ; Standardpuffer
+        lda     #<BUF_B0        ; default buffer
         sta     buf_b0
         sta     VCLADR
         lda     #>BUF_B0
@@ -176,12 +176,12 @@ f_poolset:
         ora     P1
         ora     P1+1
         bne     @on
-        sta     pool_on         ; beide 0: keine Prüfung
+        sta     pool_on         ; both 0: no check
         jmp     ok
 @on:    lda     P1
         ora     P1+1
-        beq     @set            ; Ende 0 = 65536: immer größer als der Anfang
-        lda     P0              ; Anfang >= Ende (leerer oder negativer Pool): E_RANGE
+        beq     @set            ; end 0 = 65536: always greater than the start
+        lda     P0              ; start >= end (empty or negative pool): E_RANGE
         cmp     P1
         lda     P0+1
         sbc     P1+1
@@ -204,22 +204,22 @@ f_bufset:
         cmp     #<BUF_MIN0
         lda     P0+1
         sbc     #>BUF_MIN0
-        bcc     range           ; Anfang < $1300
+        bcc     range           ; start < $1300
         lda     #<BUF_B1
         cmp     P1
         lda     #>BUF_B1
         sbc     P1+1
-        bcc     range           ; Ende > $1C00
+        bcc     range           ; end > $1C00
         sec
         lda     P1
         sbc     P0
         tax
         lda     P1+1
         sbc     P0+1
-        bcc     range           ; Ende < Anfang
+        bcc     range           ; end < start
         bne     @len
         cpx     #BUF_MINLEN
-        bcc     range           ; Länge < 64
+        bcc     range           ; length < 64
 @len:   lda     P0
         sta     buf_b0
         lda     P0+1
@@ -228,20 +228,20 @@ f_bufset:
         sta     buf_b1
         lda     P1+1
         sta     buf_b1+1
-        lda     argx            ; P6j: X Bit 0 = feste Listenadresse (VIEW legt die VCL-Liste nach B0)
+        lda     argx            ; P6j: X bit 0 = fixed list address (VIEW puts the VCL list at B0)
         lsr
         ror     buf_fix         ; Bit 7
         jmp     ok
 
-; ================================================================ P6c: Karte und Assets
-; ---------------------------------------------------------------- Hilfen
+; ================================================================ P6c: map and assets
+; ---------------------------------------------------------------- Helpers
 p0_zp0: lda     P0              ; ZP0 = P0
         sta     ZP0
         lda     P0+1
         sta     ZP0+1
         rts
 
-; X = Index in eqtab; (ZP0) = Daten. C = 1: ein Byte weicht ab (Magic, Version, feste Längen)
+; X = index into eqtab; (ZP0) = data. C = 1: a byte differs (magic, version, fixed lengths)
 chkeq:  lda     eqtab,x
         bmi     @ok
         tay
@@ -256,7 +256,7 @@ chkeq:  lda     eqtab,x
 @bad:   sec
         rts
 
-; X = Index in geotab; (ZP0) = Daten. C = 1: ein Kopffeld weicht von der Geometrie (dvg_vw + Index) ab
+; X = index into geotab; (ZP0) = data. C = 1: a header field differs from the geometry (dvg_vw + index)
 chkgeo: lda     geotab,x
         bmi     @ok
         tay
@@ -275,7 +275,7 @@ chkgeo: lda     geotab,x
 @bad:   sec
         rts
 
-; Y = Kopf-Offset: acc = Wort im Kopf
+; Y = header offset: acc = word in the header
 ldacc:  lda     (ZP0),y
         sta     acc
         iny
@@ -283,7 +283,7 @@ ldacc:  lda     (ZP0),y
         sta     acc+1
         rts
 
-; Y = Kopf-Offset: C = 1, wenn das Wort im Kopf <> acc
+; Y = header offset: C = 1 if the word in the header <> acc
 chkw:   lda     (ZP0),y
         cmp     acc
         bne     @bad
@@ -296,7 +296,7 @@ chkw:   lda     (ZP0),y
 @bad:   sec
         rts
 
-; Adressen: ptrs+X ... (A) = Inhaltsanfang (ZP0) + Wörter aus dem Kopf ab Y; Ende bei ptrs+A
+; Addresses: ptrs+X ... (A) = content start (ZP0) + words from the header starting at Y; end at ptrs+A
 addtab: sta     t3
 @w:     clc
         lda     (ZP0),y
@@ -313,7 +313,7 @@ addtab: sta     t3
         bne     @w
         rts
 
-; Pool (3.2): U = acc, Basis = P1. C = 1: Verstoß
+; Pool (3.2): U = acc, base = P1. C = 1: violation
 chk_pool:
         lda     pool_on
         beq     @ok
@@ -321,7 +321,7 @@ chk_pool:
         cmp     pool_a
         lda     P1+1
         sbc     pool_a+1
-        bcc     @bad            ; Basis < Poolanfang
+        bcc     @bad            ; base < pool start
         clc
         lda     P1
         adc     acc
@@ -329,18 +329,18 @@ chk_pool:
         lda     P1+1
         adc     acc+1
         sta     acc+1
-        bcs     @ovf            ; Basis + U >= 65536
+        bcs     @ovf            ; base + U >= 65536
         lda     pool_b
         ora     pool_b+1
-        beq     @ok             ; Ende 65536
+        beq     @ok             ; end 65536
         lda     pool_b
         cmp     acc
         lda     pool_b+1
         sbc     acc+1
-        bcc     @bad            ; Basis + U > Poolende
+        bcc     @bad            ; base + U > pool end
 @ok:    clc
         rts
-@ovf:   lda     acc             ; genau 65536 nur bei Poolende 65536
+@ovf:   lda     acc             ; exactly 65536 only with pool end 65536
         ora     acc+1
         ora     pool_b
         ora     pool_b+1
@@ -350,7 +350,7 @@ chk_pool:
 @bad:   sec
         rts
 
-; Satzanfang X (recs): gültig, VRAM-Basis (P1), Inhaltsanfang (ZP0), drei Tabellenadressen aus dem Kopf ab Y; X bleibt
+; Record start X (recs): valid, VRAM base (P1), content start (ZP0), three table addresses from the header starting at Y; X is preserved
 fillrec:
         txa
         pha
@@ -382,7 +382,7 @@ cell_range:
         sbc     map_wh+1
         rts
 
-; ZP0 = Ebene Y (0 Kachel-, 2 Inhaltsebene) + Zelle P0
+; ZP0 = layer Y (0 tile, 2 content layer) + cell P0
 getcell:
         clc
         lda     map_cells,y
@@ -393,7 +393,7 @@ getcell:
         sta     ZP0+1
         rts
 
-; A = Kachelindex -> A = Flags der Kachel
+; A = tile index -> A = flags of the tile
 tileflags:
         sta     ZP1
         lda     #0
@@ -414,7 +414,7 @@ tileflags:
         lda     (ZP1),y
         rts
 
-; px, py aus pos (fortgesetzte Subtraktion)
+; px, py from pos (repeated subtraction)
 calcxy: lda     pos
         sta     acc
         lda     pos+1
@@ -481,14 +481,14 @@ f_mapinit:
         bcs     @nt
         inx
 @nt:    stx     map_nt+1
-        ldy     #11             ; NE, Start, Richtung, Außenkachel (Bytes 6-11)
+        ldy     #11             ; NE, start, direction, outer tile (bytes 6-11)
         ldx     #5
 @h:     lda     (ZP0),y
         sta     map_ne,x
         dey
         dex
         bpl     @h
-        lda     pos             ; Start < W*H
+        lda     pos             ; start < W*H
         cmp     map_wh
         lda     pos+1
         sbc     map_wh+1
@@ -496,12 +496,12 @@ f_mapinit:
         lda     vdir
         cmp     #4
         jcs     e_format
-        lda     map_nt+1        ; Außenkachel < NT
+        lda     map_nt+1        ; outer tile < NT
         bne     @o
         lda     map_out
         cmp     map_nt
         jcs     e_format
-@o:     lda     #24             ; Offsets lückenlos: 24, +WH, +WH, +8 NT, +4 NE = Länge
+@o:     lda     #24             ; offsets gapless: 24, +WH, +WH, +8 NT, +4 NE = length
         sta     acc
         lda     #0
         sta     acc+1
@@ -509,7 +509,7 @@ f_mapinit:
         jsr     chkw
         jcs     e_format
         ldx     #0
-@s:     ldy     offtab,x        ; Summand (Index ab map_wh), Linksschub, Kopf-Offset
+@s:     ldy     offtab,x        ; addend (index from map_wh), left shift, header offset
         lda     map_wh,y
         sta     val
         lda     map_wh+1,y
@@ -528,7 +528,7 @@ f_mapinit:
         lda     acc+1
         adc     val+1
         sta     acc+1
-        bcs     @fmt            ; Länge >= 65536
+        bcs     @fmt            ; length >= 65536
         ldy     offtab+2,x
         jsr     chkw
 @fmt:   jcs     e_format
@@ -537,23 +537,23 @@ f_mapinit:
         inx
         cpx     #12
         bne     @s
-        ldx     #0              ; Adressen: Kachelebene, Inhaltsebene, Kacheltabelle, Ereignisse
+        ldx     #0              ; addresses: tile layer, content layer, tile table, events
         ldy     #12
         lda     #8
         jsr     addtab
         lda     P1
         ora     P1+1
         jeq     @nocopy
-        lda     map_wh          ; Arbeitskopie: 2 * W * H Byte
+        lda     map_wh          ; working copy: 2 * W * H bytes
         asl
         sta     acc
         lda     map_wh+1
         rol
         sta     acc+1
-        lda     P1+1            ; Ziel >= $4000 (darunter BASIC-Variablen) ...
+        lda     P1+1            ; target >= $4000 (below that are BASIC variables) ...
         cmp     #$40
         jcc     range
-        clc                     ; ... und Ziel + 2 W H <= LIB (Lib, BSS, DVG, I/O, MMU unberührt)
+        clc                     ; ... and target + 2 W H <= LIB (lib, BSS, DVG, I/O, MMU untouched)
         lda     P1
         adc     acc
         tax
@@ -563,7 +563,7 @@ f_mapinit:
         cpx     #<(LIB+1)
         sbc     #>(LIB+1)
         jcs     range
-        lda     map_cells       ; ZP0 = Quelle, ZP1 = Ziel
+        lda     map_cells       ; ZP0 = source, ZP1 = target
         sta     ZP0
         lda     map_cells+1
         sta     ZP0+1
@@ -599,8 +599,8 @@ f_mapinit:
         adc     map_wh+1
         sta     map_cont+1
 @nocopy:
-        jsr     mtiles          ; Kacheltabellen für VIEW
-        lda     argx            ; Automap nur mit Bit 0 und Arbeitskopie (P1 <> 0, P1 noch Eingabe)
+        jsr     mtiles          ; tile tables for VIEW
+        lda     argx            ; automap only with bit 0 and working copy (P1 <> 0, P1 still input)
         and     #1
         ldx     P1
         bne     @au
@@ -625,8 +625,8 @@ f_mapinit:
         ldy     map_h
         rts
 
-; Kacheltabellen (VIEW): tpl/tph = Adresse des Kachelsatzes t, tsm = Bit 7 Flächen (eine Wand <> 0),
-; Bit 6 blocked (DECKEND und alle vier Wände), Bits 0-5 = Kachel-Flags (DECKEND $04, INHALT $20)
+; Tile tables (VIEW): tpl/tph = address of tile record t, tsm = bit 7 surfaces (one wall <> 0),
+; bit 6 blocked (COVERING and all four walls), bits 0-5 = tile flags (COVERING $04, CONTENT $20)
 mtiles: lda     map_tiles
         sta     ZP1
         lda     map_tiles+1
@@ -642,7 +642,7 @@ mtiles: lda     map_tiles
         sta     t0
         ldy     #3
         lda     #0
-        sta     t1              ; Wände <> 0
+        sta     t1              ; walls <> 0
 @w:     lda     (ZP1),y
         beq     @w0
         inc     t1
@@ -655,7 +655,7 @@ mtiles: lda     map_tiles
         ldy     t1
         cpy     #4
         bne     @s1
-        and     #$04            ; alle vier und DECKEND: blocked
+        and     #$04            ; all four and COVERING: blocked
         beq     @s0
         lda     t0
         ora     #$C0
@@ -672,12 +672,12 @@ mtiles: lda     map_tiles
         bcc     @n
         inc     ZP1+1
 @n:     inx
-        beq     @e              ; 256 Kacheln
+        beq     @e              ; 256 tiles
         cpx     map_nt
         bne     @t
 @e:     rts
 
-; Tabelle der Offsetprüfung: Summand (Byte-Index ab map_wh), Linksschub, Kopf-Offset der Summe
+; Table of the offset check: addend (byte index from map_wh), left shift, header offset of the sum
 offtab: .byte   0,0,14, 0,0,16, 2,3,18, 4,2,20
 
 ; ---------------------------------------------------------------- 2 SETPOS
@@ -698,9 +698,9 @@ f_setpos:
         jmp     ok
 
 ; ---------------------------------------------------------------- 3 MOVE (P6f, 3.4)
-; X = Aktion: 0/1 vor/zurück, 2/3 links/rechts, 4/5/6 drehen links/rechts/umdrehen; A = 6 bei X >= 7.
-; Ergebnis X: 0 ok, 1 Karte/WEG, 2 Objekt; Y: Kachel (Position bzw. Ziel) bzw. Objektindex; P0 = Position,
-; P1 = Inhaltsbyte der Position, P2 = Index des ersten Ereignisses der Position ($FFFF keines)
+; X = action: 0/1 forward/back, 2/3 left/right, 4/5/6 turn left/right/around; A = 6 if X >= 7.
+; Result X: 0 ok, 1 map/SOLID, 2 object; Y: tile (position or target) or object index; P0 = position,
+; P1 = content byte of the position, P2 = index of the first event of the position ($FFFF none)
 f_move: lda     map_ok
         jeq     e_state
         ldx     argx
@@ -712,9 +712,9 @@ f_move: lda     map_ok
         and     #3
         cpx     #4
         jcc     @step
-        sta     vdir            ; drehen
+        sta     vdir            ; turn
         ldx     #0
-@fin:   stx     t1              ; Ergebnis X, Y (t2)
+@fin:   stx     t1              ; result X, Y (t2)
         sty     t2
         lda     pos
         sta     P0
@@ -722,17 +722,17 @@ f_move: lda     map_ok
         sta     P0+1
         txa
         bne     @nt
-        tay                     ; X = 0: Y = Kachel der Position
+        tay                     ; X = 0: Y = tile of the position
         jsr     getcell
         lda     (ZP0),y
         sta     t2
-@nt:    ldy     #2              ; P1 = Inhaltsbyte
+@nt:    ldy     #2              ; P1 = content byte
         jsr     getcell
         ldy     #0
         lda     (ZP0),y
         sta     P1
         sty     P1+1
-        dey                     ; P2 = Index des ersten Ereignisses der Zelle ($FFFF keines)
+        dey                     ; P2 = index of the first event of the cell ($FFFF none)
         sty     P2
         sty     P2+1
         lda     map_ev
@@ -747,7 +747,7 @@ f_move: lda     map_ok
         lda     acc+1
         sbc     map_ne+1
         bcs     @d
-        ldy     #1              ; Liste nach Zelle sortiert (P4 2.5): Abbruch beim ersten größeren Eintrag
+        ldy     #1              ; list sorted by cell (P4 2.5): stop at the first greater entry
         lda     (ZP0),y
         cmp     pos+1
         bcc     @nx
@@ -775,7 +775,7 @@ f_move: lda     map_ok
         bne     @e
         inc     acc+1
         bne     @e
-@step:  tax                     ; X = Zielrichtung d; Zielzelle (acc = x, y), außerhalb: 8 Bit, $FF >= W
+@step:  tax                     ; X = target direction d; target cell (acc = x, y), outside: 8 bit, $FF >= W
         clc
         lda     px
         adc     mvdel,x
@@ -788,10 +788,10 @@ f_move: lda     map_ok
         sta     acc+1
         cmp     map_h
         bcc     @in
-@out:   ldx     #1              ; außerhalb: Außenkachel
+@out:   ldx     #1              ; outside: outer tile
         ldy     map_out
         jmp     @fin
-@in:    txa                     ; Zellindex = pos + Schritt: O +1, W -1, S +W, N -W
+@in:    txa                     ; cell index = pos + step: E +1, W -1, S +W, N -W
         lsr
         lda     #1
         bcs     @a
@@ -801,7 +801,7 @@ f_move: lda     map_ok
         beq     @ng
         cpx     #3
         bne     @pl
-@ng:    eor     #$FF            ; negativ
+@ng:    eor     #$FF            ; negative
         clc
         adc     #1
         dey
@@ -811,17 +811,17 @@ f_move: lda     map_ok
         tya
         adc     pos+1
         sta     P0+1
-        ldy     #0              ; Kachel des Ziels
+        ldy     #0              ; tile of the target
         jsr     getcell
         lda     (ZP0),y
         sta     t0
         jsr     tileflags
-        lsr                     ; WEG = Bit 0
+        lsr                     ; SOLID = bit 0
         bcc     @ow
         ldx     #1
         ldy     t0
         jmp     @fin
-@ow:    lda     OBJN            ; Objekte der Liste (höchstens 16): erstes ohne Bit 6/7 auf der Zielzelle
+@ow:    lda     OBJN            ; objects of the list (at most 16): first one without bit 6/7 on the target cell
         cmp     #MAXOBJ+1
         bcc     @oc
         lda     #MAXOBJ
@@ -845,9 +845,9 @@ f_move: lda     map_ok
         tax
         iny
         bne     @ol
-@ob:    ldx     #2              ; Y = Objektindex
+@ob:    ldx     #2              ; Y = object index
         jmp     @fin
-@go:    lda     P0              ; Schritt ausführen
+@go:    lda     P0              ; perform the step
         sta     pos
         lda     P0+1
         sta     pos+1
@@ -857,7 +857,7 @@ f_move: lda     map_ok
         sta     py
         ldx     #0
         jmp     @fin
-; Richtungszuwachs je Aktion; dx je Richtung N O S W (mvdel[d]), dy = mvdel[d + 3]
+; Direction increment per action; dx per direction N E S W (mvdel[d]), dy = mvdel[d + 3]
 mvtab:  .byte   0, 2, 3, 1, 3, 1, 2
 mvdel:  .byte   0, 1, 0, $FF, 0, 1, 0
 
@@ -926,7 +926,7 @@ f_itemset:
         cmp     #9
         jcs     range
         ldx     argx
-        lda     itemtab,x       ; itemn = Anzahl der Einträge <> 0 (VIEW: Gegenstände nur, wenn itemn > 0)
+        lda     itemtab,x       ; itemn = number of entries <> 0 (VIEW: items only if itemn > 0)
         beq     @o
         dec     itemn
 @o:     lda     argy
@@ -955,20 +955,20 @@ f_geomset:
         lda     (ZP0),y
         cmp     #8
         jcs     e_format
-        iny                     ; S <= 15 (VIEW: höchstens 31 Zellen je Tiefe)
+        iny                     ; S <= 15 (VIEW: at most 31 cells per depth)
         lda     (ZP0),y
         cmp     #16
         jcs     e_format
         iny                     ; NE >= 1
         lda     (ZP0),y
         jeq     e_format
-        jsr     gcells          ; Elementtabelle prüfen und Zellentabelle anlegen; Fehler: keine gültige Geometrie
+        jsr     gcells          ; check the element table and build the cell table; error: no valid geometry
         bcc     @ge
         lda     #0
         sta     geom_ok
         jmp     e_format
 @ge:
-        ldx     #0              ; t0 = 1: andere ID als bisher
+        ldx     #0              ; t0 = 1: different ID than before
         ldy     #12
         lda     (ZP0),y
         cmp     dvg_id
@@ -979,7 +979,7 @@ f_geomset:
         beq     @s
 @d:     inx
 @s:     stx     t0
-        ldy     #15             ; VW, VH, D, S, NE, stride, origin, ID, y0, y1 (Bytes 3-15)
+        ldy     #15             ; VW, VH, D, S, NE, stride, origin, ID, y0, y1 (bytes 3-15)
         ldx     #12
 @c:     lda     (ZP0),y
         sta     dvg_vw,x
@@ -994,13 +994,13 @@ f_geomset:
         sta     dvg_origin
         lda     P1+1
         sta     dvg_origin+1
-@nor:   ldx     #dvg_depth-ptrs ; Tiefentabelle, Elementtabelle
+@nor:   ldx     #dvg_depth-ptrs ; depth table, element table
         ldy     #18
         lda     #dvg_depth-ptrs+4
         jsr     addtab
         lda     #0
-        sta     t1              ; gelöschte S2-Sätze
-        sta     t2              ; gelöschte DTS (Bit 0-2), DBG (Bit 3)
+        sta     t1              ; deleted S2 records
+        sta     t2              ; deleted DTS (bits 0-2), DBG (bit 3)
         lda     t0
         jeq     @rows
         lda     #1
@@ -1031,10 +1031,10 @@ f_geomset:
         sta     t3
 @sl:    lda     recs,x
         beq     @ns
-        lda     recs+5,x        ; ID <> 0 und andere Geometrie: löschen
+        lda     recs+5,x        ; ID <> 0 and different geometry: delete
         ora     recs+6,x
         bne     @kill
-        lda     recs+8,x        ; ID 0: nur bei anderem D oder Stride löschen
+        lda     recs+8,x        ; ID 0: delete only for different D or stride
         sta     ZP1
         lda     recs+9,x
         sta     ZP1+1
@@ -1062,7 +1062,7 @@ f_geomset:
         tax
         cpx     #176
         bne     @sl
-@rows:  lda     dvg_stride      ; row[y] = origin + y * stride (Zwischenwerte im Zeropage-Block)
+@rows:  lda     dvg_stride      ; row[y] = origin + y * stride (intermediate values in the zero page block)
         sta     vp
         lda     dvg_stride+1
         sta     vp+1
@@ -1077,7 +1077,7 @@ f_geomset:
         tay
         lda     mp
         sta     rows+1,x
-        adc     vp+1            ; C = 0 (aus cpx: x < 2 VH)
+        adc     vp+1            ; C = 0 (from cpx: x < 2 VH)
         sta     mp
         tya
         clc
@@ -1097,17 +1097,17 @@ f_geomset:
         rts
 
 
-; ---------------------------------------------------------------- Zellentabelle (GEOMSET)
-; Prüft und legt dabei an (ein Durchlauf; bei Fehler ist die Geometrie ungültig). ZP0 = DVG (Inhalt). C = 1: Formatfehler (P6-engine.md 7):
-; first + n <= NE je Tiefe, Art <= 4, |s| <= S, Elemente einer Zelle zusammenhängend (P3 5.3), höchstens 16 Elemente,
-; ein Boden- und ein Deckenelement je Zelle; Art 0-3: x + w <= VW, y + h <= VH; Wände: c0 <= c1 <= VW;
-; Wartebereich (deckende Seiten, deckende Fronten ohne Bit 3) <= MAXPEND je Tiefe; <= MAXCELL Zellen, <= MAXWALL Wände.
-gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der Tiefe D verschieben (ghs)
+; ---------------------------------------------------------------- Cell table (GEOMSET)
+; Checks and builds at the same time (single pass; on error the geometry is invalid). ZP0 = DVG (content). C = 1: format error (P6-engine.md 7):
+; first + n <= NE per depth, kind <= 4, |s| <= S, elements of a cell contiguous (P3 5.3), at most 16 elements,
+; one floor and one ceiling element per cell; kind 0-3: x + w <= VW, y + h <= VH; walls: c0 <= c1 <= VW;
+; pending area (covering sides, covering fronts without bit 3) <= MAXPEND per depth; <= MAXCELL cells, <= MAXWALL walls.
+gcells: ldx     #79             ; far view (5.7a): hs = s + 15 = 15, sides of depth D shift (ghs)
         lda     #15
 @hi:    sta     hs,x
         dex
         bpl     @hi
-        ldy     #3              ; VW, VH, S, NE in den Zeropage-Block (vp, vp+1, mp, mp+1)
+        ldy     #3              ; VW, VH, S, NE into the zero page block (vp, vp+1, mp, mp+1)
         lda     (ZP0),y
         sta     vp
         iny
@@ -1119,7 +1119,7 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
         iny
         lda     (ZP0),y
         sta     mp+1
-        ldy     #18             ; tp = Tiefentabelle
+        ldy     #18             ; tp = depth table
         clc
         lda     (ZP0),y
         adc     ZP0
@@ -1153,11 +1153,11 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
         sta     gseen+3
         sta     gcn
         lda     #$80
-        sta     gcs             ; aktuelles s: keins
+        sta     gcs             ; current s: none
         ldx     gd
         lda     gkc
         sta     d_k0,x
-        lda     gei             ; op = Elementtabelle + 16 first
+        lda     gei             ; op = element table + 16 first
         sta     op
         lda     #0
         asl     op
@@ -1204,7 +1204,7 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
         lda     (op),y
         cmp     gcs
         beq     @same
-        sta     gcs             ; neue Zelle: s darf in der Tiefe noch nicht vorgekommen sein
+        sta     gcs             ; new cell: s must not have occurred in this depth yet
         clc
         adc     #15
         sta     gsi
@@ -1254,12 +1254,12 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
 @same:  clc
         lda     gj
         adc     #16
-        bcs     @bad            ; mehr als 16 Elemente in der Zelle
+        bcs     @bad            ; more than 16 elements in the cell
         sta     gj
 @chk:   lda     gart
         cmp     #4
         bne     @nob
-        ldx     gkc             ; Objektplatz: erster und letzter in der Zelle (P6e)
+        ldx     gkc             ; object slot: first and last in the cell (P6e)
         lda     gj
         sta     k_oe-1,x
         lda     k_ob-1,x
@@ -1291,7 +1291,7 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
 @y1:    lda     gart
         cmp     #2
         bcs     @band
-        ldy     #13             ; Wand: c0 <= c1 <= VW
+        ldy     #13             ; wall: c0 <= c1 <= VW
         lda     (op),y
         cmp     vp
         beq     @c1
@@ -1312,20 +1312,20 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
         lda     gj
         sta     wl-1,x
         jsr     ghs
-@pd:    ldy     #3              ; Wartebereich: Bit 0 und (Seite oder ohne Bit 3)
+@pd:    ldy     #3              ; pending area: bit 0 and (side or without bit 3)
         lda     (op),y
         lsr
         bcc     @next
         ldx     gart
         bne     @pc
-        and     #4              ; Bit 3 (nach lsr Bit 2)
+        and     #4              ; bit 3 (bit 2 after lsr)
         bne     @next
 @pc:    inc     gpend
         lda     gpend
         cmp     #MAXPEND+1
         bcs     @bad2
         bcc     @next
-@band:  lsr                     ; Art 2: C = 0 Boden, Art 3: C = 1 Decke
+@band:  lsr                     ; kind 2: C = 0 floor, kind 3: C = 1 ceiling
         ldx     gkc
         bcs     @bce
         lda     gfl
@@ -1339,7 +1339,7 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
         inc     gce
         lda     gj
         sta     k_ce-1,x
-@next:  clc                     ; nächstes Element
+@next:  clc                     ; next element
         lda     op
         adc     #16
         sta     op
@@ -1353,7 +1353,7 @@ gcells: ldx     #79             ; Fernsicht (5.7a): hs = s + 15 = 15, Seiten der
 @dend:  ldx     gd
         lda     gcn
         sta     d_kn,x
-        clc                     ; nächste Tiefe
+        clc                     ; next depth
         lda     tp
         adc     #8
         sta     tp
@@ -1378,11 +1378,11 @@ f_texset:
         asl
         asl
         asl
-        tax                     ; X = Satzanfang
+        tax                     ; X = record start
         lda     P0
         ora     P0+1
         bne     @set
-        sta     recs,x          ; löschen
+        sta     recs,x          ; delete
         jmp     ok
 @set:   lda     geom_ok
         jeq     e_state
@@ -1391,7 +1391,7 @@ f_texset:
         ldx     #mg_dts-eqtab
         jsr     chkeq
         jcs     e_format
-        ldy     #3              ; Art = X
+        ldy     #3              ; kind = X
         lda     (ZP0),y
         cmp     argx
         jne     e_format
@@ -1404,7 +1404,7 @@ f_texset:
         jsr     chkgeo
         jcs     e_geom
 .ifndef VMS_COPY
-        lda     P0+1            ; VCL-Typ 9: Listen in Bank 1 erst ab $4000 (VDC-BASIC P2d, 6a)
+        lda     P0+1            ; VCL type 9: lists in Bank 1 only from $4000 (VDC-BASIC P2d, 6a)
         cmp     #$40
         jcc     range
 .endif
@@ -1413,7 +1413,7 @@ f_texset:
         jsr     chk_pool
         jcs     range
         ldx     t0
-        ldy     #12             ; Slotkarte, Stiltabelle, Verzeichnis
+        ldy     #12             ; slot map, style table, directory
         jsr     fillrec
         ldy     #8              ; NS, NST
         lda     (ZP0),y
@@ -1422,7 +1422,7 @@ f_texset:
         lda     (ZP0),y
         sta     recs+4,x
         sta     t1
-        lda     recs+12,x       ; Stilzeilen: sty[Art * 32 + st] = Stiltabelle + st * NS
+        lda     recs+12,x       ; style rows: sty[kind * 32 + st] = style table + st * NS
         sta     acc
         lda     recs+13,x
         sta     acc+1
@@ -1446,10 +1446,10 @@ f_texset:
         bne     @st
         jmp     ok
 
-; Fernsicht (5.7a): eine Seite (op) der Tiefe D verschiebt die Zellgrenzen im Horizontband (ferne Kante, P_{D+1}):
-; s < 0: hs[c] - 1 für c < x + w; s > 0: hs[c] + 1 für c >= x (gcells, nur beim Anlegen)
+; Far view (5.7a): a side (op) of depth D shifts the cell boundaries in the horizon band (far edge, P_{D+1}):
+; s < 0: hs[c] - 1 for c < x + w; s > 0: hs[c] + 1 for c >= x (gcells, only during build)
 ghs:    lda     gart
-        beq     @r              ; Front
+        beq     @r              ; front
         ldy     #5
         lda     (ZP0),y         ; D
         cmp     gd
@@ -1463,7 +1463,7 @@ ghs:    lda     gart
         txa
         ldy     #6
         clc
-        adc     (op),y          ; x + w (<= VW geprüft)
+        adc     (op),y          ; x + w (<= VW checked)
         tax
 @m:     dex
         bmi     @r
@@ -1480,14 +1480,14 @@ ghs:    lda     gart
 f_bgset:
         lda     argx
         sta     bgfill
-        lda     argy            ; Fernsicht (5.7a): Y <> 0 = an, P2 Low = Füllbyte
+        lda     argy            ; far view (5.7a): Y <> 0 = on, P2 low = fill byte
         sta     ffon
         lda     P2
         sta     ffill
         lda     P0
         ora     P0+1
         bne     @set
-        sta     dbg_ok          ; keine Tapete
+        sta     dbg_ok          ; no wallpaper
         jmp     ok
 @set:   lda     geom_ok
         jeq     e_state
@@ -1522,7 +1522,7 @@ f_bgset:
         sta     dbg_base
         lda     ZP0+1
         sta     dbg_base+1
-        jsr     bgoffs          ; o_v mod P je Richtung (view.s)
+        jsr     bgoffs          ; o_v mod P per direction (view.s)
         lda     #1
         sta     dbg_ok
         jmp     ok
@@ -1536,7 +1536,7 @@ f_spriteset:
         asl
         asl
         asl
-        adc     #48             ; C = 0 nach asl (argx < 8); Sätze 3 ... 10
+        adc     #48             ; C = 0 after asl (argx < 8); records 3 ... 10
         tax
         lda     P0
         ora     P0+1
@@ -1558,7 +1558,7 @@ f_spriteset:
         iny
         lda     (ZP0),y
         jeq     e_format
-        ldy     #4              ; ID: 0 oder = DVG-ID
+        ldy     #4              ; ID: 0 or = DVG-ID
         lda     (ZP0),y
         sta     t1
         iny
@@ -1576,7 +1576,7 @@ f_spriteset:
         jsr     chkgeo
         jcs     e_geom
 .ifndef VMS_COPY
-        lda     P0+1            ; VCL-Typ 9: Listen in Bank 1 erst ab $4000 (wie TEXSET)
+        lda     P0+1            ; VCL type 9: lists in Bank 1 only from $4000 (like TEXSET)
         cmp     #$40
         jcc     range
 .endif
@@ -1585,7 +1585,7 @@ f_spriteset:
         jsr     chk_pool
         jcs     range
         ldx     t0
-        ldy     #16             ; Indextabelle, Verzeichnis, Kerntabelle
+        ldy     #16             ; index table, directory, core table
         jsr     fillrec
         ldy     #7              ; NA, NP
         lda     (ZP0),y
@@ -1597,7 +1597,7 @@ f_spriteset:
         sta     recs+5,x
         lda     t2
         sta     recs+6,x
-        lda     #0              ; recs+14 = NA * D (Indextabelle: (f * NA + ai) * D + d - 1), recs+15 = 0
+        lda     #0              ; recs+14 = NA * D (index table: (f * NA + ai) * D + d - 1), recs+15 = 0
         sta     recs+15,x
         ldy     recs+3,x
 @nd:    clc
@@ -1607,15 +1607,15 @@ f_spriteset:
         sta     recs+14,x
         jmp     ok
 
-; ---------------------------------------------------------------- Tabellen der Kopfprüfungen
-; eqtab: (Kopf-Offset, Wert) bis $FF: Magic, Version, feste Längen
+; ---------------------------------------------------------------- Tables of the header checks
+; eqtab: (header offset, value) up to $FF: magic, version, fixed lengths
 eqtab:
 mg_dmp: .byte   0,'D', 1,'M', 2,1, $FF
 mg_dvg: .byte   0,'D', 1,'V', 2,1, 16,16, 17,8, $FF
 mg_dts: .byte   0,'D', 1,'T', 2,1, $FF
 mg_dbg: .byte   0,'D', 1,'B', 2,1, $FF
 mg_s2:  .byte   0,'S', 1,'2', 2,1, $FF
-; geotab: (Kopf-Offset, Index ab dvg_vw) bis $FF: das Kopffeld muss dem Wert der Geometrie gleichen
+; geotab: (header offset, index from dvg_vw) up to $FF: the header field must equal the value of the geometry
 ;   Index 0 VW, 1 VH, 2 D, 3 S, 4 NE, 5/6 stride, 7/8 origin, 9/10 ID
 geotab:
 gt_dts: .byte   4,9, 5,10, 6,4, 7,2, 28,5, 29,6, $FF           ; ID, NE, D, stride
@@ -1623,7 +1623,7 @@ gt_dbg: .byte   3,0, 4,1, 5,9, 6,10, $FF                        ; VW, VH, ID
 gt_s2:  .byte   6,2, 34,5, 35,6, $FF                            ; D, stride (ID getrennt)
 
 .ifdef DBE_TEST
-; ---------------------------------------------------------------- 250-253 (nur Test; TESTLO vor der Lib, $AF00)
+; ---------------------------------------------------------------- 250-253 (test only; TESTLO in front of the lib, $AF00)
         .segment "TESTLO"
 t_disp: cmp     #250
         bne     @t1
@@ -1637,9 +1637,9 @@ t_disp: cmp     #250
 @t3:    cmp     #253
         jne     notimpl
         jmp     t_zp
-; 250: A = $D506 AND $0F (erwartet $06), X = $FF00 beim Aufruf (erwartet $7F), Y = Byte, das die Lib bei
-;      $1300 sieht; schreibt $A5 nach $1301 (BASIC liest es in Bank 0: gemeinsames RAM bis $1FFF).
-;      $D506 ist nur mit I/O lesbar: kurz $FF00 = $7E (einzige I/O-Stelle der Lib, nur im Testbuild)
+; 250: A = $D506 AND $0F (expects $06), X = $FF00 at the call (expects $7F), Y = byte the lib sees at
+;      $1300; writes $A5 to $1301 (BASIC reads it in Bank 0: shared RAM up to $1FFF).
+;      $D506 is readable only with I/O: briefly $FF00 = $7E (the lib's only I/O access, test build only)
 t_probe:
         lda     #$A5
         sta     $1301
@@ -1651,7 +1651,7 @@ t_probe:
         stx     MMUCR
         and     #$0F
         rts
-; 251: P0 Runden zu je etwa 1300 Zyklen (Interrupts laufen weiter)
+; 251: P0 rounds of about 1300 cycles each (interrupts keep running)
 t_wait:
         lda     P0
         sta     ZP0
@@ -1671,8 +1671,8 @@ t_wait:
         ldx     #0
         ldy     #0
         rts
-; 253: Zeropage-Block ZPB mit einem Muster füllen, P0 Runden wie 251 warten (Interrupts laufen), Muster prüfen:
-;      A = 0 unverändert, sonst 1; X = Anzahl geänderter Bytes (test/vice_zp.py)
+; 253: fill zero page block ZPB with a pattern, wait P0 rounds like 251 (interrupts run), check the pattern:
+;      A = 0 unchanged, otherwise 1; X = number of changed bytes (test/vice_zp.py)
 t_zp:   ldx     #ZPBLEN-1
 @f:     txa
         eor     #$A5
@@ -1695,8 +1695,8 @@ t_zp:   ldx     #ZPBLEN-1
         lda     #1
 @r:     ldy     #0
         rts
-; 252: Code im RAM unter I/O (lib-test.cfg legt TESTHI an $DBF8, das Ende der Datei): A = 0, X = $42,
-;      Y = eigenes erstes Byte bei $DBF8 (erwartet $A9: BLOAD hat bis $DBFF geladen, die Lib sieht RAM statt I/O)
+; 252: code in RAM under I/O (lib-test.cfg places TESTHI at $DBF8, the end of the file): A = 0, X = $42,
+;      Y = own first byte at $DBF8 (expects $A9: BLOAD loaded up to $DBFF, the lib sees RAM instead of I/O)
         .segment "TESTHI"
 t_hi:   lda     #0
         ldx     #$42
@@ -1708,28 +1708,28 @@ t_hi:   lda     #0
         .include "view.s"
 
         .segment LIBSEG
-code_end:                       ; Codeende (nur ein Segment CODE, kein RODATA)
+code_end:                       ; end of code (only one segment CODE, no RODATA)
 
-; ---------------------------------------------------------------- Variablen (Bank 1 $E000-$E7FF)
+; ---------------------------------------------------------------- Variables (Bank 1 $E000-$E7FF)
         .segment "LIBBSS"
 argx:   .res 1
 argy:   .res 1
-buf_b0: .res 2                  ; Puffer (BUFSET): Anfang, Ende exklusiv
+buf_b0: .res 2                  ; buffer (BUFSET): start, end exclusive
 buf_b1: .res 2
-buf_fix:.res 1                  ; Bit 7: feste Listenadresse (BUFSET X Bit 0, P6j)
-pool_a: .res 2                  ; Pool (POOLSET): Anfang, Ende exklusiv (0 = 65536)
+buf_fix:.res 1                  ; bit 7: fixed list address (BUFSET X bit 0, P6j)
+pool_a: .res 2                  ; pool (POOLSET): start, end exclusive (0 = 65536)
 pool_b: .res 2
-pool_on:.res 1                  ; 0 = keine Prüfung
+pool_on:.res 1                  ; 0 = no check
 ;
 ; P6c
-t0:     .res 1                  ; Zwischenwerte
+t0:     .res 1                  ; intermediate values
 t1:     .res 1
 t2:     .res 1
 t3:     .res 1
 acc:    .res 2
 val:    .res 2
-; Zeiger und Satztabelle: ptrs + 0 Kachelebene, 2 Inhaltsebene, 4 Kacheltabelle, 6 Ereignisse (absolute Adressen),
-; 8 Tiefentabelle, 10 Elementtabelle der DVG, ab 12 recs
+; Pointers and record table: ptrs + 0 tile layer, 2 content layer, 4 tile table, 6 events (absolute addresses),
+; 8 depth table, 10 element table of the DVG, from 12 recs
 ptrs:
 map_cells = ptrs
 map_cont = ptrs+2
@@ -1738,24 +1738,24 @@ map_ev = ptrs+6
 dvg_depth = ptrs+8
 dvg_elem = ptrs+10
         .res 12
-; recs: 11 Sätze zu 16 Byte: DTS Wand, Boden, Decke, dann S2-Sätze 0 ... 7.
-;   0 gültig, 1-2 VRAM-Basis, 3 NS / NA, 4 NST / NP, 5-6 Geometrie-ID (S2), 8-9 Inhaltsanfang,
-;   10-15 absolute Adressen: Slotkarte, Stiltabelle, Verzeichnis / Indextabelle, Verzeichnis, Kerntabelle
+; recs: 11 records of 16 bytes: DTS wall, floor, ceiling, then S2 records 0 ... 7.
+;   0 valid, 1-2 VRAM base, 3 NS / NA, 4 NST / NP, 5-6 geometry ID (S2), 8-9 content start,
+;   10-15 absolute addresses: slot map, style table, directory / index table, directory, core table
 recs:   .res 176
-; Karte (BSS-Reihenfolge wichtig: MAPINIT kopiert Kopfbytes 6-11 nach map_ne)
+; Map (BSS order matters: MAPINIT copies header bytes 6-11 to map_ne)
 map_ok: .res 1
 map_w:  .res 1
 map_h:  .res 1
-map_wh: .res 2                  ; Reihenfolge wh, nt, ne: offtab
+map_wh: .res 2                  ; order wh, nt, ne: offtab
 map_nt: .res 2                  ; 1 ... 256
-map_ne: .res 2                  ; Anzahl Ereignisse
-pos:    .res 2                  ; Position (Zellindex)
-vdir:   .res 1                  ; Blickrichtung 0 ... 3
-map_out:.res 1                  ; Außenkachel
-map_auto:.res 1                 ; Automap-Bit (P6f)
+map_ne: .res 2                  ; number of events
+pos:    .res 2                  ; position (cell index)
+vdir:   .res 1                  ; viewing direction 0 ... 3
+map_out:.res 1                  ; outer tile
+map_auto:.res 1                 ; automap bit (P6f)
 px:     .res 1
 py:     .res 1
-; DVG (Reihenfolge = Kopfbytes 3-15)
+; DVG (order = header bytes 3-15)
 geom_ok:.res 1
 dvg_vw: .res 1
 dvg_vh: .res 1
@@ -1765,10 +1765,10 @@ dvg_ne: .res 1
 dvg_stride: .res 2
 dvg_origin: .res 2
 dvg_id: .res 2
-dvg_y0: .res 1                  ; Horizont
+dvg_y0: .res 1                  ; horizon
 dvg_y1: .res 1
 rows:   .res 200                ; row[y] = origin + y * stride
-; DBG (Reihenfolge = Kopfbytes 7-11)
+; DBG (order = header bytes 7-11)
 dbg_ok: .res 1
 dbg_vram: .res 2
 dbg_base: .res 2
@@ -1777,34 +1777,34 @@ dbg_y0: .res 1
 dbg_h:  .res 1
 dbg_flags: .res 1
 bgfill: .res 1
-bgomt:  .res 8                  ; o_v mod P je Richtung (BGSET)
-ffon:   .res 1                  ; Fernsicht-Füllung an (BGSET Y <> 0, P6 5.7a)
-ffill:  .res 1                  ; Fernsicht-Füllbyte (BGSET P2 Low)
-hs:     .res 80                 ; Fernsicht: s + 15 der Zelle der Tiefe D je Horizontspalte (GEOMSET, gcells)
-itemtab:.res 64                 ; Gegenstand -> Satz + 1
-itemn:  .res 1                  ; Einträge <> 0 in itemtab
-sty_lo: .res 96                 ; TEXSET: Adresse der Stilzeile [Art * 32 + st]
+bgomt:  .res 8                  ; o_v mod P per direction (BGSET)
+ffon:   .res 1                  ; far view fill on (BGSET Y <> 0, P6 5.7a)
+ffill:  .res 1                  ; far view fill byte (BGSET P2 low)
+hs:     .res 80                 ; far view: s + 15 of the cell of depth D per horizon column (GEOMSET, gcells)
+itemtab:.res 64                 ; item -> record + 1
+itemn:  .res 1                  ; entries <> 0 in itemtab
+sty_lo: .res 96                 ; TEXSET: address of the style row [kind * 32 + st]
 sty_hi: .res 96
-tpl:    .res 256                ; Kacheltabellen (MAPINIT, mtiles)
+tpl:    .res 256                ; tile tables (MAPINIT, mtiles)
 tph:    .res 256
 bss_end:
-; ---------------------------------------------------------------- Tabellen (Bank 1 $DC00-$DFFF, INIT löscht sie nicht)
+; ---------------------------------------------------------------- Tables (Bank 1 $DC00-$DFFF, INIT does not clear them)
         .segment "LIBTAB"
-; Zellentabelle (GEOMSET, gcells): je Zelle k (Tiefen nacheinander, Zellen in DVG-Reihenfolge)
+; Cell table (GEOMSET, gcells): per cell k (depths in sequence, cells in DVG order)
 k_si:   .res MAXCELL            ; s + 15
-k_elo:  .res MAXCELL            ; Adresse des ersten Elements
+k_elo:  .res MAXCELL            ; address of the first element
 k_ehi:  .res MAXCELL
-k_ei:   .res MAXCELL            ; Index des ersten Elements (Slot)
-k_wo:   .res MAXCELL            ; erste Wand in wl
-k_wn:   .res MAXCELL            ; Anzahl Wände (Art 0/1)
-k_fl:   .res MAXCELL            ; Boden-/Deckenelement: 16 * Platz in der Zelle, $FF keins
+k_ei:   .res MAXCELL            ; index of the first element (slot)
+k_wo:   .res MAXCELL            ; first wall in wl
+k_wn:   .res MAXCELL            ; number of walls (kind 0/1)
+k_fl:   .res MAXCELL            ; floor/ceiling element: 16 * slot in the cell, $FF none
 k_ce:   .res MAXCELL
-k_ob:   .res MAXCELL            ; Objektplätze: 16 * Platz des ersten und des letzten, k_ob = $FF keiner
+k_ob:   .res MAXCELL            ; object slots: 16 * slot of the first and the last, k_ob = $FF none
 k_oe:   .res MAXCELL
-d_k0:   .res 8                  ; je Tiefe: erste Zelle, Anzahl Zellen
+d_k0:   .res 8                  ; per depth: first cell, number of cells
 d_kn:   .res 8
-wl:     .res MAXWALL            ; Wände: 16 * Platz in der Zelle (DVG-Reihenfolge)
-tsm:    .res 256                ; Kachelzusammenfassung (MAPINIT, mtiles)
+wl:     .res MAXWALL            ; walls: 16 * slot in the cell (DVG order)
+tsm:    .res 256                ; tile summary (MAPINIT, mtiles)
 gkc:    .res 1
 gwc:    .res 1
 gd:     .res 1

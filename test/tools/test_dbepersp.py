@@ -1,4 +1,4 @@
-"""Tests fuer tools/dbepersp.py (perspektivische Muster, docs/specs/P5-textures.md 10.4)."""
+"""Tests for tools/dbepersp.py (perspective patterns, docs/specs/P5-textures.md 10.4)."""
 import os
 import sys
 import unittest
@@ -16,7 +16,7 @@ class TestPersp(unittest.TestCase):
         cls.el = {e["name"]: e for e in cls.geom["elements"]}
 
     def test_planes(self):
-        """An den Ebenen stimmen Z = W_1 / W_k und v der Seite mit der Front ueberein."""
+        """At the planes, Z = W_1 / W_k and v of the side agree with the front."""
         e = self.el["side_d1_s+1"]
         fn = self.P.side_map(e)
         pl = self.geom["planes"]

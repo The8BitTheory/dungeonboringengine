@@ -1,153 +1,153 @@
-# P6g-Analyse: Kosten der VCL-Ausführung
+# P6g analysis: cost of VCL execution
 
-Stand: 2026-11-25. Review und Analyse zu P6g (`P6-engine.md`, „Ergebnis P6g“ und „Nachtrag Review P6g“). Grundlage: 42 VICE-Szenen aus `test/vice_view.py`, Engine 0.2 (Standardbuild, VCL-Typ 9), VDC-BASIC v3 (Branch v3, `3fa2bad`), Kennwerte `vdc-basic/test/bench/results/{vice3.10,z64k}-20261125.md` (Messprogramm mit VDC-BASIC v2h).
+As of: 2026-11-25. Review and analysis for P6g (`P6-engine.md`, "Result P6g" and "Addendum review P6g"). Basis: 42 VICE scenes from `test/vice_view.py`, engine 0.2 (standard build, VCL type 9), VDC-BASIC v3 (branch v3, `3fa2bad`), characteristic values `vdc-basic/test/bench/results/{vice3.10,z64k}-20261125.md` (measurement program with VDC-BASIC v2h).
 
-Werkzeug: `test/vice_vclprof.py` (neu). Es markiert in der Referenz `dbeview` die Herkunft jedes VCL-Eintrags (Wand, Kachel, Band, Tapete, Sprite), zerlegt die Liste in Operationen (eine VMC-/VMF-Zeile bzw. einen VMS-Befehl) und zählt die geschriebenen Bytes je Fensterbyte. In VICE hält es an `vcl`, `.vcl_next_command`, `.vcl_done`, `.vms_arg_loop` und `.vms_done`. Die lokalen Marken stehen nicht in `vdcbasic3.sym`; sie kommen aus dem ACME-Report einer Kopie, die gegen `vdcbasic3.bin` geprüft wird (`vice_view.vdc_labels`). Gemessen wird mit der Monitor-Stoppuhr bei gesetztem I-Flag (ohne IRQ), Port 6634, ereignisgesteuert. `--static` liefert den Teil ohne VICE.
+Tool: `test/vice_vclprof.py` (new). In the reference `dbeview` it marks the origin of each VCL entry (wall, tile, band, wallpaper, sprite), splits the list into operations (one VMC/VMF row or one VMS command) and counts the bytes written per window byte. In VICE it stops at `vcl`, `.vcl_next_command`, `.vcl_done`, `.vms_arg_loop` and `.vms_done`. The local labels are not in `vdcbasic3.sym`; they come from the ACME report of a copy that is checked against `vdcbasic3.bin` (`vice_view.vdc_labels`). Measurement uses the monitor stopwatch with the I flag set (without IRQ), port 6634, event-driven. `--static` provides the part without VICE.
 
-## 1. Kurzfassung
+## 1. Summary
 
-- VCL kostet in VICE **201 600 Zyklen je Bild** (Mittel; min 68 000, max 389 000 bei 1 MHz) und damit 82 % von VIEW + VCL.
-- Die Kosten hängen an der **Zahl der Operationen**, kaum an den Bytes. VICE rechnet je Byte fast nichts. Eine VMC-Zeile kostet 187 Zyklen (mit srcstep 281), ein VMS-Befehl Typ 1 308 und ein **VMS-Befehl Typ 8 (halbes Byte) 706**. Dazu kommen 650–690 Zyklen fester Aufwand je VCL-Eintrag.
-- **Wände sind 66 %** der Zeit (Kerne 37 %, Ränder 30 %). Die Ränder kosten so viel wegen der Typ-8-Befehle an den schrägen Kanten: 44 je Bild, zusammen 31 000 Zyklen.
-- **Overdraw ist klein:** 7 978 geschriebene Bytes je Bild bei 6 720 Fensterbytes (Faktor 1,19). Operationen, deren Bytes später alle überschrieben werden, kosten 13 600 Zyklen (6,7 %). Bänder und Tapete tragen dazu nur ≈ 1 700 bei; das Vermeiden über `bcov` wirkt schon.
-- **Hochrechnung auf Z64K:** bei 1 MHz ≈ 270 000 Zyklen (+34 %), bei 2 MHz (Engine-Konfiguration A) ≈ 0,20 s je Bild. 2 MHz bringt also kaum etwas, weil die Wartezeiten des VDC je Registerzugriff und je Byte bleiben.
-- Den größten Hebel hat **VDC-BASIC**: schnellere Wege für VMS-Typ 8, VMS-Typ 1 und VMC-Zeilen sparen geschätzt ≈ 50 % (≈ 100 000 Zyklen). Auf Engine- bzw. Asset-Seite folgt **„Kanten auf ganze Bytes“** bei Wänden und Kacheln (kein Typ 8): −37 000 heute, −13 000 nach der VDC-BASIC-Optimierung. Das ist eine Entscheidung über das Aussehen.
+- VCL costs in VICE **201 600 cycles per frame** (mean; min 68 000, max 389 000 at 1 MHz) and thus 82 % of VIEW + VCL.
+- The costs depend on the **number of operations**, hardly on the bytes. VICE charges almost nothing per byte. A VMC row costs 187 cycles (with srcstep 281), a VMS type 1 command 308 and a **VMS type 8 command (half byte) 706**. In addition there are 650–690 cycles of fixed overhead per VCL entry.
+- **Walls are 66 %** of the time (cores 37 %, edges 30 %). The edges cost so much because of the type 8 commands on the diagonal edges: 44 per frame, together 31 000 cycles.
+- **Overdraw is small:** 7 978 bytes written per frame for 6 720 window bytes (factor 1.19). Operations whose bytes are all overwritten later cost 13 600 cycles (6.7 %). Bands and wallpaper contribute only ≈ 1 700 of that; avoiding it via `bcov` already works.
+- **Extrapolation to Z64K:** at 1 MHz ≈ 270 000 cycles (+34 %), at 2 MHz (engine configuration A) ≈ 0.20 s per frame. So 2 MHz brings hardly anything, because the VDC wait times per register access and per byte remain.
+- The biggest lever is in **VDC-BASIC**: faster paths for VMS type 8, VMS type 1 and VMC rows save an estimated ≈ 50 % (≈ 100 000 cycles). On the engine and asset side, **"edges on whole bytes"** for walls and tiles follows (no type 8): −37 000 today, −13 000 after the VDC-BASIC optimization. This is a decision about appearance.
 
-## 2. Review P6g (Kurzurteil)
+## 2. Review P6g (short verdict)
 
-**Abnahmefähig nach den Korrekturen.** Die Testregeln sind eingehalten: eigener Port mit bind-Test, nur der eigene Prozess (Popen, terminate/kill), Haltepunkte und Debug-Cartridge statt Wartezeiten. Der Vergleich ist aussagekräftig: das ganze 64-KB-VRAM gegen ein fortgeschriebenes Modell, das Fenster gegen den unabhängigen Maler `paint_reference`, die Puffer gegen `dbeview`, MOVE gegen `dbemove`. `--control` verfälscht ein Byte im Fenster (`$00FA`) von Szene 5; der Nachlauf meldete genau diese Szene.
+**Acceptable after the corrections.** The test rules are observed: own port with bind test, only the own process (Popen, terminate/kill), breakpoints and debug cartridge instead of wait times. The comparison is meaningful: the entire 64 KB VRAM against a continuously updated model, the window against the independent painter `paint_reference`, the buffers against `dbeview`, MOVE against `dbemove`. `--control` corrupts one byte in the window (`$00FA`) of scene 5; the follow-up run reported exactly this scene.
 
-Korrigiert (Details in `P6-engine.md`, Nachtrag Review P6g):
+Corrected (details in `P6-engine.md`, addendum review P6g):
 
-1. **Ende der VCL-Messung.** `complex_instruction_shared_exit` ist das gemeinsame Ende jedes VMC/VMF und jedes VMS-Kopierbefehls. Gezählt wurde der letzte Treffer; das I-Flag war ab dem ersten Eintrag wieder frei, so dass IRQs mitgezählt wurden. Jetzt endet die Messung an `.vcl_done`. VCL sank von 211 200 auf 200 500 (dieselben Szenen).
-2. **Zwei Szenen hatten die Kamera in einer deckenden Zelle** („Fenster Ost“, „Abgrund Nord“). Bei „Fenster Ost“ blieben 1 050 Fensterbytes ungeschrieben. Die Kamera steht jetzt in begehbaren Zellen; `build_steps` prüft das.
-3. Neue Tabelle in `P6-engine.md` (Lauf nach beiden Korrekturen, beide Läufe pixelgleich): VIEW 43 150, VCL 201 700, VIEW + VCL 244 900 (Mittel).
+1. **End of the VCL measurement.** `complex_instruction_shared_exit` is the common end of every VMC/VMF and every VMS copy command. The last hit was counted; the I flag was free again from the first entry on, so IRQs were counted as well. Now the measurement ends at `.vcl_done`. VCL dropped from 211 200 to 200 500 (same scenes).
+2. **Two scenes had the camera in an occluding cell** ("Window East", "Abyss North"). In "Window East", 1 050 window bytes remained unwritten. The camera now stands in walkable cells; `build_steps` checks this.
+3. New table in `P6-engine.md` (run after both corrections, both runs pixel-identical): VIEW 43 150, VCL 201 700, VIEW + VCL 244 900 (mean).
 
-Hinweis zu sim65 und VICE: VIEW in VICE liegt 7 % über sim65. Gründe sind der Stub und die VIC-II-Badlines bei 1 MHz. Bei 2 MHz fallen die Badlines weg, deshalb gelten die Ziele aus Abschnitt 8 als sim65-Werte. Von Lauf zu Lauf schwankt VCL um bis zu ±3 000.
+Note on sim65 and VICE: VIEW in VICE is 7 % above sim65. The reasons are the stub and the VIC-II badlines at 1 MHz. At 2 MHz the badlines disappear, therefore the targets from section 8 count as sim65 values. From run to run VCL fluctuates by up to ±3 000.
 
-## 3. Speicherkarte (Korrektur in `P6-engine.md` 2.4)
+## 3. Memory map (correction in `P6-engine.md` 2.4)
 
-*Nachtrag P6h: mit `MEMSIZ $4000` gilt Karte G (`P6-engine.md` 2.4): DMP `$4000`, S2 `$6000`, Wand `$8000–$AFFF`; die Aussagen zu `$FC00` und zum hohen Fenster bleiben.*
+*Addendum P6h: with `MEMSIZ $4000`, map G applies (`P6-engine.md` 2.4): DMP `$4000`, S2 `$6000`, wall `$8000–$AFFF`; the statements on `$FC00` and the high window remain.*
 
-Die Blitz!-Runtime (Image 2) belegt das gemeinsame obere KB `$FC00–$FEFF` (`$D506` = `$0C`). Darum liegen jetzt **alle Bank-1-Daten unter `$FC00`**:
+The Blitz! runtime (Image 2) occupies the shared upper KB `$FC00–$FEFF` (`$D506` = `$0C`). Therefore **all bank 1 data now lie below `$FC00`**:
 
-- DVG `$E800–$EDFF` (1,5 KB), DTS Boden `$EE00–$F5FF` (2 KB), DTS Decke `$F600–$FAFF` (1,25 KB), DBG `$FB00–$FBFF`. Zusammen sind das 5 KB statt 6 KB; dicht packen ist erlaubt.
-- VCL-Typ-9-Listen liegen in `$4000–$CFFF` oder `$E000–$FBFF`.
-- `MEMSIZ` bleibt `$5000`. Optional senkt `$4000` den Platz für Variablen von 19 auf 15 KB und gibt dafür 4 KB `$4000–$4FFF` für Assets frei (auch für Typ 9 geeignet).
-- Werkzeuge: neue Vorgaben in `dbetex` (Boden `$EE00`, Decke `$F600`, DBG `$FB00`). `DEFAULT_DTS_ADDR`/`build_demo_assets` in `dbeview.py` und `run_sim.py` anpassen. Alle Werkzeuge brechen ab, wenn Daten über das Bereichsende (höchstens `$FC00`) reichen.
+- DVG `$E800–$EDFF` (1.5 KB), DTS floor `$EE00–$F5FF` (2 KB), DTS ceiling `$F600–$FAFF` (1.25 KB), DBG `$FB00–$FBFF`. Together that is 5 KB instead of 6 KB; dense packing is allowed.
+- VCL type 9 lists lie in `$4000–$CFFF` or `$E000–$FBFF`.
+- `MEMSIZ` remains `$5000`. Optionally `$4000` lowers the space for variables from 19 to 15 KB and in return frees 4 KB `$4000–$4FFF` for assets (also suitable for type 9).
+- Tools: new defaults in `dbetex` (floor `$EE00`, ceiling `$F600`, DBG `$FB00`). Adjust `DEFAULT_DTS_ADDR`/`build_demo_assets` in `dbeview.py` and `run_sim.py`. All tools abort if data extends past the end of the area (at most `$FC00`).
 
-## 4. Zerlegung der VCL-Zeit
+## 4. Breakdown of VCL time
 
-### 4.1 Nach Herkunft und Eintragstyp (VICE, 1 MHz, Mittel je Bild über 42 Szenen)
+### 4.1 By origin and entry type (VICE, 1 MHz, mean per frame over 42 scenes)
 
-| Kategorie | Einträge | Zeilen | VMS-Befehle (Typ 1 / 8) | Bytes | Zyklen | Anteil |
+| Category | Entries | Rows | VMS commands (type 1 / 8) | Bytes | Cycles | Share |
 |---|---|---|---|---|---|---|
-| Wand VMC (Kerne; 68 Zeilen Typ 3) | 12,0 | 317 | – | 3 290 | 73 700 | 36,6 % |
-| Wand VMS (Typ 9, Rand) | 4,6 | – | 80 / 44 | 202 | 59 700 | 29,6 % |
-| Band VMF (Farbverlauf, ZEILEN) | 7,0 | 45 | – | 2 467 | 15 200 | 7,6 % |
-| Sprite VMS (Typ 9, unbeschnitten) | 0,6 | – | 13 / 13 | 33 | 13 900 | 6,9 % |
-| Kachel VMS (Typ 9) | 1,8 | – | 12 / 9 | 43 | 11 600 | 5,7 % |
-| Tapete VMC (Panorama, Typ 3) | 1,1 | 26 | – | 568 | 8 100 | 4,0 % |
-| Band VMC (Kerne) | 3,0 | 17 | – | 855 | 6 100 | 3,0 % |
-| Kachel VMC (Kerne) | 2,5 | 12 | – | 165 | 4 000 | 2,0 % |
-| Sprite VMC (Kerne) | 1,3 | 12 | – | 55 | 3 200 | 1,6 % |
-| Sprite VMS (Typ 12, beschnitten) | 0,1 | – | 2 / 2 (+ Typ 3) | 7 | 2 300 | 1,1 % |
-| Tapete VMF (Zeilen über/unter dem Panorama) | 0,7 | 6 | – | 292 | 1 700 | 0,9 % |
-| Kopf (`vcl`, Ausdruck auswerten) und Ende | | | | | 2 000 | 1,0 % |
-| **Summe** | **34,6** | **435** | **107 / 68** | **7 978** | **201 600** | |
+| Wall VMC (cores; 68 rows type 3) | 12.0 | 317 | – | 3 290 | 73 700 | 36.6 % |
+| Wall VMS (type 9, edge) | 4.6 | – | 80 / 44 | 202 | 59 700 | 29.6 % |
+| Band VMF (gradient, ROWS) | 7.0 | 45 | – | 2 467 | 15 200 | 7.6 % |
+| Sprite VMS (type 9, unclipped) | 0.6 | – | 13 / 13 | 33 | 13 900 | 6.9 % |
+| Tile VMS (type 9) | 1.8 | – | 12 / 9 | 43 | 11 600 | 5.7 % |
+| Wallpaper VMC (panorama, type 3) | 1.1 | 26 | – | 568 | 8 100 | 4.0 % |
+| Band VMC (cores) | 3.0 | 17 | – | 855 | 6 100 | 3.0 % |
+| Tile VMC (cores) | 2.5 | 12 | – | 165 | 4 000 | 2.0 % |
+| Sprite VMC (cores) | 1.3 | 12 | – | 55 | 3 200 | 1.6 % |
+| Sprite VMS (type 12, clipped) | 0.1 | – | 2 / 2 (+ type 3) | 7 | 2 300 | 1.1 % |
+| Wallpaper VMF (rows above/below the panorama) | 0.7 | 6 | – | 292 | 1 700 | 0.9 % |
+| Header (`vcl`, evaluate expression) and end | | | | | 2 000 | 1.0 % |
+| **Sum** | **34.6** | **435** | **107 / 68** | **7 978** | **201 600** | |
 
-Beispiele (Zyklen in tausend; WK/WR = Wand-Kerne/-Rand, KR = Kachel-Rand, BF = Band-VMF, SR = Sprite-VMS):
+Examples (cycles in thousands; WK/WR = wall cores/edge, KR = tile edge, BF = band VMF, SR = sprite VMS):
 
-| Szene | VCL | größte Posten |
+| Scene | VCL | largest items |
 |---|---|---|
-| Gang Süd | 235,5 | WK 97, WR 83, KR 15, BF 13 |
-| Raum mit Himmel Süd | 71,8 | WK 32, BF 18, Tapete 8,5 |
-| Fenster Ost (Fenster-Wand d = 1, 11 527 Byte) | 302,9 | WR 145, WK 132 |
-| Blob Unterpositionen (5 Blobs) | 387,7 | SR 149, WK 95, WR 85 |
-| INHALT Tür, Blobs d = 1 | 389,4 | WR 158, WK 119, SR 60 |
-| Drehen links (Wand direkt vorn) | 68,0 | WK 59 |
+| Corridor South | 235.5 | WK 97, WR 83, KR 15, BF 13 |
+| Room with sky South | 71.8 | WK 32, BF 18, wallpaper 8.5 |
+| Window East (window wall d = 1, 11 527 bytes) | 302.9 | WR 145, WK 132 |
+| Blob subpositions (5 blobs) | 387.7 | SR 149, WK 95, WR 85 |
+| CONTENT door, blobs d = 1 | 389.4 | WR 158, WK 119, SR 60 |
+| Turn left (wall directly ahead) | 68.0 | WK 59 |
 
-### 4.2 Elementarkosten (VICE; aus den Einzelzeiten bestimmt)
+### 4.2 Elementary costs (VICE; determined from the individual timings)
 
-| Operation | Zyklen je Stück | Anzahl je Bild | Zyklen je Bild | Anteil |
+| Operation | Cycles each | Count per frame | Cycles per frame | Share |
 |---|---|---|---|---|
-| VMC-Zeile Typ 2 | 187 (Bytes ≈ 0) | 279 | 52 100 | 25,9 % |
-| VMS-Befehl 8 (halbes Byte, lesen-ändern-schreiben) | 706 (537–814) | 68,4 | 48 200 | 23,9 % |
-| VMS-Befehl 1 (Ø 2,0 Byte) | 308 (260–352) | 107 | 33 100 | 16,4 % |
-| VMC-Zeile Typ 3 (srcstep ≠ 0: Quelle je Zeile neu setzen) | 281 | 106 | 29 700 | 14,8 % |
-| VCL-Eintrag, fester Teil (Parameter kopieren, Register 24, Quelle) | 646–694 | 34,6 | 18 500 | 9,2 % |
-| VMF-Zeile (Typ 5) | 237 | 52,8 | 12 500 | 6,2 % |
-| VMS-Eintrag, fester Teil (Typ 9/12) | 839 | 7,1 | 6 000 | 3,0 % |
-| VMS-Befehl 3 (Quelle überspringen) | 172 | 1,4 | 240 | 0,1 % |
+| VMC row type 2 | 187 (bytes ≈ 0) | 279 | 52 100 | 25.9 % |
+| VMS command 8 (half byte, read-modify-write) | 706 (537–814) | 68.4 | 48 200 | 23.9 % |
+| VMS command 1 (avg. 2.0 bytes) | 308 (260–352) | 107 | 33 100 | 16.4 % |
+| VMC row type 3 (srcstep ≠ 0: reset source per row) | 281 | 106 | 29 700 | 14.8 % |
+| VCL entry, fixed part (copy parameters, register 24, source) | 646–694 | 34.6 | 18 500 | 9.2 % |
+| VMF row (type 5) | 237 | 52.8 | 12 500 | 6.2 % |
+| VMS entry, fixed part (type 9/12) | 839 | 7.1 | 6 000 | 3.0 % |
+| VMS command 3 (skip source) | 172 | 1.4 | 240 | 0.1 % |
 
-Die Summe ergibt 98,9 % (der Rest ist Kopf und Ende). Gegen die Bench (v2h, C): `vmc_row` 191, `vms1_cmd` 318, `vms8` 661. Typ 8 liegt in v3 höher, weil die Engine-Ränder zwei VRAM-Lesezugriffe und einen Schreibzugriff mit wechselnden Adressen brauchen.
+The sum gives 98.9 % (the rest is header and end). Compared with the bench (v2h, C): `vmc_row` 191, `vms1_cmd` 318, `vms8` 661. Type 8 is higher in v3 because the engine edges need two VRAM read accesses and one write access with changing addresses.
 
 ### 4.3 Overdraw
 
-- Geschrieben werden im Mittel 7 978 Bytes je Bild (min 6 720, max 11 527 bei der Fenster-Wand) bei 6 720 Fensterbytes (70 × 96): **Faktor 1,19**. Jedes Fensterbyte wird mindestens einmal geschrieben (nach der Szenenkorrektur), kein Byte außerhalb.
-- Überschriebene Bytes: 1 258 je Bild, davon Wand-Kerne 380, Band-VMF 342, Tapete 390, Band-Kerne 124.
-- **Tote Operationen** (alle Bytes später überschrieben): 36 je Bild, 13 600 Zyklen (6,7 %). Davon entfallen auf Wand-Kerne 3 600, Wand-Rand 3 600, Kachel-Rand 3 200, Sprite-Rand 1 100 und auf Tapete und Bänder zusammen nur 1 700.
-- Typ-1-Befehle, die lückenlos an den vorigen anschließen: **0**. Der Konverter fasst bereits zusammen; die Maßnahme „Typ-1-Befehle zusammenfassen“ bringt nichts.
-- Wände: Die Wandeinträge berühren 354 Bildzeilen, dafür werden 442 Operationen ausgegeben (Kernzeilen und Randbefehle). Eine Darstellung „eine Operation je Zeile“ spart höchstens 20 % der Wandoperationen.
+- On average 7 978 bytes per frame are written (min 6 720, max 11 527 for the window wall) for 6 720 window bytes (70 × 96): **factor 1.19**. Every window byte is written at least once (after the scene correction), no byte outside.
+- Overwritten bytes: 1 258 per frame, of which wall cores 380, band VMF 342, wallpaper 390, band cores 124.
+- **Dead operations** (all bytes overwritten later): 36 per frame, 13 600 cycles (6.7 %). Of this, wall cores account for 3 600, wall edge 3 600, tile edge 3 200, sprite edge 1 100, and wallpaper and bands together only 1 700.
+- Type 1 commands that adjoin the previous one without a gap: **0**. The converter already merges them; the measure "merge type 1 commands" brings nothing.
+- Walls: The wall entries touch 354 image rows, for which 442 operations are output (core rows and edge commands). A representation "one operation per row" saves at most 20 % of the wall operations.
 
-### 4.4 Wie realistisch ist VICE? Hochrechnung auf Z64K
+### 4.4 How realistic is VICE? Extrapolation to Z64K
 
-VICE rechnet für den VDC ein grobes Busy-Modell: Kopieren 1,2, Füllen 0,66 Zyklen je Byte, also praktisch kostenlos neben 190–700 Zyklen CPU je Operation. Z64K (genauer, aber noch kein Hardwarewert) liefert bei 1 MHz (Konfiguration C) `vmc_byte` 5,4, `vms1_byte` 7,0, `vmc_row` 230 (VICE 191), `vms8` 751 (661) und `fill_fixed` 295 (76) bei 3,8 je Byte. Bei 2 MHz (A) sind es in µs: VMC-Zeile 208 + 2,6/Byte, VMS1 209 + 5,2/Byte, VMS8 448, Füllen ≈ 450 + 2,9/Byte.
+VICE uses a rough busy model for the VDC: copy 1.2, fill 0.66 cycles per byte, so practically free next to 190–700 cycles of CPU per operation. Z64K (more accurate, but not yet a hardware value) yields at 1 MHz (configuration C) `vmc_byte` 5.4, `vms1_byte` 7.0, `vmc_row` 230 (VICE 191), `vms8` 751 (661) and `fill_fixed` 295 (76) at 3.8 per byte. At 2 MHz (A) in µs: VMC row 208 + 2.6/byte, VMS1 209 + 5.2/byte, VMS8 448, fill ≈ 450 + 2.9/byte.
 
-Verfahren: die gemessene VICE-Zeit je Eintrag plus die Bench-Differenz Z64K − VICE je Aufruf, Zeile, Befehl und Byte. Für 2 MHz geht der CPU-Teil mit dem VICE-Verhältnis A/C je Operationsart ein (0,5 bei Aufrufen, 0,65–0,74 bei Zeilen und Befehlen). Hinzu kommt die Differenz Z64K-A − VICE-A.
+Method: the measured VICE time per entry plus the bench difference Z64K − VICE per call, row, command and byte. For 2 MHz the CPU part enters with the VICE ratio A/C per operation kind (0.5 for calls, 0.65–0.74 for rows and commands). In addition comes the difference Z64K-A − VICE-A.
 
-| | Mittel | min | max |
+| | Mean | min | max |
 |---|---|---|---|
-| VICE, 1 MHz (gemessen, Zyklen) | 201 600 | 68 000 | 389 400 |
-| Z64K, 1 MHz (hochgerechnet, Zyklen) | 270 300 | 114 600 | 477 700 |
-| Z64K, 2 MHz (hochgerechnet, µs) | 201 500 | 83 800 | 344 900 |
+| VICE, 1 MHz (measured, cycles) | 201 600 | 68 000 | 389 400 |
+| Z64K, 1 MHz (extrapolated, cycles) | 270 300 | 114 600 | 477 700 |
+| Z64K, 2 MHz (extrapolated, µs) | 201 500 | 83 800 | 344 900 |
 
-Folgerungen:
+Conclusions:
 
-- Auf echter Hardware tragen die Bytes. Allein die 8 000 Bytes je Bild kosten bei Z64K ≈ 43 000 µs (1 MHz) bzw. ≈ 21 000 µs (2 MHz). Überschriebene Bytes kosten dort, in VICE nicht.
-- 2 MHz bringt nur ≈ 25 %: Jeder VDC-Registerzugriff wartet auf das Statusbit, und die VMS-Befehle bestehen fast nur aus Registerzugriffen. Ein Bild mit VCL braucht realistisch **0,2–0,35 s** (3–5 Bilder/s ohne BASIC).
-- Unsicherheit: Die Z64K-Kennwerte stammen aus dem Bitmap-Modus des Messprogramms, nicht aus dem Chunky-Modus der Engine (R9 = 1, Attribute an, R36 = 0). Dort holt der VDC mehr Daten für die Anzeige und hat weniger freie Speicherzyklen. Der Füll-Kennwert ist in Z64K nicht linear (Bench Tabelle 2). Die Hochrechnung ist eher **untere Grenze**.
+- On real hardware the bytes count. The 8 000 bytes per frame alone cost ≈ 43 000 µs (1 MHz) or ≈ 21 000 µs (2 MHz) in Z64K. Overwritten bytes cost there, not in VICE.
+- 2 MHz brings only ≈ 25 %: Every VDC register access waits for the status bit, and the VMS commands consist almost only of register accesses. A frame with VCL realistically needs **0.2–0.35 s** (3–5 frames/s without BASIC).
+- Uncertainty: The Z64K characteristic values come from the bitmap mode of the measurement program, not from the chunky mode of the engine (R9 = 1, attributes on, R36 = 0). There the VDC fetches more data for the display and has fewer free memory cycles. The fill characteristic value is not linear in Z64K (bench table 2). The extrapolation is rather a **lower bound**.
 
-## 5. Maßnahmen (sortiert nach Nutzen/Aufwand)
+## 5. Measures (sorted by benefit/effort)
 
-Ersparnis in VICE-Zyklen je Bild (Mittel 201 600, 1 MHz). Die Zielwerte je Operation sind Schätzungen aus der Zahl der nötigen Registerzugriffe (≈ 15–20 Zyklen je Zugriff mit Statusabfrage) plus Schleifenaufwand. Spalte Z64K: Ersparnis bleibt ganz (CPU-gebunden) oder nur teilweise (VDC-gebunden).
+Savings in VICE cycles per frame (mean 201 600, 1 MHz). The target values per operation are estimates from the number of necessary register accesses (≈ 15–20 cycles per access with status check) plus loop overhead. Z64K column: savings remain fully (CPU-bound) or only partly (VDC-bound).
 
-| # | Maßnahme | Seite | Aufwand | Ersparnis VICE | Z64K/HW | Bemerkung |
+| # | Measure | Side | Effort | Savings VICE | Z64K/HW | Remark |
 |---|---|---|---|---|---|---|
-| V1 | **VMS-Typ 8 schneller** (706 → ≈ 250): ohne JSR-Kette und Stapel, Adressregister nur wo nötig, Quellposition über R32/33 statt über eigene Lesezugriffe | VDC-BASIC | mittel | **−31 000 (15 %)** | voll | Variante V1b: neuer VMS-Befehl mit **Byte in der Liste** (kein VRAM-Lesen der Quelle) und getrennt für linke/rechte Hälfte (≈ 150; Format- und Konverteränderung) |
-| V3 | **VMC-Zeile schneller** (187 → ≈ 110, Typ 3: 281 → ≈ 150): enge Zeilenschleife, nur R18/R19/R30 je Zeile, Quelle nur bei srcstep ≠ Länge | VDC-BASIC | gering–mittel | **−35 000 (17 %)** | ¾ (bei langen Zeilen wartet der VDC) | betrifft auch `VMC` in BASIC |
-| V2 | **VMS-Typ 1 schneller** (308 → ≈ 130): je Befehl R18/R19 + R30; Quelle läuft im VDC von selbst weiter | VDC-BASIC | gering–mittel | **−19 000 (9 %)** | voll | |
-| E2 | **Kanten auf ganze Bytes** bei Wand- und Kachelbildern (Konverter-Option; kein Typ 8): 53 Typ-8-Befehle je Bild entfallen | Asset/dbetex | gering | −37 000 (18 %); nach V1 −13 000 | voll | **Aussehen:** schräge Kanten stufen in 2-Pixel-Schritten. Für Sprites zusätzlich ≈ −11 000 (Szenen mit Objekten deutlich mehr) |
-| V4 | **VCL-Eintrag fest** 650–690 → ≈ 350 (Parameter mit `lda (zp),y` statt Byteschleife mit `inc offset`, Argumente nur so weit löschen wie nötig) | VDC-BASIC | gering | −9 000 (4,5 %) | voll | |
-| V5 | VMF-Zeile 237 → ≈ 130 (Schleife ohne JSR, nur Adresse, Byte, R30) | VDC-BASIC | gering | −5 600 (3 %) | wenig (Füllen ist im Z64K VDC-gebunden) | |
-| V6 | VMS-Eintrag fest 839 → ≈ 450 | VDC-BASIC | gering | −2 800 | voll | |
-| E1 | Typ 3 mit srcstep = Länge als Typ 2 ausgeben (16 Zeilen je Bild) | Engine (Lib, Referenz) oder dbetex (srcstep 0 schreiben) | sehr gering | −1 500 | voll | 2 Byte VCL je Eintrag weniger; besser im Konverter, dann bleibt die Lib unverändert |
-| E4 | Kerne im Konverter neu abwägen (`kern_min`, `max_kerns`): mehr Fläche in Kernzeilen, weniger Randbefehle (Kernzeile 187 gegen Typ 1 308) | Asset/dbetex | mittel (Versuche mit `vice_vclprof --static`) | geschätzt −5 000 … −15 000 | voll | nach V2/V3 neu bewerten: dann kosten beide fast gleich |
-| E3 | Tote Operationen vermeiden: Kacheln, Wandteile und Sprites, die von näheren **Seitenwänden derselben Tiefe** ganz verdeckt sind (zeilengenaue Abdeckung) | Engine | hoch (Lib-Reserve nur 248 Byte) | höchstens −13 600 (6,7 %) | mehr (Bytes zählen) | „Bänder/Tapete nur wo nicht verdeckt“ ist schon umgesetzt (`bcov`), Rest ≈ 1 700: **nicht lohnend** |
-| A1 | Fensterbreite = Zeilenabstand (VW 80 bzw. R1 = 70): volle Zeilen hängen im VRAM zusammen, Band- und Tapetengruppen werden eine Blockoperation | Geometrie/Spiel | hoch (Layout, HUD) | ≈ −15 000 … −20 000 | mehr | nur, wenn sich das Spiellayout ohnehin ändert |
-| E6 | Typ-1-Befehle zusammenfassen | Konverter | – | 0 | – | schon umgesetzt (0 Kandidaten) |
-| E7 | Zeilenspannen-Format (eine Kopie je Bildzeile über Kern und Rand) | VDC-BASIC + Engine + Konverter | hoch | ≤ 20 % der Wandoperationen | | erst nach V1–V3 bewerten |
+| V1 | **Faster VMS type 8** (706 → ≈ 250): without JSR chain and stack, address register only where necessary, source position via R32/33 instead of separate read accesses | VDC-BASIC | medium | **−31 000 (15 %)** | full | Variant V1b: new VMS command with **byte in the list** (no VRAM read of the source) and separate for left/right half (≈ 150; format and converter change) |
+| V3 | **Faster VMC row** (187 → ≈ 110, type 3: 281 → ≈ 150): tight row loop, only R18/R19/R30 per row, source only if srcstep ≠ length | VDC-BASIC | low–medium | **−35 000 (17 %)** | ¾ (with long rows the VDC waits) | also affects `VMC` in BASIC |
+| V2 | **Faster VMS type 1** (308 → ≈ 130): per command R18/R19 + R30; source advances in the VDC by itself | VDC-BASIC | low–medium | **−19 000 (9 %)** | full | |
+| E2 | **Edges on whole bytes** for wall and tile images (converter option; no type 8): 53 type 8 commands per frame disappear | asset/dbetex | low | −37 000 (18 %); after V1 −13 000 | full | **Appearance:** diagonal edges step in 2-pixel increments. For sprites additionally ≈ −11 000 (scenes with objects considerably more) |
+| V4 | **VCL entry fixed part** 650–690 → ≈ 350 (parameters with `lda (zp),y` instead of byte loop with `inc offset`, clear arguments only as far as necessary) | VDC-BASIC | low | −9 000 (4.5 %) | full | |
+| V5 | VMF row 237 → ≈ 130 (loop without JSR, only address, byte, R30) | VDC-BASIC | low | −5 600 (3 %) | little (fill is VDC-bound in Z64K) | |
+| V6 | VMS entry fixed part 839 → ≈ 450 | VDC-BASIC | low | −2 800 | full | |
+| E1 | Output type 3 with srcstep = length as type 2 (16 rows per frame) | engine (lib, reference) or dbetex (write srcstep 0) | very low | −1 500 | full | 2 bytes of VCL less per entry; better in the converter, then the lib remains unchanged |
+| E4 | Re-weigh cores in the converter (`core_min`, `max_cores`): more area in core rows, fewer edge commands (core row 187 versus type 1 308) | asset/dbetex | medium (experiments with `vice_vclprof --static`) | estimated −5 000 … −15 000 | full | re-evaluate after V2/V3: then both cost almost the same |
+| E3 | Avoid dead operations: tiles, wall parts and sprites that are fully hidden by nearer **side walls of the same depth** (row-accurate occlusion) | engine | high (lib reserve only 248 bytes) | at most −13 600 (6.7 %) | more (bytes count) | "bands/wallpaper only where not hidden" is already implemented (`bcov`), remainder ≈ 1 700: **not worthwhile** |
+| A1 | Window width = row pitch (VW 80 or R1 = 70): full rows are contiguous in VRAM, band and wallpaper groups become one block operation | geometry/game | high (layout, HUD) | ≈ −15 000 … −20 000 | more | only if the game layout changes anyway |
+| E6 | Merge type 1 commands | converter | – | 0 | – | already implemented (0 candidates) |
+| E7 | Row-span format (one copy per image row across core and edge) | VDC-BASIC + engine + converter | high | ≤ 20 % of the wall operations | | evaluate only after V1–V3 |
 
-Mit V1–V6 zusammen geschätzt: **VICE ≈ 100 000 Zyklen je Bild** (−50 %). Auf Z64K 1 MHz sind es ≈ 165 000, weil die VDC-Zeit je Byte bleibt. Mit zusätzlich E2 kommt man auf ≈ 87 000 (VICE).
+With V1–V6 together estimated: **VICE ≈ 100 000 cycles per frame** (−50 %). On Z64K 1 MHz that is ≈ 165 000, because the VDC time per byte remains. With E2 in addition one arrives at ≈ 87 000 (VICE).
 
 ## 6. Assets
 
-- Die Demo-Assets passen weder in die Bank-1-Bereiche noch in den VRAM-Pool (Wand 8,7 KB, Boden 9,1 KB, Decke 3,2 KB; VRAM 54 KB gegen einen Pool von 36,7 KB). Für P7 einen **Asset-Etat** festlegen: Wand ≤ 8 KB (Bereich `$9000–$AFFF`), Boden ≤ 2 KB, Decke ≤ 1,25 KB, VRAM ≤ Pool. Werkzeuge melden Überschreitungen (Abschnitt 3).
-- Typ-8-Anteile sind eine Asset-Eigenschaft: Sprites mit vielen halbtransparenten Randbytes (Blob: Ø 1,5 Byte je Typ-1-Lauf, 13 Typ-8 je Sprite) kosten am meisten. Ein Bericht in `dbespr`/`dbetex` mit „Typ-8-Befehle je Bild und Tiefe“ hilft Grafikern.
-- Fenster-Wände (Transparenz) erzeugen die höchsten Kosten je Szene: Rand 145 000 bei „Fenster Ost“. Hier lohnt E2 am meisten.
+- The demo assets fit neither in the bank 1 areas nor in the VRAM pool (wall 8.7 KB, floor 9.1 KB, ceiling 3.2 KB; VRAM 54 KB against a pool of 36.7 KB). For P7, set an **asset budget**: wall ≤ 8 KB (area `$9000–$AFFF`), floor ≤ 2 KB, ceiling ≤ 1.25 KB, VRAM ≤ pool. Tools report overruns (section 3).
+- Type 8 shares are an asset property: Sprites with many semi-transparent edge bytes (blob: avg. 1.5 bytes per type 1 run, 13 type 8 per sprite) cost the most. A report in `dbespr`/`dbetex` with "type 8 commands per image and depth" helps artists.
+- Window walls (transparency) generate the highest costs per scene: edge 145 000 in "Window East". E2 pays off most here.
 
-## 7. Empfehlung: nächste Schritte
+## 7. Recommendation: next steps
 
-1. **VDC-BASIC v3 „P2e: VCL/VMS-Durchsatz“ (V3, V2, V4, V5, V6, dann V1)**. Gemessen wird mit `test/vice_vclprof.py` (gleiche Szenen) und dem Bench (C und A, VICE und Z64K). Modell: **Opus** für Entwurf und Umsetzung (zyklenkritischer 6502-Code im gemeinsamen RAM, Platz in `$1C00–$3FFF` prüfen), Tests und Bench-Läufe an **Haiku**.
-2. **E1 im Konverter** (srcstep 0 bei srcstep = Breite): **Haiku/Sonnet**, mit sim65 und VICE erneut bytegleich prüfen.
-3. **Bench im Chunky-Modus der Engine** (R9 = 1, Attribute, R36 = 0) in Z64K und, sobald möglich, auf echter Hardware. Ohne diese Messung bleibt die Hochrechnung unsicher. Modell: **Sonnet**.
-4. Nach der Entscheidung des Nutzers: **E2 als Konverter-Option** (`dbetex`/`dbespr`, Vorgabe aus), Vorher-/Nachher-Bilder für den Nutzer: **Sonnet**.
-5. Werkzeug-Ladeadressen und Bereichsprüfungen nach 2.4 (Abschnitt 3): **Haiku**.
+1. **VDC-BASIC v3 "P2e: VCL/VMS throughput" (V3, V2, V4, V5, V6, then V1)**. Measure with `test/vice_vclprof.py` (same scenes) and the bench (C and A, VICE and Z64K). Model: **Opus** for design and implementation (cycle-critical 6502 code in shared RAM, check space in `$1C00–$3FFF`), tests and bench runs to **Haiku**.
+2. **E1 in the converter** (srcstep 0 when srcstep = width): **Haiku/Sonnet**, check again byte-identical with sim65 and VICE.
+3. **Bench in the chunky mode of the engine** (R9 = 1, attributes, R36 = 0) in Z64K and, as soon as possible, on real hardware. Without this measurement the extrapolation remains uncertain. Model: **Sonnet**.
+4. After the user's decision: **E2 as converter option** (`dbetex`/`dbespr`, default off), before/after images for the user: **Sonnet**.
+5. Tool load addresses and range checks according to 2.4 (section 3): **Haiku**.
 
-## 8. Entscheidungsfragen an den Nutzer
+## 8. Decision questions for the user
 
-1. **Kanten auf ganze Bytes (E2):** Dürfen schräge Wand-/Kachelkanten (und optional Sprite-Ränder) in 2-Pixel-Schritten erscheinen? Das spart 18 % (heute) bzw. ≈ 13 % nach V1.
-2. **VDC-BASIC-Änderungen:** Freigabe für P2e (V1–V6)? Darf V1b das VMS-Format um einen Befehl mit eingebettetem Byte erweitern (Konverter und Engine ziehen nach)?
-3. **Zieltakt:** Läuft das Spiel im FAST-Modus (2 MHz)? Dann gilt VICE-A/Z64K-A als Maßstab. Die VDC-Zeit ändert sich kaum, die Badlines entfallen.
-4. **Speicher:** Reicht die Vorgabe 5 KB für DVG/Boden/Decke/DBG, oder soll `MEMSIZ` auf `$4000` sinken (4 KB mehr für Assets, 4 KB weniger für Variablen)?
-5. **Layout (A1):** Kommt ein Fenster in voller Zeilenbreite (VW 80) in Frage, oder bleibt Westwood 140 × 96?
+1. **Edges on whole bytes (E2):** May diagonal wall/tile edges (and optionally sprite borders) appear in 2-pixel steps? This saves 18 % (today) or ≈ 13 % after V1.
+2. **VDC-BASIC changes:** Approval for P2e (V1–V6)? May V1b extend the VMS format by a command with an embedded byte (converter and engine follow)?
+3. **Target clock:** Does the game run in FAST mode (2 MHz)? Then VICE-A/Z64K-A is the yardstick. The VDC time hardly changes, the badlines disappear.
+4. **Memory:** Is the default of 5 KB for DVG/floor/ceiling/DBG enough, or should `MEMSIZ` drop to `$4000` (4 KB more for assets, 4 KB less for variables)?
+5. **Layout (A1):** Is a window in full row width (VW 80) an option, or does Westwood 140 × 96 remain?

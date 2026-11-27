@@ -1,7 +1,7 @@
-"""Tests fuer tools/crawl01.py: Modell von VIEW 0.1 und Offline-Vollvergleich 0.1 gegen 0.2 (unittest, ohne Emulator).
+"""Tests for tools/crawl01.py: model of VIEW 0.1 and offline full comparison 0.1 against 0.2 (unittest, no emulator).
 
-Der Vollvergleich (P7a, Spec 6.2) deckt alle freien Zellen x 4 Richtungen x (kein Geist, Geist in jeder Zelle d = 0..3
-mit 4 Richtungen) x (Edelsteine vorhanden / eingesammelt) ab, rund 19 000 Ansichten, mit mehreren Prozessen etwa 15 s.
+The full comparison (P7a, spec 6.2) covers all free cells x 4 directions x (no ghost, ghost in every cell d = 0..3
+with 4 directions) x (gems present / collected), about 19,000 views, about 15 s with several processes.
 """
 import os
 import sys
@@ -28,23 +28,23 @@ class TestModel(unittest.TestCase):
         vis, err = e.model.view(e.cells0, e.w, e.h, e.m.start, 0, [])
         self.assertEqual(err, 0)
         self.assertEqual(len(vis), 10)
-        # 6 Waende und die Edelsteine (Satz 1, 2 Zeichen je Zelle) der Startkarte
+        # 6 walls and the gems (set 1, 2 characters per cell) of the start map
         self.assertEqual(sum(1 for k, *_ in vis if k == "wall"), 6)
         self.assertEqual({r[0] for k, *r in vis if k == "spr"}, {1})
 
     def test_order_and_cover(self):
-        """Front (1, 0) deckend: nichts dahinter in deren Spalten; Seite (0, +-1) erscheint zuerst in der Liste."""
+        """Front (1, 0) covering: nothing behind it in its columns; side (0, +-1) appears first in the list."""
         e = self.env
         for pos in e.free:
             for v in range(4):
                 vis, _ = e.model.view(e.cells0, e.w, e.h, pos, v, [])
                 walls = [r[0] for k, *r in vis if k == "wall"]
-                self.assertEqual(len(walls), len({tuple(w) for w in walls}), "Wandbild doppelt")
+                self.assertEqual(len(walls), len({tuple(w) for w in walls}), "wall image duplicated")
                 self.assertLessEqual(len(vis), crawl01.MAXVIS)
 
     def test_ghost_parts_and_items(self):
         e = self.env
-        # Startkarte: Edelstein in Zelle gefunden, Geist davor; Satz 1 = Edelstein (VMC), Satz 0 = Geist (VMS)
+        # start map: gem found in cell, ghost in front of it; set 1 = gem (VMC), set 0 = ghost (VMS)
         found = False
         for pos in e.free:
             for v in range(4):
@@ -55,17 +55,17 @@ class TestModel(unittest.TestCase):
                     sets = [r[0] for k, *r in vis if k == "spr"]
                     if 0 in sets and 1 in sets:
                         found = True
-                        # Ausgabe rueckwaerts: Gegenstand wurde zuerst vorgemerkt? Objekt (Geist) zuerst -> spaeter
+                        # output backwards: was the item scheduled first? object (ghost) first -> later
                         self.assertLess(sets.index(0), len(sets))
                     vis2, _ = e.model.view(e.cells1, e.w, e.h, pos, v, [(c, 0, 0)])
                     self.assertNotIn(1, [r[0] for k, *r in vis2 if k == "spr"])
         self.assertTrue(found)
 
     def test_linear_cell_arithmetic(self):
-        """Die 0.1-Lib rechnet linear (kein Spaltenumbruch); ausserhalb von W * H zaehlt als Wand."""
+        """The 0.1 lib computes linearly (no column wraparound); outside W * H counts as wall."""
         e = self.env
-        cells = [0] * (e.w * e.h)                        # Karte komplett frei
-        vis, _ = e.model.view(cells, e.w, e.h, 0, 0, [])  # Zelle 0 nach Norden: alle Zellen davor ausserhalb = Wand
+        cells = [0] * (e.w * e.h)                        # map completely free
+        vis, _ = e.model.view(cells, e.w, e.h, 0, 0, [])  # cell 0 facing north: all cells in front outside = wall
         self.assertTrue(vis)
 
     def test_budget_and_no_error(self):
@@ -80,7 +80,7 @@ class TestModel(unittest.TestCase):
 
 
 class TestControls(unittest.TestCase):
-    """Gegenproben: Der Vergleich muss absichtlich eingebaute Fehler finden."""
+    """Control checks: the comparison must find deliberately introduced errors."""
 
     def setUp(self):
         self.files = crawlconv.read_dir(DATA)
@@ -123,7 +123,7 @@ class TestControls(unittest.TestCase):
         for e in env.sc.dvg.elems:
             if e.art == dbeview.ART_OBJ:
                 e.anchors[3] = (e.anchors[3][0] + 1, e.anchors[3][1])
-        self.assertEqual(self.count_bad(env), 0)                 # ohne Geist unsichtbar
+        self.assertEqual(self.count_bad(env), 0)                 # invisible without ghost
         self.assertGreater(self.count_bad(env, True, limit=300), 0)
 
     def test_gem_anchor_shifted(self):
@@ -135,7 +135,7 @@ class TestControls(unittest.TestCase):
 
     def test_ghost_mask_inverted(self):
         env = crawl01.Env(self.files)
-        env.conv.ghost.images[0].kerns = []                      # Bild verliert seine Kerne
+        env.conv.ghost.images[0].cores = []                      # image loses its cores
         self.assertGreater(self.count_bad(env, True, limit=300), 0)
 
     def test_outside_write_detected(self):
@@ -143,7 +143,7 @@ class TestControls(unittest.TestCase):
         v2 = bytearray(env.base2)
         self.assertFalse(env.outside_changed(v2))
         g = env.sc.dvg
-        v2[g.origin + 3 * g.stride + g.vw] ^= 1                  # Spalte 68 der Fensterzeile 3: ausserhalb
+        v2[g.origin + 3 * g.stride + g.vw] ^= 1                  # column 68 of window row 3: outside
         self.assertTrue(env.outside_changed(v2))
         v2 = bytearray(env.base2)
         v2[10] ^= 1
@@ -160,7 +160,7 @@ class TestFullCompare(unittest.TestCase):
         self.assertEqual(rep["bad"], [])
         self.assertEqual(rep["a_nonzero"], 0)
         self.assertEqual(rep["outside"], 0)
-        self.assertEqual(rep["a01"], 0)                          # das 0.1-Modell kuerzt keine Ansicht
+        self.assertEqual(rep["a01"], 0)                          # the 0.1 model does not truncate any view
         self.assertLessEqual(rep["max_total"], 2304)
         self.assertLessEqual(rep["nvis01_max"], crawl01.MAXVIS)
 

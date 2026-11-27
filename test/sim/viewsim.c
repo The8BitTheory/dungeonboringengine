@@ -1,33 +1,33 @@
-/* sim65-Harness (docs/specs/P6-engine.md 9.2): führt die Aufrufe einer Szenendatei gegen die Lib aus.
+/* sim65-Harness (docs/specs/P6-engine.md 9.2): executes the calls of a scene file against the lib.
 
-   Aufruf: sim65 [-c] viewsim.prg <szene> <ergebnis>
+   Aufruf: sim65 [-c] viewsim.prg <scene> <result>
 
-   Szenendatei (alles Little Endian):
+   Scene file (all little endian):
      "DBS1"
-     Folge von Sätzen, Typ-Byte zuerst:
-       0                              Ende
-       1 addr(2) len(2) daten         Segment in den Speicher kopieren (nicht unter $0200, nicht in Harness
-                                      $2000-$2DFF und Lib-Code $B000-$DBFF)
+     sequence of records, type byte first:
+       0                              end
+       1 addr(2) len(2) data         copy segment into memory (not below $0200, not into harness
+                                      $2000-$2DFF and lib code $B000-$DBFF)
        2 f x y p0(2) p1(2) p2(2) p3(2) itemph nobj nbytes bytes
-                                      Aufruf: Parameterblock $0C00-$0C07 = P0-P3, ITEMPH ($0C08) = itemph,
-                                      OBJN ($0C50) = nobj, Objektliste ($0C51) = die nbytes Bytes (höchstens 96);
-                                      dann Lib-Funktion f mit X = x, Y = y
-       3 addr(2) len(2)               Speicher auslesen (z. B. Lib-Variablen)
-       4 wie 2, aber ohne Ergebnissatz (Zyklenmessung: Lauf mit F gegen Lauf mit F = 7)
-   Ergebnisdatei:
+                                      call: parameter block $0C00-$0C07 = P0-P3, ITEMPH ($0C08) = itemph,
+                                      OBJN ($0C50) = nobj, object list ($0C51) = the nbytes bytes (at most 96);
+                                      then lib function f with X = x, Y = y
+       3 addr(2) len(2)               read out memory (e.g. lib variables)
+       4 like 2, but without result record (cycle measurement: run with F against run with F = 7)
+   Result file:
      "DBR1"
-     je Aufruf:  'C' f a x y p0..p3(8) pb(10: $0C08-$0C11) buflen(2) puffer
-                 buflen = VCLLEN + VMSLEN bei VIEW mit A = 0, 2 oder 3, sonst 0; puffer = VCLLEN Byte ab VCLADR,
-                 dann VMSLEN Byte ab Pufferanfang (VMS-Listen aufwärts ab B0, VCL-Liste abwärts bis B1);
-                 steht bei VCLADR ein Sprung (Typ 10, feste Listenadresse P6j), ab dessen Ziel bzw. ab B0 + 3
-     je Auslesen: 'D' addr(2) len(2) daten
-   Exitcode: 0 ok, 2 Dateifehler, 3 Segment unzulässig, 4 Satztyp unbekannt. */
+     per call:    'C' f a x y p0..p3(8) pb(10: $0C08-$0C11) buflen(2) puffer
+                 buflen = VCLLEN + VMSLEN for VIEW with A = 0, 2 or 3, otherwise 0; buffer = VCLLEN bytes from VCLADR,
+                 then VMSLEN bytes from the buffer start (VMS lists upwards from B0, VCL list downwards to B1);
+                 if VCLADR holds a jump (type 10, fixed list address P6j), from its target or from B0 + 3
+     per read-out: 'D' addr(2) len(2) data
+   Exit code: 0 ok, 2 file error, 3 segment not allowed, 4 unknown record type. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 extern unsigned char dbe_f, dbe_a, dbe_x, dbe_y;
-extern unsigned dbe_b0;                 /* Pufferanfang (Lib-Variable buf_b0) */
+extern unsigned dbe_b0;                 /* buffer start (lib variable buf_b0) */
 void dbe_run(void);
 
 #define PARM    ((unsigned char *)0x0C00)
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
             fwrite(&bl, 1, 2, out);
             if (bl) {                       /* VCL ab VCLADR, dann VMS ab Pufferanfang (Einpass, P6d-opt) */
                 unsigned l0 = W(0x0C0A), m0 = dbe_b0;
-                if (*(unsigned char *)l0 == 10) {   /* P6j: Sprung bei B0 (feste Listenadresse), VMS ab B0 + 3 */
+                if (*(unsigned char *)l0 == 10) {   /* P6j: jump at B0 (fixed list address), VMS from B0 + 3 */
                     l0 = W(l0 + 1);
                     m0 += 3;
                 }

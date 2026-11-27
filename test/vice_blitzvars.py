@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""P6a, offener Punkt 1 (docs/specs/P6-engine.md 12): wo legt ein Programm seine Variablen, Felder und Strings in
-Bank 1 ab, interpretiert und als Blitz!-Kompilat (Image 2), und senkt `POKE 57,0:POKE 58,64:CLR` die Obergrenze?
+"""P6a, open item 1 (docs/specs/P6-engine.md 12): where does a program put its variables, arrays and strings in
+bank 1, interpreted and as a Blitz! compilation (image 2), and does `POKE 57,0:POKE 58,64:CLR` lower the upper limit?
 
-Aufruf: test/vice_blitzvars.py [--port N] [--timeout S]
-Je Programm (fit: passt in $0400-$3FFF; stress: belegt Strings bis OUT OF MEMORY) und je Modus (interpretiert, Blitz!),
-mit und ohne Begrenzung: Das Programm ruft an zwei Marken `SYS 3600` (RTS bei $0E10, vom Skript gesetzt). Haltepunkt
-auf der Marke:
-  Marke 1 (nach CLR):    Bank 1 $4000-$FEFF mit $A5 füllen, $0400-$3FFF sichern, Zeiger $2D-$3A lesen
-  Marke 2 (am Ende):     Zeiger lesen; geänderte Bytes in $4000-$FEFF zählen (min/max); belegten Bereich in
-                         $0400-$3FFF (gegenüber Marke 1) bestimmen
-Ereignisgesteuert (Haltepunkte, kein sleep); Timeout und -limitcycles nur als Wächter. Portregel wie vice_smoke.py.
+Usage: test/vice_blitzvars.py [--port N] [--timeout S]
+Per program (fit: fits in $0400-$3FFF; stress: allocates strings until OUT OF MEMORY) and per mode (interpreted, Blitz!),
+with and without limit: the program calls `SYS 3600` at two markers (RTS at $0E10, set by the script). Breakpoint
+on the marker:
+  Marker 1 (after CLR):  fill bank 1 $4000-$FEFF with $A5, save $0400-$3FFF, read pointers $2D-$3A
+  Marker 2 (at the end): read pointers; count changed bytes in $4000-$FEFF (min/max); determine used range in
+                         $0400-$3FFF (compared to marker 1)
+Event-driven (breakpoints, no sleep); timeout and -limitcycles only as guards. Port rule as in vice_smoke.py.
 """
 import argparse, os, shutil, subprocess, sys
 
@@ -53,7 +53,7 @@ def ptrs(m):
 
 
 def dump1(m, a, b):
-    """Bank 1 $a..$b-1 lesen."""
+    """Read bank 1 $a..$b-1."""
     m.cmd('bank ram01')
     out = []
     for p in range(a, b, 4096):
@@ -138,18 +138,18 @@ def main():
     h = lambda v: '-' if v is None else f'${v:04X}'
     for prog, body in (('fit', FIT), ('stress', STRESS)):
         for compiled in (False, True):
-            for lim, lname in ((NOLIM, 'ohne Grenze'), (LIM, 'mit POKE 57,0:POKE 58,64:CLR')):
+            for lim, lname in ((NOLIM, 'without limit'), (LIM, 'with POKE 57,0:POKE 58,64:CLR')):
                 text = HEAD.format(lim=lim) + body
                 r = experiment(prog, text, compiled, port, a.timeout)
-                mode = 'Blitz!' if compiled else 'interpretiert'
-                print(f'--- {prog}, {mode}, {lname}: BASIC-Fehlernummer am Ende {r.get("e")} (ER)')
+                mode = 'Blitz!' if compiled else 'interpreted'
+                print(f'--- {prog}, {mode}, {lname}: BASIC error number at the end {r.get("e")} (ER)')
                 if 'p2' in r:
-                    print('    nach CLR: ' + ' '.join(f'{k}=${v:04X}' for k, v in r['p1'].items()))
-                    print('    am Ende:  ' + ' '.join(f'{k}=${v:04X}' for k, v in r['p2'].items()))
+                    print('    after CLR: ' + ' '.join(f'{k}=${v:04X}' for k, v in r['p1'].items()))
+                    print('    at the end: ' + ' '.join(f'{k}=${v:04X}' for k, v in r['p2'].items()))
                     n, lo_, hi_ = r['above']
-                    print(f'    Bank 1 $4000-$FEFF geändert: {n} Byte, {h(lo_)} .. {h(hi_)}')
+                    print(f'    Bank 1 $4000-$FEFF changed: {n} bytes, {h(lo_)} .. {h(hi_)}')
                     n, lo_, hi_ = r['below']
-                    print(f'    Bank 1 $0400-$3FFF seit Marke 1 geändert: {n} Byte, {h(lo_)} .. {h(hi_)}')
+                    print(f'    Bank 1 $0400-$3FFF changed since marker 1: {n} bytes, {h(lo_)} .. {h(hi_)}')
 
 
 if __name__ == '__main__':

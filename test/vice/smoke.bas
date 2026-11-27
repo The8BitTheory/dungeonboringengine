@@ -1,5 +1,5 @@
-# P6a Rauchtest (docs/specs/P6-engine.md 10): Stub mit 8 KB gemeinsamem RAM, Lib-Testbuild.
-# Ergebnis als Exitcode der Debug-Cartridge: 0 = grün, 10.. = Nummer der fehlgeschlagenen Prüfung, 200+ = BASIC-Fehler.
+# P6a smoke test (docs/specs/P6-engine.md 10): stub with 8 KB shared RAM, lib test build.
+# Result as exit code of the debug cartridge: 0 = green, 10.. = number of the failed check, 200+ = BASIC error.
 1 poke 57,0:poke 58,64:clr:trap 9000
 5 if peek(57)<>0 or peek(58)<>64 then r=30:goto 8995
 10 bank 0:bload"dbe0.2.stub",b0,u8:bload"dbe0.2-test.lib",b1,u8
