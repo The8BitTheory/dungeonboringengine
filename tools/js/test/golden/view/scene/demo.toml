@@ -1,0 +1,54 @@
+format  = "dbemap"
+version = 1
+
+[map]
+name    = "demo"
+start   = [2, 1]        # x, y
+dir     = "E"           # N, E, S, W
+outside = "wall"        # tile name for cells outside the map
+
+[tiles.wall]            # order of the tables = tile index (0, 1, ...)
+walls   = 1             # all four faces style 1; or [N, E, S, W]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+
+[tiles.corridor]
+floor   = 1
+ceiling = 1
+
+[tiles.sky]
+floor   = 1             # ceiling missing = 0: sky
+
+[tiles.grating]
+walls   = 2
+floor   = 1
+ceiling = 1
+flags   = ["solid"]       # not occluding: visible behind it
+automap_char = 35
+
+[legend]
+"#" = "wall"
+"." = "corridor"
+"," = "sky"
+"+" = "grating"
+"m" = { tile = "corridor", item = 2 }
+"T" = { tile = "corridor", events = [{ type = "teleport", param = 1 }] }
+"X" = { tile = "corridor", events = [{ type = "exit", param = 0 }] }
+
+[layers]
+tiles = """
+#######
+#..m..#
+#.,,+.#
+#T...X#
+#######
+"""
+
+[[events]]              # additional events at coordinates
+at    = [3, 1]
+type  = "enemy"        # name from 2.5 or number
+param = 1
+
+[[marks]]               # optional: preset the automap mark (bit 7)
+at = [1, 1]

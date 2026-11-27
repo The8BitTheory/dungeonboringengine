@@ -1,0 +1,39 @@
+# Scene for the live view of the editors (tools/web, docs/specs/P8-js-tools.md 6.1) and dbeview.py render.
+# Assets: the built demo (python3 demo/build.py writes build/demo/files/); the map is the editable demo.toml.
+format  = "dbeview"
+version = 1
+
+[scene]
+dvg     = "../build/demo/files/demo.dvg"
+map     = "demo.toml"
+bgfill  = 0x33
+farfill = 0x11          # BGSET Y = 1, P2 = $11 as in demo.bas
+
+[walls]
+dts = "../build/demo/files/walls.dts"
+vrl = "../build/demo/files/walls.vrl"
+
+[floor]
+dts = "../build/demo/files/floor.dts"
+vrl = "../build/demo/files/floor.vrl"
+
+[ceil]
+dts = "../build/demo/files/ceil.dts"
+vrl = "../build/demo/files/ceil.vrl"
+
+[background]
+dbg = "../build/demo/files/land.dbg"
+vrl = "../build/demo/files/land.vrl"
+
+[[sprites]]
+set = 0
+s2  = "../build/demo/files/goblin.s2"
+vrl = "../build/demo/files/goblin.vrl"
+
+[[sprites]]
+set = 1
+s2  = "../build/demo/files/gem.s2"
+vrl = "../build/demo/files/gem.vrl"
+
+[items]
+"1" = 1                 # item 1 -> set 1 (gem), as ITEMSET in demo.bas

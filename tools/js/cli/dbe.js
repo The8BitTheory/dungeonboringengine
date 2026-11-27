@@ -4,10 +4,14 @@
 //   dbe.js vrl rect   IN OUT --width W --height H --stride S [--mask MASK] [--load ADDR] [--raw] [--in-prg]
 //   dbe.js vrl decode IN OUT [--raw] [--base BASE] [--out-prg ADDR]
 //   dbe.js vrl stats  IN [--raw] [-T N] [--bench P0.json] [--json]
+//   dbe.js map build|dump|check ...   (as dbemap.py)
+//   dbe.js view render|dump|budget ... (as dbeview.py)
 // Exit code: 0 ok, 1 format error, 2 wrong usage.
 import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as vrl from '../core/vrl.js';
+import { mapCli } from './map.js';
+import { viewCli } from './view.js';
 
 class Usage extends Error {}
 
@@ -93,7 +97,7 @@ function cmdVrl(argv, io) {
   }
 }
 
-const TOOLS = { vrl: cmdVrl };
+const TOOLS = { vrl: cmdVrl, map: mapCli, view: viewCli };
 
 /** Run the CLI in-process: returns the exit code; io.out/io.err receive lines (default console). */
 export function main(argv, io = { out: (s) => console.log(s), err: (s) => console.error(s) }) {
@@ -103,7 +107,7 @@ export function main(argv, io = { out: (s) => console.log(s), err: (s) => consol
     tool(argv.slice(1), io);
     return 0;
   } catch (e) {
-    if (e instanceof Usage) { io.err(`dbe.js: ${e.message}`); return 2; }
+    if (e instanceof Usage || e.usage) { io.err(`dbe.js: ${e.message}`); return 2; }
     if (e instanceof Error && (e.name !== 'Error' || e.code === 'ENOENT' || e instanceof vrl.VrlError)) {
       io.err(`dbe.js: ${e.message}`);
       return 1;

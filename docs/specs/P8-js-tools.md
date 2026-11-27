@@ -83,16 +83,18 @@ Commands: `cd tools/js && node --test` (all), `node --test test/vrl.test.js` (on
 | Phase | Content | Acceptance |
 |---|---|---|
 | 0 | Node, structure, `io/*`, `vrl`, golden generation, test framework, CLI skeleton | VRL parity and ported `test_vrl.py`; PNG/BMP decoder equals Pillow on all repo images |
-| 1 | read DVG/DTS/S2/DBG, `map` (DMP build), `view` (port of dbeview), `mem`, `move`; **map editor** | parity of DMP and of all VIEW references used by the tests; map editor (6.1) |
+| 1 | read DVG/DTS/S2/DBG, `map` (DMP build), `view` (port of dbeview), `mem`, `move`; **map editor** | parity of DMP and of all VIEW references used by the tests; map editor (6.1). **Done 2026-11-27**: 150 tests (test_dbemap, test_dbeview, test_dbemove, test_dbemem ported; parity goldens `mkgolden_view.py`), `smoke.sh` ok. Known deviations: section 7 |
 | 2 | `geom`, `tex` + `persp`, `spr`; **geometry, texture and sprite editors** | parity DVG/DTS/DBG/VRL/S2; editors (6.2–6.4) |
 | 3 | `bake`/`pack` (new, JS only); **bake/pack view** | visibility check (vda notes 8.2, steps 1–2), then baking and packing (steps 3–4) |
 | 4 | Crawl converters and demo scripts; remove the Python core; harnesses on the JS CLI | all goldens, all tests on JS; no Python tool module left |
 
 ## 6. Editors (`tools/web/`)
 
-Start: `python3 -m http.server -d tools` (or any static server), open `http://localhost:8000/web/`. A project is a folder (the one with the TOML files); the app opens it with the folder picker and remembers the handle (IndexedDB, per browser).
+Start: `python3 -m http.server` in the repository root (or any static server), open `http://localhost:8000/tools/web/`. A project is a folder (the one with the TOML files and the built assets, e.g. the repository root); the app opens it with the folder picker and remembers the handle (IndexedDB, per browser). `?http=/` loads the served folder itself read-only (no picker; saving downloads files), `&open=<path>` opens a file at once. `tools/web/smoke.sh` uses this for a headless check in Chrome (demo scene: map opened, live view rendered).
 
-### 6.1 Map (phase 1)
+### 6.1 Map (phase 1, done 2026-11-27)
+
+Live view: a dbeview scene TOML names the built assets (`demo/preview.toml`: the demo built by `demo/build.py`, map `demo.toml`). Opening a map uses the first scene that names it; the scene can be changed below the view. Saving writes the map with `map.js toTomlNamed` (keeps tile names and legend characters; events and marks as `[[events]]`/`[[marks]]`, comments of the source are not kept).
 
 - Grid painting of tiles; tile table editor (four wall face styles, floor, ceiling, flags, automap character); items (content layer); events; player start.
 - **Live VIEW** from any cell and direction (`core/view.js`, the same image the reference renderer produces), walking with the arrow keys; automap.
@@ -113,3 +115,11 @@ Sprite sets: phases, angles, foot point; preview per distance and sub-position i
 ### 6.5 Bake/pack (phase 3)
 
 Special and animated elements of a map; visibility as an overlay on the map (cell and facing from which an element is seen, with the slot); warnings for visible slots without an image; animation definitions (frames, timing, triggers); bake preview; zone package with VRAM pool layout, `RXV` load list and load time (27 µs per byte, hardware measurement in the vda notes, section 6).
+
+## 7. Known deviations from Python (phase 1)
+
+1. Map TOML: integral floats (`floor = 1.0`) are accepted as integers (smol-toml), tomllib rejects them.
+2. Tile names that look like integers (`[tiles.1]`) without `index`: JS object key order puts them first, so the tile order can differ. Use names or `index`.
+3. Text of TOML syntax errors comes from smol-toml.
+4. Python `KeyError`/`IndexError`/`struct.error` paths: thrown as `ViewError` with the key name, or masked (out-of-range writes).
+5. CLI errors print `dbe.js: <message>` (Python: `Error: <message>`).
