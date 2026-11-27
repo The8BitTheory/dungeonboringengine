@@ -51,7 +51,7 @@ export class Preview {
     const cache = new Map();
     for (const rel of sceneRefs(cfg)) {
       try { cache.set(rel, await this.project.read(join(dir, rel))); } catch (e) {
-        throw new Error(`${path}: ${rel} not found (built assets missing? e.g. node demo/build.js)`);
+        throw new Error(`${path}: ${rel} not found (built assets missing? e.g. node demo/build.js --no-disk)`);
       }
     }
     const scene = V.loadScene(cfg, (rel) => {

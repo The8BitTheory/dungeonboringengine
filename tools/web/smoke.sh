@@ -1,6 +1,6 @@
 #!/bin/sh
 # Headless smoke test of the editor app (docs/specs/P8-js-tools.md 4.5): serves the repo read-only over HTTP,
-# opens the demo scene in Chrome (headless) and checks that the map and the live view were rendered.
+# opens the demo scene in Chrome (headless; needs the demo assets: node demo/build.js --no-disk) and checks that the map and the live view were rendered.
 # usage: tools/web/smoke.sh [MAP.png [GEOM.png]]   (SHOTDIR=dir: screenshots of the texture/sprite editors)     needs: python3, chrome (Chrome for Testing in ~/.local/bin is fine)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)

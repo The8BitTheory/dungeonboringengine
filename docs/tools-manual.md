@@ -12,7 +12,7 @@ Background and design: `docs/specs/P8-js-tools.md`. Formats: `docs/formats.md` a
 
 | Needed for | What |
 |---|---|
-| everything | Node ≥ 24 (`node --version`). No packages to install. |
+| everything | Node ≥ 24 (`node --version`). The tools are checked in ready to run: plain JavaScript modules, no build step, no packages to install. |
 | editors | a browser; **Chrome or Edge** can save into the project folder, other browsers open it read-only and offer files as downloads |
 | building disks and running the engine tests | cc65, VICE 3.10 (`x128`, `c1541`), VDC-BASIC v3 in `~/git/vdc-basic` (`VDCBASIC_DIR`), Python 3 for the VDC-BASIC helper scripts |
 
@@ -22,7 +22,7 @@ Note for this machine: every Node start takes about 2 s (a monitoring agent load
 
 ```sh
 cd ~/git/dungeonboringengine
-node demo/build.js                 # builds the demo assets into build/demo (needed for the live views)
+node demo/build.js --no-disk       # demo assets into build/demo (for the live views; Node only, about 2 s)
 python3 -m http.server             # any static web server in the repository root
 ```
 
@@ -45,7 +45,7 @@ map (demo.toml) ─────────────────────�
 5. A **scene** file (`format = "dbeview"`) names the built assets and the map; the map editor uses it for the live view.
 6. **Bake/pack** checks what is visible where, bakes animations and lays out the zone in bank 1 and the VRAM pool.
 
-The demo (`demo/`) is a complete example of every file; `node demo/build.js` runs steps 1–4 and builds the disks.
+The demo (`demo/`) is a complete example of every file; `node demo/build.js` runs steps 1–4 and builds the disks (`--no-disk`: assets only, Node is enough). Built files (`build/`) are not checked in.
 
 ## 4. Editors
 
@@ -215,9 +215,9 @@ Each frame of an animation is a wall style. For every viewpoint the tool renders
 ## 7. Building the demo
 
 ```
-node demo/build.js [--out DIR] [--budget] [--blitz]
+node demo/build.js [--out DIR] [--no-disk] [--budget] [--blitz]
 ```
-Builds geometry, textures, wallpaper, sprites and map of the demo into `build/demo/` (or `DIR`), checks the layout against the DATA lines of `demo.bas`, writes `report.md`, `layout.json` and the disks `dbe-demo.d81`/`.d64`. `--budget` checks all views with goblins (A = 0), `--blitz` also builds the compiled version.
+`--no-disk` builds only the assets (needs only Node); without it the engine (cc65), the program and the disks (c1541, VDC-BASIC) follow. Builds geometry, textures, wallpaper, sprites and map of the demo into `build/demo/` (or `DIR`), checks the layout against the DATA lines of `demo.bas`, writes `report.md`, `layout.json` and the disks `dbe-demo.d81`/`.d64`. `--budget` checks all views with goblins (A = 0), `--blitz` also builds the compiled version.
 
 ## 8. Tests
 
@@ -235,7 +235,7 @@ Which tests a change needs: `AGENTS.md`. The goldens in `tools/js/test/golden/` 
 
 | Symptom | Cause / remedy |
 |---|---|
-| live view: "not found (built assets missing?)" | the scene names files in `build/`: run `node demo/build.js` (or build the project's assets) |
+| live view: "not found (built assets missing?)" | the scene names files in `build/` (not checked in): run `node demo/build.js --no-disk` (or build the project's assets) |
 | saving offers a download | read-only folder (Firefox, or `?http=` mode): use Chrome/Edge and **Open project folder** |
 | "Reopen …" button after a reload | the browser asks again for folder permission: click it |
 | a geometry `view.toml` is not listed | it needs `[viewport]` and `[output]`; other project files need `format = "…"` |

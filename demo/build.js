@@ -10,7 +10,7 @@
 //   --budget [N]  view.js budget over all views of the map (4 directions per walkable cell) with 0 to 3 goblins;
 //                 N = number of random goblin states (default 30); A must be 0 everywhere.
 //   --blitz       additionally the Blitz! version (disk dbe-demo-blitz.d81; needs node and blitzc)
-//   --no-disk     files only
+//   --no-disk     files only (assets: needs only Node, no cc65/VICE/VDC-BASIC)
 //
 // Build steps (JS tools, sources in demo/): geom view.toml -> DVG, tex build (walls/floor/ceil), mkbg.js + tex bg
 // (wallpaper), goblin sheet + spr build (goblin, gem), map build -> demo.dmp. Then: bank 1 ranges (mem.js, already
@@ -479,8 +479,7 @@ export function report(out, L, files, rep, extra) {
 export function build({ out = OUT, disk = true, blitz = false, budgetStep = null, quiet = false } = {}) {
   const log = quiet ? () => {} : (s) => console.log(s);
   mkdirSync(out, { recursive: true });
-  engineBuild();
-  const files = buildFiles(out, log);
+  const files = buildFiles(out, log);       // assets: JS tools only (Node is enough, e.g. for the editors' live view)
   const L = layout(files);
   checkBas(L, join(HERE, 'demo.bas'));
   writeFileSync(join(out, 'layout.json'), pyJson(L, 1));
@@ -489,6 +488,7 @@ export function build({ out = OUT, disk = true, blitz = false, budgetStep = null
   if (rep && rep.bad.length) throw new BuildError(`Budget: ${rep.bad.length} views with A != 0, first: ${rep.badRepr(rep.bad[0])}`);
   report(out, L, files, rep, []);
   if (disk) {
+    engineBuild();                          // stub and lib for the disk (cc65)
     const boot = bootPrg(out);
     const prog = program(out);
     makeDisk(join(out, 'dbe-demo.d81'), files, prog, boot);
