@@ -12,13 +12,13 @@ compass (4 rectangles, rows 96–99) shows the viewing direction. Three goblins 
 | Element | Implementation |
 |---|---|
 | Westwood geometry 140 × 96 | `view.toml` (preset `westwood`, `origin = 5`, stride 80, pixel-exact) |
-| 4 wall styles | `brick`, `grating`, `window`, `arch` (`walls.toml`, sources `art/*_atlas.png`, `art/window.*` from `docs/specs/examples/tex`; patterns derived in perspective by `tools/dbepersp.py`) |
+| 4 wall styles | `brick`, `grating`, `window`, `arch` (`walls.toml`, sources `art/*_atlas.png`, `art/window.*` from `docs/specs/examples/tex`; patterns derived in perspective by `tools/js/core/persp.js`) |
 | Floor and ceiling | one style each (`stone`, `wood`) |
 | Sky | ceiling style 0 (courtyard): the wallpaper shows through the gap in the ceiling |
 | Abyss | floor style 0 with flag SOLID (chamber): gap in the floor, below it wallpaper with `below = 0` |
 | Window with landscape | wall style `window` (not OCCLUDING) in the outer wall, behind it the outer tile `outside` (wallpaper only) |
-| Wallpaper "landscape" | `mkbg.py`: trees and water from `art/tree*.bmp`, `art/water*.bmp`, sky = `above`; 280 × 36 pixels, cyclic, offset by a quarter per viewing direction |
-| Far-view fill | `BGSET` Y = 1, P2 = `$11` (dark grey; `demo.bas` 615, `build.py` `FARFILL`): sight lines beyond depth 3 end under ceilings (corridors, chamber behind the grating) in darkness, under open sky (courtyard, window to the outside) in the landscape (`docs/specs/P6-engine.md` 5.7a) |
+| Wallpaper "landscape" | `mkbg.js`: trees and water from `art/tree*.bmp`, `art/water*.bmp`, sky = `above`; 280 × 36 pixels, cyclic, offset by a quarter per viewing direction |
+| Far-view fill | `BGSET` Y = 1, P2 = `$11` (dark grey; `demo.bas` 615, `build.js` `FARFILL`): sight lines beyond depth 3 end under ceilings (corridors, chamber behind the grating) in darkness, under open sky (courtyard, window to the outside) in the landscape (`docs/specs/P6-engine.md` 5.7a) |
 | Goblins | `goblin.toml`: 4 phases (images 0, 2, 4, 6 of `goblin1.bmp`, scaled 2×), depths 2 and 3 via `derive = "nearest"`; 3 goblins with routes in `demo.bas` |
 | Grating with CONTENTS | wall style `grating`, flags SOLID and CONTENT, behind it in the cell a gem |
 | Door with CONTENTS | wall style `arch`, flag CONTENT without SOLID: passable, a goblin walks through it |
@@ -33,23 +33,23 @@ chamber), `media/tour_01.png` (window to the west), `media/tour_26.png` (chamber
 
 | File | Purpose |
 |---|---|
-| `build.py` | builds everything into `build/demo/` (files in `files/`, disks `dbe-demo.d81` and `.d64`, report `report.md`, layout `layout.json`); `--budget` checks all views with goblins (A = 0), `--blitz` additionally builds the compiled version |
+| `build.js` | builds everything (`node demo/build.js`, `--out DIR` for another output folder) into `build/demo/` (files in `files/`, disks `dbe-demo.d81` and `.d64`, report `report.md`, layout `layout.json`); `--budget` checks all views with goblins (A = 0), `--blitz` additionally builds the compiled version |
 | `view.toml`, `walls.toml`, `floor.toml`, `ceil.toml`, `bg.toml`, `goblin.toml`, `gem.toml`, `demo.toml` | project files for `dbegeom`, `dbetex`, `dbespr`, `dbemap` |
-| `mkbg.py` | panorama of the wallpaper |
+| `mkbg.js` | panorama of the wallpaper |
 | `demo.bas` | the program |
-| `tour.py` | tour for the test (search for position, direction and goblin states) |
+| `tour.js` | tour for the test (search for position, direction and goblin states) |
 | `art/` | source graphics (copies, see below) |
 | `media/` | images of the tour: `tour_NN.png` screenshots from the VICE run (`--shots`), `scenes.png` montage of all images from the model (`--png`, pixel-identical to the VICE run) |
 
-Test: `test/vice_demo.py` (tour with 75 keys, whole VRAM at every prompt against the model, interpreted and
-compiled, 1 MHz and 2 MHz); `test/vice_demo.py --check` without emulator.
+Test: `node test/vice_demo.js` (tour with 75 keys, whole VRAM at every prompt against the model, interpreted and
+compiled, 1 MHz and 2 MHz); `node test/vice_demo.js --check` without emulator.
 
 ## Memory
 
 Bank 1 as in `docs/formats.md`: DMP `$4000` (working copy `$5000`), S2 `$6000` (goblin) and `$6500` (gem), wall DTS
 `$8000`, DVG `$E800`, floor `$EE00`, ceiling `$F600`, wallpaper `$FB80`. VRAM pool 9600–46334 (36 735 bytes), used 36 291, in
 order: wall 23 303, floor 3 640, ceiling 3 114, wallpaper 5 040, goblin 1 069, gem 125. Numbers and load addresses
-are in `build/demo/report.md` after each build; `build.py` checks the DATA lines 600–619 in `demo.bas` against them.
+are in `build/demo/report.md` after each build; `build.js` checks the DATA lines 600–619 in `demo.bas` against them.
 The VRL files are loaded into bank 0 starting at `$9000` (above the program, below `$D000`).
 
 Cut list when the pool overflows (in order): `arch` (door then with `grating` without SOLID), goblin phases 4 → 2,
@@ -59,4 +59,4 @@ panorama height.
 
 `art/goblin1.bmp`, `art/tree1.bmp` to `tree3.bmp`, `art/water1.bmp` to `water4.bmp` come from the game Crawl 128
 (`dungeoncrawlerjam2025/art/`, same authors, MIT license). `art/*_atlas.png`, `art/window.*` and `art/gem.png` are
-copies of the example assets in `docs/specs/examples/` (generated by `tools/dbetexdemo.py` and `tools/dbesprdemo.py`).
+copies of the example assets in `docs/specs/examples/` (generated by the demo generators, now `tools/js/core/demo/texdemo.js` and `sprdemo.js`).

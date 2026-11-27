@@ -1,0 +1,11 @@
+{
+  "name": "dbe-tools",
+  "private": true,
+  "type": "module",
+  "description": "dungeonboringengine tools as one JS library (browser editors, CLI, tests) - docs/specs/P8-js-tools.md",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test",
+    "golden": "python3 test/golden/mkgolden.py"
+  }
+}

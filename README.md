@@ -13,13 +13,13 @@ A dungeon crawler engine for the C128 (VDC, 64 KB VRAM), built on [VDC-BASIC](ht
 
 Sub-steps P6a–P6j completed (results in `docs/specs/P6-engine.md`): skeleton (stub in bank 0 with 8 KB of shared RAM, lib in bank 1 from `$B000`, interrupt dispatcher), map (`MAPINIT`, `SETPOS`, `SETCELL`, `MOVE`, automap), assets (`GEOMSET`, `TEXSET`, `BGSET`, `SPRITESET`, `ITEMSET`), `VIEW` with walls, tiles, floor, ceiling, wallpaper and objects at the correct depth (VCL type 9: VMS lists directly from bank 1). 42 VICE scenes are pixel-identical (interpreted and as a Blitz! compiled build with runtime image 2). Requires VDC-BASIC v3 (branch `v3`).
 
-Tools (Python 3 with Pillow): `tools/vrl.py` (RLE for `RXV`), `dbegeom.py` (view window, DVG; `view.toml`, switch `byte_edges` for edges on whole bytes), `dbetex.py` (wall, floor and ceiling DTS, wallpaper DBG), `dbepersp.py` (derives side, floor and ceiling images in perspective from flat patterns or textures; module for asset scripts; `dbetexdemo.py` uses it), `dbespr.py` (sprite sets S2), `dbemap.py` and `crawlmap.py` (map DMP), `dbeview.py` (reference of `VIEW`), `dbemove.py`, `dbemem.py` (memory map). For Crawl 128: `crawlconv.py` (converts the 1.0f data of `crawl128-100f.d81` into DVG, DTS, S2, DMP and VRL for 0.2), `crawl01.py` (reference: the image of Crawl 1.0f from the 0.1 model, for the pixel comparison). The example project is in `docs/specs/examples/`. Planned extension of the toolchain (visibility check of special wall elements, pre-baking of animations with the level context, packaging per zone: `dbebake`, `dbepack`): `docs/vda-animation-notes.md`, section 8.
+Tools: one JavaScript library (`tools/js/`, Node ≥ 24, no dependencies) with the command line `node tools/js/cli/dbe.js <tool> …` and the browser editors (`tools/web/`; spec `docs/specs/P8-js-tools.md`). Tools: `vrl` (RLE for `RXV`), `geom` (view window, DVG), `tex` (wall, floor and ceiling DTS, wallpaper DBG; perspective derivation in `core/persp.js`), `spr` (sprite sets S2), `map` (DMP), `view` (reference of `VIEW`; `MOVE` in `core/move.js`, memory map in `core/mem.js`), `bake` (visibility check, baked animations, zone layout; `docs/vda-animation-notes.md` section 8). For Crawl 128: `crawlconv` (1.0f data of `crawl128-100f.d81` into DVG, DTS, S2, DMP and VRL for 0.2), `crawlmap`, `crawlsprites`, `wallconv`, `crawl01` (image of Crawl 1.0f from the 0.1 model, for the pixel comparison). The Python tools were removed on 2026-11-27 after byte parity (last commit with them: `e4a044f`). The example project is in `docs/specs/examples/`. Editors: `python3 -m http.server` in the repository root, then `http://localhost:8000/tools/web/`.
 
 **P7 completed** (spec and results: [docs/specs/P7-crawl.md](docs/specs/P7-crawl.md)): Crawl 128 version 1.1 (game repo `dungeoncrawlerjam2025`, branch `dbe-0.2`) runs on engine 0.2 and VDC-BASIC v3 with **pixel-identical** images to 1.0f (offline 19 136 views, in the emulator 74 prompts interpreted and compiled). Plus the [demo](demo/README.md) with Westwood geometry, windows, sky, abyss and animated goblins. P6i: sprites are not clipped against walls; occlusion results from the drawing order.
 
 The 0.1 version (Crawl 128 with `WALLSET`, `SPRITESET` v1) now exists only as the test disk `crawl128-dbe.d81`.
 
-**Demo:** `python3 demo/build.py` builds `build/demo/` with the disk `dbe-demo.d81` and `.d64`; description, keys and memory in [demo/README.md](demo/README.md), test `test/vice_demo.py`.
+**Demo:** `node demo/build.js` builds `build/demo/` with the disk `dbe-demo.d81` and `.d64`; description, keys and memory in [demo/README.md](demo/README.md), test `node test/vice_demo.js`.
 
 ## Memory map bank 1 (`MEMSIZ $4000`)
 
@@ -38,13 +38,13 @@ The tools use these load addresses as defaults and abort with an error message i
 
 ## Building
 
-Requirements: cc65 (`ca65`, `ld65`, `cl65`, `sim65`), Python 3, Pillow. For testing also VICE 3.10 (`x128`, `c1541`), ACME and, for the Blitz! run, `node` with the Blitz! compiler; VDC-BASIC v3 under `~/git/vdc-basic` (`VDCBASIC_DIR`).
+Requirements: cc65 (`ca65`, `ld65`, `cl65`, `sim65`), Node ≥ 24 (tools, harnesses), Python 3 (VDC-BASIC helper scripts, `vice_smoke.py` and friends). For testing also VICE 3.10 (`x128`, `c1541`), ACME and, for the Blitz! run, `node` with the Blitz! compiler; VDC-BASIC v3 under `~/git/vdc-basic` (`VDCBASIC_DIR`).
 
 ```
 engine/build.sh     # build/dbe0.2.stub, build/dbe0.2.lib (version from `VERSION`), dbe0.2-test.lib (with test functions)
-python3 tools/dbegeom.py docs/specs/examples/view-west140.toml          # geometry: DVG, templates, budget
-python3 tools/dbetex.py build walls.toml                                # texture DTS and VRL (see docs/specs/P5-textures.md)
-python3 tools/dbemap.py build docs/specs/examples/demo.toml demo.dmp    # map
+node tools/js/cli/dbe.js geom docs/specs/examples/view-west140.toml            # geometry: DVG, templates, budget
+node tools/js/cli/dbe.js tex build walls.toml                                  # texture DTS and VRL (docs/specs/P5-textures.md)
+node tools/js/cli/dbe.js map build docs/specs/examples/demo.toml demo.dmp      # map
 ```
 
 The lib uses 10 982 of 11 264 bytes (`$B000–$DBFF`); do not use up the reserve of 282 bytes.
@@ -53,16 +53,16 @@ The lib uses 10 982 of 11 264 bytes (`$B000–$DBFF`); do not use up the reserve
 
 | Test | Purpose |
 |---|---|
-| `python3 -m unittest discover -s test/tools` | Tools and reference (`dbeview`, `dbemove`, `dbemem` …), without emulator |
-| `test/sim/run_sim.py` (`DBEVIEW_FULL=1` for the full random set) | Lib in sim65: all functions, `VIEW` and `MOVE` byte-identical with the references; cycles |
+| `cd tools/js && node --test` | Tools and reference (`view`, `move`, `mem` …), parity goldens, Crawl full comparison (19 136 views); without emulator |
+| `tools/web/smoke.sh` | Editors in headless Chrome |
+| `node test/sim/run_sim.js` (`DBEVIEW_FULL=1` for the full random set) | Lib in sim65: all functions, `VIEW` and `MOVE` byte-identical with the references; cycles |
 | `test/vice_smoke.py` | Stub, lib, interrupts, bank 0 `$1C00–$3FFF` unchanged, `RXV` (interpreted and Blitz!) |
-| `test/vice_zp.py` | Zero page block `$63–$72` under interrupts, afterwards BASIC computes correctly; `--funcs`: zero page usage per function (the stub saves the block only for `VIEW`/`GEOMSET`) |
-| `test/vice_view.py` | 42 scenes in the real x128, whole VRAM pixel-identical; cycles at 1 MHz and 2 MHz (`--no-fast`, `--byte-edges`, `--check`, `--control`, `--fix`: fixed list address) |
-| `test/vice_vclprof.py` | Breakdown of the VCL time (`--static` without VICE) |
+| `node test/vice_zp.js` | Zero page block `$63–$72` under interrupts, afterwards BASIC computes correctly; `--funcs`: zero page usage per function (the stub saves the block only for `VIEW`/`GEOMSET`) |
+| `node test/vice_view.js` | 42 scenes in the real x128, whole VRAM pixel-identical; cycles at 1 MHz and 2 MHz (`--no-fast`, `--byte-edges`, `--check`, `--control`, `--fix`: fixed list address) |
+| `node test/vice_vclprof.js` | Breakdown of the VCL time (`--static` without VICE) |
 | `test/vice_blitzvars.py` | Where a Blitz! program places variables; whether `MEMSIZ $4000` takes effect |
-| `test/tools/test_crawlconv.py`, `test_crawl01.py` | Converter and offline full comparison: 19 136 views of Crawl 1.0f byte-identical (in `unittest discover`) |
-| `test/sim/run_crawl.py` | the same views with the lib in sim65 against `dbeview.view` |
-| `test/vice_demo.py` | Demo tour (75 keys) in the real x128, whole VRAM at every prompt against the model; `--check` without emulator |
+| `node test/sim/run_crawl.js` | the Crawl views with the lib in sim65 against `view.js` |
+| `node test/vice_demo.js` | Demo tour (75 keys) in the real x128, whole VRAM at every prompt against the model; `--check` without emulator |
 | Game repo `test/vice_crawl.py` | Crawl 1.1 (interpreted, compiled) against 1.0f at every prompt (VRAM and registers); also the timing measurement (`--timing`) |
 
 VICE tests run event-driven (breakpoints, debug cartridge, no fixed waiting times); the port comes from `--port` or `DBE_VICE_PORT` (range 6631–6649).

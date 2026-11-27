@@ -1,0 +1,5167 @@
+{
+ "data": {
+  "walls.vdc": "8fa3a18c3d2884fe36de5f6718889c2466b7ba5fbf2c98c33c5ad2fefa040d1a",
+  "walls.wsm": "32b768031823b9222ba6b11648ac9db45fa1c5bd6f55ec9b00e64ba2e8021ba1",
+  "ghost.spr": "9b1383b9e338b2780caf436eda5fd03ee1db314e1c555e2c461050f870f789b3",
+  "ghosts.vdc": "c05da2a8488527a3273c9b331dde15628b15532f656075be85d0baa62d96cfba",
+  "gem.spr": "878544495d34598cdc009f86b5695d213b74e535c79004f22c9b6d8c72dfd4a3",
+  "font3o.vdc": "03b596c2641f0aa7b4d4e8d536c3ac39ec4e120f59e3cc98a0473f09380fdcc6",
+  "crawl128.cd1": "7885135eb4ae3911d3f19391a6414e00840e64650266f9e268b4c2aca7031fa3"
+ },
+ "crawlmap": {
+  "default": {
+   "dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270",
+   "toml": "f9bbdcb130d8df854742ef07aa60b5ef1e65b5b1a2bd2ada77def07503518b04",
+   "warn": []
+  },
+  "floor_ceiling": {
+   "dmp": "e4ebd0fbcefb1618fb214351c2722835644098325606547716e6c5625b5b366e",
+   "toml": "d7b65a7b119538ecd06f472f76ff50f6add07760fd419a386895030634540c63",
+   "warn": []
+  },
+  "items4": {
+   "dmp": "9a0106ff1bb338ba5ec4a2279227da46feb701adae3bd80f1ba8758cb57770ac",
+   "toml": "5328ee14eaf00130a73d6de326658606350df19968f1cf36c4684d6045fe581f",
+   "warn": []
+  },
+  "synth": {
+   "basic": {
+    "warn": [
+     "unknown record 'Q' (cell 0): type 255, parameter 81"
+    ],
+    "dmp": "03a6834f15f86a4ebbe1636e7a7c54f24b6ae0252b9948dcbfc51c32a81c3ff0",
+    "events": [
+     [
+      0,
+      255,
+      81
+     ],
+     [
+      3,
+      2,
+      1
+     ],
+     [
+      4,
+      2,
+      1
+     ],
+     [
+      5,
+      3,
+      1
+     ]
+    ],
+    "start": 2,
+    "nt": 43,
+    "name": "TEST",
+    "toml": "06e68b9acc85167c0360eedfe079d5520d525df22bbfe7584824b581725f5d65"
+   },
+   "dup6": {
+    "error": "record '6' (player start) repeated"
+   },
+   "three8": {
+    "error": "more than two records '8' (Crawl knows exactly two teleporters)"
+   },
+   "dupX": {
+    "warn": [
+     "record 'X' repeated: Crawl takes the last one, the DMP contains all"
+    ],
+    "dmp": "5c3b0517f888480784a8b677bd56c0e283d3404c31dbc00867f2e48d18f13cfe",
+    "events": [
+     [
+      0,
+      3,
+      0
+     ],
+     [
+      1,
+      3,
+      0
+     ]
+    ],
+    "start": 0,
+    "nt": 43,
+    "name": "TEST",
+    "toml": "105e78c46be433e0b1e0e5e51a815fa1753f0b669d21f84456d4c73337926924"
+   },
+   "nostart": {
+    "error": "no record '6' (player start)"
+   },
+   "range": {
+    "error": "record '6': cell 2 >= W*H 2"
+   },
+   "gemname": {
+    "warn": [
+     "map name is not ASCII",
+     "1 cells with value 2, header says 5 gems"
+    ],
+    "dmp": "21ebff9b89b589f17d21caf1dc1b4ada8446e9d7ca885c834a5a280e18737afb",
+    "events": [],
+    "start": 1,
+    "nt": 43,
+    "name": "\ufffd",
+    "toml": "dabf1e17dcd2025017d828b1ee9c5fd23573c7414f9d8abb79a66ede8b221f9e"
+   },
+   "legend80": {
+    "warn": [],
+    "dmp": "2667ee643eb7abf7a547178564a63940efb172a60f5abfc73906947e69fd607d",
+    "events": [],
+    "start": 1,
+    "nt": 81,
+    "name": "TEST",
+    "legend_error": "cell value 80 > 78: no ASCII character for the legend"
+   },
+   "quote": {
+    "warn": [
+     "unknown record \"'\" (cell 0): type 255, parameter 39",
+     "unknown record '\\x01' (cell 1): type 255, parameter 1"
+    ],
+    "dmp": "0e98e665d4bea86e849b5997af4e5b6efd35c1d8dd4defa591e140995cc3ca31",
+    "events": [
+     [
+      0,
+      255,
+      39
+     ],
+     [
+      1,
+      255,
+      1
+     ]
+    ],
+    "start": 1,
+    "nt": 43,
+    "name": "TEST",
+    "toml": "4057e049fcfe053ae955bf1db2e5a75a8daf87cc3384bd336e08e95d438705f8"
+   }
+  },
+  "cli": {
+   "toml": {
+    "code": 0,
+    "stdout": "/T/a.dmp: 818 bytes, 20 x 11, 43 tiles, 94 items, 2 events, start (18, 9) direction N\n",
+    "stderr": "",
+    "dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270",
+    "toml": "f9bbdcb130d8df854742ef07aa60b5ef1e65b5b1a2bd2ada77def07503518b04"
+   },
+   "warning": {
+    "code": 0,
+    "stdout": "/T/s.dmp: 378 bytes, 2 x 1, 43 tiles, 0 items, 1 events, start (1, 0) direction N\n",
+    "stderr": "Warning: unknown record 'Q' (cell 0): type 255, parameter 81\n"
+   },
+   "load_dollar": {
+    "code": 0,
+    "stdout": "/T/load_dollar.dmp: 818 bytes, 20 x 11, 43 tiles, 94 items, 2 events, start (18, 9) direction N\n",
+    "stderr": "",
+    "dmp": "de4a9153e2a4d75c098a4b25d55479335d50a4bc922c43d64780acfd9e3fce4c"
+   },
+   "load_bad": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: invalid literal for int() with base 0: 'zz'\n"
+   },
+   "items_bad": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: invalid literal for int() with base 10: 'x'\n"
+   },
+   "items_range": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: --items: values 1 ... 63 expected\n"
+   },
+   "floor_range": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: --floor/--ceiling: 0 ... 255 expected\n"
+   },
+   "load_bank1": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: dmp: $5F00..$622F (816 bytes) extends beyond the area end $5FFF (area $4000..$5FFF, 8192 bytes)\n"
+   },
+   "items_floor": {
+    "code": 0,
+    "stdout": "/T/items_floor.dmp: 818 bytes, 20 x 11, 43 tiles, 2 items, 2 events, start (18, 9) direction N\n",
+    "stderr": "",
+    "dmp": "90f2f8b2ce9830159588343957ac86c46821a66436a3b840683b6061f8e275c7"
+   },
+   "missing": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: [Errno 2] No such file or directory: '/T/nothere.cd1'\n"
+   }
+  }
+ },
+ "crawlconv": {
+  "default": {
+   "files": {
+    "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270",
+    "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+    "crawlconv.json": "97e32b9abc8408db4d29d96ea386d98c571dce94d982b4fbd321d1b9a05205c7",
+    "crawlconv.md": "a3debdd389927939d19fb310d7baa27c8896dd09f391659f36dc03ec1c108f0f",
+    "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+    "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+    "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+    "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+    "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+    "walls.vrl": "ea7d26062a226c0f739f66e5690a7338ac7ff548296bc641a5777c2061756b1c"
+   },
+   "info": {
+    "font_bytes": 1730,
+    "CA": 19200,
+    "DA": 20930,
+    "GA0": 43284,
+    "GA1": 45166,
+    "MA": 45202,
+    "vram_end": 45642,
+    "vram_limit": 46335,
+    "vram_reserve": 693,
+    "map_wh": [
+     20,
+     11
+    ],
+    "u_walls": 22354,
+    "u_ghost": 1882,
+    "u_gem": 36,
+    "max_part": 0,
+    "nparts": 1
+   },
+   "nparts": 1
+  },
+  "parts": {
+   "1500": {
+    "nparts": 5,
+    "files": {
+     "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+     "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+     "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+     "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+     "walls1.vrl": "2a7d760f76662e3a9b7cfb50e25b9b79a8eef6379b7be3a107bd270d6226c3d7",
+     "walls2.vrl": "ff433d48d3dcdf92807d1eb8a2d220eb57d7553c75ae3c9a22c7ad3d300a8e0f",
+     "walls3.vrl": "68887baa91f7835748b104589540a0e8a9f9e7b7592f520be75c4d504b3eb0d4",
+     "walls4.vrl": "2aa508ebe6c8de1ccc7f4bf84f9237126ee38d2d8903feeedc583705d5e5e39e",
+     "walls5.vrl": "e5550f4432e230645daea99d3d03f0668d21feb1518167e85f31cdc435b7b8d8",
+     "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+     "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+     "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270"
+    },
+    "md": "16306d3ebf466d2a027f160b81dc593ce5191b9ca1b594b92074671da2e31528"
+   },
+   "3000": {
+    "nparts": 3,
+    "files": {
+     "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+     "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+     "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+     "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+     "walls1.vrl": "a59a94294a98ebb39013335b2d9617316e3031f9623ecd157a327e52bc31f266",
+     "walls2.vrl": "642eaf9523b61bfa8d4ee0b40e2a43fcdee39e65d47c10d33f7652d11cd2a1bf",
+     "walls3.vrl": "e99b845f58b971474c39e7e9c2030876e340985ab53b6b238937c07b56cbf3ab",
+     "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+     "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+     "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270"
+    },
+    "md": "2c084bfbd26894e73e7bbc7b13753f66891fdf8516feebb2e403239a02c799db"
+   },
+   "5000": {
+    "nparts": 2,
+    "files": {
+     "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+     "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+     "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+     "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+     "walls1.vrl": "2b13a66cab799d789af9036d355c961468787bd34b84791a1efcbb87762188c3",
+     "walls2.vrl": "ba2a227bbcda5dd660b34a4fc4003a9d15598376931e97b5a94bff09ac92f9b7",
+     "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+     "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+     "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270"
+    },
+    "md": "9276244d9add68a2ddfff743068b500e8997635a84b2ad4995e29a1415ebfd80"
+   },
+   "100000": {
+    "nparts": 1,
+    "files": {
+     "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+     "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+     "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+     "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+     "walls.vrl": "ea7d26062a226c0f739f66e5690a7338ac7ff548296bc641a5777c2061756b1c",
+     "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+     "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+     "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270"
+    },
+    "md": "e2aa1847eb3b83e2d97a097cee35cfaac048ac35800b483dea713c640cc6e706"
+   }
+  },
+  "font3000": "ConvError: VRAM total 46912 > 46335 (MA + 2*W*H)",
+  "font1732": {
+   "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+   "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+   "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+   "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+   "walls.vrl": "ea7d26062a226c0f739f66e5690a7338ac7ff548296bc641a5777c2061756b1c",
+   "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+   "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+   "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270"
+  },
+  "nomap": {
+   "files": {
+    "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+    "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+    "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+    "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+    "walls.vrl": "ea7d26062a226c0f739f66e5690a7338ac7ff548296bc641a5777c2061756b1c",
+    "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+    "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf"
+   },
+   "md": "34e131f229f097e6b04af99c833ad8cbab637f5e75c7311eb4ea823b4968bec4",
+   "info": {
+    "font_bytes": 1730,
+    "CA": 19200,
+    "DA": 20930,
+    "GA0": 43284,
+    "GA1": 45166,
+    "MA": 45202,
+    "vram_end": 45642,
+    "vram_limit": 46335,
+    "vram_reserve": 693,
+    "map_wh": [
+     20,
+     11
+    ],
+    "u_walls": 22354,
+    "u_ghost": 1882,
+    "u_gem": 36,
+    "max_part": 0,
+    "nparts": 1
+   }
+  },
+  "errors": {
+   "wsm_width": "ConvError: walls.wsm does not match walls.vdc",
+   "ghost_side": "ConvError: ghost.spr: part (1, -1, 0) differs from (d, 0, a) (list/data)",
+   "gem_dest": "ConvError: gem.spr: cell (1, 0): second character not 3 bytes to the right",
+   "gem_char": "ConvError: gem.spr: cell (1, 0): expects the font characters (4, 5)",
+   "ghost_flags": "ConvError: ghost.spr: part (1, 0, 0) is not a VMS part",
+   "walls_size": "ConvError: walls.vdc: image 1 (src 0, 9 x 96, size 1) does not fit in the file",
+   "wsm_magic": "ConvError: walls.wsm: Magic/Version",
+   "spr_magic": "ConvError: SPR: Magic/Version"
+  },
+  "cli": {
+   "json": {
+    "code": 0,
+    "stdout": "/T/cli: 28 elements, gid 0x5a82; crawl.dmp 818, crawl.dvg 506, gem.s2 69, gem.vrl 33, ghost.s2 1254, ghost.vrl 393, walls.dts 545, walls.vrl 6050\nVRAM: DA 20930, GA(0) 43284, GA(1) 45166, MA 45202, end 45642 (reserve 693); wall VRL parts N = 1\n",
+    "stderr": "",
+    "files": {
+     "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270",
+     "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+     "crawlconv.json": "97e32b9abc8408db4d29d96ea386d98c571dce94d982b4fbd321d1b9a05205c7",
+     "crawlconv.md": "a3debdd389927939d19fb310d7baa27c8896dd09f391659f36dc03ec1c108f0f",
+     "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+     "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+     "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+     "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+     "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+     "walls.vrl": "ea7d26062a226c0f739f66e5690a7338ac7ff548296bc641a5777c2061756b1c"
+    }
+   },
+   "missing": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: walls.vdc missing in /T/x\n"
+   },
+   "parts": {
+    "code": 0,
+    "stdout": "/T/cli2: 28 elements, gid 0x5a82; crawl.dmp 818, crawl.dvg 506, gem.s2 69, gem.vrl 33, ghost.s2 1254, ghost.vrl 393, walls.dts 545, walls1.vrl 2840, walls2.vrl 2940, walls3.vrl 296\nVRAM: DA 20930, GA(0) 43284, GA(1) 45166, MA 45202, end 45642 (reserve 693); wall VRL parts N = 3\n",
+    "stderr": "",
+    "files": {
+     "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270",
+     "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+     "crawlconv.md": "2c084bfbd26894e73e7bbc7b13753f66891fdf8516feebb2e403239a02c799db",
+     "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+     "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+     "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+     "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+     "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+     "walls1.vrl": "a59a94294a98ebb39013335b2d9617316e3031f9623ecd157a327e52bc31f266",
+     "walls2.vrl": "642eaf9523b61bfa8d4ee0b40e2a43fcdee39e65d47c10d33f7652d11cd2a1bf",
+     "walls3.vrl": "e99b845f58b971474c39e7e9c2030876e340985ab53b6b238937c07b56cbf3ab"
+    }
+   },
+   "font": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "Error: VRAM total 46912 > 46335 (MA + 2*W*H)\n"
+   }
+  }
+ },
+ "wallconv": {
+  "wsm": "32b768031823b9222ba6b11648ac9db45fa1c5bd6f55ec9b00e64ba2e8021ba1",
+  "n": 28,
+  "equals_data": true,
+  "cli": {
+   "code": null,
+   "stdout": "d=0 s=-1 flags=1 w= 9 h=96 src=    0 dest=406 col=0\nd=0 s=+1 flags=1 w= 9 h=96 src=  864 dest=465 col=59\nd=1 s=-1 flags=1 w= 9 h=96 src= 1728 dest=406 col=0\nd=1 s=+0 flags=1 w=50 h=96 src= 2592 dest=415 col=9\nd=1 s=+1 flags=1 w= 9 h=96 src= 7392 dest=465 col=59\nd=1 s=-1 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=1 s=+0 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=1 s=+1 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=1 s=-1 flags=1 w=10 h=96 src= 8256 dest=415 col=9\nd=1 s=+1 flags=1 w=10 h=96 src= 9216 dest=455 col=49\nd=2 s=-1 flags=1 w= 9 h=96 src=10176 dest=406 col=0\nd=2 s=-1 flags=0 w=10 h=85 src=11040 dest=415 col=9\nd=2 s=+0 flags=1 w=30 h=96 src=11890 dest=425 col=19\nd=2 s=+1 flags=1 w=10 h=96 src=14770 dest=455 col=49\nd=2 s=+1 flags=1 w= 9 h=96 src=15730 dest=465 col=59\nd=2 s=-1 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=2 s=+0 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=2 s=+1 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=2 s=-1 flags=1 w= 5 h=96 src=16594 dest=425 col=19\nd=2 s=+1 flags=1 w= 5 h=96 src=17074 dest=450 col=44\nd=3 s=-1 flags=1 w=10 h=96 src=17554 dest=415 col=9\nd=3 s=-1 flags=1 w= 5 h=96 src=18514 dest=425 col=19\nd=3 s=+0 flags=1 w=20 h=96 src=18994 dest=430 col=24\nd=3 s=+1 flags=1 w= 5 h=96 src=20914 dest=450 col=44\nd=3 s=+1 flags=1 w=10 h=96 src=21394 dest=455 col=49\nd=3 s=-1 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=3 s=+0 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\nd=3 s=+1 flags=128 w= 0 h= 0 src=    0 dest=0 col=0\n28 entries, 290 bytes -> /T/w.wsm\n",
+   "stderr": "",
+   "wsm": "5ab8c836f35f0a8db9cd51e1299e991c90f28856b142876fdbaba3c0f60acc49"
+  }
+ },
+ "crawlsprites": {
+  "code": null,
+  "stdout": "ghost.spr: 24 parts, 8 lists (111-265 bytes), 1854 bytes; ghosts.vdc 1882 bytes\ngem.spr: 12 parts, 186 bytes\n",
+  "stderr": "",
+  "files": {
+   "gem.spr": "878544495d34598cdc009f86b5695d213b74e535c79004f22c9b6d8c72dfd4a3",
+   "ghost.spr": "9b1383b9e338b2780caf436eda5fd03ee1db314e1c555e2c461050f870f789b3",
+   "ghosts.vdc": "c05da2a8488527a3273c9b331dde15628b15532f656075be85d0baa62d96cfba"
+  },
+  "equals_data": {
+   "ghosts.vdc": true,
+   "ghost.spr": true,
+   "gem.spr": true
+  }
+ },
+ "crawl01": {
+  "start_view": {
+   "err": 0,
+   "entries": [
+    [
+     "wall",
+     [
+      864,
+      465,
+      9,
+      96
+     ]
+    ],
+    [
+     "wall",
+     [
+      1728,
+      406,
+      9,
+      96
+     ]
+    ],
+    [
+     "spr",
+     [
+      1,
+      1,
+      0,
+      72
+     ]
+    ],
+    [
+     "spr",
+     [
+      1,
+      1,
+      0,
+      90
+     ]
+    ],
+    [
+     "wall",
+     [
+      8256,
+      415,
+      10,
+      96
+     ]
+    ],
+    [
+     "wall",
+     [
+      9216,
+      455,
+      10,
+      96
+     ]
+    ],
+    [
+     "spr",
+     [
+      1,
+      2,
+      0,
+      72
+     ]
+    ],
+    [
+     "spr",
+     [
+      1,
+      2,
+      0,
+      90
+     ]
+    ],
+    [
+     "wall",
+     [
+      16594,
+      425,
+      5,
+      96
+     ]
+    ],
+    [
+     "wall",
+     [
+      17074,
+      450,
+      5,
+      96
+     ]
+    ]
+   ]
+  },
+  "samples": {
+   "21,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,0,0,(21, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,0,0,(22, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,0,1,(21, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,0,1,(22, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,1,0,(21, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,1,0,(41, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,1,1,(21, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,1,1,(41, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,2,0,(22, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,2,0,(21, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,2,1,(22, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,2,1,(21, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,3,0,(41, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,3,0,(21, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,3,1,(41, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "21,3,1,(21, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,0,0,(21, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,0,0,(22, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,0,1,(21, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,0,1,(22, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,1,0,(22, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,1,0,(23, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 13,
+    "total": 140,
+    "vcl": 140,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,1,1,(22, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,1,1,(23, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,2,0,(23, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,2,0,(22, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,2,1,(23, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,2,1,(22, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,3,0,(22, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,3,0,(41, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 118,
+    "vcl": 118,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 67,
+    "vcl": 67,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,3,1,(22, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 67,
+    "vcl": 67,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "22,3,1,(41, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 96,
+    "vcl": 96,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,0,0,(22, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,0,0,(23, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,0,1,(22, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,0,1,(23, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,1,0,(23, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,1,0,(24, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 5,
+    "total": 56,
+    "vcl": 56,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,1,1,(23, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 5,
+    "total": 56,
+    "vcl": 56,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,1,1,(24, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 85,
+    "vcl": 85,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,2,0,(24, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,2,0,(23, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,2,1,(24, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,2,1,(23, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,3,0,(23, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,3,0,(22, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 13,
+    "total": 140,
+    "vcl": 140,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,3,1,(23, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "23,3,1,(22, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,0,0,(23, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,0,0,(24, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,0,1,(23, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,0,1,(24, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,1,0,(24, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,1,0,(44, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,1,1,(24, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,1,1,(44, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,2,0,(24, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,2,0,(23, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,2,1,(24, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,2,1,(23, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,3,0,(44, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,3,0,(24, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,3,1,(44, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "24,3,1,(24, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,0,0,(26, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,0,0,(27, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,0,1,(26, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,0,1,(27, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,1,0,(26, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,1,0,(46, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,1,1,(26, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,1,1,(46, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,2,0,(27, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,2,0,(26, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,2,1,(27, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,2,1,(26, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,3,0,(46, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,3,0,(26, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,3,1,(46, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "26,3,1,(26, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,0,0,(26, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,0,0,(27, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,0,1,(26, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,0,1,(27, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,1,0,(27, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,1,0,(28, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 118,
+    "vcl": 118,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,1,1,(27, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,1,1,(28, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,2,0,(28, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,2,0,(27, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,2,1,(28, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,2,1,(27, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,3,0,(27, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,3,0,(46, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 118,
+    "vcl": 118,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 5,
+    "total": 67,
+    "vcl": 67,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,3,1,(27, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 5,
+    "total": 67,
+    "vcl": 67,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "27,3,1,(46, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 96,
+    "vcl": 96,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,0,0,(27, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,0,0,(28, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,0,1,(27, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,0,1,(28, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,1,0,(28, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,1,0,(29, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 118,
+    "vcl": 118,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,1,1,(28, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,1,1,(29, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,2,0,(29, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,2,0,(28, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,2,1,(29, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,2,1,(28, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,3,0,(28, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,3,0,(27, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 13,
+    "total": 140,
+    "vcl": 140,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,3,1,(28, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "28,3,1,(27, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,0,0,(28, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,0,0,(29, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,0,1,(28, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,0,1,(29, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,1,0,(29, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,1,0,(30, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 11,
+    "total": 129,
+    "vcl": 129,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,1,1,(29, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,1,1,(30, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,2,0,(30, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,2,0,(29, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,2,1,(30, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,2,1,(29, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,3,0,(29, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,3,0,(28, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 11,
+    "total": 129,
+    "vcl": 129,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,3,1,(29, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "29,3,1,(28, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,0,0,(29, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,0,0,(30, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,0,1,(29, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,0,1,(30, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,1,0,(30, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,1,0,(31, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 11,
+    "total": 129,
+    "vcl": 129,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,1,1,(30, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,1,1,(31, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,2,0,(31, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,2,0,(30, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,2,1,(31, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,2,1,(30, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,3,0,(30, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,3,0,(29, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 118,
+    "vcl": 118,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,3,1,(30, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "30,3,1,(29, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,0,0,(30, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,0,0,(31, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,0,1,(30, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,0,1,(31, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,1,0,(31, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 111,
+    "vcl": 111,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,1,0,(32, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 13,
+    "total": 140,
+    "vcl": 140,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,1,1,(31, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,1,1,(32, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,2,0,(32, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,2,0,(31, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,2,1,(32, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,2,1,(31, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,3,0,(31, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 89,
+    "vcl": 89,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,3,0,(30, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 118,
+    "vcl": 118,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,3,1,(31, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "31,3,1,(30, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,0,0,(31, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,0,0,(32, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,0,1,(31, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,0,1,(32, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,1,0,(32, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 8,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,1,0,(33, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 9,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 5,
+    "total": 56,
+    "vcl": 56,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,1,1,(32, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 5,
+    "total": 56,
+    "vcl": 56,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,1,1,(33, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 85,
+    "vcl": 85,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,2,0,(33, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,2,0,(32, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 45,
+    "vcl": 45,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,2,1,(33, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,2,1,(32, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 2,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,3,0,(32, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,3,0,(31, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 11,
+    "total": 129,
+    "vcl": 129,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,3,1,(32, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "32,3,1,(31, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 7,
+    "total": 107,
+    "vcl": 107,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,0,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,0,0,(32, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,0,0,(33, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,0,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,0,1,(32, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,0,1,(33, 1)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,1,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,1,0,(33, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,1,0,(53, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,1,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,1,1,(33, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,1,1,(53, 2)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 3,
+    "total": 34,
+    "vcl": 34,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,2,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,2,0,(33, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,2,0,(32, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 12,
+    "total": 122,
+    "vcl": 122,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,2,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,2,1,(33, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,2,1,(32, 3)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,3,0,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,3,0,(53, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,3,0,(33, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 10,
+    "total": 100,
+    "vcl": 100,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,3,1,None": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,3,1,(53, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   },
+   "33,3,1,(33, 0)": {
+    "a": 0,
+    "outside": false,
+    "a01": 0,
+    "nvis01": 6,
+    "total": 78,
+    "vcl": 78,
+    "vms": 0,
+    "ndiff": 0
+   }
+  },
+  "visible": {
+   "21,0": [
+    [
+     0,
+     0,
+     21
+    ],
+    [
+     0,
+     1,
+     22
+    ]
+   ],
+   "21,1": [
+    [
+     0,
+     0,
+     21
+    ],
+    [
+     0,
+     1,
+     41
+    ],
+    [
+     1,
+     0,
+     22
+    ],
+    [
+     2,
+     0,
+     23
+    ],
+    [
+     3,
+     0,
+     24
+    ],
+    [
+     3,
+     1,
+     44
+    ]
+   ],
+   "21,2": [
+    [
+     0,
+     -1,
+     22
+    ],
+    [
+     0,
+     0,
+     21
+    ],
+    [
+     1,
+     0,
+     41
+    ],
+    [
+     2,
+     0,
+     61
+    ],
+    [
+     3,
+     0,
+     81
+    ]
+   ],
+   "21,3": [
+    [
+     0,
+     -1,
+     41
+    ],
+    [
+     0,
+     0,
+     21
+    ]
+   ],
+   "29,0": [
+    [
+     0,
+     -1,
+     28
+    ],
+    [
+     0,
+     0,
+     29
+    ],
+    [
+     0,
+     1,
+     30
+    ]
+   ],
+   "29,1": [
+    [
+     0,
+     0,
+     29
+    ],
+    [
+     1,
+     0,
+     30
+    ],
+    [
+     2,
+     0,
+     31
+    ],
+    [
+     3,
+     0,
+     32
+    ]
+   ],
+   "29,2": [
+    [
+     0,
+     -1,
+     30
+    ],
+    [
+     0,
+     0,
+     29
+    ],
+    [
+     0,
+     1,
+     28
+    ],
+    [
+     2,
+     -1,
+     70
+    ],
+    [
+     2,
+     0,
+     69
+    ],
+    [
+     2,
+     1,
+     68
+    ]
+   ],
+   "29,3": [
+    [
+     0,
+     0,
+     29
+    ],
+    [
+     1,
+     0,
+     28
+    ],
+    [
+     2,
+     0,
+     27
+    ],
+    [
+     3,
+     -1,
+     46
+    ],
+    [
+     3,
+     0,
+     26
+    ]
+   ],
+   "37,0": [
+    [
+     0,
+     -1,
+     36
+    ],
+    [
+     0,
+     0,
+     37
+    ],
+    [
+     0,
+     1,
+     38
+    ]
+   ],
+   "37,1": [
+    [
+     0,
+     0,
+     37
+    ],
+    [
+     1,
+     0,
+     38
+    ],
+    [
+     1,
+     1,
+     58
+    ]
+   ],
+   "37,2": [
+    [
+     0,
+     -1,
+     38
+    ],
+    [
+     0,
+     0,
+     37
+    ],
+    [
+     0,
+     1,
+     36
+    ],
+    [
+     1,
+     -1,
+     58
+    ],
+    [
+     2,
+     -1,
+     78
+    ],
+    [
+     2,
+     1,
+     76
+    ],
+    [
+     3,
+     -1,
+     98
+    ],
+    [
+     3,
+     1,
+     96
+    ]
+   ],
+   "37,3": [
+    [
+     0,
+     0,
+     37
+    ],
+    [
+     1,
+     0,
+     36
+    ],
+    [
+     2,
+     -1,
+     55
+    ],
+    [
+     2,
+     0,
+     35
+    ]
+   ],
+   "58,0": [
+    [
+     0,
+     0,
+     58
+    ],
+    [
+     1,
+     -1,
+     37
+    ],
+    [
+     1,
+     0,
+     38
+    ]
+   ],
+   "58,1": [
+    [
+     0,
+     -1,
+     38
+    ],
+    [
+     0,
+     0,
+     58
+    ],
+    [
+     0,
+     1,
+     78
+    ]
+   ],
+   "58,2": [
+    [
+     0,
+     0,
+     58
+    ],
+    [
+     1,
+     0,
+     78
+    ],
+    [
+     2,
+     0,
+     98
+    ],
+    [
+     3,
+     0,
+     118
+    ],
+    [
+     3,
+     1,
+     117
+    ]
+   ],
+   "58,3": [
+    [
+     0,
+     -1,
+     78
+    ],
+    [
+     0,
+     0,
+     58
+    ],
+    [
+     0,
+     1,
+     38
+    ],
+    [
+     1,
+     1,
+     37
+    ],
+    [
+     2,
+     -1,
+     76
+    ],
+    [
+     2,
+     1,
+     36
+    ],
+    [
+     3,
+     -1,
+     75
+    ],
+    [
+     3,
+     0,
+     55
+    ],
+    [
+     3,
+     1,
+     35
+    ]
+   ],
+   "68,0": [
+    [
+     0,
+     -1,
+     67
+    ],
+    [
+     0,
+     0,
+     68
+    ],
+    [
+     0,
+     1,
+     69
+    ],
+    [
+     2,
+     -1,
+     27
+    ],
+    [
+     2,
+     0,
+     28
+    ],
+    [
+     2,
+     1,
+     29
+    ]
+   ],
+   "68,1": [
+    [
+     0,
+     0,
+     68
+    ],
+    [
+     1,
+     0,
+     69
+    ],
+    [
+     2,
+     0,
+     70
+    ],
+    [
+     3,
+     0,
+     71
+    ]
+   ],
+   "68,2": [
+    [
+     0,
+     -1,
+     69
+    ],
+    [
+     0,
+     0,
+     68
+    ],
+    [
+     0,
+     1,
+     67
+    ]
+   ],
+   "68,3": [
+    [
+     0,
+     0,
+     68
+    ],
+    [
+     1,
+     0,
+     67
+    ],
+    [
+     2,
+     -1,
+     86
+    ],
+    [
+     2,
+     0,
+     66
+    ],
+    [
+     2,
+     1,
+     46
+    ],
+    [
+     3,
+     0,
+     65
+    ]
+   ],
+   "75,0": [
+    [
+     0,
+     -1,
+     74
+    ],
+    [
+     0,
+     0,
+     75
+    ],
+    [
+     0,
+     1,
+     76
+    ],
+    [
+     1,
+     0,
+     55
+    ],
+    [
+     2,
+     0,
+     35
+    ],
+    [
+     2,
+     1,
+     36
+    ]
+   ],
+   "75,1": [
+    [
+     0,
+     -1,
+     55
+    ],
+    [
+     0,
+     0,
+     75
+    ],
+    [
+     1,
+     0,
+     76
+    ],
+    [
+     1,
+     1,
+     96
+    ],
+    [
+     3,
+     -1,
+     58
+    ],
+    [
+     3,
+     0,
+     78
+    ],
+    [
+     3,
+     1,
+     98
+    ]
+   ],
+   "75,2": [
+    [
+     0,
+     -1,
+     76
+    ],
+    [
+     0,
+     0,
+     75
+    ],
+    [
+     0,
+     1,
+     74
+    ],
+    [
+     1,
+     -1,
+     96
+    ],
+    [
+     2,
+     -1,
+     116
+    ],
+    [
+     2,
+     0,
+     115
+    ],
+    [
+     2,
+     1,
+     114
+    ],
+    [
+     3,
+     -1,
+     136
+    ]
+   ],
+   "75,3": [
+    [
+     0,
+     0,
+     75
+    ],
+    [
+     0,
+     1,
+     55
+    ],
+    [
+     1,
+     0,
+     74
+    ],
+    [
+     2,
+     -1,
+     93
+    ],
+    [
+     2,
+     0,
+     73
+    ],
+    [
+     2,
+     1,
+     53
+    ],
+    [
+     3,
+     0,
+     72
+    ]
+   ],
+   "96,0": [
+    [
+     0,
+     0,
+     96
+    ],
+    [
+     1,
+     -1,
+     75
+    ],
+    [
+     1,
+     0,
+     76
+    ],
+    [
+     2,
+     -1,
+     55
+    ],
+    [
+     3,
+     -1,
+     35
+    ],
+    [
+     3,
+     0,
+     36
+    ],
+    [
+     3,
+     1,
+     37
+    ]
+   ],
+   "96,1": [
+    [
+     0,
+     -1,
+     76
+    ],
+    [
+     0,
+     0,
+     96
+    ],
+    [
+     0,
+     1,
+     116
+    ],
+    [
+     1,
+     1,
+     117
+    ],
+    [
+     2,
+     -1,
+     78
+    ],
+    [
+     2,
+     0,
+     98
+    ],
+    [
+     2,
+     1,
+     118
+    ]
+   ],
+   "96,2": [
+    [
+     0,
+     0,
+     96
+    ],
+    [
+     1,
+     -1,
+     117
+    ],
+    [
+     1,
+     0,
+     116
+    ],
+    [
+     1,
+     1,
+     115
+    ],
+    [
+     2,
+     0,
+     136
+    ],
+    [
+     3,
+     0,
+     156
+    ],
+    [
+     3,
+     1,
+     155
+    ]
+   ],
+   "96,3": [
+    [
+     0,
+     -1,
+     116
+    ],
+    [
+     0,
+     0,
+     96
+    ],
+    [
+     0,
+     1,
+     76
+    ],
+    [
+     1,
+     -1,
+     115
+    ],
+    [
+     1,
+     1,
+     75
+    ],
+    [
+     2,
+     -1,
+     114
+    ],
+    [
+     2,
+     1,
+     74
+    ],
+    [
+     3,
+     -1,
+     113
+    ],
+    [
+     3,
+     0,
+     93
+    ],
+    [
+     3,
+     1,
+     73
+    ]
+   ],
+   "106,0": [
+    [
+     0,
+     -1,
+     105
+    ],
+    [
+     0,
+     0,
+     106
+    ],
+    [
+     1,
+     0,
+     86
+    ],
+    [
+     2,
+     -1,
+     65
+    ],
+    [
+     2,
+     0,
+     66
+    ],
+    [
+     2,
+     1,
+     67
+    ],
+    [
+     3,
+     0,
+     46
+    ]
+   ],
+   "106,1": [
+    [
+     0,
+     -1,
+     86
+    ],
+    [
+     0,
+     0,
+     106
+    ],
+    [
+     0,
+     1,
+     126
+    ]
+   ],
+   "106,2": [
+    [
+     0,
+     0,
+     106
+    ],
+    [
+     0,
+     1,
+     105
+    ],
+    [
+     1,
+     0,
+     126
+    ],
+    [
+     2,
+     -1,
+     147
+    ],
+    [
+     2,
+     0,
+     146
+    ],
+    [
+     2,
+     1,
+     145
+    ],
+    [
+     3,
+     0,
+     166
+    ]
+   ],
+   "106,3": [
+    [
+     0,
+     -1,
+     126
+    ],
+    [
+     0,
+     0,
+     106
+    ],
+    [
+     0,
+     1,
+     86
+    ],
+    [
+     1,
+     0,
+     105
+    ],
+    [
+     2,
+     0,
+     104
+    ],
+    [
+     3,
+     -1,
+     123
+    ],
+    [
+     3,
+     0,
+     103
+    ],
+    [
+     3,
+     1,
+     83
+    ]
+   ],
+   "121,0": [
+    [
+     0,
+     0,
+     121
+    ],
+    [
+     1,
+     0,
+     101
+    ],
+    [
+     1,
+     1,
+     102
+    ],
+    [
+     2,
+     0,
+     81
+    ],
+    [
+     3,
+     0,
+     61
+    ]
+   ],
+   "121,1": [
+    [
+     0,
+     -1,
+     101
+    ],
+    [
+     0,
+     0,
+     121
+    ],
+    [
+     0,
+     1,
+     141
+    ],
+    [
+     1,
+     -1,
+     102
+    ],
+    [
+     2,
+     -1,
+     103
+    ],
+    [
+     2,
+     0,
+     123
+    ],
+    [
+     2,
+     1,
+     143
+    ],
+    [
+     3,
+     -1,
+     104
+    ],
+    [
+     3,
+     1,
+     144
+    ]
+   ],
+   "121,2": [
+    [
+     0,
+     0,
+     121
+    ],
+    [
+     1,
+     0,
+     141
+    ],
+    [
+     2,
+     0,
+     161
+    ],
+    [
+     3,
+     -1,
+     182
+    ],
+    [
+     3,
+     0,
+     181
+    ]
+   ],
+   "121,3": [
+    [
+     0,
+     -1,
+     141
+    ],
+    [
+     0,
+     0,
+     121
+    ],
+    [
+     0,
+     1,
+     101
+    ]
+   ],
+   "143,0": [
+    [
+     0,
+     0,
+     143
+    ],
+    [
+     0,
+     1,
+     144
+    ],
+    [
+     1,
+     0,
+     123
+    ],
+    [
+     2,
+     -1,
+     102
+    ],
+    [
+     2,
+     0,
+     103
+    ],
+    [
+     2,
+     1,
+     104
+    ],
+    [
+     3,
+     0,
+     83
+    ]
+   ],
+   "143,1": [
+    [
+     0,
+     -1,
+     123
+    ],
+    [
+     0,
+     0,
+     143
+    ],
+    [
+     1,
+     0,
+     144
+    ],
+    [
+     1,
+     1,
+     164
+    ],
+    [
+     2,
+     0,
+     145
+    ],
+    [
+     3,
+     -1,
+     126
+    ],
+    [
+     3,
+     0,
+     146
+    ],
+    [
+     3,
+     1,
+     166
+    ]
+   ],
+   "143,2": [
+    [
+     0,
+     -1,
+     144
+    ],
+    [
+     0,
+     0,
+     143
+    ],
+    [
+     1,
+     -1,
+     164
+    ],
+    [
+     2,
+     -1,
+     184
+    ],
+    [
+     2,
+     0,
+     183
+    ],
+    [
+     2,
+     1,
+     182
+    ]
+   ],
+   "143,3": [
+    [
+     0,
+     0,
+     143
+    ],
+    [
+     0,
+     1,
+     123
+    ],
+    [
+     2,
+     -1,
+     161
+    ],
+    [
+     2,
+     0,
+     141
+    ],
+    [
+     2,
+     1,
+     121
+    ]
+   ],
+   "150,0": [
+    [
+     0,
+     -1,
+     149
+    ],
+    [
+     0,
+     0,
+     150
+    ],
+    [
+     0,
+     1,
+     151
+    ]
+   ],
+   "150,1": [
+    [
+     0,
+     0,
+     150
+    ],
+    [
+     1,
+     0,
+     151
+    ],
+    [
+     2,
+     0,
+     152
+    ],
+    [
+     3,
+     -1,
+     133
+    ],
+    [
+     3,
+     0,
+     153
+    ],
+    [
+     3,
+     1,
+     173
+    ]
+   ],
+   "150,2": [
+    [
+     0,
+     -1,
+     151
+    ],
+    [
+     0,
+     0,
+     150
+    ],
+    [
+     0,
+     1,
+     149
+    ],
+    [
+     2,
+     -1,
+     191
+    ],
+    [
+     2,
+     0,
+     190
+    ],
+    [
+     2,
+     1,
+     189
+    ]
+   ],
+   "150,3": [
+    [
+     0,
+     0,
+     150
+    ],
+    [
+     1,
+     0,
+     149
+    ],
+    [
+     2,
+     0,
+     148
+    ],
+    [
+     3,
+     0,
+     147
+    ]
+   ],
+   "158,0": [
+    [
+     0,
+     0,
+     158
+    ],
+    [
+     1,
+     0,
+     138
+    ],
+    [
+     2,
+     -1,
+     117
+    ],
+    [
+     2,
+     0,
+     118
+    ],
+    [
+     3,
+     0,
+     98
+    ]
+   ],
+   "158,1": [
+    [
+     0,
+     -1,
+     138
+    ],
+    [
+     0,
+     0,
+     158
+    ],
+    [
+     0,
+     1,
+     178
+    ]
+   ],
+   "158,2": [
+    [
+     0,
+     0,
+     158
+    ],
+    [
+     1,
+     0,
+     178
+    ],
+    [
+     2,
+     0,
+     198
+    ],
+    [
+     2,
+     1,
+     197
+    ]
+   ],
+   "158,3": [
+    [
+     0,
+     -1,
+     178
+    ],
+    [
+     0,
+     0,
+     158
+    ],
+    [
+     0,
+     1,
+     138
+    ],
+    [
+     2,
+     0,
+     156
+    ],
+    [
+     2,
+     1,
+     136
+    ],
+    [
+     3,
+     -1,
+     175
+    ],
+    [
+     3,
+     0,
+     155
+    ]
+   ],
+   "181,0": [
+    [
+     0,
+     0,
+     181
+    ],
+    [
+     0,
+     1,
+     182
+    ],
+    [
+     1,
+     0,
+     161
+    ],
+    [
+     2,
+     0,
+     141
+    ],
+    [
+     3,
+     0,
+     121
+    ]
+   ],
+   "181,1": [
+    [
+     0,
+     -1,
+     161
+    ],
+    [
+     0,
+     0,
+     181
+    ],
+    [
+     1,
+     0,
+     182
+    ],
+    [
+     2,
+     0,
+     183
+    ],
+    [
+     3,
+     -1,
+     164
+    ],
+    [
+     3,
+     0,
+     184
+    ]
+   ],
+   "181,2": [
+    [
+     0,
+     -1,
+     182
+    ],
+    [
+     0,
+     0,
+     181
+    ]
+   ],
+   "181,3": [
+    [
+     0,
+     0,
+     181
+    ],
+    [
+     0,
+     1,
+     161
+    ]
+   ],
+   "189,0": [
+    [
+     0,
+     -1,
+     188
+    ],
+    [
+     0,
+     0,
+     189
+    ],
+    [
+     0,
+     1,
+     190
+    ],
+    [
+     2,
+     -1,
+     148
+    ],
+    [
+     2,
+     0,
+     149
+    ],
+    [
+     2,
+     1,
+     150
+    ]
+   ],
+   "189,1": [
+    [
+     0,
+     0,
+     189
+    ],
+    [
+     1,
+     0,
+     190
+    ],
+    [
+     2,
+     0,
+     191
+    ],
+    [
+     3,
+     0,
+     192
+    ]
+   ],
+   "189,2": [
+    [
+     0,
+     -1,
+     190
+    ],
+    [
+     0,
+     0,
+     189
+    ],
+    [
+     0,
+     1,
+     188
+    ]
+   ],
+   "189,3": [
+    [
+     0,
+     0,
+     189
+    ],
+    [
+     1,
+     0,
+     188
+    ],
+    [
+     2,
+     0,
+     187
+    ],
+    [
+     3,
+     0,
+     186
+    ],
+    [
+     3,
+     1,
+     166
+    ]
+   ],
+   "197,0": [
+    [
+     0,
+     -1,
+     196
+    ],
+    [
+     0,
+     0,
+     197
+    ],
+    [
+     0,
+     1,
+     198
+    ],
+    [
+     1,
+     1,
+     178
+    ],
+    [
+     2,
+     -1,
+     156
+    ],
+    [
+     2,
+     1,
+     158
+    ],
+    [
+     3,
+     -1,
+     136
+    ],
+    [
+     3,
+     1,
+     138
+    ]
+   ],
+   "197,1": [
+    [
+     0,
+     0,
+     197
+    ],
+    [
+     1,
+     -1,
+     178
+    ],
+    [
+     1,
+     0,
+     198
+    ]
+   ],
+   "197,2": [
+    [
+     0,
+     -1,
+     198
+    ],
+    [
+     0,
+     0,
+     197
+    ],
+    [
+     0,
+     1,
+     196
+    ]
+   ],
+   "197,3": [
+    [
+     0,
+     0,
+     197
+    ],
+    [
+     1,
+     0,
+     196
+    ],
+    [
+     2,
+     0,
+     195
+    ],
+    [
+     2,
+     1,
+     175
+    ]
+   ]
+  },
+  "base1": "a1b040e622c99193fcb016ec263c6e424a723c3f71a14028243501d6c51f40ee",
+  "base2": "08a2bfb9fbf520ca3a987f7e9d2cac358f6b1c2fbb6cc9a87f9c283dfebe6e0c",
+  "controls": {
+   "baseline": [
+    0,
+    0
+   ],
+   "bgfill": 39,
+   "wall_pixel": 180,
+   "ghost_anchor": [
+    0,
+    87
+   ],
+   "gem_anchor": 302,
+   "ghost_cores": 12
+  },
+  "bgfill_first": [
+   {
+    "ndiff": 0,
+    "first": []
+   },
+   {
+    "ndiff": 0,
+    "first": []
+   },
+   {
+    "ndiff": 0,
+    "first": []
+   }
+  ],
+  "quick": {
+   "json": "9403234a1a0358539c75d4835b320e18a0d6023a8aab92abe40ab6235b74df88",
+   "summary": {
+    "positions": 100,
+    "directions": 4,
+    "views": 9968,
+    "ghost_views": 9168,
+    "max_total": 184,
+    "max_vcl": 184,
+    "max_vms": 0,
+    "a_nonzero": 0,
+    "a01": 0,
+    "outside": 0,
+    "nvis01_max": 15,
+    "quick": true
+   },
+   "nbad": 0
+  },
+  "full": {
+   "json": "9f147f37d48678749bad637945c3dd1d8f20edf30ddf6de3ca6ea3bdc12d0c7e",
+   "summary": {
+    "positions": 100,
+    "directions": 4,
+    "views": 19136,
+    "ghost_views": 18336,
+    "max_total": 184,
+    "max_vcl": 184,
+    "max_vms": 0,
+    "a_nonzero": 0,
+    "a01": 0,
+    "outside": 0,
+    "nvis01_max": 15,
+    "quick": false
+   },
+   "nbad": 0
+  }
+ },
+ "d81": {
+  "data": {
+   "walls.vdc": "8fa3a18c3d2884fe36de5f6718889c2466b7ba5fbf2c98c33c5ad2fefa040d1a",
+   "walls.wsm": "32b768031823b9222ba6b11648ac9db45fa1c5bd6f55ec9b00e64ba2e8021ba1",
+   "ghost.spr": "9b1383b9e338b2780caf436eda5fd03ee1db314e1c555e2c461050f870f789b3",
+   "ghosts.vdc": "c05da2a8488527a3273c9b331dde15628b15532f656075be85d0baa62d96cfba",
+   "gem.spr": "878544495d34598cdc009f86b5695d213b74e535c79004f22c9b6d8c72dfd4a3",
+   "font3o.vdc": "03b596c2641f0aa7b4d4e8d536c3ac39ec4e120f59e3cc98a0473f09380fdcc6",
+   "crawl128.cd1": "7885135eb4ae3911d3f19391a6414e00840e64650266f9e268b4c2aca7031fa3"
+  },
+  "files": {
+   "crawl.dvg": "4b7cdc894075ccbb9787b71ee12664398db4412d25a39dda51d55e7afb89d1a9",
+   "walls.dts": "0951c38f93f90d857aa6d4af5596077dfec7dcfc73407eefa2cc3e775d662a73",
+   "ghost.s2": "5b35fbda1ba31bd5f8356ba7ed74c06cf22ef4067f67b2006d97a67e047adf84",
+   "gem.s2": "803519a32ff0b5214429acda1aa9d25a5c6b9104ae9633d01be9112940a39176",
+   "walls.vrl": "ea7d26062a226c0f739f66e5690a7338ac7ff548296bc641a5777c2061756b1c",
+   "ghost.vrl": "bc37a3a277f52372ec5dd4c68daf09b47de4be0287a8713a5e6240d1d1fdcfdc",
+   "gem.vrl": "800073b5df8860c6e54d512a28957aaa7860d9962734c0b9319e950e5e34e8bf",
+   "crawl.dmp": "825c4b6c90ae0ba86ce3621d738d1f181138e98c99a15b23cd0da12ffd918270"
+  }
+ }
+}

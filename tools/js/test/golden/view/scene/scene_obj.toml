@@ -1,0 +1,23 @@
+format = "dbeview"
+version = 1
+[scene]
+dvg = "west140.dvg"
+map = "demo.dmp"
+pos = [1, 1]
+dir = 1
+bgfill = 0x33
+itemph = 1
+farfill = 0x11
+buf_fix = true
+[walls]
+dts = "demo_walls.dts"
+vrl = "demo_walls.vrl"
+[floor]
+dts = "demo_floor.dts"
+vrl = "demo_floor.vrl"
+[ceil]
+dts = "demo_ceil.dts"
+vrl = "demo_ceil.vrl"
+[background]
+dbg = "demo_sky.dbg"
+vrl = "demo_sky.vrl"

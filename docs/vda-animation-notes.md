@@ -180,3 +180,5 @@ dbegeom ─┬─ dbetex ─┐
 The map must know animation instances and triggers; the DMP event table has free types for this (5–127 engine, 128–255 game).
 
 Order: first only steps 1 and 2 (visibility check): small, immediately useful for altar and exit, and it builds the enumeration that baking needs. Then baking and packing together with the `VDA` spec.
+
+**Status 2026-11-27:** steps 1–4 exist in JS as `dbebake` (`tools/js/core/bake.js`, editor tab Bake/Pack, spec `docs/specs/P8-js-tools.md` section 8): visibility from the engine's own VIEW, baked opaque patches per viewpoint (animation frames = wall styles), DAP v0 as a draft output, zone layout with load time. The `VDA` runtime and the final DAP format are still open.

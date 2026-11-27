@@ -1,0 +1,5657 @@
+{
+ "generator": "mkgolden_geom.py",
+ "cases": [
+  {
+   "label": "example west140",
+   "toml": "docs/specs/examples/view-west140.toml",
+   "name": "west140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "west140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "west140.budget.md": "410b09f529ad741078328a5d5727b694e26d167163da832e54c1d6a819025d04",
+    "west140.dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+    "west140.geom.json": "ce65aa91eb953dae9da2dc56c6556378ea2e6441aefbde603723e0903822a923"
+   },
+   "pngs": {
+    "west140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "west140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "example west136",
+   "toml": "docs/specs/examples/view-west136.toml",
+   "name": "west136",
+   "check_sha": "356422dd33e2dee541ccc32fbb36787a520a0397423e62c7283a50243362e61b",
+   "elements": 79,
+   "gid": 43651,
+   "files": {
+    "west136.aseprite": "b16d94e25da1ffb0ac45283282b5db0de3287d2e427d64df96f5c57758542681",
+    "west136.budget.md": "0e08e500458b0aabd4cbc03cd31857030e4d8fcb09a2c46d35c67a331c39f3fe",
+    "west136.dvg": "4a989a1924382a368b719d9bbd6ee680e3bcaa89599e63dbb3182c440cc7bca2",
+    "west136.geom.json": "ac0badd9d482a9ca1005a303c89b6578f799b6cb6c5327f5b8752e5ab483a93e"
+   },
+   "pngs": {
+    "west136_atlas.png": [
+     564,
+     479,
+     "acb08b9d8be4e31fa850e266d26b75e79627d185a5285d6fbbcae57b74018520"
+    ],
+    "west136_view.png": [
+     544,
+     368,
+     "5ac9d8ec76de65e5f9eeb54466e8b7e5591cfd9a21f1ffde19313cf827230537"
+    ]
+   },
+   "tpl": [
+    61,
+    "ebfafb7735212fdfab07d0cc052d5a3ae0265785cabf8020d2cd0160b78182d6"
+   ]
+  },
+  {
+   "label": "demo view",
+   "toml": "demo/view.toml",
+   "name": "west140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "west140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "west140.budget.md": "256ceb99d38bd49e7a52a6d92c00e2e52201804eae48598543bdeb18d5f3a757",
+    "west140.dvg": "83943f0fbee9b381ea562d75f7116f7f25dc9119d95de65a5c642bcb053a0733",
+    "west140.geom.json": "dfae4114440794f560b1a700c168bcadf6792089ee1d670878a354f5c6661265"
+   },
+   "pngs": {
+    "west140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "west140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "westwood 16x8",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 16,
+     "height": 8
+    }
+   },
+   "name": "westwood16",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "westwood 16x8 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 16,
+     "height": 8,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood16",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "westwood 16x100",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 16,
+     "height": 100
+    }
+   },
+   "name": "westwood16",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "westwood 16x100 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 16,
+     "height": 100,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood16",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "westwood 20x12",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 20,
+     "height": 12
+    }
+   },
+   "name": "westwood20",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "westwood 20x12 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 20,
+     "height": 12,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood20",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "westwood 32x20",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 32,
+     "height": 20
+    }
+   },
+   "name": "westwood32",
+   "check_sha": "c5e31f0dc2f3c2552a823a56407eed6a1469e06d53758ab2da112c51d9e042cf",
+   "elements": 77,
+   "gid": 58613,
+   "files": {
+    "westwood32.aseprite": "599e7af2e508369523ed2b6455a999e062117a462e3da1cde7e1802d6a71497d",
+    "westwood32.budget.md": "01c4cd0b5c859f9b57e533d8494ed1284b4dd4c6d55f2d3f55817db428cae1d1",
+    "westwood32.dvg": "ca958035e046084846cb68a78a171959b46b7fd5281531686273a82b00cec41e",
+    "westwood32.geom.json": "1b1f8b03615d3e3f00b65d8eeaf6e83f0b481f5559ec5bbe26506363829e8c29"
+   },
+   "pngs": {
+    "westwood32_atlas.png": [
+     148,
+     155,
+     "596b5a3008504b63f5f2d7de59a6f2225ad97d1dad09555bb825a6f8ce5660cc"
+    ],
+    "westwood32_view.png": [
+     128,
+     80,
+     "c1b6c6e35aef7303e15ba50c22261d2345023fd6136d35a23e99812df7b5fa69"
+    ]
+   },
+   "tpl": [
+    59,
+    "12a2b4b34a1a55d0ec8289f0b3579096c231490a7216b80cb24a4c057efeb900"
+   ]
+  },
+  {
+   "label": "westwood 32x20 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 32,
+     "height": 20,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood32",
+   "check_sha": "f40c4c9531db067d279cfc2e87215f232dd1920725ebba4989c0a8ace5a4ecc2",
+   "elements": 74,
+   "gid": 53158,
+   "files": {
+    "westwood32.aseprite": "c2e796f98f06f9834ec06868e4c63dd47fcbb35e01864e27410150d7f1b1d966",
+    "westwood32.budget.md": "960a6c0824c3b86387ea60f59bdcdf0bd6c6986356feb3b0a7f9d658476f6997",
+    "westwood32.dvg": "f09805f3ba624d5e16f0741f6949d732092e28102e4db5f80b67ddfd2e6a3914",
+    "westwood32.geom.json": "2bae8cb2899792562f25b702ba249de1dc958faabe93b208532cf0ab337e753a"
+   },
+   "pngs": {
+    "westwood32_atlas.png": [
+     148,
+     154,
+     "cd9706624bcfbb7bebfbc270cdd87bd00b367760bc7b2b615977472fe74e6701"
+    ],
+    "westwood32_view.png": [
+     128,
+     80,
+     "1ee865b74124a27f3507db85b9def4caef570cebb2844c5f8db274461f5464bf"
+    ]
+   },
+   "tpl": [
+    57,
+    "7d7d046e59687afb73d2221499272018e251f9a55934cced4b4246b632158e4e"
+   ]
+  },
+  {
+   "label": "westwood 40x30",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 40,
+     "height": 30
+    }
+   },
+   "name": "westwood40",
+   "check_sha": "69b79b6201dd0a92b58fc764fe694f29fc71aa6a94399d21f24fd78b57c7d768",
+   "elements": 69,
+   "gid": 25263,
+   "files": {
+    "westwood40.aseprite": "27397ab7eef42736ba56c10962d92293e334798d345c216a1ec94998af5c63e6",
+    "westwood40.budget.md": "82be08faa2ab12e9dd2c285b19be3f33ecda26a1295c468e92b27648ab5e0694",
+    "westwood40.dvg": "5f7d65a47ab6338470600f720fbb101de584c012888a25d7011d102729fa63fe",
+    "westwood40.geom.json": "7fc5059cc1bdeb47a191720600344fbca1da369623739ad1ff2083e09bd988d1"
+   },
+   "pngs": {
+    "westwood40_atlas.png": [
+     180,
+     198,
+     "cd159d921f3577e5a92eb96a0806ef4f1b015b31f0fada4f45d53f74eee11e09"
+    ],
+    "westwood40_view.png": [
+     160,
+     120,
+     "448910443be124e0d4a8cacf0d8330f9271527bb588df97178f11a8699e55387"
+    ]
+   },
+   "tpl": [
+    53,
+    "b922cbaa408e8c21725524607f9ed78e2357928cead31c9ba8846641f2e3454b"
+   ]
+  },
+  {
+   "label": "westwood 40x30 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 40,
+     "height": 30,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood40",
+   "check_sha": "6cf628181a65c77c3194fd2457c0b34b98f0d1b423cb6e0e56cd3cb6e92aba65",
+   "elements": 65,
+   "gid": 17769,
+   "files": {
+    "westwood40.aseprite": "e71096141a41a2e7c36cfdc1c808ccc52e47c0056b1687341e20726864a0e2d5",
+    "westwood40.budget.md": "f44c5af538dcc79674430edff51a1fb19f1daa0b3c25df6a3a04612a0e65fe5e",
+    "westwood40.dvg": "44adea02c14b98185b7e37da6a333ce80635ccdaaf4eb9b523e6ae14869bf885",
+    "westwood40.geom.json": "10589dea5d9f2a69f77710f3f6a75aa13ee211e8862229046a73d7718f744368"
+   },
+   "pngs": {
+    "westwood40_atlas.png": [
+     180,
+     197,
+     "82731a55e3e5416d9cc7104c3d9d33006897905fc0ad899ac643449e2d4636d9"
+    ],
+    "westwood40_view.png": [
+     160,
+     120,
+     "448910443be124e0d4a8cacf0d8330f9271527bb588df97178f11a8699e55387"
+    ]
+   },
+   "tpl": [
+    51,
+    "47386d9f0d00898ee300aee34ab373695d336620a524ca2a4c5c017889f82e53"
+   ]
+  },
+  {
+   "label": "westwood 48x40",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 48,
+     "height": 40
+    }
+   },
+   "name": "westwood48",
+   "check_sha": "27f64775159fdf4eaafbff7c7b76ce15d739dee7860f599d67ffa8a7f2bcd3b2",
+   "elements": 77,
+   "gid": 19344,
+   "files": {
+    "westwood48.aseprite": "5f9431d32d9d4b5645797e5447e6a0b5d0cd81b6be32efe7b7107d32c627a158",
+    "westwood48.budget.md": "22b3191dc57fe3b1297cf5eda75a36ae65e5714d7f670ff2abd9069c54e17637",
+    "westwood48.dvg": "bfe82d4c2152b8130f519f20b556bf7c4f396e4f21de2ab2be0cb028550c7e06",
+    "westwood48.geom.json": "1ace314f4679f0506ff34995bd30615fd3f7cca3b9ba2633e7ced4d4ae31d823"
+   },
+   "pngs": {
+    "westwood48_atlas.png": [
+     212,
+     243,
+     "cd3879150badfcd17526a9f864f83ccd66c10fa74a0904221fcb604276f1e7c3"
+    ],
+    "westwood48_view.png": [
+     192,
+     160,
+     "841be03f1a0307a982dc06818ea323ad9543897781f6ae09c6e232374f936942"
+    ]
+   },
+   "tpl": [
+    59,
+    "ea9f69ebfb8791da0477752c86d0a757ec9f56f668352484ff8db11b514c47aa"
+   ]
+  },
+  {
+   "label": "westwood 48x40 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 48,
+     "height": 40,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood48",
+   "check_sha": "41632fef57c6f02737828c53c95930bc03f5a8133e7f7b15f27a6759f714cf5f",
+   "elements": 77,
+   "gid": 7304,
+   "files": {
+    "westwood48.aseprite": "6e99d0aaee3c349487b0729b2e3c7db2f3dca8e876d58d3df9af3ee95d9cd4be",
+    "westwood48.budget.md": "20ba26c063a87829f8c0695b0896e65b0bd28fa97622138c123aaaf5dea60db9",
+    "westwood48.dvg": "76fc6c3d788daa74bf87be8000e42b5fe1c60e7a797c8c8232abb8913100abe0",
+    "westwood48.geom.json": "9b07f5d193a36b45ea00b2e16d25abb1ee12df9f874da96ddf5a0afd172329f2"
+   },
+   "pngs": {
+    "westwood48_atlas.png": [
+     212,
+     241,
+     "c6e50baf58a94cdf8ceab929be11b0a5dceee041c09221d7472d258138c22282"
+    ],
+    "westwood48_view.png": [
+     192,
+     160,
+     "841be03f1a0307a982dc06818ea323ad9543897781f6ae09c6e232374f936942"
+    ]
+   },
+   "tpl": [
+    59,
+    "c8ddfd8146187db356bb0861229177a91dce129677608bb3b837a8b552624a0e"
+   ]
+  },
+  {
+   "label": "westwood 64x48",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 64,
+     "height": 48
+    }
+   },
+   "name": "westwood64",
+   "check_sha": "514696e754e2518b94c60ea9222e70e9170e444f204cde426f5cd77185bce3f6",
+   "elements": 77,
+   "gid": 4305,
+   "files": {
+    "westwood64.aseprite": "2eec800b20ad0f3f2984b64515b41b61f2cdefe1cb92cb64ea4da74a86bed2ae",
+    "westwood64.budget.md": "2dd37296a3327024300d5fe35e82ba5686476fa6f92ca7a7c6a9b8c10db3d7e9",
+    "westwood64.dvg": "9d9e6d8979809a47ad49d693083df65a870182ebbfb23979a5792cad945a6eba",
+    "westwood64.geom.json": "6fe6e9f1ea9f4256b19900104201be4404a04767973efbcb9ecf2299dcd94393"
+   },
+   "pngs": {
+    "westwood64_atlas.png": [
+     276,
+     283,
+     "60edafe05acd42f68c7f77a01f949205c885027efc655cf16bc7818237f55674"
+    ],
+    "westwood64_view.png": [
+     256,
+     192,
+     "120e5d5a2fe7af88fe1c29d6f130e57e4a19c4596e764f1d489afaeeda04a6a3"
+    ]
+   },
+   "tpl": [
+    59,
+    "45074f86cecb203ad46c9ee0d50f058d0b451d696d70b1c7c979ddca23bb100c"
+   ]
+  },
+  {
+   "label": "westwood 64x48 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 64,
+     "height": 48,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood64",
+   "check_sha": "93dfb6803d3890ef5151dfc8e25f5067fb2ef734e4a6020cef61f5eba41b024d",
+   "elements": 73,
+   "gid": 51320,
+   "files": {
+    "westwood64.aseprite": "1b6d75d269dee8107a148a0ad629ef3e3ac11d6568cfafe0cb9a50743d95dfbc",
+    "westwood64.budget.md": "9e100c828750dea3a8c381a6a809300bf541b779a1b198088d7e59e3391483e7",
+    "westwood64.dvg": "487938f59b0afd9305d3a55ccea2554545f36ff2a7d9863fd511aa1affb646a2",
+    "westwood64.geom.json": "77e652672ffc866950c7bd829a75a04ab6256c4e41cdc0dbbad5b3ddca59e8d9"
+   },
+   "pngs": {
+    "westwood64_atlas.png": [
+     276,
+     279,
+     "9cf02373f3b9a5e01630319451fb17b24b01f32109c120b395e200193110ba3c"
+    ],
+    "westwood64_view.png": [
+     256,
+     192,
+     "120e5d5a2fe7af88fe1c29d6f130e57e4a19c4596e764f1d489afaeeda04a6a3"
+    ]
+   },
+   "tpl": [
+    57,
+    "014dc63944a540c3345be12ad780f4b40b427251b901fc07f6b3eed52716fa8d"
+   ]
+  },
+  {
+   "label": "westwood 80x50",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 80,
+     "height": 50
+    }
+   },
+   "name": "westwood80",
+   "check_sha": "f4d9db8c12f49a35abb823e2c14ab81700ea79bfa52021b6fcd5c09f01054a65",
+   "elements": 71,
+   "gid": 2952,
+   "files": {
+    "westwood80.aseprite": "0de4c598c34359d262f714432f67896f1d96be746fca6fbe9cdbed0d2edb03f7",
+    "westwood80.budget.md": "0a299da71131294d8c4e319252f385cfbd8fad6fdaa91b2fc2fe747128ea561f",
+    "westwood80.dvg": "16383ee42339233dbf5e724e273d92748d53f36f8a7b08e8d7a79ead4d64bd17",
+    "westwood80.geom.json": "a6f631266398beb00274ea726809e4ba59062bed87708abc9be6310735ff3cd1"
+   },
+   "pngs": {
+    "westwood80_atlas.png": [
+     340,
+     290,
+     "8ad66c26a8654797c5afc8bffdf6493f8f4843abc7b8ddfa8c9803ab7ff01100"
+    ],
+    "westwood80_view.png": [
+     320,
+     200,
+     "366e04dcc76cc270923bc77c01678a21ef117e2a66e5ba366aa0b0a8e027949d"
+    ]
+   },
+   "tpl": [
+    55,
+    "eaecc6b995f5921c067dd23898d0d22b99a2bd9dea7e21f66c34375c55207502"
+   ]
+  },
+  {
+   "label": "westwood 80x50 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 80,
+     "height": 50,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood80",
+   "check_sha": "d6b3182c9e25a16d94d397b2e94aaca8ba7fc723a13ab02333e83180ce85ce45",
+   "elements": 71,
+   "gid": 63280,
+   "files": {
+    "westwood80.aseprite": "b495a321769bd6235f0421f2fdefa744395ac1cb46928d18bc97a8c05ed9dd0b",
+    "westwood80.budget.md": "00d0e613583808d3c65134d6b62c0c286ed81f3d7d70bb07bd72563a328c39c4",
+    "westwood80.dvg": "86fbb0234efe7e94a39e48a5f609d460aa059d65611c97909dc536d4c9128664",
+    "westwood80.geom.json": "2390d19875dcd6bd491f7cd30d833d6cca0356e9d4f2aea4fdca79ee0b3e4678"
+   },
+   "pngs": {
+    "westwood80_atlas.png": [
+     340,
+     287,
+     "e8ffcf4806f721ce671fd2d9ccf47cc25ca79a168945c54c1a4c7ef4641534a3"
+    ],
+    "westwood80_view.png": [
+     320,
+     200,
+     "366e04dcc76cc270923bc77c01678a21ef117e2a66e5ba366aa0b0a8e027949d"
+    ]
+   },
+   "tpl": [
+    55,
+    "2eb2455e8379039fa2d0266810db50754bc33918cab534bcb711b541126ae0e9"
+   ]
+  },
+  {
+   "label": "westwood 100x64",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 100,
+     "height": 64
+    }
+   },
+   "name": "westwood100",
+   "check_sha": "4e91f26e54caf60cb4f811cb54bece527286c336e8b3bb4184722cc1acb5a3f2",
+   "elements": 71,
+   "gid": 62046,
+   "files": {
+    "westwood100.aseprite": "759a5b76d29972578580a9d59e55df220730055b2289c964fdc8a4ca6315118c",
+    "westwood100.budget.md": "5ad9f30b3a75159b71cd2dad49f79fa900cc1f172bbbd3d0902e0d69bdd051a9",
+    "westwood100.dvg": "76bd126dadfff7c9c1fcbb06c8b5c3fb6df710250bbdd125c072bb094eb4e6a3",
+    "westwood100.geom.json": "0354ed0624a63f14ab1ccf91e849fd155c2aa09c97087c28e68385dd4eb8ffc6"
+   },
+   "pngs": {
+    "westwood100_atlas.png": [
+     420,
+     350,
+     "a3297569f468ebad61a64aceed2648116d52cf09fe5f720a36ca838364fea697"
+    ],
+    "westwood100_view.png": [
+     400,
+     256,
+     "cf45e237516b3e8a0a6f7de04f2e97ba2e4ad3bb71ba42579fe9758d6fc3089e"
+    ]
+   },
+   "tpl": [
+    55,
+    "8d659a135646718a8d9c597ced13b83c8b6e79aa4e0344a917b1af5a633931b5"
+   ]
+  },
+  {
+   "label": "westwood 100x64 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 100,
+     "height": 64,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood100",
+   "check_sha": "45755496f090456a683509a485fdd6ccf4ba606d9101f41c250e0556b6565065",
+   "elements": 71,
+   "gid": 19265,
+   "files": {
+    "westwood100.aseprite": "4ef65ec29500e5b99af0b671991d759194a6ecb067ada653af805ef3ad547ac1",
+    "westwood100.budget.md": "a3165f0927ac16b88f63d24cae140adc1b22fda8206dc62eda0ab7f50cb7c09a",
+    "westwood100.dvg": "dd3fe1f447c400ec448646820fdf7e291feee36351d529d02e2f4935629114b0",
+    "westwood100.geom.json": "b005f50a87709045d313c85037492d947318dbf4cf974648ddcacd3cabf2f559"
+   },
+   "pngs": {
+    "westwood100_atlas.png": [
+     420,
+     349,
+     "5fd1cf985a88d8716ece2e4ae7d17de311d1b5b2d1b9ef2b2a7f9d2cadc3fd1d"
+    ],
+    "westwood100_view.png": [
+     400,
+     256,
+     "cf45e237516b3e8a0a6f7de04f2e97ba2e4ad3bb71ba42579fe9758d6fc3089e"
+    ]
+   },
+   "tpl": [
+    55,
+    "f0cf8e467266dfea3e73ac326bf958fe4d00d8aaeec3a61e5b5ac25fb83efa58"
+   ]
+  },
+  {
+   "label": "westwood 120x80",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 120,
+     "height": 80
+    }
+   },
+   "name": "westwood120",
+   "check_sha": "55b935517d5c4f1eaf2e90a1b24a48c63bb438965434db82f4b749be9dbfe633",
+   "elements": 79,
+   "gid": 4672,
+   "files": {
+    "westwood120.aseprite": "42abdff5ed1ef1116d59679ba2874f8ea14b5bab2e03a66e5bcf31341750bfa1",
+    "westwood120.budget.md": "c2b3a866e100bf41b909f2a0514886e99e6d37a37db097bc67fec3f8a0660c55",
+    "westwood120.dvg": "10366d7102a8572efd9103c0205e55e0d1c6dfa3d91ad6b939c0605dd5f23a06",
+    "westwood120.geom.json": "66d314c1deba1533079d463bb2a4d166ca1aed393818d5a79a6c1788b2115bd4"
+   },
+   "pngs": {
+    "westwood120_atlas.png": [
+     500,
+     425,
+     "304491f9a2d8df4c508e783b58d770029ad6c2def63f562ccdc7b28eab8d1dc0"
+    ],
+    "westwood120_view.png": [
+     480,
+     320,
+     "5bf4b892ecb9b4351bd059514124571a9b5123c8fcaa7691319c14ac26ac5231"
+    ]
+   },
+   "tpl": [
+    61,
+    "0b862e0a48d4e829cef627cac785480252ea78e222eec64dcefe27663a4b7fec"
+   ]
+  },
+  {
+   "label": "westwood 120x80 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 120,
+     "height": 80,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood120",
+   "check_sha": "aaf5cc4d17dafcaa1b82b7326e43df257a33a00a73e227259d8d28772ca70c8e",
+   "elements": 79,
+   "gid": 50535,
+   "files": {
+    "westwood120.aseprite": "4be3b7a582784c027d408e620fae70920085b5e6434e1ff4333b7f6676d15be7",
+    "westwood120.budget.md": "682fc25f1065e9329ede0b04e0ae5cf3b5879225296458549ceb1149c92ae94f",
+    "westwood120.dvg": "a96581758ec6063528a4cefa5404f30a1abaed8c1a16a9940229a39ef38f5d20",
+    "westwood120.geom.json": "c39d5d7d703c817e330c1de0e059c28d1fed9b6f37fdd63b855931f4a0d7e6c9"
+   },
+   "pngs": {
+    "westwood120_atlas.png": [
+     500,
+     423,
+     "c5be6098003fe0103ed6da2510c0a55e49e337e2b7ba0428743b45b06af1290b"
+    ],
+    "westwood120_view.png": [
+     480,
+     320,
+     "5bf4b892ecb9b4351bd059514124571a9b5123c8fcaa7691319c14ac26ac5231"
+    ]
+   },
+   "tpl": [
+    61,
+    "bf01f4917991ac13e294ea3d8ab0db7d0e9d4255ca0eceb59964a5f8afd25165"
+   ]
+  },
+  {
+   "label": "westwood 128x88",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 128,
+     "height": 88
+    }
+   },
+   "name": "westwood128",
+   "check_sha": "d76be9823a013e9b1cacac6687a8e2a0207559c73d2789cc34531e99297a0083",
+   "elements": 77,
+   "gid": 41227,
+   "files": {
+    "westwood128.aseprite": "20d01e89aa73f129dded03a817ed24149a9956b6d28dc92d679c5c284d4b6816",
+    "westwood128.budget.md": "c208f732decb82686cb81f75f8d579b409fdf64f3fbf006e35896a538f56835d",
+    "westwood128.dvg": "35ac9f5deb49843c079d4e2d0b0bac4f33e86c342517fd6ea633e126c09fe264",
+    "westwood128.geom.json": "ee88a8e1e776f97d41ff877c4c497c6e820c93c08c3cccdea5a70a5d08abf0bd"
+   },
+   "pngs": {
+    "westwood128_atlas.png": [
+     532,
+     458,
+     "ab3c4c68f3cdfec27e3868fc782c35ff5f8fa975f16afab8377852b88eba846e"
+    ],
+    "westwood128_view.png": [
+     512,
+     352,
+     "086c61eae50bb16df84c158445b5234801e77ca7829b4bbad475041eccd3d59f"
+    ]
+   },
+   "tpl": [
+    59,
+    "2a2ddf87a7b839368af3b5704b26bc3bc6fe8bb5f51e9f906d2fad8dda556f9d"
+   ]
+  },
+  {
+   "label": "westwood 128x88 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 128,
+     "height": 88,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood128",
+   "check_sha": "6324c558f5e39c20ca6e1ce6b5aee09d3232f4efa0257d23f323e46737e9b12f",
+   "elements": 77,
+   "gid": 50153,
+   "files": {
+    "westwood128.aseprite": "bbb8ba499ad0a98cc2a5bfd70c40081f3747f2309f216d89e73d806b1fb6c76a",
+    "westwood128.budget.md": "f7b7033fd0bf16fca5e5aceb4e11983b8a1fc96184276395557ba5f466ee5d4a",
+    "westwood128.dvg": "c41417a6d9dccd8a617541564a7775ed3daf42d3cebb7c351477423571d27f7f",
+    "westwood128.geom.json": "9367bff0bc078d69c912d560212dde1337d24ddd26e918cbaabca37acbd36e1c"
+   },
+   "pngs": {
+    "westwood128_atlas.png": [
+     532,
+     457,
+     "1a77b25b86e6c12540fd6f322ec21cc5cf16e49fa4ce5c31dda3604fa75982db"
+    ],
+    "westwood128_view.png": [
+     512,
+     352,
+     "086c61eae50bb16df84c158445b5234801e77ca7829b4bbad475041eccd3d59f"
+    ]
+   },
+   "tpl": [
+    59,
+    "5eeca816602c9594e3b34c0f8228f04f111a7e7b53bb2a96667b0fdc01c95493"
+   ]
+  },
+  {
+   "label": "westwood 136x92",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 136,
+     "height": 92
+    }
+   },
+   "name": "westwood136",
+   "check_sha": "356422dd33e2dee541ccc32fbb36787a520a0397423e62c7283a50243362e61b",
+   "elements": 79,
+   "gid": 43651,
+   "files": {
+    "westwood136.aseprite": "b16d94e25da1ffb0ac45283282b5db0de3287d2e427d64df96f5c57758542681",
+    "westwood136.budget.md": "1d8a976bee4a37387c01d08f0584f711ea680b87f1774b727220dcedbd211ac6",
+    "westwood136.dvg": "4a989a1924382a368b719d9bbd6ee680e3bcaa89599e63dbb3182c440cc7bca2",
+    "westwood136.geom.json": "ac0badd9d482a9ca1005a303c89b6578f799b6cb6c5327f5b8752e5ab483a93e"
+   },
+   "pngs": {
+    "westwood136_atlas.png": [
+     564,
+     479,
+     "acb08b9d8be4e31fa850e266d26b75e79627d185a5285d6fbbcae57b74018520"
+    ],
+    "westwood136_view.png": [
+     544,
+     368,
+     "5ac9d8ec76de65e5f9eeb54466e8b7e5591cfd9a21f1ffde19313cf827230537"
+    ]
+   },
+   "tpl": [
+    61,
+    "ebfafb7735212fdfab07d0cc052d5a3ae0265785cabf8020d2cd0160b78182d6"
+   ]
+  },
+  {
+   "label": "westwood 136x92 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 136,
+     "height": 92,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood136",
+   "check_sha": "f29a35bb6c48ecce037efa6944b033334167d8483ce7b87a810b4a7ce74f2087",
+   "elements": 79,
+   "gid": 24611,
+   "files": {
+    "westwood136.aseprite": "b0d0a92a19bd9c39c74e246196718689d8231b6c487d6c47bfb60adadb9029ac",
+    "westwood136.budget.md": "753bb93878ca029718a7bbbed9db95476141ced9d46557d79d0125f92312052a",
+    "westwood136.dvg": "ff5866d66c546cfa26bc8c6729f3b38fb5f910c0c3f53d368e8c77d89d7af60c",
+    "westwood136.geom.json": "8afcc7468b0be5375f52832c22d0cc81dde2f8c64723be44885760bdf70c96e7"
+   },
+   "pngs": {
+    "westwood136_atlas.png": [
+     564,
+     477,
+     "5ac796e1a21aa8aab1fe2b5e0583effa4dfa8d78cef12318be9711e84e23cedf"
+    ],
+    "westwood136_view.png": [
+     544,
+     368,
+     "5ac9d8ec76de65e5f9eeb54466e8b7e5591cfd9a21f1ffde19313cf827230537"
+    ]
+   },
+   "tpl": [
+    61,
+    "8ced16f6479a8f292c2bf65ac0d34140b07005313bf933d626520918ccac285e"
+   ]
+  },
+  {
+   "label": "westwood 140x96",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "aef0baa502c232dbf5db0e368fb41eab2f8f73fa6e57cf4483e6b7e09839a4c5",
+    "westwood140.dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+    "westwood140.geom.json": "ce65aa91eb953dae9da2dc56c6556378ea2e6441aefbde603723e0903822a923"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "westwood 140x96 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "6210f12ef3fb07a72346d047935873cae6cc7eecb9a66ad92767470a4c9c2cf3",
+   "elements": 79,
+   "gid": 60417,
+   "files": {
+    "westwood140.aseprite": "076a0261dae25f6d55ee7c7152ac23a9ab7f470c4ec30d053d22a71a08533585",
+    "westwood140.budget.md": "0d7c361826b7bba05322a1b65375c33816ba2101b48c64614c531fcbbf845490",
+    "westwood140.dvg": "ebe54a5754210fb94a089e4304bf52fd41a5de9eefa60cd6c07a254c90c2e9b6",
+    "westwood140.geom.json": "777ea06f82c98ec1190f8ee709c63af24d8a7bd921732f56657fc5b09918913a"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "87957b1807e1d8895675b5d3dd5e49f6f61406341b9043edd52c0aed42e14ba9"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "045cbb9e13db1ea48043250d51464e7a00460220349258893f3a7a55e87af5d4"
+   ]
+  },
+  {
+   "label": "westwood 144x96",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 144,
+     "height": 96
+    }
+   },
+   "name": "westwood144",
+   "check_sha": "6083f9a7afcd1edfce6857192ca219a5bcd87f50a8319c810112521b3beb4402",
+   "elements": 73,
+   "gid": 47091,
+   "files": {
+    "westwood144.aseprite": "58bb3a6a4bfe3a5255f96bac5792f2aaaed6908be549b17e5de2fc6c84f2e419",
+    "westwood144.budget.md": "944e27d0381a622e09a56d20ba1de0438f81ce39a7153416c8a2e735732ee3b6",
+    "westwood144.dvg": "c55df334548226b7e51ca1f1214ec3dae15ac83b0ec29a77f01d2549cfd6eda6",
+    "westwood144.geom.json": "be4c2773e7e26af75e1cd293a2a385eb25b16871825ced3a57b57176772f4c0c"
+   },
+   "pngs": {
+    "westwood144_atlas.png": [
+     596,
+     495,
+     "64137a6ba34d2a9c1d9daa5f1471ef36258b4f5b76a25cd51d824d41b0cc001c"
+    ],
+    "westwood144_view.png": [
+     576,
+     384,
+     "012c01d20494d484686bc45c1cc7d8d2bd1f635da11e353b4c47ce1557002514"
+    ]
+   },
+   "tpl": [
+    57,
+    "7e2d7092bc1a898cf416696a17fa10d4573616deb3d94f66e86b69443980844a"
+   ]
+  },
+  {
+   "label": "westwood 144x96 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 144,
+     "height": 96,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood144",
+   "check_sha": "a8e06d39c12fb02c45c69c46eedf73fae6c83f56b5dda2fbe6bfa14ea2b0cc64",
+   "elements": 73,
+   "gid": 9131,
+   "files": {
+    "westwood144.aseprite": "d94bf71ec503c39cc066d95763a67a9901b4fb36d96d45e040c83c5e40cb7e31",
+    "westwood144.budget.md": "61d5caf9d69512b6f3a4186c14761820b112e0cbab4a3b20425b56fcf7290d23",
+    "westwood144.dvg": "64564afeec9d47f7775bc7420b2440c3ff8daaf7095fd5e1e8b5ea5fa4864f8b",
+    "westwood144.geom.json": "e01cbb1e8733350bb4deecc6aae6fafd6ff57a6e296efb9b1c713b0176da6b34"
+   },
+   "pngs": {
+    "westwood144_atlas.png": [
+     596,
+     494,
+     "f926e489fc1927d14209caa036b802f2f51e7e7a516374820a9f1fba93cc670e"
+    ],
+    "westwood144_view.png": [
+     576,
+     384,
+     "012c01d20494d484686bc45c1cc7d8d2bd1f635da11e353b4c47ce1557002514"
+    ]
+   },
+   "tpl": [
+    57,
+    "77523aa3328737999fca3a1938d18fd38ddf70e7c647aa0b65176013a97d61fe"
+   ]
+  },
+  {
+   "label": "westwood 148x98",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 148,
+     "height": 98
+    }
+   },
+   "name": "westwood148",
+   "check_sha": "fa678b238588388357af6b3467fcb0d6954eec4876aedc60112696c49db10113",
+   "elements": 77,
+   "gid": 57988,
+   "files": {
+    "westwood148.aseprite": "7274c1ff800544baf37045b7080575bd7d1dfaa965d8b84f834cb310e46080c6",
+    "westwood148.budget.md": "77ecfab1cb38541fe65ceb0233fc74552e454c462d2a74c4c43f0a18d626def3",
+    "westwood148.dvg": "06433224898b77647b1fffdaf3a6335644c4e658c368848fa0505a660919066d",
+    "westwood148.geom.json": "727c609c9825e35fc409ba4e39d989b18afccd7080a820c49d61f42764d7bdb2"
+   },
+   "pngs": {
+    "westwood148_atlas.png": [
+     612,
+     504,
+     "66f5e61430e3b6a9984324e958a6766d6dcaeff89f9d48d692d18cef44418f91"
+    ],
+    "westwood148_view.png": [
+     592,
+     392,
+     "5db9594386ebcf86056b15c5aeaeab3ab4a5bab61eff7c8370cf83a8bfe92b37"
+    ]
+   },
+   "tpl": [
+    59,
+    "6676a05c45e44b27fc0c9e3cdc2a232327c6be06f4a2374f105e6af8d8f8e666"
+   ]
+  },
+  {
+   "label": "westwood 148x98 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 148,
+     "height": 98,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood148",
+   "check_sha": "37b92e65131b48eb19215b597ef28dd9dbcfa7e9575d3a7b03a7a76ff6fede56",
+   "elements": 77,
+   "gid": 61903,
+   "files": {
+    "westwood148.aseprite": "81c8a99bbe9a5aa9ad9e41223d9eb3b9f22f2d07a33200f35a276c30b5ba2222",
+    "westwood148.budget.md": "e04e02a38c869d91a3736ad9850583dc07e9e83fba5c77a6fea119109871fade",
+    "westwood148.dvg": "80709a9a4ff745b06080a70384f46c2c0dc7c63abed16107884843fbba006d5a",
+    "westwood148.geom.json": "4be683004b2d3e84a890ae66e9175c079485e34cbb3046c5510bc263795f0bf7"
+   },
+   "pngs": {
+    "westwood148_atlas.png": [
+     612,
+     502,
+     "45970186ba1d5a55090d2ad881c6896c7080126eade527cf748053f4992c09f9"
+    ],
+    "westwood148_view.png": [
+     592,
+     392,
+     "5db9594386ebcf86056b15c5aeaeab3ab4a5bab61eff7c8370cf83a8bfe92b37"
+    ]
+   },
+   "tpl": [
+    59,
+    "6fe88e9ee6784f0c85419e101f0a22523615760b612573126f3ec89d97c901fa"
+   ]
+  },
+  {
+   "label": "westwood 152x100",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 152,
+     "height": 100
+    }
+   },
+   "name": "westwood152",
+   "check_sha": "337cd048a4b313feff333f1b02082a2947f9d193bf7b093d311fffaf462efc40",
+   "elements": 79,
+   "gid": 39380,
+   "files": {
+    "westwood152.aseprite": "27a86de360b549b766be86e9792c365363477d9645a03a907cd9cfdc828aa2a2",
+    "westwood152.budget.md": "a6a32a959d9788a883a1b51de2b2f256b57a735dfaabb6aa7b11d7abf4cd97c6",
+    "westwood152.dvg": "6ceaf292a6cdbb55c877ab2204eb667ea37669fd138faa4ca5553c12271c2754",
+    "westwood152.geom.json": "1483de43bb3db5061aaa75342a759b1c90d8937a738b20c1018674e9fbff6c0b"
+   },
+   "pngs": {
+    "westwood152_atlas.png": [
+     628,
+     514,
+     "25c397110ede7746e5496d098ca367492a22ffc5b049b9d6fd4701e891004ea4"
+    ],
+    "westwood152_view.png": [
+     608,
+     400,
+     "bd1cc736fab16be41988c6e61bb4a7c087fca3599902d169fdc45d4554d554bd"
+    ]
+   },
+   "tpl": [
+    61,
+    "48253fe9d7e445e6034fed093c2d22cf05a2051f57f99327d0d9639bc3f6c86d"
+   ]
+  },
+  {
+   "label": "westwood 152x100 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 152,
+     "height": 100,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood152",
+   "check_sha": "b2838a979d3c23e1d5d71d31bde4baf749f27c633f71a81e08690551a786a050",
+   "elements": 78,
+   "gid": 7812,
+   "files": {
+    "westwood152.aseprite": "35ab8ce0a09971b784e627f00b74c3b568d88a3155082fb796447c1a0203a62f",
+    "westwood152.budget.md": "277b34ffe4b1bb0562f83ea096802d14430d92d3e7eb85ff38fda6609e5b1a2c",
+    "westwood152.dvg": "75701adcb8ce2763e5dd4fe4dd89f0688091e1a649582c676787eecf4cd51825",
+    "westwood152.geom.json": "d1c850714b691a03e580dd25bc8bfd192cb50ce05c11ed00da28685cd5c3d06b"
+   },
+   "pngs": {
+    "westwood152_atlas.png": [
+     628,
+     512,
+     "36fe0955e5c66fec7319f66e6935e24098041096a34affae0941e8630fe6e24d"
+    ],
+    "westwood152_view.png": [
+     608,
+     400,
+     "bd1cc736fab16be41988c6e61bb4a7c087fca3599902d169fdc45d4554d554bd"
+    ]
+   },
+   "tpl": [
+    60,
+    "0a9de44cd6bd503a8e79cad91476f5e92fad53e3463a95ad377c7580e8de18a5"
+   ]
+  },
+  {
+   "label": "westwood 156x60",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 156,
+     "height": 60
+    }
+   },
+   "name": "westwood156",
+   "check_sha": "ce5b955d6123c58e01b9c0d7642acd60d29fa70daaeb551c9dbfa168490a8704",
+   "elements": 77,
+   "gid": 64059,
+   "files": {
+    "westwood156.aseprite": "22a34ff41992e3619536f1191a378b5fda1a611b8496844a018dd32f66f1ffc8",
+    "westwood156.budget.md": "38b57ec28a5683ed7a76d289dfcde007674a95341ae05d98370488d84bec682e",
+    "westwood156.dvg": "55544f8b727adaf750354900856b60202bb49811c0ad204ac2c8d1eb9d873bd6",
+    "westwood156.geom.json": "66677e4094b0a10f4a0382fb576c66ea0ff2861c12b4b986acf48f50bbdeb80c"
+   },
+   "pngs": {
+    "westwood156_atlas.png": [
+     644,
+     334,
+     "0be6023c1416bc843147d17ccf9712aa6765853615c5b6b937b120175fea0f1c"
+    ],
+    "westwood156_view.png": [
+     624,
+     240,
+     "f9541a98b52c0ef94a89ed0b381652ade35ebc9b642d50d4ae77c7d18d2353bd"
+    ]
+   },
+   "tpl": [
+    59,
+    "9d5ff7f9cc93d84cf10c287bfa447b1fa4d404c090aedae23c19ff595d0f0aac"
+   ]
+  },
+  {
+   "label": "westwood 156x60 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 156,
+     "height": 60,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood156",
+   "check_sha": "b7d152460e50574fce17a8a71d8cb6466c1d101afe986631e594e476275ab6ce",
+   "elements": 77,
+   "gid": 32174,
+   "files": {
+    "westwood156.aseprite": "ffd8053d58d1cc43a7ae2876f396e03f094c93239e94cfe8e8d0edac2308c0f4",
+    "westwood156.budget.md": "ef498ef05863c9bd45ea391ee2b5b2fbfed4a692134b1d989df042dc5d3442ef",
+    "westwood156.dvg": "03ac0155392d074ef27bc7885b715add9b7607f16f13dbf828493740a340f72c",
+    "westwood156.geom.json": "c15684c59dfa4cdfc4fc5bf2bebdda4ceb24cde78253acf2a69d34e28bb400be"
+   },
+   "pngs": {
+    "westwood156_atlas.png": [
+     644,
+     332,
+     "6538cc4c12161314d4420f6701e6c380fe835e4bb2c2d6bd980157cbd3098009"
+    ],
+    "westwood156_view.png": [
+     624,
+     240,
+     "f9541a98b52c0ef94a89ed0b381652ade35ebc9b642d50d4ae77c7d18d2353bd"
+    ]
+   },
+   "tpl": [
+    59,
+    "509d9618a1e7512a93d4e5dd968d75f0f9d2f350bb5b01b41bf3b784954b27e2"
+   ]
+  },
+  {
+   "label": "westwood 160x100",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 160,
+     "height": 100
+    }
+   },
+   "name": "westwood160",
+   "check_sha": "27568f84cf12f41ffaf03e6d8b13ebfe02b6308477640ff2628b30fcab110f28",
+   "elements": 79,
+   "gid": 4377,
+   "files": {
+    "westwood160.aseprite": "528189a103b66366eb258d3c6f8f68d3588dc580966e6f0df0418d885d430b07",
+    "westwood160.budget.md": "e2634472b671eb1d31254ef0fdf7f33a43ab87a1dc916e9af9c60dfcb6d7173c",
+    "westwood160.dvg": "8c1a55cc2b890a96fef3de53a919431a5e2fa06060d8d599886c4a37cb9402f8",
+    "westwood160.geom.json": "de4061b087f0c6e8f2eff00ee47e8000063417d5def927e20f559c604eb2ad59"
+   },
+   "pngs": {
+    "westwood160_atlas.png": [
+     660,
+     514,
+     "c5e361b05c9d9c1cd3f5b952fc857ec3891df4228ee97efd0b9f738dd97156e3"
+    ],
+    "westwood160_view.png": [
+     640,
+     400,
+     "8fd22d719b0a8135e32c8d211abdba2d0ac13c87d39ae34d15f128a95d486744"
+    ]
+   },
+   "tpl": [
+    61,
+    "2024da9c7bec6b61deac022c8b234d8083d63f67c8fe85bbab20c2910382401b"
+   ]
+  },
+  {
+   "label": "westwood 160x100 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 160,
+     "height": 100,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood160",
+   "check_sha": "77a2f91c24638fbbf2f55359a20385038f129b06df70406173cf69674328d351",
+   "elements": 79,
+   "gid": 63620,
+   "files": {
+    "westwood160.aseprite": "c10615746afb6d4d85302d964b0c880008dab3d08051ce76aa00436883b0e0e6",
+    "westwood160.budget.md": "d1bb30cf293083822c8e869a93cddd652dac9a617a842cf6d7a46b795645d0f4",
+    "westwood160.dvg": "74dfaa9095a668f6c93842c16937786c0a56d6a102d8bd246e6c065459f0bfe4",
+    "westwood160.geom.json": "b670e55947ee0ce86db0b4eade925624541de7f15b909af320d5e9790fdad66e"
+   },
+   "pngs": {
+    "westwood160_atlas.png": [
+     660,
+     512,
+     "171dc26a6ed28019880b60c9825a2ba4675984f65e734ea220dc734b75975cf0"
+    ],
+    "westwood160_view.png": [
+     640,
+     400,
+     "8fd22d719b0a8135e32c8d211abdba2d0ac13c87d39ae34d15f128a95d486744"
+    ]
+   },
+   "tpl": [
+    61,
+    "2e867617542dca389213aa7fcae3f10dcf216d23d28eb07a8a2ed00c6e562e14"
+   ]
+  },
+  {
+   "label": "westwood 160x8",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 160,
+     "height": 8
+    }
+   },
+   "name": "westwood160",
+   "check_sha": "ab65dc59241e17b61947c70fb914a65dbee9208a6c7bae19ee0631e83b767312",
+   "elements": 49,
+   "gid": 7909,
+   "files": {
+    "westwood160.aseprite": "40aa6c6599cb3ae88997432a6a0aa15b17e675880c11ca4abaf2db0bc4e1cae4",
+    "westwood160.budget.md": "88def4c8fc5905543e0f24da73ad9b32e58de2e5fbb0513f50d9af93140e1276",
+    "westwood160.dvg": "8023969a6525f22e917f2c0c0f3f1f16c1b287462f5c06adb77a471cb3bdd022",
+    "westwood160.geom.json": "9b4aa73a63b49115a4bdfbd39189d174e59c87e5e484bd946dda572e445d33e2"
+   },
+   "pngs": {
+    "westwood160_atlas.png": [
+     496,
+     87,
+     "d902124c12adaf10ca78594bc83c52b2d28b14096c43a9882460f0425c42c314"
+    ],
+    "westwood160_view.png": [
+     640,
+     32,
+     "314d06a7316bdb616183c57915367a32390cb4323e7d1659f7e2b898d02d58fe"
+    ]
+   },
+   "tpl": [
+    37,
+    "aff202b12373e930cb992f6e495de7bde8e46d81a2ee81e5a3ebbf785a458462"
+   ]
+  },
+  {
+   "label": "westwood 160x8 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 160,
+     "height": 8,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood160",
+   "check_sha": "73754a9c9c428519a38550c6e01221d60eb723b3d7552428305aa6c4a16b5fae",
+   "elements": 49,
+   "gid": 62748,
+   "files": {
+    "westwood160.aseprite": "724a56d50da2a01a1de11242c75d1030b7294646ad08c6af23313b0e9e72e4b1",
+    "westwood160.budget.md": "ffee3516b3afe1c675437fbc577eaafb74d9f39c0a2623f049ba22ee423410e6",
+    "westwood160.dvg": "c5b7260fdbb79889456579984f70152a73fbd03798463706ad0e23cbe0369a4f",
+    "westwood160.geom.json": "c75fe33b57a321b32f3183883e0bea6206f50d598e8e7b232e9890ac9cd941db"
+   },
+   "pngs": {
+    "westwood160_atlas.png": [
+     496,
+     87,
+     "e3edb4c722064210ec1c27930270c1b8710a2369169874f4cd50a70c8ff369a1"
+    ],
+    "westwood160_view.png": [
+     640,
+     32,
+     "314d06a7316bdb616183c57915367a32390cb4323e7d1659f7e2b898d02d58fe"
+    ]
+   },
+   "tpl": [
+    37,
+    "f32bbbc3e91a8d258142e22ff039f924ee28de713b966ed4de589b351fce1c36"
+   ]
+  },
+  {
+   "label": "westwood 100x100",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 100,
+     "height": 100
+    }
+   },
+   "name": "westwood100",
+   "check_sha": "44be0897ef73218d08a20f8c2b21ecf0fead77e3d64b1a607c31a7a0160131af",
+   "elements": 71,
+   "gid": 18343,
+   "files": {
+    "westwood100.aseprite": "4ce067d08aa02082783860d3d36b2a625e1a0416817f1b2973b8585bc9adbb88",
+    "westwood100.budget.md": "da3fa150edee0cbf21336a6c7637de81c2c1c24c02c4f455763a5c238dd2b7a4",
+    "westwood100.dvg": "b1e90c3dc2ff06da7bb28d1a8ac9ffd5a0cb82bf52b39965d9769ca20b3ea686",
+    "westwood100.geom.json": "3ce42102b0fb09beefb808fa37176bc28aa4e28077262b964f0efc6537052ebf"
+   },
+   "pngs": {
+    "westwood100_atlas.png": [
+     420,
+     512,
+     "816d37e291b5bc77dce54002b346080b28cbb5dc623b1c7d77b5819452a04f5c"
+    ],
+    "westwood100_view.png": [
+     400,
+     400,
+     "dd60592ce46007eb1ed75d8ab28d0a19d8b95f2355b935f2b63d7c2d225c34b6"
+    ]
+   },
+   "tpl": [
+    55,
+    "e1cc52a60df211611e22f3c8a799ee2f76bc10ad9efb68acd7842811d68561a9"
+   ]
+  },
+  {
+   "label": "westwood 100x100 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 100,
+     "height": 100,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood100",
+   "check_sha": "b9c9361f42dd5fdf7057d494d227a432a4f7b206bc8b89a8006a37034b43ee21",
+   "elements": 71,
+   "gid": 55928,
+   "files": {
+    "westwood100.aseprite": "708f7e9218277df15f468a396b7228a1f457eacdeec57be2a34ff0cecf92035d",
+    "westwood100.budget.md": "4cc661eaabd6b45d1ebff15c7c2f4973ca7c56744308ff4b01b66f3665520720",
+    "westwood100.dvg": "157f77f595485c6438ebc4ff8d87cada05429ec7a01eda578e17185de7fa3eb7",
+    "westwood100.geom.json": "6e5b88568f4a88ab89fcf00cbc0df1dbc98cd39546e125c4db18430db4fc4449"
+   },
+   "pngs": {
+    "westwood100_atlas.png": [
+     420,
+     510,
+     "b165066c90c1bd12e1b7e75e71d98dfce948cbe68a9d3160d09117461717e61a"
+    ],
+    "westwood100_view.png": [
+     400,
+     400,
+     "dd60592ce46007eb1ed75d8ab28d0a19d8b95f2355b935f2b63d7c2d225c34b6"
+    ]
+   },
+   "tpl": [
+    55,
+    "685e265a42e7987a969dcf710f67ae5394c84220ce0c4a99f91f7afca4ac51f9"
+   ]
+  },
+  {
+   "label": "westwood 60x99",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 60,
+     "height": 99
+    }
+   },
+   "name": "westwood60",
+   "check_sha": "6fc36d795c30e813be8b75a57a8b1359ecc331a59c972226bdef080c24cc79c9",
+   "elements": 71,
+   "gid": 7538,
+   "files": {
+    "westwood60.aseprite": "ccb0999f851327b7a85b15d3d05e63075efe93121980d24361f451d3f6242631",
+    "westwood60.budget.md": "aededfa312ded14890cbc50cdf355adbd2843d669b22201f950f14c1d71aebfd",
+    "westwood60.dvg": "4ecb0ec6662f9dcc46983f6a08d2d1868960801587f99dedc59776474146fd80",
+    "westwood60.geom.json": "c0ed8e016d4fbda814080dd9c6d9763eb00bafacb56e329c4f278e02ade5c7d1"
+   },
+   "pngs": {
+    "westwood60_atlas.png": [
+     260,
+     506,
+     "da8fca26e32f49136f1d093d1ff8c14516281f608651f115e1b31153e575b1da"
+    ],
+    "westwood60_view.png": [
+     240,
+     396,
+     "01206496504b8e4db8fc19b942cecb0dc7d7ee3d1398ba12f83bebf30e3f2c02"
+    ]
+   },
+   "tpl": [
+    55,
+    "303398d5595e7bbc319e48ffcc498690634f423a196f338f083940ef67c0d522"
+   ]
+  },
+  {
+   "label": "westwood 60x99 byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 60,
+     "height": 99,
+     "byte_edges": true
+    }
+   },
+   "name": "westwood60",
+   "check_sha": "696f79a9965f385aaa21c88056c3f57834188808e2d883d2e8dbf06ff8c02779",
+   "elements": 71,
+   "gid": 21092,
+   "files": {
+    "westwood60.aseprite": "2dd3b1375219e3a8278bfe806f0a55788589ff118174cfc729db83ee348500f7",
+    "westwood60.budget.md": "c4c175e5138ffca6fddefd180a5e17d79842d88e8030378a99a7e1be0bc003f6",
+    "westwood60.dvg": "998c0616c948eb7e2720e313e9393f2aebcf48362df267015022be8ea61cda63",
+    "westwood60.geom.json": "c5c3fb927771f1d07f4dfb4920d7d5c573e40a8424d02c4f3cf7bb00678a47b7"
+   },
+   "pngs": {
+    "westwood60_atlas.png": [
+     260,
+     503,
+     "d1072646ad54a6b98e671658ca41911c540ca648deaf5e8349422cc474d4b273"
+    ],
+    "westwood60_view.png": [
+     240,
+     396,
+     "01206496504b8e4db8fc19b942cecb0dc7d7ee3d1398ba12f83bebf30e3f2c02"
+    ]
+   },
+   "tpl": [
+    55,
+    "bb2b72d74371150619b9bfaeb769ea05afc7133358d313c22aa91be451c3abbe"
+   ]
+  },
+  {
+   "label": "origin 321",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96,
+     "origin": 321
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "aef0baa502c232dbf5db0e368fb41eab2f8f73fa6e57cf4483e6b7e09839a4c5",
+    "westwood140.dvg": "4b9602701ed2943b790ab4e4d97a848f9b6438ba009025d83afa57ed7854f96e",
+    "westwood140.geom.json": "81f5f2dcb5fce5c99d5ed2df99013f5a90b6c9412646cf0d526f45bde3178c1e"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "origin 5 stride 80",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96,
+     "origin": 5,
+     "stride": 80
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "aef0baa502c232dbf5db0e368fb41eab2f8f73fa6e57cf4483e6b7e09839a4c5",
+    "westwood140.dvg": "83943f0fbee9b381ea562d75f7116f7f25dc9119d95de65a5c642bcb053a0733",
+    "westwood140.geom.json": "55ca6732d304197a240751d08371f9cd0f13df3d6cf536135829baa760adc998"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "stride 70",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96,
+     "stride": 70
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 30859,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "aef0baa502c232dbf5db0e368fb41eab2f8f73fa6e57cf4483e6b7e09839a4c5",
+    "westwood140.dvg": "2addef110944afc79a8d62f66ef1f218d50b2bc3e7252fd61da7e30671fd8d04",
+    "westwood140.geom.json": "303cb8a94e9171aa3900fe951f7eaddddbd0088ceaa753f286138456b123b360"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "stride 255",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 104,
+     "height": 60,
+     "stride": 255,
+     "origin": 1000
+    }
+   },
+   "name": "westwood104",
+   "check_sha": "72599ecac56fd91aaf7187a8aa7ad12e637f80f4cdcb2dcaa8bc09e2747275f7",
+   "elements": 73,
+   "gid": 64651,
+   "files": {
+    "westwood104.aseprite": "75622ca89d304a010861f30b985122e41a0488a905109bb986160977669df344",
+    "westwood104.budget.md": "06047bf3a04bab309c2208f017c3cd94210076e8f408d8f588a2f8c542201154",
+    "westwood104.dvg": "0ea5f830afd81823d468761129abf5fee9818c908f5c729e0dd8c37f2623e3eb",
+    "westwood104.geom.json": "e553dfabeeceb03b4860bd3392d1b8bb6d9fd7fab3f6ae43c006045ae6ed474e"
+   },
+   "pngs": {
+    "westwood104_atlas.png": [
+     436,
+     334,
+     "41d7c1ebf36b57433f8822658154d4b1243345b6cb7fa5e9b409e22d269d1f4e"
+    ],
+    "westwood104_view.png": [
+     416,
+     240,
+     "c18228a02eee892fedb5fd270d682c2eabb5dc1035fa4f0e57af27f86083e039"
+    ]
+   },
+   "tpl": [
+    57,
+    "4fbf90dc157ae3861a6232594ae3ec527f68ca5ec3e71d2b89be66a58536666c"
+   ]
+  },
+  {
+   "label": "zoom 1",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "zoom": 1
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "aef0baa502c232dbf5db0e368fb41eab2f8f73fa6e57cf4483e6b7e09839a4c5",
+    "westwood140.dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+    "westwood140.geom.json": "ce65aa91eb953dae9da2dc56c6556378ea2e6441aefbde603723e0903822a923"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     140,
+     96,
+     "7b7684c4c36d9eb5186f19ea8c4359672aa42dea2b80efbd2ca85a9538e895b7"
+    ]
+   },
+   "tpl": [
+    61,
+    "01d2185d7e5215fb39605175e961a7e1da53889b3562d9b103e8355d1fba7e90"
+   ]
+  },
+  {
+   "label": "zoom 2",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 136,
+     "height": 92,
+     "byte_edges": true
+    },
+    "output": {
+     "zoom": 2
+    }
+   },
+   "name": "westwood136",
+   "check_sha": "f29a35bb6c48ecce037efa6944b033334167d8483ce7b87a810b4a7ce74f2087",
+   "elements": 79,
+   "gid": 24611,
+   "files": {
+    "westwood136.aseprite": "b0d0a92a19bd9c39c74e246196718689d8231b6c487d6c47bfb60adadb9029ac",
+    "westwood136.budget.md": "753bb93878ca029718a7bbbed9db95476141ced9d46557d79d0125f92312052a",
+    "westwood136.dvg": "ff5866d66c546cfa26bc8c6729f3b38fb5f910c0c3f53d368e8c77d89d7af60c",
+    "westwood136.geom.json": "8afcc7468b0be5375f52832c22d0cc81dde2f8c64723be44885760bdf70c96e7"
+   },
+   "pngs": {
+    "westwood136_atlas.png": [
+     564,
+     477,
+     "5ac796e1a21aa8aab1fe2b5e0583effa4dfa8d78cef12318be9711e84e23cedf"
+    ],
+    "westwood136_view.png": [
+     272,
+     184,
+     "f2bdfdeb830f28481e68902a874617341ef470e5b88f56781455fa62adc54993"
+    ]
+   },
+   "tpl": [
+    61,
+    "d36f60b56d08da11e7ed818e7abef471e3c08cb1adb287bb1b926d626827b142"
+   ]
+  },
+  {
+   "label": "zoom 0",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 64,
+     "height": 40
+    },
+    "output": {
+     "zoom": 0
+    }
+   },
+   "name": "westwood64",
+   "check_sha": "ed8601c16a6aa90b3b4224c4b4d7b83ad06fda7d33b5d435866ed04cb83c5571",
+   "elements": 73,
+   "gid": 46195,
+   "files": {
+    "westwood64.aseprite": "d41a1a97e5d08dc4972ba175bd59f94eae0772b29ca20d14da46069ba7702155",
+    "westwood64.budget.md": "f11a7e162758211a0a93db36f3b00de686bd010f142866ffcb0f49f5e50947fb",
+    "westwood64.dvg": "a834c44b1b5bf7ba69b93f7978a69aadc5def3cc25c0a60595b88144855e994a",
+    "westwood64.geom.json": "486fa711ca2c4ac4d7c1824e7a974fc30b5e7dddb545b00f371cae695f283690"
+   },
+   "pngs": {
+    "westwood64_atlas.png": [
+     276,
+     244,
+     "b0489705598e6296b357b054915af09f5986c82dccc5a6a9b298bf88626b6475"
+    ],
+    "westwood64_view.png": [
+     64,
+     40,
+     "35aa54706f743cd88cb1864e1fdb7e2906df5d946fca753c113fc098579e9748"
+    ]
+   },
+   "tpl": [
+    57,
+    "1f736f07e92eaf121ea915528a2022c1396c6dde8577a12e9ede3e8628764447"
+   ]
+  },
+  {
+   "label": "pool small",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "pool_bytes": 1000
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "16373cd8029f5d58cdc867128c9fd285ebf9a7bdd53150545b168594ab6c2377",
+    "westwood140.dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+    "westwood140.geom.json": "31ec84552a0bab16bbdab33a6a103b519e363a268346291a90cc4c9ae8f15041"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "pool large",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "pool_bytes": 36735,
+     "name": "poolname"
+    }
+   },
+   "name": "poolname",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "poolname.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "poolname.budget.md": "0aacf2b7131a888cfc6c5d0dc60239b8515433d4bc590d9ce5f130479113cb8c",
+    "poolname.dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+    "poolname.geom.json": "14fa06c7eb82885444c1fe9c71c07df4b4c62371111c53bde1357ea86c63111c"
+   },
+   "pngs": {
+    "poolname_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "poolname_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "load 0x4000",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "load": 16384
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "westwood140.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "westwood140.budget.md": "aef0baa502c232dbf5db0e368fb41eab2f8f73fa6e57cf4483e6b7e09839a4c5",
+    "westwood140.dvg": "3bd3191630d5a5010f0c2f209a86862c6e194595b9048fd3bed797b5b9ae5f68",
+    "westwood140.geom.json": "ce65aa91eb953dae9da2dc56c6556378ea2e6441aefbde603723e0903822a923"
+   },
+   "pngs": {
+    "westwood140_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "westwood140_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "name non-ascii",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "name": "geomä"
+    }
+   },
+   "name": "geomä",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "elements": 79,
+   "gid": 47585,
+   "files": {
+    "geomä.aseprite": "79b5c3baf2b5682e36f6da0593b5466e08a7415093a3af86d61b09702c69df25",
+    "geomä.budget.md": "46f60632c4db2dc629aafbe7bf1d50ecae40b304987e3771f930fb19f64de8bf",
+    "geomä.dvg": "1383ed4f7bc84d3eefb048bd72536ecb5d082d9db09fad7302e2a6f873ebc0ff",
+    "geomä.geom.json": "ce65aa91eb953dae9da2dc56c6556378ea2e6441aefbde603723e0903822a923"
+   },
+   "pngs": {
+    "geomä_atlas.png": [
+     580,
+     494,
+     "642dfbe5c17bcef3be1b3e137cd1a7004eac693e8d458fc0f0794b7ec1d15640"
+    ],
+    "geomä_view.png": [
+     560,
+     384,
+     "95c27984ac9f42511d8833fc95f6f1262c49884b69310a886789f6e5416c25c3"
+    ]
+   },
+   "tpl": [
+    61,
+    "22f7b2c16734402da5f6eeaff3415780df634892f65dd6a738f27c9eb51b2d46"
+   ]
+  },
+  {
+   "label": "176x120 (patched conf)",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 160,
+     "height": 100
+    }
+   },
+   "patch": {
+    "width": 176,
+    "height": 120
+   },
+   "name": "westwood160",
+   "check_sha": "c6a623beaca4391e8c1422d6dc2cb805c3f0c3878552c0e9bf2e6da41e889ffb",
+   "elements": 79,
+   "gid": 61920,
+   "files": {
+    "westwood160.aseprite": "911a74bba40ba846171a6bfa80900bfefa415514cd260392bf2a925e47dbba1c",
+    "westwood160.budget.md": "286ab5563027bc74a9878d43c9b8df7d5209c4116a8df86639f20cfe0ae34de8",
+    "westwood160.dvg": "eb04e1a8af93069f99faf8df3adf63cd85f30d9146e4afc17b28ca13ace1a0dc",
+    "westwood160.geom.json": "88f33bfa3cb1cc49c135b308b12bfb2a3f35ab4120acf15b953ddd98e7d9ac73"
+   },
+   "pngs": {
+    "westwood160_atlas.png": [
+     724,
+     604,
+     "3d6dc460bb559e30698609878bdd40d15fc9fad3859825effcf76d732bfed40b"
+    ],
+    "westwood160_view.png": [
+     704,
+     480,
+     "43a42fdf2f5bdc9833d74e31b1d68943d66367af07fed7a12658e20424fc37a0"
+    ]
+   },
+   "tpl": [
+    61,
+    "76eefc30750c47a926bce9dedf49ea498c877143ef378a1fe5314266c90955b7"
+   ]
+  },
+  {
+   "label": "custom",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "name": "custom120",
+   "check_sha": "8512859a9d8757752ee9558847ff93351414ebaff1ec8ca28f8a4c65f79577b4",
+   "elements": 47,
+   "gid": 45250,
+   "files": {
+    "custom120.aseprite": "6ea362eb64a87cc9454d9fffa8de80b40f138fa5588efeee118671f50237867f",
+    "custom120.budget.md": "0dd1cab69f4f927fee104a17f39d78c7a21488d4cb03713ea7f53dca8ca73694",
+    "custom120.dvg": "62f197b28afa5de39c9e95f1786091cbee72db831c6310f97272a30573e48297",
+    "custom120.geom.json": "e5d8903d9d02a48752d0a342b1a0bfd73722ca869cdc5500bd30b199f3e4f286"
+   },
+   "pngs": {
+    "custom120_atlas.png": [
+     376,
+     377,
+     "e09634f9f8888df34734baf31bdfa5c00e4b7278b691e19a8bc2934e167a953b"
+    ],
+    "custom120_view.png": [
+     480,
+     320,
+     "43a21271b418c94a3779a317f0e2ee1de90584d8af3d28912a32f6ac670fd62c"
+    ]
+   },
+   "tpl": [
+    38,
+    "3ff9597925cffad82fbd02514b40747d286ea999eb2931416f2b463da7964d6a"
+   ]
+  },
+  {
+   "label": "custom byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "name": "custom120",
+   "check_sha": "65b3598659b35c3ef3592c52c56987162669f45538079d908207073060c5cf49",
+   "elements": 47,
+   "gid": 31949,
+   "files": {
+    "custom120.aseprite": "834591099e5090b003ae1744059d8d025ba8a400bf5debc91888bea68759c900",
+    "custom120.budget.md": "2cc775f2190197b76db4c8c89838a2bc241f3055a573eaf0d71f4357fdeda3ab",
+    "custom120.dvg": "8931ab467a1b1e53680df74e9ca894054f7ef6afcc0d521ab69497d00f50dc5f",
+    "custom120.geom.json": "b86dd0b0b3ae65d64444eab45d4055903122f68b580c929fa7120b1bede345c6"
+   },
+   "pngs": {
+    "custom120_atlas.png": [
+     376,
+     376,
+     "ee6a3009db1caca5f73f0a7b2517d3ae331160b46c9b1398b284e95fa3413e4e"
+    ],
+    "custom120_view.png": [
+     480,
+     320,
+     "43a21271b418c94a3779a317f0e2ee1de90584d8af3d28912a32f6ac670fd62c"
+    ]
+   },
+   "tpl": [
+    38,
+    "979847544f49cc02035d75ee1c87dc1ec338b25b5a72c076ffe84b8d0488da6c"
+   ]
+  },
+  {
+   "label": "custom center_x float",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88.0,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "name": "custom120",
+   "check_sha": "8512859a9d8757752ee9558847ff93351414ebaff1ec8ca28f8a4c65f79577b4",
+   "elements": 47,
+   "gid": 45250,
+   "files": {
+    "custom120.aseprite": "6ea362eb64a87cc9454d9fffa8de80b40f138fa5588efeee118671f50237867f",
+    "custom120.budget.md": "0dd1cab69f4f927fee104a17f39d78c7a21488d4cb03713ea7f53dca8ca73694",
+    "custom120.dvg": "62f197b28afa5de39c9e95f1786091cbee72db831c6310f97272a30573e48297",
+    "custom120.geom.json": "e5d8903d9d02a48752d0a342b1a0bfd73722ca869cdc5500bd30b199f3e4f286"
+   },
+   "pngs": {
+    "custom120_atlas.png": [
+     376,
+     377,
+     "e09634f9f8888df34734baf31bdfa5c00e4b7278b691e19a8bc2934e167a953b"
+    ],
+    "custom120_view.png": [
+     480,
+     320,
+     "43a21271b418c94a3779a317f0e2ee1de90584d8af3d28912a32f6ac670fd62c"
+    ]
+   },
+   "tpl": [
+    38,
+    "3ff9597925cffad82fbd02514b40747d286ea999eb2931416f2b463da7964d6a"
+   ]
+  },
+  {
+   "label": "custom no center_x",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "name": "custom120",
+   "check_sha": "8512859a9d8757752ee9558847ff93351414ebaff1ec8ca28f8a4c65f79577b4",
+   "elements": 47,
+   "gid": 45250,
+   "files": {
+    "custom120.aseprite": "6ea362eb64a87cc9454d9fffa8de80b40f138fa5588efeee118671f50237867f",
+    "custom120.budget.md": "0dd1cab69f4f927fee104a17f39d78c7a21488d4cb03713ea7f53dca8ca73694",
+    "custom120.dvg": "62f197b28afa5de39c9e95f1786091cbee72db831c6310f97272a30573e48297",
+    "custom120.geom.json": "e5d8903d9d02a48752d0a342b1a0bfd73722ca869cdc5500bd30b199f3e4f286"
+   },
+   "pngs": {
+    "custom120_atlas.png": [
+     376,
+     377,
+     "e09634f9f8888df34734baf31bdfa5c00e4b7278b691e19a8bc2934e167a953b"
+    ],
+    "custom120_view.png": [
+     480,
+     320,
+     "43a21271b418c94a3779a317f0e2ee1de90584d8af3d28912a32f6ac670fd62c"
+    ]
+   },
+   "tpl": [
+    38,
+    "3ff9597925cffad82fbd02514b40747d286ea999eb2931416f2b463da7964d6a"
+   ]
+  },
+  {
+   "label": "custom 3 planes",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 96,
+     "height": 64
+    },
+    "planes": {
+     "ref_size": [
+      96,
+      64
+     ],
+     "width": [
+      140,
+      64,
+      20
+     ],
+     "top": [
+      -20,
+      12,
+      28
+     ],
+     "bottom": [
+      84,
+      52,
+      36
+     ]
+    }
+   },
+   "name": "custom96",
+   "check_sha": "e37f7a3d03ca862d13debe9e97e24e0f816bf61e492348b6136862537ca905f6",
+   "elements": 25,
+   "gid": 15623,
+   "files": {
+    "custom96.aseprite": "5fdfa402e59e65ba0a5399cb0428a5a2f6ffb6f669688158fe0f3b2427aae89b",
+    "custom96.budget.md": "a869843fe53d362fb1a075261b2b74c5ebd1786ba0d0af78d21e3bce7415fe0f",
+    "custom96.dvg": "06b31909daa4ee69583eb7cea1d10ee82f11b1b1fc99ac44c2e865a6c8ce0576",
+    "custom96.geom.json": "bae03b8d59e8e270c30cd1a756df287e36df97a2806bf2e7e4aea305c65715e0"
+   },
+   "pngs": {
+    "custom96_atlas.png": [
+     204,
+     272,
+     "a1f76a2f314f29a5c33790d542e31ab20e63d31bfc3c0ec5bab96de6d89ea41f"
+    ],
+    "custom96_view.png": [
+     384,
+     256,
+     "a592bdacb99293cd63b66cc79136b2d17f31c64fd988143a362964b9b73530b3"
+    ]
+   },
+   "tpl": [
+    21,
+    "d225b8dab7eb1839f5295e87879d60c3c7004a737019949fc63e910f105008f0"
+   ]
+  },
+  {
+   "label": "custom 6 planes",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 152,
+     "height": 100,
+     "depth": 4
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      240,
+      150,
+      96,
+      64,
+      40,
+      24
+     ],
+     "top": [
+      -30,
+      5,
+      15,
+      25,
+      32,
+      37
+     ],
+     "bottom": [
+      160,
+      110,
+      88,
+      72,
+      62,
+      56
+     ]
+    }
+   },
+   "name": "custom152",
+   "check_sha": "2e3175d874577f7b74c6391d10ccaea071831bc259734d74cec751f3b6ea92f4",
+   "error": "dvg: $E800..$EE2F (1584 bytes) extends beyond the area end $EDFF (area $E800..$EDFF, 1536 bytes)"
+  },
+  {
+   "label": "custom 7 planes byte_edges",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 160,
+     "height": 100,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      160,
+      100
+     ],
+     "width": [
+      300,
+      160,
+      100,
+      72,
+      52,
+      36,
+      24
+     ],
+     "top": [
+      -40,
+      0,
+      12,
+      22,
+      30,
+      36,
+      40
+     ],
+     "bottom": [
+      150,
+      100,
+      84,
+      74,
+      66,
+      60,
+      56
+     ]
+    }
+   },
+   "name": "custom160",
+   "check_sha": "4869eca0c0d8694ee6a4a61dfcc8adfecf7d45cf36dfee969966fb222e92bb1b",
+   "exception": "IndexError: list index out of range"
+  },
+  {
+   "label": "custom ref 88x60",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80
+    },
+    "planes": {
+     "ref_size": [
+      88,
+      60
+     ],
+     "width": [
+      100,
+      56,
+      30,
+      16
+     ],
+     "top": [
+      -6,
+      6,
+      14,
+      20
+     ],
+     "bottom": [
+      70,
+      52,
+      38,
+      32
+     ]
+    }
+   },
+   "name": "custom120",
+   "check_sha": "980ccd77b2d3bf3cd922c1a8137b35aabf6030e3034a5b88fbbb5bca98c426be",
+   "elements": 47,
+   "gid": 59486,
+   "files": {
+    "custom120.aseprite": "4e132e7aff9a498897f0b8a8435baca20f6fa4ff1db9774a46961b90e2996c7e",
+    "custom120.budget.md": "6a631ee7a8867ca696fc3c34ce325113b31c83aa6eecb50ef17f2834c64128d0",
+    "custom120.dvg": "7e906c7cdeb8a400f6bec4d117e3b79c116e63d4ff9183ddf22ffe48f67511ab",
+    "custom120.geom.json": "f723c033499d80bf91e5ec33628215324f7000790e9171e42ed48e2d7c97df91"
+   },
+   "pngs": {
+    "custom120_atlas.png": [
+     376,
+     379,
+     "ae3be096516aa493a9f4c01494477aa236c105eaf4066d030c083abc8e66ce89"
+    ],
+    "custom120_view.png": [
+     480,
+     320,
+     "3de0a18ec9bec8a5d7811f0a019c7a805c2d58c3747a9f94239186bddfd0ca2e"
+    ]
+   },
+   "tpl": [
+    38,
+    "a3377aba78ff3e5d587a2cee00c8c9b91f414d38c8014698c2cc3014eab8baf5"
+   ]
+  },
+  {
+   "label": "random custom 0",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 140,
+     "height": 96
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      316,
+      99,
+      95,
+      15
+     ],
+     "top": [
+      -34,
+      -2,
+      59,
+      63
+     ],
+     "bottom": [
+      161,
+      127,
+      111,
+      75
+     ]
+    }
+   },
+   "name": "custom140",
+   "check_sha": "ec89d9f2beeaabe6efcb951769fb2755a40a744670f6a88cfee23a4412e6d302",
+   "elements": 38,
+   "gid": 29183,
+   "files": {
+    "custom140.aseprite": "9a1ea39ae740fbf872c944767510d7593a994102d92d5788b5d1184eb350b00a",
+    "custom140.budget.md": "a2ef2847dbfa8326214bb860c4b1033dec2cb93f4378503523a667ba5f12469b",
+    "custom140.dvg": "32899ac584dc37b77b46d6fba94c040d21187b226c15431fcb058fef71b68e9d",
+    "custom140.geom.json": "fb5b95f68d1dbd92bbf6270350add2ac7d012d45be023f4d0a5428496015eb1f"
+   },
+   "pngs": {
+    "custom140_atlas.png": [
+     328,
+     526,
+     "0fe2d7635f1262d6622ea41cf39cf161a712e32e52c3ce60b3ef5554ebc9d426"
+    ],
+    "custom140_view.png": [
+     560,
+     384,
+     "86641311462735a13fad30a9064627cf7a41a56c3e5ddb48caff61201ea1caf8"
+    ]
+   },
+   "tpl": [
+    30,
+    "1f7d638ecf545fe1075628714019df8514d08ddb8478c9342dc1316e030a76f7"
+   ]
+  },
+  {
+   "label": "random custom 1",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 60,
+     "height": 97
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      216,
+      146,
+      137,
+      103,
+      17
+     ],
+     "top": [
+      -27,
+      -11,
+      -5,
+      15,
+      39
+     ],
+     "bottom": [
+      77,
+      74,
+      67,
+      46,
+      43
+     ]
+    }
+   },
+   "name": "custom60",
+   "error": "plane 1: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 2",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 44,
+     "height": 27
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      297,
+      129,
+      78,
+      38
+     ],
+     "top": [
+      -24,
+      14,
+      30,
+      82
+     ],
+     "bottom": [
+      153,
+      114,
+      99,
+      96
+     ]
+    }
+   },
+   "name": "custom44",
+   "check_sha": "20401023037882e445ff9c10b830155f9746afb69f92dfdeccfa74471e5acc95",
+   "elements": 37,
+   "gid": 7543,
+   "files": {
+    "custom44.aseprite": "a5806d8c672aac537d04f35f7f369c18e419aa7eb2ab616b3513bfa5b50b93cc",
+    "custom44.budget.md": "55fafe0fbecb0c5175f2ca3e53cbd64df6c25c93ab0e12ada18c34714fc667d0",
+    "custom44.dvg": "2cb66543a31d464e33b58313348ead5bdafca3265949525ed6fc5ffd5d467075",
+    "custom44.geom.json": "d5172a4dc177def985263e3255b278a4594eb9ac786de38333a446212c73540d"
+   },
+   "pngs": {
+    "custom44_atlas.png": [
+     148,
+     172,
+     "70b3e7e5a3ce3d109688a1f6b6d6a9494e3e085858c45000609ed4e87330caec"
+    ],
+    "custom44_view.png": [
+     176,
+     108,
+     "a856902a119ef429350b2fb922ee8ebad0f61f437bc57000b996db8fbd7a9f8f"
+    ]
+   },
+   "tpl": [
+    32,
+    "32e47b7633857a65ca0760bc259fa3404e2656a403981c89ce77ad23d0cd9ef8"
+   ]
+  },
+  {
+   "label": "random custom 3",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 72,
+     "height": 48
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      201,
+      155,
+      147,
+      99
+     ],
+     "top": [
+      -16,
+      -14,
+      -7,
+      6
+     ],
+     "bottom": [
+      155,
+      137,
+      129,
+      118
+     ]
+    }
+   },
+   "name": "custom72",
+   "check_sha": "99b671b81423794f3d6ff68f67c59f4d02beb6d58ba9627d346a6c43cc7b9900",
+   "elements": 21,
+   "gid": 56664,
+   "files": {
+    "custom72.aseprite": "b36beaa5a49d9cedabb6954c889cc8495e78c397aacec17447387652a79982bf",
+    "custom72.budget.md": "d5063d6ec46323ed871f3252972d124b75cb6a4a59e1c606929ae454a2d961ae",
+    "custom72.dvg": "d9625ab1a4601dc5541703f2a133955f875ef4239e38e1be1703b3039c483af7",
+    "custom72.geom.json": "c95875877ff00d30ca857f41833df97ba30bf50666da80fe26689ee5060d9d47"
+   },
+   "pngs": {
+    "custom72_atlas.png": [
+     136,
+     234,
+     "ed859689623987444a9f28dd9caeddf0280da20eedb794b485d8ebeab5262a9e"
+    ],
+    "custom72_view.png": [
+     288,
+     192,
+     "4fdf6bcbb6a924aaa234606beb74a1a6ab2a44ddac0b53eba36f727ec993db7c"
+    ]
+   },
+   "tpl": [
+    16,
+    "40141b09187b64a20b2d5a9b03f4a41e6267fdfc7aa5afb5f23910f91962626f"
+   ]
+  },
+  {
+   "label": "random custom 4",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 96,
+     "height": 72,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      253,
+      156,
+      112,
+      92
+     ],
+     "top": [
+      -9,
+      9,
+      18,
+      30
+     ],
+     "bottom": [
+      164,
+      138,
+      106,
+      54
+     ]
+    }
+   },
+   "name": "custom96",
+   "check_sha": "44ef5109c6379721d5576865a81299df6b3c4ed7854a3d741e9994d41cd6573f",
+   "elements": 33,
+   "gid": 24050,
+   "files": {
+    "custom96.aseprite": "a3c929af6610820627fc5131e6ee8885d9a52703d74e00880fac677fe6176bca",
+    "custom96.budget.md": "6288c0a3d9485e5511b82bb0264a7289082c1c8ee853d01b6836acc110eab299",
+    "custom96.dvg": "7c6dc4f77b191a459dd48c07034c23f51e5d87f169a8f6c8a452d112711c2ded",
+    "custom96.geom.json": "d5de6a544a0e35f6b5fca3a72e3530d14c4dbcae628f8be6e74382c5e853104f"
+   },
+   "pngs": {
+    "custom96_atlas.png": [
+     304,
+     391,
+     "4b71c2584c63a8452bc047fcb62ec7b9f3b66d60fc585c8a3bcfc2e60dfab1a4"
+    ],
+    "custom96_view.png": [
+     384,
+     288,
+     "aa5fb3e1387cb5c8b1b35aeebccd6dcfa3b1834f817ffd675a60980f9f3dd772"
+    ]
+   },
+   "tpl": [
+    28,
+    "ce1daf8b58e175ea8c8788025f11ed0c2d4b4130cd659318b10e51a33831f90b"
+   ]
+  },
+  {
+   "label": "random custom 5",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 28,
+     "height": 40
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      186,
+      137,
+      133,
+      62,
+      33
+     ],
+     "top": [
+      -33,
+      -5,
+      1,
+      35,
+      38
+     ],
+     "bottom": [
+      127,
+      115,
+      110,
+      57,
+      52
+     ]
+    }
+   },
+   "name": "custom28",
+   "error": "plane 1: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 6",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 148,
+     "height": 29
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      182,
+      119,
+      71,
+      61
+     ],
+     "top": [
+      -27,
+      -11,
+      39,
+      47
+     ],
+     "bottom": [
+      129,
+      123,
+      113,
+      69
+     ]
+    }
+   },
+   "name": "custom148",
+   "check_sha": "5d2de52aaa5b19a4a3763a8eab0a2b80bb1766d826dacab25d3874a4944de264",
+   "elements": 30,
+   "gid": 6330,
+   "files": {
+    "custom148.aseprite": "aec924617a15de04e4f00bbda100b7b3e425b00122c6e68fdfae449c836d777d",
+    "custom148.budget.md": "ee008dd6f60d349834425955e1a5ab05c235afe2e8d5f4948d7b51f980b1bda1",
+    "custom148.dvg": "de99aea3bf823dff1c683cd97a798b545d9b32bd823339278fcbd725c6b3318a",
+    "custom148.geom.json": "add0537ad7b263cda2cefa08cf6a5ad0e1d1e54237add5c939153dd4d6cffaa5"
+   },
+   "pngs": {
+    "custom148_atlas.png": [
+     308,
+     190,
+     "a2604ae1c1e62cb2c4ce24f91f67914be6427823e695b19d8f2e23243f6788b8"
+    ],
+    "custom148_view.png": [
+     592,
+     116,
+     "2452f24841683313b76d69bee6f1668ca4eaae857ee0b00c1906db11e7adc1d3"
+    ]
+   },
+   "tpl": [
+    24,
+    "a7898c57e61e9c43c2e9076ab6212449c5fcaa612fd7d9b2c4c3422019dddd3b"
+   ]
+  },
+  {
+   "label": "random custom 7",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 36,
+     "height": 80,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      199,
+      129,
+      122,
+      110,
+      44
+     ],
+     "top": [
+      -28,
+      -2,
+      6,
+      13,
+      30
+     ],
+     "bottom": [
+      157,
+      127,
+      92,
+      85,
+      52
+     ]
+    }
+   },
+   "name": "custom36",
+   "error": "plane 2: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 8",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 84,
+     "height": 83
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      292,
+      169,
+      112,
+      92,
+      23
+     ],
+     "top": [
+      -31,
+      -20,
+      19,
+      27,
+      37
+     ],
+     "bottom": [
+      142,
+      125,
+      75,
+      67,
+      52
+     ]
+    }
+   },
+   "name": "custom84",
+   "check_sha": "a4bba8c92cd92735467bcfb8d8bd8b3fd96cb25d804f39d843b908c176848fb0",
+   "elements": 60,
+   "gid": 13604,
+   "files": {
+    "custom84.aseprite": "e08769342d6977aff630b7ce31cd867943b79d312731d6d0ed2c5f069739e5e0",
+    "custom84.budget.md": "e2b50312b297aa6ba5f9fdb406e4d3a085c5f77630e851740212a5aec01cf26b",
+    "custom84.dvg": "b92c033be910af0aad212efc8b69f158b56a26389ed6d20ad552d032861a5061",
+    "custom84.geom.json": "92fb15ef3fd30cb354f2f7312b5b000dcf86b4022541cfca831f9482c99e050e"
+   },
+   "pngs": {
+    "custom84_atlas.png": [
+     268,
+     486,
+     "152da6337d48ad6bc57cac7041d40dab29bfeec5ca0418e7b0c3104ae25b5536"
+    ],
+    "custom84_view.png": [
+     336,
+     332,
+     "7022739227137c9f3a8e610656598a4438e1917dc7ed192a26245121e496ea8a"
+    ]
+   },
+   "tpl": [
+    47,
+    "98310b0ee24d3dcec9ce45b0709fce20c11506d132a57ef0bfa63e2fde786f7d"
+   ]
+  },
+  {
+   "label": "random custom 9",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 24,
+     "height": 17
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      278,
+      166,
+      13
+     ],
+     "top": [
+      -21,
+      -16,
+      21
+     ],
+     "bottom": [
+      165,
+      146,
+      90
+     ]
+    }
+   },
+   "name": "custom24",
+   "error": "scaled width of the last plane <= 0"
+  },
+  {
+   "label": "random custom 10",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 104,
+     "height": 72
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      217,
+      125,
+      61,
+      52,
+      40,
+      39
+     ],
+     "top": [
+      -29,
+      -3,
+      14,
+      24,
+      50,
+      51
+     ],
+     "bottom": [
+      157,
+      156,
+      155,
+      120,
+      119,
+      94
+     ]
+    }
+   },
+   "name": "custom104",
+   "error": "plane 4: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 11",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 160,
+     "height": 65,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      287,
+      154,
+      143
+     ],
+     "top": [
+      -25,
+      -23,
+      23
+     ],
+     "bottom": [
+      136,
+      132,
+      124
+     ]
+    }
+   },
+   "name": "custom160",
+   "check_sha": "9f85624c7bfc86e11a4038ac50d603882c8675b59d09cf150a1b855a6ddae1e9",
+   "elements": 10,
+   "gid": 10162,
+   "files": {
+    "custom160.aseprite": "2bc56c63fcf8ffb864ea26af001c3248438d645c82b8bfde7ed1f35808d66347",
+    "custom160.budget.md": "de9dde8a2ece814ce55441507f334cd0a1fa162d88af6fe9ca591fce0f0be51d",
+    "custom160.dvg": "64be548cd287f8fc97ea7a91a4acc778ded4959cfbee282af69b704338ed207b",
+    "custom160.geom.json": "34724f2f53409a2991ee0f6cfce5e27242eb4141193f74c1dde64ad0b7b27267"
+   },
+   "pngs": {
+    "custom160_atlas.png": [
+     180,
+     243,
+     "9eed6db4f07c2c0f247fd0908b9af7423a9e5b5b13cd6581f1a878fcac06c31e"
+    ],
+    "custom160_view.png": [
+     640,
+     260,
+     "49bee237fe9264d097c25215039a1964e629a822aaed51b13ca19063e9c58299"
+    ]
+   },
+   "tpl": [
+    9,
+    "43ff6ddf2272c99c6a4ef3ef541c452184de27b8c830fdd82b5518ca33808248"
+   ]
+  },
+  {
+   "label": "random custom 12",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 92,
+     "height": 98
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      317,
+      101,
+      48,
+      32
+     ],
+     "top": [
+      -3,
+      16,
+      19,
+      30
+     ],
+     "bottom": [
+      164,
+      111,
+      71,
+      63
+     ]
+    }
+   },
+   "name": "custom92",
+   "check_sha": "36fee1d42d7576889517f689fa62feb1406509bcb0f2dfe5588217a71db57a5f",
+   "elements": 57,
+   "gid": 20206,
+   "files": {
+    "custom92.aseprite": "986301704685557e7662c0430d80867be3f96f9ba85a0dade586923578c91f75",
+    "custom92.budget.md": "49573c60da3cadf2cc197d3f4b521eea611ed16e00a41efab009b379005c2261",
+    "custom92.dvg": "8a9c1da1bb303f7858bbf98f6715e062d348cac84c9fa999339ef45121014a8f",
+    "custom92.geom.json": "96ebe6eb3ff0eade8597c0100d1fde2981dfd8a4b2ae1bfb0501a0e55f114153"
+   },
+   "pngs": {
+    "custom92_atlas.png": [
+     292,
+     457,
+     "c1a773cad9b52d24442babeb165afd9aae339b0cc7457754bfc668f1cdf59c2e"
+    ],
+    "custom92_view.png": [
+     368,
+     392,
+     "f16cc3453f35c9b896d039646b1332eb96d959830d6431222c71b6cff0d84933"
+    ]
+   },
+   "tpl": [
+    44,
+    "6bab35b5893751a40e9b9a6971405c8dc1f31ed3e230bec8e8b65b5c4b453489"
+   ]
+  },
+  {
+   "label": "random custom 13",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 36,
+     "height": 54,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      218,
+      153,
+      104,
+      87,
+      56
+     ],
+     "top": [
+      25,
+      38,
+      58,
+      61,
+      68
+     ],
+     "bottom": [
+      156,
+      127,
+      114,
+      92,
+      91
+     ]
+    }
+   },
+   "name": "custom36",
+   "error": "bands do not cover the rows gap-free and overlap-free"
+  },
+  {
+   "label": "random custom 14",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 152,
+     "height": 63,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      306,
+      148,
+      45
+     ],
+     "top": [
+      -16,
+      15,
+      72
+     ],
+     "bottom": [
+      150,
+      133,
+      114
+     ]
+    }
+   },
+   "name": "custom152",
+   "check_sha": "576ba9b23c83bfd2def04796f11d3abe50d94102e63eae1e02bcd5f096f6aabc",
+   "elements": 19,
+   "gid": 31388,
+   "files": {
+    "custom152.aseprite": "39f51539bbe1a4f11e94b98f56ab9a2a2281379d68e4e745758a14628c84f05a",
+    "custom152.budget.md": "dac552a57b0c6e655cc01be71709d86ddfba6daa545a357675bd22a88abc591b",
+    "custom152.dvg": "f74630878a8fdf482f213e3bdbb14f8e2d957823c07812b26fe88a043b775658",
+    "custom152.geom.json": "ec23f4613227670ee8508d8d2b48387e7c9699089d859733e5e6f4bb0230c917"
+   },
+   "pngs": {
+    "custom152_atlas.png": [
+     316,
+     277,
+     "2dee744a8d0a14b1098ccc75061d4e9f6ef0936b68682ef6d075f85d476aeed4"
+    ],
+    "custom152_view.png": [
+     608,
+     252,
+     "e8ab005e9929b5806f32550d27e9e258c782a7fff444a816c43f02db46271034"
+    ]
+   },
+   "tpl": [
+    17,
+    "a3fbc8eb3393ff25eb13f31551afa7680f7efca58f9fd1f824bfa27bc7f85fbe"
+   ]
+  },
+  {
+   "label": "random custom 15",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 56,
+     "height": 63
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      234,
+      93,
+      73
+     ],
+     "top": [
+      -2,
+      52,
+      62
+     ],
+     "bottom": [
+      129,
+      125,
+      113
+     ]
+    }
+   },
+   "name": "custom56",
+   "check_sha": "a137156fe3fcb301e292a8c5e152f15e81e9fb367c1c442a050a948a7d16f95c",
+   "elements": 19,
+   "gid": 52086,
+   "files": {
+    "custom56.aseprite": "0a07bf79d80bf85316d092ce3746a06937fd1c47dc2947ed57515d69a116c7e5",
+    "custom56.budget.md": "7651a52fa60f5fd47c156a0f44901b6e6e3748abc1b0b39bf09fd89786dd7186",
+    "custom56.dvg": "dc2c77c1073e08d6dcf3f7e5878a078328226711c549bf3c9bf4c2b54e8b7e7f",
+    "custom56.geom.json": "35d0c3ab2b5ca15354284df259fd09fe49f54a0237da50714e12f9d299e64153"
+   },
+   "pngs": {
+    "custom56_atlas.png": [
+     124,
+     227,
+     "1a02e87bd99bcb724dc5c87b73626d6fe6c29153172448a9cd5c61d7c28bb807"
+    ],
+    "custom56_view.png": [
+     224,
+     252,
+     "88c6a46da8b103b97034db3ab47ec1bffeb254db0c33ce21ff98453b8eb97d63"
+    ]
+   },
+   "tpl": [
+    17,
+    "1b4159398e090517682aa6eef4c2a814b72a51f4507570b7daea086bae46bc9b"
+   ]
+  },
+  {
+   "label": "random custom 16",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 112,
+     "height": 62
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      206,
+      161,
+      127,
+      104
+     ],
+     "top": [
+      -37,
+      -22,
+      -18,
+      24
+     ],
+     "bottom": [
+      159,
+      144,
+      75,
+      48
+     ]
+    }
+   },
+   "name": "custom112",
+   "check_sha": "753f216fc2261be829122ec01609f9b802af7cdafd337ac300051b85dd000eff",
+   "elements": 27,
+   "gid": 42383,
+   "files": {
+    "custom112.aseprite": "4a2cffe128a79d021517ba7e5dea18536f9ca3c80cebcde7f1844c68d9ed6552",
+    "custom112.budget.md": "b8d589fd86b3296078da0151eb8c527aae604e5abdcb55b17392e3f5808108d8",
+    "custom112.dvg": "d4a627829d9155b277d21ba4a846f1862680515c011a994815e67b5f12a73aae",
+    "custom112.geom.json": "a25393b00878602b5cf58375b0989a090d7c2c3430e0f1bb5d47b4fd0a30f2b0"
+   },
+   "pngs": {
+    "custom112_atlas.png": [
+     236,
+     348,
+     "dade7887c92f1b76d42ec5234195eccf329b6ecb02c4460609f06a8e91facd40"
+    ],
+    "custom112_view.png": [
+     448,
+     248,
+     "55a77a355f081bfa8d0d045130851817c6059ecd298a5994961cd06896fb1a47"
+    ]
+   },
+   "tpl": [
+    20,
+    "55e88f1eb05373c1751ccd8d21344828766133b77234574fb750f7492df6a90f"
+   ]
+  },
+  {
+   "label": "random custom 17",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 32,
+     "height": 14
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      310,
+      138,
+      83,
+      57
+     ],
+     "top": [
+      -19,
+      40,
+      45,
+      57
+     ],
+     "bottom": [
+      131,
+      119,
+      88,
+      87
+     ]
+    }
+   },
+   "name": "custom32",
+   "check_sha": "9b7096944feda7ee4bd86c42b67a219b7248b1fe75060464e368c2c4576dd743",
+   "elements": 24,
+   "gid": 23618,
+   "files": {
+    "custom32.aseprite": "ec8b99a8f2b8d6275ff6a3ccbccc9b412887f8dba84073584db674f88899f588",
+    "custom32.budget.md": "14814beb5c137c0051756929ccfc8d40f8cca5fdaa9709d51f30492b171591e8",
+    "custom32.dvg": "e2365b0aa9e526047d0ec1ed529eef02794c8623ff18f208adcafdf62cd06205",
+    "custom32.geom.json": "4c184fa2ba0668ef2fc0d6bd9a00b0b39e0fb36d8ff5cf0ae5761e1e68275330"
+   },
+   "pngs": {
+    "custom32_atlas.png": [
+     76,
+     94,
+     "e8de4fecf52a6286576956b1cca83724749521a1aaf482cefb04001def83fdfc"
+    ],
+    "custom32_view.png": [
+     128,
+     56,
+     "e8f27a0fe53a60aa2bac6eb511dc16f1d68356be6ac0837e6a9ec44a323ca465"
+    ]
+   },
+   "tpl": [
+    20,
+    "92c860809003a6f5505b15b7407b5b2e9957ff6c424a0f796bb6d2c9991ae9c5"
+   ]
+  },
+  {
+   "label": "random custom 18",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 152,
+     "height": 83
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      197,
+      141,
+      136,
+      126,
+      110
+     ],
+     "top": [
+      -27,
+      -2,
+      12,
+      53,
+      71
+     ],
+     "bottom": [
+      154,
+      138,
+      125,
+      109,
+      98
+     ]
+    }
+   },
+   "name": "custom152",
+   "check_sha": "b28985e48dfe6e41d64c6e0d563e7545e4f8045838ab278ed3ed1a584d131916",
+   "elements": 38,
+   "gid": 37572,
+   "files": {
+    "custom152.aseprite": "18e1ab2a92177673e15710086f82c039c032a775470d99af3f84880e44a4d70d",
+    "custom152.budget.md": "54a62ffe61a94211ef11b3cc31b4f5a945ce835e3449eff59a1541143093f569",
+    "custom152.dvg": "676cf9d685a68f4fbd31d9ef290686437e68f130f721bd607e3d646072e07683",
+    "custom152.geom.json": "50cd87d9cf0ce93950a4cd57ecd6a5443d7dd3a907525dd5506fbcdd68374cf5"
+   },
+   "pngs": {
+    "custom152_atlas.png": [
+     472,
+     508,
+     "9ad101ad543c23bb911aa56dec3c94d0b1baafa65dd33565072d49a732bb5f4b"
+    ],
+    "custom152_view.png": [
+     608,
+     332,
+     "2da46a96aa932352a173029715f0e2dc30b41ff8dab0c6c9e49cfd4587e2ee10"
+    ]
+   },
+   "tpl": [
+    31,
+    "d36e2d38dfcada7c84a39c0a6573a88316437e6686699e273577aece2b5ac73a"
+   ]
+  },
+  {
+   "label": "random custom 19",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 108,
+     "height": 94,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      203,
+      169,
+      159,
+      154,
+      149,
+      47
+     ],
+     "top": [
+      -31,
+      -29,
+      -23,
+      9,
+      29,
+      43
+     ],
+     "bottom": [
+      150,
+      140,
+      135,
+      115,
+      102,
+      98
+     ]
+    }
+   },
+   "name": "custom108",
+   "error": "plane 2: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 20",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 48,
+     "height": 53,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      253,
+      143,
+      72,
+      37
+     ],
+     "top": [
+      -15,
+      9,
+      16,
+      35
+     ],
+     "bottom": [
+      138,
+      136,
+      77,
+      72
+     ]
+    }
+   },
+   "name": "custom48",
+   "check_sha": "23d6608bef2bd512906d0f4408dffca2f9cb6ec1496b2e69cc2995b0f527561a",
+   "elements": 41,
+   "gid": 46564,
+   "files": {
+    "custom48.aseprite": "d561a5cdbcafdde9f97024513ef5edb357f0766fd277c3c79a266cc9303e7a76",
+    "custom48.budget.md": "a341b80edc7aa5cfcfbb8f2f32abb909d13c08aff403adbd73a26e1e07811a0c",
+    "custom48.dvg": "b14f7254abb4d5dc7009d1333b5ba83bba3ae2d60da4c9ea72616ad4247068b0",
+    "custom48.geom.json": "05f9daaef8a6c8e468b5f88f16942897478c5999487446a0e6e240e7131c7253"
+   },
+   "pngs": {
+    "custom48_atlas.png": [
+     160,
+     285,
+     "ecd9ecb2cb0c45c430a748b829e463edcd67487d9f47afd0a2bc5ef39b636bc7"
+    ],
+    "custom48_view.png": [
+     192,
+     212,
+     "6ed01127ab643f4b841400470748a8fd19ed2108510d7ef58c02d99053460fd9"
+    ]
+   },
+   "tpl": [
+    34,
+    "2a9913fc4711615e67c48a2c0c4c44c7e5afa808a0f868a82bb777affbb0b32b"
+   ]
+  },
+  {
+   "label": "random custom 21",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 48,
+     "height": 50
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      251,
+      123,
+      101,
+      86,
+      82,
+      32
+     ],
+     "top": [
+      -38,
+      -33,
+      -9,
+      0,
+      20,
+      27
+     ],
+     "bottom": [
+      141,
+      102,
+      92,
+      83,
+      80,
+      67
+     ]
+    }
+   },
+   "name": "custom48",
+   "error": "plane 3: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 22",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 156,
+     "height": 97,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      278,
+      150,
+      90,
+      64,
+      33,
+      26
+     ],
+     "top": [
+      -21,
+      -17,
+      -11,
+      25,
+      37,
+      39
+     ],
+     "bottom": [
+      168,
+      144,
+      143,
+      96,
+      88,
+      74
+     ]
+    }
+   },
+   "name": "custom156",
+   "check_sha": "613c7c980f084d4d1601677f1f5bc23c886cca5a504facfba803d1a50e06af7f",
+   "elements": 85,
+   "gid": 23151,
+   "files": {
+    "custom156.aseprite": "7e40129d775075a309573754500a6106678d64f2af460ccc6ef090e502633321",
+    "custom156.budget.md": "46736a291793feba9c4682e44036a7a04eba10e669e8a2a9ceb2bc6a08ba73f9",
+    "custom156.dvg": "2900180adf5a6dc99e2249af42a5d95d712dfd360dc8ce67fbca8aef7cd8e0c8",
+    "custom156.geom.json": "bf71cca08484e2bd216712539719825921470fcc4de3b39fa17f6d493fce63ff"
+   },
+   "pngs": {
+    "custom156_atlas.png": [
+     484,
+     653,
+     "24cd31e9b693b4fda7598e267c2d3177e4cad3c6c21ff8e7de19671be0d0844b"
+    ],
+    "custom156_view.png": [
+     624,
+     388,
+     "381c1edc6092253205b778e569fb600ee062c60dcdeef9e24569444f1d7d2b5f"
+    ]
+   },
+   "tpl": [
+    62,
+    "aeeeb4b98d2d7a34bc1dc3b76de4c436ad86cc37a6d9019818d07f51c6f00bb3"
+   ]
+  },
+  {
+   "label": "random custom 23",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 104,
+     "height": 51,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      284,
+      147,
+      111,
+      93,
+      50,
+      25
+     ],
+     "top": [
+      -18,
+      -12,
+      -8,
+      0,
+      6,
+      27
+     ],
+     "bottom": [
+      144,
+      122,
+      119,
+      100,
+      44,
+      39
+     ]
+    }
+   },
+   "name": "custom104",
+   "check_sha": "7821be10144c0ac248c4ac3b570f8d5a74f364a2a4d64e61c22164bba87a4fa2",
+   "elements": 72,
+   "gid": 38126,
+   "files": {
+    "custom104.aseprite": "a824b1b3105a5e00e9fffac7d54cbba8431334e8914fdccf916e934c3a2c7e4f",
+    "custom104.budget.md": "6bda438c5c1967a91e0ae6959efcbbe5fce14ad91c624e0a2e4a771155ec6cc7",
+    "custom104.dvg": "eaab888eba9c43f20bb3b68c92712a7d20246a6a4faae2497ea305a699516d81",
+    "custom104.geom.json": "65b38cbf0f6751ae7148ea2a6578d1ad664f2d7e715d0884d637fb10ce11c755"
+   },
+   "pngs": {
+    "custom104_atlas.png": [
+     328,
+     392,
+     "9bb7cd42f9363a18fca69b50a919eec1c501bdc37fcf4d180c564aa9182ba738"
+    ],
+    "custom104_view.png": [
+     416,
+     204,
+     "0349a502089bc48ccc54b12b88506d53eaeb50c512bb617fd613704c57dc7bdb"
+    ]
+   },
+   "tpl": [
+    52,
+    "223b4d9b11316be6a35dfdc59cb50ab5f86d24348b1edf4cbf3517b5603aeb2a"
+   ]
+  },
+  {
+   "label": "random custom 24",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 64,
+     "height": 51,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      195,
+      175,
+      125,
+      91,
+      51
+     ],
+     "top": [
+      -36,
+      -31,
+      -15,
+      28,
+      52
+     ],
+     "bottom": [
+      168,
+      162,
+      161,
+      145,
+      130
+     ]
+    }
+   },
+   "name": "custom64",
+   "check_sha": "7bd30745a1b8d229d71973e35d7e50e5ee423f588a090271162fc97746df68ab",
+   "exception": "IndexError: list index out of range"
+  },
+  {
+   "label": "random custom 25",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 32,
+     "height": 63,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      251,
+      173,
+      155,
+      96,
+      68
+     ],
+     "top": [
+      -35,
+      -15,
+      1,
+      19,
+      26
+     ],
+     "bottom": [
+      156,
+      109,
+      96,
+      94,
+      76
+     ]
+    }
+   },
+   "name": "custom32",
+   "check_sha": "41efcd1354daa56522d819864d019cd7e439d91160925d354fc7d2526635f5cf",
+   "elements": 42,
+   "gid": 2408,
+   "files": {
+    "custom32.aseprite": "d7b66b22f5a5794432b4da2c302254878595a4423a4171613ae4266462915db6",
+    "custom32.budget.md": "18e7a6bfaa2337337b6ccebe54f996812000833f05b6f70afa8d39ec4da56deb",
+    "custom32.dvg": "0ece4ee5576806107fa327a653eb95729c8480772ecaa8df50046ac0c8f33304",
+    "custom32.geom.json": "3cf791f0472a185724aeb45b2dd8538c507c12ffdbb66e80f5595fdb78ef2ba4"
+   },
+   "pngs": {
+    "custom32_atlas.png": [
+     148,
+     303,
+     "c9e6712c6c572893261b10ed567bfa205a4f7e9c9324c2f25e4888d0d2f967ef"
+    ],
+    "custom32_view.png": [
+     128,
+     252,
+     "8e86cf24dd59651d5f6af094913b7ee15bcb60a14d1d0ec8f2b46e36b1c17c46"
+    ]
+   },
+   "tpl": [
+    35,
+    "aee73e8870bf2a79f6ba0bccc0c4253caf20d5c4a48a444eb79e736bcdbea9a9"
+   ]
+  },
+  {
+   "label": "random custom 26",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 112,
+     "height": 27,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      320,
+      152,
+      141,
+      121,
+      116,
+      91
+     ],
+     "top": [
+      -21,
+      -14,
+      6,
+      24,
+      38,
+      56
+     ],
+     "bottom": [
+      158,
+      156,
+      147,
+      138,
+      131,
+      107
+     ]
+    }
+   },
+   "name": "custom112",
+   "check_sha": "1780c7ea1361744910d103ee9cac5b8412a2c816f668b7d1063a1691d2ef4b79",
+   "elements": 40,
+   "gid": 54647,
+   "files": {
+    "custom112.aseprite": "e0ca38996a23c1d667ce475f8121428e03a4e8ef1e7c7f512b04bc23d7eb5fb3",
+    "custom112.budget.md": "042bd9e8d479f6f6b4698f9829ec5157ae5bc80397029cdc1ade420de0a14240",
+    "custom112.dvg": "05e9b271f1b195bbb42cd1b1647c7d46fc6d9663875934501ef0a105712262c1",
+    "custom112.geom.json": "5b4611dceccac155ea433f1f6a14e77ed239a2d111f0c77e6be70819cc630298"
+   },
+   "pngs": {
+    "custom112_atlas.png": [
+     468,
+     223,
+     "f684daef0081c9617ab6e3820a6f3a94112727118add1f9822c66dcfc4cd8569"
+    ],
+    "custom112_view.png": [
+     448,
+     108,
+     "6a35a377f96485b0fba3e42138c8941be60d5f87e0982a0d282643f4fed4a7fb"
+    ]
+   },
+   "tpl": [
+    34,
+    "e1dd87c5933b3e6420fefef4565063c0323ba3c1647ee348515ace5108949ed6"
+   ]
+  },
+  {
+   "label": "random custom 27",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 160,
+     "height": 73
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      214,
+      106,
+      64,
+      12
+     ],
+     "top": [
+      -31,
+      -15,
+      -13,
+      20
+     ],
+     "bottom": [
+      148,
+      136,
+      128,
+      42
+     ]
+    }
+   },
+   "name": "custom160",
+   "check_sha": "cfad2d60d3262249f6e6f10194454bd7f7a822250fd088f739d7511d3a4e46de",
+   "elements": 29,
+   "gid": 60760,
+   "files": {
+    "custom160.aseprite": "e8bc670e5abd52c58c14a2305189a38841c13a8f05f304042b2715871168f1f5",
+    "custom160.budget.md": "fc579379286fc6208a6b5c75dbdd3a40865ebe5d27491fe50c0609146619d0d5",
+    "custom160.dvg": "908d378de13d1b33407f4adbb94b970f7439192b88b07715a3adf1b0306e684a",
+    "custom160.geom.json": "829e2e5c783b7ec80c8f5368f45cae8fe7f7725ebe0bc3c307235bce200d87c0"
+   },
+   "pngs": {
+    "custom160_atlas.png": [
+     352,
+     446,
+     "44da45c693c6d169a0dc4d23f560eac48c8cfa7dd25624006115a09ff59fc0bd"
+    ],
+    "custom160_view.png": [
+     640,
+     292,
+     "90b302fc7b3312cfc11e06844a4a8b2964d386065fe7dfe9d0db416d2ede0a23"
+    ]
+   },
+   "tpl": [
+    22,
+    "6df7ce13babf5e495c2eb4c10edea2a23fb3688d9e7e570cb7bde8ce51554b2f"
+   ]
+  },
+  {
+   "label": "random custom 28",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 116,
+     "height": 35
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      222,
+      174,
+      98,
+      94,
+      82
+     ],
+     "top": [
+      -14,
+      -10,
+      18,
+      34,
+      37
+     ],
+     "bottom": [
+      139,
+      108,
+      65,
+      57,
+      56
+     ]
+    }
+   },
+   "name": "custom116",
+   "check_sha": "575585d52f75f0630f445ade6d77faae615241684e3759fd480f9225a3203e58",
+   "elements": 42,
+   "gid": 21262,
+   "files": {
+    "custom116.aseprite": "8ff2e3e89b45913336391fbf4db43749822646cd78454de4e4ac6b6ed6ede997",
+    "custom116.budget.md": "9d224e88b0656738057e19597e8b9909397d9c5518eb869467bd68a35195ba5c",
+    "custom116.dvg": "80106f09636bbdbcf3deba3c20e8ab2a55c23533042b4d5e2308a3ee2f236d6b",
+    "custom116.geom.json": "a677e57a88b6574cda848b563f67c51521d23e3bc1f2f36077f556e64192dad3"
+   },
+   "pngs": {
+    "custom116_atlas.png": [
+     484,
+     188,
+     "d53412aa082962ef0b6f1e4c2938365ba70dea5809993e4a10e4bcb12329448b"
+    ],
+    "custom116_view.png": [
+     464,
+     140,
+     "280bba3fc67b7d4b0187954be8e38cb6f0d3d26dd7447d21ba03c72c47e915f8"
+    ]
+   },
+   "tpl": [
+    35,
+    "4eceeecac2b40f2d7d2c0c709a735b5dace2ee70007da1947d2c482677356d81"
+   ]
+  },
+  {
+   "label": "random custom 29",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 60,
+     "height": 67
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      316,
+      123,
+      92,
+      43,
+      8
+     ],
+     "top": [
+      -24,
+      21,
+      29,
+      41,
+      46
+     ],
+     "bottom": [
+      155,
+      122,
+      112,
+      74,
+      70
+     ]
+    }
+   },
+   "name": "custom60",
+   "check_sha": "7fbd8670cd65a753e0696aac93ee6e0c022727232eccfffa48f2a6ccf489c45d",
+   "elements": 73,
+   "gid": 37464,
+   "files": {
+    "custom60.aseprite": "5801416ffaf1b1bf581ec20987c273a7829653699ec41bc226fcaa56f83a5a53",
+    "custom60.budget.md": "1b1e936c87c247e2b4485c6ce9a43fbd103407d4f27898fe7d7109cf02ceb275",
+    "custom60.dvg": "6f8ac88632abab578a5ae9480a9ad5b44538ffaa71c64486fbe7c980378e3c81",
+    "custom60.geom.json": "7a6c27a051653ddb45b43280345c250e98e314d5facf64f8e1365ea77f3a4a56"
+   },
+   "pngs": {
+    "custom60_atlas.png": [
+     260,
+     384,
+     "dd82eaf5d86918779656cb143b28d8bd202c2d9daa2f36acf7a77f4384608f58"
+    ],
+    "custom60_view.png": [
+     240,
+     268,
+     "2ec648f9229af5f11937b52d20ddfc78c36a2fef3478f95f699c72b01f56ffd6"
+    ]
+   },
+   "tpl": [
+    57,
+    "16522381592a518b2e7c5e83695c9182afcc0ffd5e390f98dd07ec5437e6249a"
+   ]
+  },
+  {
+   "label": "random custom 30",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 84,
+     "height": 17
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      273,
+      170,
+      106,
+      49,
+      17
+     ],
+     "top": [
+      -40,
+      -26,
+      -22,
+      -21,
+      40
+     ],
+     "bottom": [
+      149,
+      143,
+      137,
+      60,
+      52
+     ]
+    }
+   },
+   "name": "custom84",
+   "check_sha": "900a03a7624a0df548dabba813dba033d1388f7243bae9b28d14ef916da724c3",
+   "elements": 56,
+   "gid": 2498,
+   "files": {
+    "custom84.aseprite": "b2be89153bbbbf5402adc787e9de065df7ac80536612c4834314ce99c0b9f230",
+    "custom84.budget.md": "41232113230636c3507373a4926b387b44b15e6b9adf216bd30417b3cfaeb674",
+    "custom84.dvg": "d4d3776b0d5ca12027d1ba5c2a5ac6e902563d29c8629ef95da47141179a2bf6",
+    "custom84.geom.json": "02b7a4b291441cadfa0d73a4879885d5f2fc7ec796e57394c0baa55fcee8192e"
+   },
+   "pngs": {
+    "custom84_atlas.png": [
+     200,
+     151,
+     "538938d90b4a49cffe4d9a5938a7214ed485705df40330d3648e4c4b10ae69d5"
+    ],
+    "custom84_view.png": [
+     336,
+     68,
+     "31e5ae2d02762a7df574eab5404f3b8f95678cc8194ef663ab68641499376f53"
+    ]
+   },
+   "tpl": [
+    39,
+    "c9364fb27500af0ea57598ef809f19fd9f6d61747251a9ecc4dc534702eb7926"
+   ]
+  },
+  {
+   "label": "random custom 31",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 64,
+     "height": 49
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      250,
+      138,
+      132,
+      97,
+      65,
+      56
+     ],
+     "top": [
+      -28,
+      -27,
+      17,
+      18,
+      55,
+      78
+     ],
+     "bottom": [
+      137,
+      136,
+      130,
+      119,
+      112,
+      104
+     ]
+    }
+   },
+   "name": "custom64",
+   "check_sha": "229422ba853510942de55f16be48a1d4baed5a1004dbd47f63482672b0f50d1b",
+   "elements": 51,
+   "gid": 35514,
+   "files": {
+    "custom64.aseprite": "32c2ad5b129a9c66f1d9b5073bb7de24a3b0546df2e506a0033f4696d1a30045",
+    "custom64.budget.md": "a9b4786da220bcf7609d4fea2b1e90ea85c119ab6c63361c19899335cbad8c77",
+    "custom64.dvg": "2f212da7623db83c6159f14d72b893ee3c05a7d537876cdc0c8aaf02ec4168d6",
+    "custom64.geom.json": "d04b375ab9f2a8cd8704821f4a003afe91f3588fd958d5bccf5433186b388737"
+   },
+   "pngs": {
+    "custom64_atlas.png": [
+     208,
+     365,
+     "9fb813f8e86369e0cfcb5a491f8938670064aa1810bb6fbf6f9b7198243a8035"
+    ],
+    "custom64_view.png": [
+     256,
+     196,
+     "24ff6331a713b91c940b16881e5d1d49925b53d5108ff0a802aad22ccdc7b9ee"
+    ]
+   },
+   "tpl": [
+    40,
+    "2ef356cb53f80cc23134942afd158b14964c235a454fcce1160cbd4e1cfaf447"
+   ]
+  },
+  {
+   "label": "random custom 32",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 40,
+     "height": 81,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      243,
+      142,
+      81,
+      47
+     ],
+     "top": [
+      -6,
+      -4,
+      4,
+      31
+     ],
+     "bottom": [
+      156,
+      121,
+      105,
+      78
+     ]
+    }
+   },
+   "name": "custom40",
+   "check_sha": "89e9981c4d32ecf38e589222d56549f4d567a540568ea15f437f74b14ca0fe1e",
+   "elements": 38,
+   "gid": 8,
+   "files": {
+    "custom40.aseprite": "b971bb46c226778e2dc06d7dc4b3ba97ac6e0239b87db3e36a076d9bf3769410",
+    "custom40.budget.md": "cad26b947e840da42dc6649e073a2412d44f8b7595e9ce5286d39cd8064a333f",
+    "custom40.dvg": "e144a48f170e6a8d9a14f47ca93b0feee453f4642133fbd0b3d6c597ed6a2b00",
+    "custom40.geom.json": "fbfd5aca72bb56c098cac0e9f2bea85f989e2651261fa17228342ee8be23c4f1"
+   },
+   "pngs": {
+    "custom40_atlas.png": [
+     92,
+     431,
+     "39e7b80b05a64cb6bfabb2a74081f2d40dcc6f03239263b4c9f00a39cd2b433e"
+    ],
+    "custom40_view.png": [
+     160,
+     324,
+     "ad2c1a3cfaa2f62700a2b1215ee0e4457f736e811765538442efe91068dec23d"
+    ]
+   },
+   "tpl": [
+    30,
+    "3c171f2d80cfe6a9458984e3cd16ccdd1ade765dc74e97fbf60716c1cc30250c"
+   ]
+  },
+  {
+   "label": "random custom 33",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 128,
+     "height": 15,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      320,
+      82,
+      27
+     ],
+     "top": [
+      -34,
+      25,
+      78
+     ],
+     "bottom": [
+      148,
+      143,
+      134
+     ]
+    }
+   },
+   "name": "custom128",
+   "check_sha": "d0a4f316f9fe6a25da33c2ff3f43e896ceed789352a419f724e9c10adfdb8e4f",
+   "elements": 13,
+   "gid": 58525,
+   "files": {
+    "custom128.aseprite": "e472e7890e8fbb849a534d284ca5fd2b87fd60a922546a250cbb471fb4f14669",
+    "custom128.budget.md": "92b2d685c52b8d191596c0cd44a46d855233ad8b0d790711a3c5866ba1a7b647",
+    "custom128.dvg": "7c9038a3f96dc09f74f2d656ad2d231d3551f74d043e8cef51f0722a4f7d95e3",
+    "custom128.geom.json": "4ce5f930e8002fd6586ed27ced0ae86414486e02fb04a5c1073e1b2efa2b0156"
+   },
+   "pngs": {
+    "custom128_atlas.png": [
+     268,
+     84,
+     "26a8d67cc964df627b56022319524c18f40ce5abdd0ee643d331944d12b58234"
+    ],
+    "custom128_view.png": [
+     512,
+     60,
+     "2621f54a719558d83f3d301785c0a152d2cb83f0a4da215233b7c0a95d9b1c27"
+    ]
+   },
+   "tpl": [
+    13,
+    "fe2258c6f161cc3c29e4a1e4b7f96a6ade93e8087e80f8e7ff0e6806d6d4b4f9"
+   ]
+  },
+  {
+   "label": "random custom 34",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 80,
+     "height": 64,
+     "byte_edges": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      235,
+      110,
+      99,
+      87,
+      52,
+      34
+     ],
+     "top": [
+      -36,
+      -25,
+      -4,
+      8,
+      18,
+      36
+     ],
+     "bottom": [
+      147,
+      139,
+      86,
+      70,
+      61,
+      57
+     ]
+    }
+   },
+   "name": "custom80",
+   "check_sha": "1b6c4a65dc27b816716c4b8bb036697691dac48dd4c96426116907ef89a2cec8",
+   "elements": 71,
+   "gid": 64093,
+   "files": {
+    "custom80.aseprite": "49fc566a8be694bfc2131f9519777d1984b13f276fd4c6cfb445a14965e203eb",
+    "custom80.budget.md": "381e73abd9172e83aa272666b4d139d3e2f9b448e73d883fe8e7603c929a42a6",
+    "custom80.dvg": "02b07f1fe0869672317eb4a4927fbc55c04610963df1469f01870d2fb6590115",
+    "custom80.geom.json": "c703858044856cfe8e1654a2f6802ee036480b3585d84298a309e37ecbd561ee"
+   },
+   "pngs": {
+    "custom80_atlas.png": [
+     340,
+     431,
+     "e13744dc23e4b4306e10da96e95c3e8adcc47ac6a67bbdd2a24f81cf9c4efd3a"
+    ],
+    "custom80_view.png": [
+     320,
+     256,
+     "4510b5b779a5ace5bd7dd1466ff714be1bd71d593a41e16538bbf8782cf6b0cb"
+    ]
+   },
+   "tpl": [
+    53,
+    "81797db7e79d0af71f92fb4185af417fc34e08b7e3fecc48e0fc39f2f9b4d4a2"
+   ]
+  },
+  {
+   "label": "random custom 35",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 104,
+     "height": 62
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      177,
+      129,
+      110,
+      25
+     ],
+     "top": [
+      11,
+      24,
+      29,
+      31
+     ],
+     "bottom": [
+      133,
+      122,
+      85,
+      45
+     ]
+    }
+   },
+   "name": "custom104",
+   "error": "bands do not cover the rows gap-free and overlap-free"
+  },
+  {
+   "label": "random custom 36",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 84,
+     "height": 57
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      313,
+      172,
+      139,
+      110,
+      101,
+      26
+     ],
+     "top": [
+      -22,
+      -19,
+      -14,
+      -13,
+      20,
+      30
+     ],
+     "bottom": [
+      154,
+      153,
+      146,
+      130,
+      129,
+      102
+     ]
+    }
+   },
+   "name": "custom84",
+   "check_sha": "e7346f9dd308433705cd0677093c8abd66f8015b86173e095e4080023b655d2b",
+   "exception": "IndexError: list index out of range"
+  },
+  {
+   "label": "random custom 37",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 40,
+     "height": 20
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      289,
+      115,
+      112
+     ],
+     "top": [
+      -37,
+      -13,
+      70
+     ],
+     "bottom": [
+      123,
+      117,
+      97
+     ]
+    }
+   },
+   "name": "custom40",
+   "check_sha": "1ad922a8912b7b87cd0591c22203b064e09d25875f70dc7b74e2a32d30ac2220",
+   "elements": 16,
+   "gid": 56520,
+   "files": {
+    "custom40.aseprite": "9a0ea3f359654b9f9b027a83e1126aae887d98da4eb9c45c9c9503c1ed7aabcb",
+    "custom40.budget.md": "ecbb0fb47c081bc3457d0de0f5b5cca75f7de58584a89b3513e69f0b31f950b8",
+    "custom40.dvg": "345d7b750d84c87f67e48133ae81e54ec548cf6c3ab6bc30734512c7dfe33e81",
+    "custom40.geom.json": "c22add2cc233caa1bcaf1cacac89763ca9cf4d725c11e69eafa9d7f3b2b2bac9"
+   },
+   "pngs": {
+    "custom40_atlas.png": [
+     60,
+     122,
+     "847aa3d08e8e5684c13662fffe8b77dfee05547f95a1f8d63866cd403ec3e965"
+    ],
+    "custom40_view.png": [
+     160,
+     80,
+     "a0f0a6de5154fc632a30e0cebf6fe94c1feca9f3a1e7a0c279b7ff0b1cff4d45"
+    ]
+   },
+   "tpl": [
+    13,
+    "019034e4dff1e806a7ce232f430a3b00a434d7061a8e9558a6c735b6b7bd6dd4"
+   ]
+  },
+  {
+   "label": "random custom 38",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 84,
+     "height": 80
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      212,
+      172,
+      131,
+      121,
+      76,
+      73
+     ],
+     "top": [
+      -20,
+      -15,
+      -2,
+      2,
+      23,
+      28
+     ],
+     "bottom": [
+      155,
+      144,
+      138,
+      116,
+      89,
+      75
+     ]
+    }
+   },
+   "name": "custom84",
+   "error": "plane 4: scaled width not strictly decreasing"
+  },
+  {
+   "label": "random custom 39",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 100,
+     "height": 24
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "width": [
+      245,
+      154,
+      66
+     ],
+     "top": [
+      -30,
+      5,
+      24
+     ],
+     "bottom": [
+      148,
+      143,
+      137
+     ]
+    }
+   },
+   "name": "custom100",
+   "check_sha": "560dc39ce9016f6cc423fc003b81244651b2e0132bf78a67fce7a2eaac7a9b48",
+   "elements": 13,
+   "gid": 48962,
+   "files": {
+    "custom100.aseprite": "410e67ff06d2618f2edcb1532d36399138120213df897f03e28a29abb3816b40",
+    "custom100.budget.md": "1db10d822975a228b6a705eee96f120ae62f023e56170a37ac7b37bd5660c15c",
+    "custom100.dvg": "2ea23265a00c36ce88d426cbe51bf51fbf3c1a5af3e615966fca6f669c99a529",
+    "custom100.geom.json": "ea50c6025dbd1e2e946ecfdf218c454d79753467c95ef859b6d8c36dda97d9d4"
+   },
+   "pngs": {
+    "custom100_atlas.png": [
+     212,
+     107,
+     "29afa53fed9c2d91781a05ad454b7752e27cbe05979975a04319d99994f17a54"
+    ],
+    "custom100_view.png": [
+     400,
+     96,
+     "cae5348b68d9a0ffdfcdc130052fec10c8d589cf78e260fa6e2e9ebb6338601a"
+    ]
+   },
+   "tpl": [
+    13,
+    "798dd2c3669811743d114b984af0be0338b518b25474230e962d7f365989854e"
+   ]
+  },
+  {
+   "label": "error 0",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 138,
+     "height": 96
+    }
+   },
+   "error": "[viewport] width_px: must be a multiple of 4"
+  },
+  {
+   "label": "error 1",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96,
+     "stride": 60
+    }
+   },
+   "error": "[viewport] stride: smaller than width_px/2"
+  },
+  {
+   "label": "error 2",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      110,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] width: not strictly decreasing"
+  },
+  {
+   "label": "error 3",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "foo": 1
+    }
+   },
+   "error": "[viewport] unknown key 'foo'"
+  },
+  {
+   "label": "error 4",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "depth": 4
+    }
+   },
+   "error": "[viewport] depth: 4 does not match 5 planes (expected 3)"
+  },
+  {
+   "label": "error 5",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "preset": "xyz"
+    }
+   },
+   "error": "[viewport] preset: unknown 'xyz'"
+  },
+  {
+   "label": "error 6",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 200
+    }
+   },
+   "error": "[viewport] height: range 8 ... 100"
+  },
+  {
+   "label": "error 7",
+   "cfg": {
+    "viewport": {
+     "width_px": 200,
+     "height": 96
+    }
+   },
+   "error": "[viewport] width_px: range 16 ... 160"
+  },
+  {
+   "label": "error 8",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "origin": 65000
+    }
+   },
+   "error": "[viewport] origin/stride/height: buffer exceeds 65535"
+  },
+  {
+   "label": "error 9",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      25
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] top: not increasing"
+  },
+  {
+   "label": "error 10",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      80
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] top[3] >= bottom[3]"
+  },
+  {
+   "label": "error 11",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 80,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] center_x: must be ref_size[0] / 2 (symmetric viewport)"
+  },
+  {
+   "label": "error 12",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88.5,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] center_x: must be ref_size[0] / 2 (symmetric viewport)"
+  },
+  {
+   "label": "error 13",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      "x",
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] width: list of integers expected"
+  },
+  {
+   "label": "error 14",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "byte_edges": 1
+    }
+   },
+   "error": "[viewport] byte_edges: true or false expected"
+  },
+  {
+   "label": "error 15",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "load": 60416
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "error": "dvg: $EC00..$F127 (1320 bytes) extends beyond the area end $EDFF (area $E800..$EDFF, 1536 bytes)"
+  },
+  {
+   "label": "error 16",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "load": 8192
+    }
+   },
+   "name": "westwood140",
+   "check_sha": "8b9e80de6a62e527fc90b502b02b82570f32016083df43b168c10d72340c7142",
+   "error": "dvg: load address $2000 is not in bank 1 asset memory ($4000..$AFFF, $E800..$FBFF; Lib/BSS $B000..$E7FF, runtime from $FC00)"
+  },
+  {
+   "label": "error 17",
+   "cfg": {
+    "viewport": {
+     "height": 96
+    }
+   },
+   "error": "[viewport] width_px missing"
+  },
+  {
+   "label": "error 18",
+   "cfg": {
+    "viewport": {
+     "width_px": 140
+    }
+   },
+   "error": "[viewport] height missing"
+  },
+  {
+   "label": "error 19",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96
+    },
+    "planes": {}
+   },
+   "error": "[planes] only with preset = \"custom\""
+  },
+  {
+   "label": "error 20",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 140,
+     "height": 96
+    }
+   },
+   "error": "[planes] missing (preset = \"custom\")"
+  },
+  {
+   "label": "error 21",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96
+    },
+    "extra": {}
+   },
+   "error": "unknown section 'extra'"
+  },
+  {
+   "label": "error 22",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "nme": 1
+    }
+   },
+   "error": "[output] unknown key 'nme'"
+  },
+  {
+   "label": "error 23",
+   "cfg": {
+    "viewport": {
+     "width_px": "140",
+     "height": 96
+    }
+   },
+   "error": "[viewport] width_px: integer expected"
+  },
+  {
+   "label": "error 24",
+   "cfg": {
+    "viewport": {
+     "width_px": true,
+     "height": 96
+    }
+   },
+   "error": "[viewport] width_px: integer expected"
+  },
+  {
+   "label": "error 25",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 7
+    }
+   },
+   "error": "[viewport] height: range 8 ... 100"
+  },
+  {
+   "label": "error 26",
+   "cfg": {
+    "viewport": {
+     "width_px": 12,
+     "height": 96
+    }
+   },
+   "error": "[viewport] width_px: range 16 ... 160"
+  },
+  {
+   "label": "error 27",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "origin": -1
+    }
+   },
+   "error": "[viewport] origin: must not be negative"
+  },
+  {
+   "label": "error 28",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "stride": 256
+    }
+   },
+   "error": "[viewport] stride: greater than 255"
+  },
+  {
+   "label": "error 29",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] ref_size: two positive values expected"
+  },
+  {
+   "label": "error 30",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      0,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] ref_size: two positive values expected"
+  },
+  {
+   "label": "error 31",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] width: at least 3 values"
+  },
+  {
+   "label": "error 32",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] top: length does not match width"
+  },
+  {
+   "label": "error 33",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70
+     ]
+    }
+   },
+   "error": "[planes] bottom: length does not match width"
+  },
+  {
+   "label": "error 34",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      100,
+      55
+     ]
+    }
+   },
+   "error": "[planes] bottom: not decreasing"
+  },
+  {
+   "label": "error 35",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      60
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] top[3] >= bottom[3]"
+  },
+  {
+   "label": "error 36",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ],
+     "foo": 1
+    }
+   },
+   "error": "[planes] unknown key 'foo'"
+  },
+  {
+   "label": "error 37",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[planes] top missing"
+  },
+  {
+   "label": "error 38",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 3
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[viewport] depth: 3 does not match 4 planes (expected 2)"
+  },
+  {
+   "label": "error 39",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": true
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "error": "[viewport] depth: integer expected"
+  },
+  {
+   "label": "error 40",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      2
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "name": "custom120",
+   "error": "scaled width of the last plane <= 0"
+  },
+  {
+   "label": "error 41",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -10,
+      10,
+      25,
+      70
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      71
+     ]
+    }
+   },
+   "error": "[planes] bottom: not decreasing"
+  },
+  {
+   "label": "error 42",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "zoom": "4"
+    }
+   },
+   "error": "[output] zoom: integer expected"
+  },
+  {
+   "label": "error 43",
+   "cfg": {
+    "viewport": {
+     "preset": "westwood",
+     "width_px": 140,
+     "height": 96
+    },
+    "output": {
+     "pool_bytes": 1.5
+    }
+   },
+   "error": "[output] pool_bytes: integer expected"
+  },
+  {
+   "label": "error 44",
+   "cfg": {
+    "viewport": {
+     "width_px": 140,
+     "height": 96,
+     "preset": 5
+    }
+   },
+   "error": "[viewport] preset: unknown '5'"
+  },
+  {
+   "label": "error 45",
+   "cfg": {
+    "viewport": {
+     "preset": "custom",
+     "width_px": 120,
+     "height": 80,
+     "depth": 2
+    },
+    "planes": {
+     "ref_size": [
+      176,
+      120
+     ],
+     "center_x": 88,
+     "width": [
+      200,
+      110,
+      60,
+      30
+     ],
+     "top": [
+      -500,
+      10,
+      25,
+      35
+     ],
+     "bottom": [
+      140,
+      100,
+      70,
+      55
+     ]
+    }
+   },
+   "name": "custom120",
+   "check_sha": "906eb11f6c5f79b44072cb4b28d1aa3c6a94526c6b2b2889bdb276082d00d435",
+   "elements": 47,
+   "gid": 25860,
+   "files": {
+    "custom120.aseprite": "f5c5b33e2578ae726dc1bf7b11e35fcc039d474821ce85206dba1b52e9f1ee69",
+    "custom120.budget.md": "3559d493647d22beb178e184b8be1ba49ec5b8a0c75c7a958fbe8c775374db06",
+    "custom120.dvg": "69a44d30e86f067fcefb3561c28e0fbae3b826b93ae9bfb4b538841138b40b52",
+    "custom120.geom.json": "40cc41db817955bb81b070f3c58fb239347ae838c3628bae0745fc8483f8c232"
+   },
+   "pngs": {
+    "custom120_atlas.png": [
+     376,
+     377,
+     "3bb57cf59d484a5fdec54609b883cb5344c07c409df8dd5ed7edc373ac841f72"
+    ],
+    "custom120_view.png": [
+     480,
+     320,
+     "aa0c3b0c045bbb280c3d351f4f22573c3a7af03303db68d2a01365ddc3a71257"
+    ]
+   },
+   "tpl": [
+    38,
+    "6a24fc3a0ede495045e3f935b2902a3f04f126bdad56de873509abbd60d3434a"
+   ]
+  }
+ ]
+}
