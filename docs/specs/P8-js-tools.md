@@ -86,7 +86,7 @@ Commands: `cd tools/js && node --test` (all), `node --test test/vrl.test.js` (on
 | 1 | read DVG/DTS/S2/DBG, `map` (DMP build), `view` (port of dbeview), `mem`, `move`; **map editor** | parity of DMP and of all VIEW references used by the tests; map editor (6.1). **Done 2026-11-27**: 150 tests (test_dbemap, test_dbeview, test_dbemove, test_dbemem ported; parity goldens `mkgolden_view.py`), `smoke.sh` ok. Known deviations: section 7 |
 | 2 | `geom`, `tex` + `persp`, `spr`; **geometry, texture and sprite editors** | parity DVG/DTS/DBG/VRL/S2; editors (6.2–6.4). **Done 2026-11-27**: 526 tests (test_dbegeom, test_dbetex, test_dbepersp, test_dbespr ported; goldens `mkgolden_geom.py`, `mkgolden_tex.py`), demo generators and `buildDemoAssets` in JS, `smoke.sh` checks all four editors |
 | 3 | `bake`/`pack` (new, JS only); **bake/pack view** | visibility check (vda notes 8.2, steps 1–2), then baking and packing (steps 3–4). **Done 2026-11-27** (section 8): 534 tests, `smoke.sh` checks the bake view |
-| 4 | Crawl converters and demo scripts; remove the Python core; harnesses on the JS CLI | all goldens, all tests on JS; no Python tool module left |
+| 4 | Crawl converters and demo scripts; remove the Python core; harnesses on the JS CLI | all goldens, all tests on JS; no Python tool module left. **Done 2026-11-27**: 592 tests; `run_sim.js` identical to run_sim.py (incl. cycles), `run_crawl.js` 19 136 views 0 mismatches, `vice_view.js`/`vice_demo.js`/`vice_zp.js`/`vice_vclprof.js` equal to the Python versions (cycles within VICE noise), `demo/build.js` byte-identical outputs. Python tools, their tests, harnesses and golden scripts removed (last commit with them: `e4a044f`) |
 
 ## 6. Editors (`tools/web/`)
 
@@ -172,3 +172,11 @@ Per viewpoint and frame the map gets a copy of the cell's tile whose face shows 
 ### 8.4 Packing
 
 From the scene: DVG, DMP (built from the map), DTS, DBG, S2 (load addresses from the PRG headers) and the DAP in bank 1, checked for overlaps and against `dbemem`; VRAM bases packed from `pool[0]` in the order walls, floor, ceiling, background, sprite sets, animations; pool overflow is an error; load time = unpacked bytes × `rxv_us_per_byte`. Outputs: `<name>.bake.json`, `<name>.bake.md`, and with animations `<name>.dap`, `<name>.vrl`.
+
+## 9. After the Python removal (phase 4)
+
+- **Goldens are frozen.** `tools/js/test/golden/*.json` and the fixtures were produced by the Python reference (scripts `mkgolden*.py`, last present in commit `e4a044f`). They are regression data now: a deliberate change of an output format updates the expected values with the change (review the diff), not by regenerating from Python.
+- Specs P1–P7 name the Python tools (`dbegeom.py`, `dbeview.py` …); their JS equivalents are listed in section 3, the commands keep their names and options (`node tools/js/cli/dbe.js <tool> …`; Crawl: `crawlconv`, `crawlmap`, `crawl01`, `wallconv`, `crawlsprites`).
+- Python stays only for scripts that do not use the tools: `test/vice_smoke.py`, `vice_blitzvars.py`, `vice_drive.py`, `patch_crawl.py`, and the VDC-BASIC helpers they call (`bastok.py`, `blitzprep.py`, `vicemon.py` in vdc-basic).
+- `test/sim/run_viewsim.js` is a 1:1 port of `run_viewsim.py`, which was already broken (it still uses the command-line protocol of viewsim.prg from before the scene files); `run_sim.js` covers it. Open: delete or rewrite.
+- Known: `demo/build.py --budget` was broken in Python (`dbeview.T_WEG`); `build.js --budget` works.

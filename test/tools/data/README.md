@@ -6,6 +6,6 @@
 
 - `walls.vdc`, `font3o.vdc` (1.0f, images of the walls and character set of Crawl 128), `walls.wsm`, `ghost.spr`,
   `ghosts.vdc`, `gem.spr` (0.1 metadata and ghost images, = `art/dbe/` of the repo dungeoncrawlerjam2025, byte-identical
-  to the output of `tools/wallconv.py` and `tools/crawlsprites.py`): inputs for `tools/crawlconv.py` and the
-  0.1 model `tools/crawl01.py` (P7a). `walls.vdc` and `font3o.vdc` are read from `crawl128-100f.d81`
+  to the output of `wallconv` and `crawlsprites`): inputs for `crawlconv` and the
+  0.1 model `crawl01` (P7a; now `tools/js/core/crawl/`). `walls.vdc` and `font3o.vdc` are read from `crawl128-100f.d81`
   (`c1541 -attach crawl128-100f.d81 -read walls.vdc walls.vdc`). Source of the graphics: Crawl 128 (MIT).
