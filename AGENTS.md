@@ -30,4 +30,5 @@ Source: `dungeonboringengine/docs/analysis/fable-2026-11-26.md` 3.4. Paths refer
 | VDC-BASIC drawing commands | `test/ref` unit tests, `run_draw.py --quick`; for acceptance the full set and once `--emu z64k` | ≈ 30 s (d), Z64K 3 min 25 s (d) | engine, game |
 | VDC-BASIC only moved (size changed) | `run.sh test/smoke.bas test/layout.bas`, full `run_draw.py` in VICE, `vice_crawl.py` | ≈ 1 min (e) | Z64K |
 | `game/crawl.bas` logic or AI | `vice_crawl.py`, `--timing` one run per configuration | 25 s (d) + ≈ 1–2 min (e) | engine and VDC-BASIC tests |
+| `tools/js/` (JS tools, P8) | `cd tools/js && node --test` (or the one `test/<module>.test.js`); after changing a Python tool that has a JS port: `python3 tools/js/test/golden/mkgolden.py`, then `node --test test/parity.test.js` | ≈ 5 s (m) | sim65, VICE |
 | Docs or specs only | none | 0 | everything |
