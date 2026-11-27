@@ -1,0 +1,12 @@
+# Bake/pack of the demo zone (tools/js/core/bake.js, docs/specs/P8-js-tools.md section 8):
+# visibility check of all wall styles, an example animation, layout of bank 1 and the VRAM pool.
+format  = "dbebake"
+version = 1
+
+[bake]
+name  = "demo"
+scene = "preview.toml"          # assets (built demo) and map
+out   = "../build/demo/bake"
+
+[pack]
+pool = [9600, 46335]            # VRAM pool as demo/build.py

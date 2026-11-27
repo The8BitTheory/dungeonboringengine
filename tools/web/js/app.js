@@ -7,7 +7,7 @@ const $ = (id) => document.getElementById(id);
 const state = { project: null, files: [], active: null };
 const editors = { map: null };
 // editors of the other tabs are loaded on first use (module, class)
-const LAZY = { geom: ['./geom-editor.js', 'GeomEditor'], tex: ['./tex-editor.js', 'TexEditor'], spr: ['./spr-editor.js', 'SprEditor'] };
+const LAZY = { geom: ['./geom-editor.js', 'GeomEditor'], tex: ['./tex-editor.js', 'TexEditor'], spr: ['./spr-editor.js', 'SprEditor'], bake: ['./bake-editor.js', 'BakeEditor'] };
 
 async function editor(tab) {
   if (!editors[tab] && LAZY[tab]) {
@@ -32,7 +32,7 @@ export function status(msg, err = false) {
 }
 
 // TOML project files by their "format" key -> editor tab
-const FORMAT_TAB = { dbemap: 'map', dbeview: 'map', dbegeom: 'geom', dbetex: 'tex', dbespr: 'spr' };
+const FORMAT_TAB = { dbemap: 'map', dbeview: 'map', dbegeom: 'geom', dbetex: 'tex', dbespr: 'spr', dbebake: 'bake' };
 
 async function classify(path) {
   try {

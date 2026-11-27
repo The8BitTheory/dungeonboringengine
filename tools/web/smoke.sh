@@ -29,4 +29,10 @@ for F in demo/walls.toml demo/goblin.toml; do
   [ -n "${SHOTDIR:-}" ] && timeout 120 "$CHROME" $OPTS --screenshot="$SHOTDIR/$(basename $F .toml).png" "http://127.0.0.1:$PORT/tools/web/?http=/&open=$F" >/dev/null 2>&1
   echo "$D" | grep -qE "$F: built in [0-9]+ ms" || { echo "FAIL: editor for $F"; echo "$D" | grep -o 'id="status"[^<]*'; exit 1; }
 done
+# bake view
+for F in demo/bake.toml demo/bake-gate.toml; do
+  D=$(timeout 120 "$CHROME" $OPTS --virtual-time-budget=60000 --dump-dom "http://127.0.0.1:$PORT/tools/web/?http=/&open=$F" 2>/dev/null)
+  [ -n "${SHOTDIR:-}" ] && timeout 120 "$CHROME" $OPTS --virtual-time-budget=60000 --screenshot="$SHOTDIR/$(basename $F .toml).png" "http://127.0.0.1:$PORT/tools/web/?http=/&open=$F" >/dev/null 2>&1
+  echo "$D" | grep -qE "$F: baked in [0-9]+ ms" || { echo "FAIL: bake view for $F"; echo "$D" | grep -o 'id="status"[^<]*'; exit 1; }
+done
 echo "smoke ok"

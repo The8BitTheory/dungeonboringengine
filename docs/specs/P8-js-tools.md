@@ -85,7 +85,7 @@ Commands: `cd tools/js && node --test` (all), `node --test test/vrl.test.js` (on
 | 0 | Node, structure, `io/*`, `vrl`, golden generation, test framework, CLI skeleton | VRL parity and ported `test_vrl.py`; PNG/BMP decoder equals Pillow on all repo images |
 | 1 | read DVG/DTS/S2/DBG, `map` (DMP build), `view` (port of dbeview), `mem`, `move`; **map editor** | parity of DMP and of all VIEW references used by the tests; map editor (6.1). **Done 2026-11-27**: 150 tests (test_dbemap, test_dbeview, test_dbemove, test_dbemem ported; parity goldens `mkgolden_view.py`), `smoke.sh` ok. Known deviations: section 7 |
 | 2 | `geom`, `tex` + `persp`, `spr`; **geometry, texture and sprite editors** | parity DVG/DTS/DBG/VRL/S2; editors (6.2–6.4). **Done 2026-11-27**: 526 tests (test_dbegeom, test_dbetex, test_dbepersp, test_dbespr ported; goldens `mkgolden_geom.py`, `mkgolden_tex.py`), demo generators and `buildDemoAssets` in JS, `smoke.sh` checks all four editors |
-| 3 | `bake`/`pack` (new, JS only); **bake/pack view** | visibility check (vda notes 8.2, steps 1–2), then baking and packing (steps 3–4) |
+| 3 | `bake`/`pack` (new, JS only); **bake/pack view** | visibility check (vda notes 8.2, steps 1–2), then baking and packing (steps 3–4). **Done 2026-11-27** (section 8): 534 tests, `smoke.sh` checks the bake view |
 | 4 | Crawl converters and demo scripts; remove the Python core; harnesses on the JS CLI | all goldens, all tests on JS; no Python tool module left |
 
 ## 6. Editors (`tools/web/`)
@@ -114,7 +114,7 @@ Styles of a `tex.toml`; import per style from PNG atlas or Aseprite; slot grid w
 
 Sprite sets: phases, angles, foot point; preview per distance and sub-position in a test scene.
 
-### 6.5 Bake/pack (phase 3)
+### 6.5 Bake/pack (phase 3, done)
 
 Special and animated elements of a map; visibility as an overlay on the map (cell and facing from which an element is seen, with the slot); warnings for visible slots without an image; animation definitions (frames, timing, triggers); bake preview; zone package with VRAM pool layout, `RXV` load list and load time (27 µs per byte, hardware measurement in the vda notes, section 6).
 
@@ -127,3 +127,48 @@ Special and animated elements of a map; visibility as an overlay on the map (cel
 5. CLI errors print `dbe.js: <message>` (Python: `Error: <message>`).
 6. Phase 2: error texts of JSON parsing (geom JSON, Aseprite), image decoding and OS errors other than a missing file come from JS; the tex/spr CLIs print absolute paths; Python crashes with `IndexError` in `build_dvg` for custom planes that leave a depth without elements, JS throws a `RangeError`.
 7. The level-9 zlib of `dbegeom`'s .aseprite output is reproduced by a port of zlib 1.3.1 deflate (`core/io/asewrite.js`), checked against Python on inputs up to 800 KB.
+
+## 8. dbebake (phase 3): visibility, baking, packing
+
+`core/bake.js`, CLI `dbe.js bake build|check BAKE.toml [--out DIR]`, view in the editor (tab Bake/Pack). No Python original.
+
+### 8.1 Project file
+
+```toml
+format  = "dbebake"
+version = 1
+
+[bake]
+name  = "demo"
+scene = "preview.toml"      # dbeview scene: assets (DVG, DTS, DBG, S2) and map
+map   = "demo.toml"         # optional: other map than the scene's
+out   = "../build/demo/bake"
+load  = 0x9000              # optional: load address in the VRL file frame of the animation data
+
+[pack]
+pool = [9600, 46335]        # VRAM pool of the zone
+dap_load = 0x4300           # optional: bank 1 address of the animation table (default: first free gap)
+rxv_us_per_byte = 27        # optional: load time estimate (hardware, vda notes section 6)
+
+[[anim]]
+name   = "gate"
+at     = [17, 6]            # cell
+face   = "S"                # tile face N, E, S, W
+frames = [2, 4]             # wall styles, one per frame (frame 0 = start, last = end state)
+views  = "auto"             # or [[x, y, "N"], ...]: viewpoints to bake
+depths = [1, 2]             # optional: only viewpoints that see the face at these depths
+```
+
+### 8.2 Visibility
+
+`visibility(scene)` runs `view()` from every cell without SOLID in all four facings and records every wall face that is not fully covered (trace hook in `view.js`, active only with `scene.trace`; outputs unchanged): cell, face, style, slot, and how the image resolves (`own`, `fallback` to style 1, `none`). It is exactly what the engine's VIEW draws. `checkVisibility` reports, per style ≥ 2 and (cell, face), the slots in which the face is seen without an image of its own, with the viewpoints. Demo: the styles window and arch have no side images; seen at an angle they show brick.
+
+### 8.3 Baking (case R1 of the vda notes)
+
+Per viewpoint and frame the map gets a copy of the cell's tile whose face shows the frame style; `view()` + `run_vcl` render the real window (background, occluders, wallpaper). The byte rectangle in which any frame differs from frame 0 is the patch; each frame's patch is the opaque window content of that rectangle. Applying a frame's patch to the frame-0 window gives exactly that frame's window (tested). Views that look the same in all frames are skipped.
+
+**DAP v0 (draft until the VDA runtime is specified):** load address (2), `"DA"`, version 0, number of animations; per animation: cell (2), face, number of frames, number of views; per view: viewpoint cell (2), direction, x, y, w, h (bytes/rows in the window), offset of frame 0 in the animation VRAM data (2); the frames of a view follow each other (w·h bytes each). The VRAM data is one VRL file (`<name>.vrl`). Runtime: target = AP + origin + y · stride + x, one block copy per row (VCL type 2 with stride).
+
+### 8.4 Packing
+
+From the scene: DVG, DMP (built from the map), DTS, DBG, S2 (load addresses from the PRG headers) and the DAP in bank 1, checked for overlaps and against `dbemem`; VRAM bases packed from `pool[0]` in the order walls, floor, ceiling, background, sprite sets, animations; pool overflow is an error; load time = unpacked bytes × `rxv_us_per_byte`. Outputs: `<name>.bake.json`, `<name>.bake.md`, and with animations `<name>.dap`, `<name>.vrl`.

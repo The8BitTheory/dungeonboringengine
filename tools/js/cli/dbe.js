@@ -15,6 +15,7 @@ import { viewCli } from './view.js';
 import { geomCli } from './geom.js';
 import { texCli } from './tex.js';
 import { sprCli } from './spr.js';
+import { bakeCli } from './bake.js';
 
 class Usage extends Error {}
 
@@ -100,7 +101,7 @@ function cmdVrl(argv, io) {
   }
 }
 
-const TOOLS = { vrl: cmdVrl, map: mapCli, view: viewCli, geom: geomCli, tex: texCli, spr: sprCli };
+const TOOLS = { vrl: cmdVrl, map: mapCli, view: viewCli, geom: geomCli, tex: texCli, spr: sprCli, bake: bakeCli };
 
 /** Run the CLI in-process: returns the exit code; io.out/io.err receive lines (default console). */
 export function main(argv, io = { out: (s) => console.log(s), err: (s) => console.error(s) }) {

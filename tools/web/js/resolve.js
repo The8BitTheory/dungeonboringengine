@@ -3,7 +3,7 @@
 import { normPath } from './fs.js';
 
 export async function withFiles(project, run, cache = new Map()) {
-  for (let round = 0; round < 8; round++) {
+  for (let round = 0; round < 64; round++) {   // a build that throws at its first miss loads one file per round
     const missing = new Set();
     const resolve = (p) => {
       let k;

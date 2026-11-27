@@ -766,6 +766,7 @@ export class View extends Ctx {
         if (e.art === ART_FRONT || e.art === ART_SIDE) {
           if (!faces) continue;
           const ent = this.resolve(KIND_WALL, e.index, t.walls[this.faceOf(e)]);
+          if (this.sc.trace) this.traceWall(c, e, t, ent);
           if (ent === null || this.allcov(this.cover, e.x, e.x + e.w)) continue;
           this.seen(c);
           this.add(this.wallItem(KIND_WALL, e, ent));
@@ -779,6 +780,21 @@ export class View extends Ctx {
         } else if (e.art === ART_OBJ && d >= 1 && (!faces || t.flags & T_CONTENT)) this.objects(d, e, c);
       }
     }
+  }
+
+  /** P8 bake: record a wall face that is not fully covered (sc.trace = array), with how its image resolves:
+   *  'own' (the style's image), 'fallback' (style 0 instead), 'none' (no image), 'nostyle' (style 0 = nothing). */
+  traceWall(c, e, t, ent) {
+    if (this.allcov(this.cover, e.x, e.x + e.w)) return;
+    const face = this.faceOf(e), n = t.walls[face], ts = this.sc.dts[KIND_WALL];
+    let res = 'nostyle';
+    if (n > 0 && ts !== null) {
+      const k = ts.slotMap[e.index];
+      const own = n - 1 < ts.styles.length && k !== tex.FALLBACK ? ts.styles[n - 1][k] : tex.NOIMG;
+      res = own < tex.NOIMG ? 'own' : own === tex.FALLBACK && ent !== null ? 'fallback' : 'none';
+    }
+    this.sc.trace.push({ cell: c, face, style: n, elem: e.index, slot: ts ? ts.slotMap[e.index] : null, art: e.art, d: e.d,
+      s: e.s, x: e.x, y: e.y, w: e.w, h: e.h, res, drawn: ent !== null });
   }
 
   objects(d, e, c) {
