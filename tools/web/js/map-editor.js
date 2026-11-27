@@ -1,22 +1,12 @@
 // Map editor (docs/specs/P8-js-tools.md 6.1): paint tiles, items, events, start; tile table; live VIEW.
 import * as M from '../../js/core/map.js';
 import { Preview } from './preview.js';
+import { el } from './ui.js';
 
 const CELL = 18;
 const DIRS = ['N', 'E', 'S', 'W'];
 const EVENT_NAMES = Object.fromEntries(Object.entries(M.EVENT_TYPES).map(([k, v]) => [v, k]));
 const FLAG_NAMES = Object.keys(M.FLAGS);
-
-function el(tag, attrs = {}, ...kids) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k.startsWith('on')) e[k] = v;
-    else if (v === true) e.setAttribute(k, '');
-    else if (v !== false && v !== null && v !== undefined) e.setAttribute(k, v);
-  }
-  e.append(...kids.flat().filter((k) => k !== null && k !== undefined));
-  return e;
-}
 
 // stable colour per tile index (only for the editor grid)
 function tileColor(t, i) {

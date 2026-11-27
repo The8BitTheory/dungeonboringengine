@@ -6,6 +6,24 @@ import { MapEditor } from './map-editor.js';
 const $ = (id) => document.getElementById(id);
 const state = { project: null, files: [], active: null };
 const editors = { map: null };
+// editors of the other tabs are loaded on first use (module, class)
+const LAZY = { geom: ['./geom-editor.js', 'GeomEditor'], tex: ['./tex-editor.js', 'TexEditor'], spr: ['./spr-editor.js', 'SprEditor'] };
+
+async function editor(tab) {
+  if (!editors[tab] && LAZY[tab]) {
+    const [mod, cls] = LAZY[tab];
+    const E = (await import(mod))[cls];
+    editors[tab] = new E($(`view-${tab}`), status);
+    if (state.project) editors[tab].setProject(state.project, state.files);
+  }
+  return editors[tab];
+}
+
+function showTab(tab) {
+  for (const b of document.querySelectorAll('#tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+  for (const sec of document.querySelectorAll('main > section.panel')) sec.hidden = sec.id !== `view-${tab}`;
+  state.tab = tab;
+}
 
 export function status(msg, err = false) {
   const s = $('status');
@@ -22,7 +40,9 @@ async function classify(path) {
     const m = head.match(/^\s*format\s*=\s*"([^"]+)"/m);
     if (m) return m[1];
     const cfg = parseToml(await state.project.readText(path));
-    return cfg.format || null;
+    if (cfg.format) return cfg.format;
+    if (cfg.viewport && cfg.output) return 'dbegeom';      // view.toml has no format key (P3)
+    return null;
   } catch { return null; }
 }
 
@@ -40,7 +60,7 @@ async function loadProject(p) {
   state.files = files;
   renderFiles();
   status(`${files.length} project files`);
-  editors.map.setProject(p, files);
+  for (const e of Object.values(editors)) if (e) e.setProject(p, files);
 }
 
 function renderFiles() {
@@ -62,12 +82,13 @@ function renderFiles() {
 
 async function openFile(f) {
   const tab = FORMAT_TAB[f.kind];
-  if (tab !== 'map') { status(`${f.kind}: editor follows in a later phase`); return; }
   state.active = f.path;
   renderFiles();
+  showTab(tab);
   try {
     if (f.kind === 'dbemap') await editors.map.openMap(f.path);
-    else await editors.map.openScene(f.path);
+    else if (f.kind === 'dbeview') await editors.map.openScene(f.path);
+    else await (await editor(tab)).open(f.path);
   } catch (e) {
     status(e.message, true);
     console.error(e);
@@ -76,6 +97,12 @@ async function openFile(f) {
 
 async function init() {
   editors.map = new MapEditor($('view-map'), status);
+  for (const b of document.querySelectorAll('#tabs [role=tab]')) {
+    b.onclick = async () => {
+      showTab(b.dataset.tab);
+      try { await editor(b.dataset.tab); } catch (e) { status(e.message, true); console.error(e); }
+    };
+  }
   $('open').onclick = async () => {
     try { await loadProject(await Project.pick()); } catch (e) { if (e.name !== 'AbortError') status(e.message, true); }
   };

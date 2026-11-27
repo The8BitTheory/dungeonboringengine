@@ -15,9 +15,9 @@
   <span id="project" class="muted"></span>
   <nav id="tabs" class="tabs" role="tablist">
     <button role="tab" data-tab="map" aria-selected="true">Map</button>
-    <button role="tab" data-tab="geom" disabled title="phase 2">Geometry</button>
-    <button role="tab" data-tab="tex" disabled title="phase 2">Textures</button>
-    <button role="tab" data-tab="spr" disabled title="phase 2">Sprites</button>
+    <button role="tab" data-tab="geom">Geometry</button>
+    <button role="tab" data-tab="tex">Textures</button>
+    <button role="tab" data-tab="spr">Sprites</button>
     <button role="tab" data-tab="bake" disabled title="phase 3">Bake/Pack</button>
   </nav>
   <span id="status" class="status" role="status"></span>
@@ -30,6 +30,9 @@
     <ul id="filelist"></ul>
   </aside>
   <section id="view-map" class="panel"></section>
+  <section id="view-geom" class="panel" hidden></section>
+  <section id="view-tex" class="panel" hidden></section>
+  <section id="view-spr" class="panel" hidden></section>
 </main>
 </body>
 </html>

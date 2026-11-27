@@ -1,7 +1,7 @@
 #!/bin/sh
 # Headless smoke test of the editor app (docs/specs/P8-js-tools.md 4.5): serves the repo read-only over HTTP,
 # opens the demo scene in Chrome (headless) and checks that the map and the live view were rendered.
-# usage: tools/web/smoke.sh [OUT.png]     needs: python3, chrome (Chrome for Testing in ~/.local/bin is fine)
+# usage: tools/web/smoke.sh [MAP.png [GEOM.png]]     needs: python3, chrome (Chrome for Testing in ~/.local/bin is fine)
 set -eu
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CHROME=${CHROME:-$(command -v chrome || command -v google-chrome || command -v chromium)}
@@ -18,4 +18,9 @@ DOM=$(timeout 120 "$CHROME" $OPTS --dump-dom "$URL" 2>/dev/null)
 echo "$DOM" | grep -q 'data-ready="1"' || { echo "FAIL: app did not finish"; exit 1; }
 echo "$DOM" | grep -q 'demo/demo.toml: 20 × 16' || { echo "FAIL: map not opened"; exit 1; }
 echo "$DOM" | grep -qE 'VCL [0-9]+ \+ VMS [0-9]+ bytes' || { echo "FAIL: live view not rendered"; exit 1; }
+# geometry editor
+URL2="http://127.0.0.1:$PORT/tools/web/?http=/&open=demo/view.toml"
+DOM2=$(timeout 120 "$CHROME" $OPTS --dump-dom "$URL2" 2>/dev/null)
+[ $# -ge 2 ] && timeout 120 "$CHROME" $OPTS --screenshot="$2" "$URL2" >/dev/null 2>&1
+echo "$DOM2" | grep -qE 'DVG [0-9]+ bytes, [0-9]+ elements' || { echo "FAIL: geometry editor"; exit 1; }
 echo "smoke ok"
