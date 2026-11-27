@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Crawl 128 in VICE ereignisgesteuert spielen: Screenshot und Zyklen je Taste.
+"""Play Crawl 128 in VICE, event-driven: screenshot and cycles per key.
 
-Aufruf: vice_drive.py <ausgabeordner> <disk.d81> <kürzel> <monitorport> <tasten> [--timing] [--scenes=S]
+Usage: vice_drive.py <outputdir> <disk.d81> <tag> <monitorport> <keys> [--timing] [--scenes=S]
 
---scenes="p,d,g,gd;..." (crawl.prg mit patch_crawl.py --hook/--ref-hook): nach den Tasten je Szene
-Spieler auf Zelle p mit Richtung d und Geist 1 auf Zelle g mit Richtung gd setzen ($0C44-$0C4A),
-dann Leertaste (warten) und Screenshot.
+--scenes="p,d,g,gd;..." (crawl.prg with patch_crawl.py --hook/--ref-hook): after the keys, per scene
+place the player on cell p with direction d and ghost 1 on cell g with direction gd ($0C44-$0C4A),
+then space (wait) and screenshot.
 
-Ablauf ohne feste Wartezeiten: Haltepunkt am Kernal-GETIN ($FFE4). Hält das Programm dort an und
-liegt keine Taste im Puffer ($D0 = 0), wartet es auf Eingabe. Dann wird die BASIC-Zeile ($3B/$3C)
-gelesen:
-  Zeile 5      Tastenabfrage für den Autostart aus der IDE -> Leertaste
-  3560-3630    Menü -> RETURN
-  4040         Spiel (GETKEY): zwei Interrupts abwarten (damit das Bild fertig dargestellt ist),
-               Screenshot <kürzel>_NN.png, Stoppuhr lesen, nächste Taste in den Puffer
-Ein Haltepunkt auf dem BASIC-Fehlervektor ($0300) beendet den Test bei einem BASIC-Fehler sofort.
-Die Monitor-Verbindung bleibt offen; ein Timeout dient nur als Wächter gegen Hänger.
-Mit --timing wird am Ende die Summe der Renderphase ($0C40/$0C41, siehe patch_crawl.py) ausgegeben.
+Flow without fixed delays: breakpoint at Kernal GETIN ($FFE4). If the program stops there and
+no key is in the buffer ($D0 = 0), it is waiting for input. Then the BASIC line ($3B/$3C) is
+read:
+  Line 5       key prompt for the autostart from the IDE -> space
+  3560-3630    menu -> RETURN
+  4040         game (GETKEY): wait for two interrupts (so the picture is completely drawn),
+               screenshot <tag>_NN.png, read stopwatch, put next key into the buffer
+A breakpoint on the BASIC error vector ($0300) ends the test immediately on a BASIC error.
+The monitor connection stays open; a timeout serves only as a guard against hangs.
+With --timing the sum of the render phase ($0C40/$0C41, see patch_crawl.py) is printed at the end.
 """
 import json, re, socket, subprocess, sys, time
 
@@ -35,20 +35,20 @@ class Monitor:
             except OSError:
                 if time.time() - t0 > 30:
                     raise
-                time.sleep(0.05)        # nur bis VICE den Port öffnet
+                time.sleep(0.05)        # only until VICE opens the port
         self.s.settimeout(tmo)
         self.buf = b''
-        # Der erste Befehl bei laufender Emulation hält sie an: VICE schickt dann einen Prompt
-        # für das Anhalten und einen für den Befehl.
+        # The first command while emulation is running stops it: VICE then sends one prompt
+        # for the stop and one for the command.
         self.s.sendall(b'\n')
         self._prompt(2)
 
     def _prompt(self, n=1):
-        """Bis einschließlich zum n-ten Prompt lesen."""
+        """Read up to and including the n-th prompt."""
         while len(PROMPT.findall(self.buf)) < n:
             x = self.s.recv(65536)
             if not x:
-                raise EOFError('VICE beendet')
+                raise EOFError('VICE exited')
             self.buf += x
         end = [mm.end() for mm in PROMPT.finditer(self.buf)][n - 1]
         out, self.buf = self.buf[:end].decode(errors='replace'), self.buf[end:]
@@ -59,7 +59,7 @@ class Monitor:
         return self._prompt()
 
     def go(self):
-        """Weiterlaufen bis zum nächsten Haltepunkt."""
+        """Continue running until the next breakpoint."""
         self.s.sendall(b'x\n')
         return self._prompt()
 
@@ -87,7 +87,7 @@ def main():
     try:
         m = Monitor(port)
         bp_getin = re.search(r'BREAK: (\d+)', m.cmd('break ffe4')).group(1)
-        ev = m.mem(0x300, 2)            # BASIC-Fehlervektor: Fehler beenden den Test sofort
+        ev = m.mem(0x300, 2)            # BASIC error vector: errors end the test immediately
         err_at = ev[0] | ev[1] << 8
         m.cmd(f'break {err_at:04x}')
         irq = None
@@ -106,9 +106,9 @@ def main():
             if pc == err_at:
                 x = int(re.findall(r'\.;[0-9a-f]{4} [0-9a-f]{2} ([0-9a-f]{2})', m.cmd('r'))[-1], 16)
                 lo, hi = m.mem(0x3B, 2)
-                print(tag, f'BASIC-Fehler {x} in Zeile {lo | hi << 8}', flush=True)
+                print(tag, f'BASIC error {x} in line {lo | hi << 8}', flush=True)
                 sys.exit(1)
-            if m.mem(0xD0)[0]:          # Taste liegt noch im Puffer: GETIN holt sie gleich
+            if m.mem(0xD0)[0]:          # key is still in the buffer: GETIN will fetch it right away
                 m.go()
                 continue
             lo, hi = m.mem(0x3B, 2)
@@ -118,14 +118,14 @@ def main():
             elif line in MENU and not menu_done:
                 press('\r'); menu_done = True
             elif line in MENU:
-                print(tag, 'Spiel beendet (zurück im Menü)', flush=True)
+                print(tag, 'Game ended (back in the menu)', flush=True)
                 break
             elif line == GAME:
                 if irq is None:
                     v = m.mem(0x314, 2)
                     irq = re.search(r'BREAK: (\d+)', m.cmd(f'break {v[0] | v[1] << 8:04x}')).group(1)
                 m.cmd(f'disable {bp_getin}'); m.cmd(f'enable {irq}')
-                m.go(); m.go()          # zwei Interrupts: Bild ist dargestellt
+                m.go(); m.go()          # two interrupts: picture is drawn
                 m.cmd(f'disable {irq}'); m.cmd(f'enable {bp_getin}')
                 m.cmd(f'screenshot "{out}/{tag}_{shot:02d}.png" 2')
                 sw = m.stopwatch()
@@ -136,7 +136,7 @@ def main():
                 if not keys:
                     break
                 ch = keys.pop(0)
-                if isinstance(ch, tuple):   # Szene: Spieler/Geist setzen, dann warten
+                if isinstance(ch, tuple):   # scene: set player/ghost, then wait
                     p, d, g, gd = ch
                     for k, b in enumerate((165, p & 255, p >> 8, d, g & 255, g >> 8, gd)):
                         m.cmd(f'> {0xC44 + k:04x} {b:02x}')
@@ -147,12 +147,12 @@ def main():
                 press(ch)
                 sw0 = m.stopwatch()
             else:
-                print(tag, 'unerwartete Eingabe in Zeile', line, flush=True)
+                print(tag, 'unexpected input in line', line, flush=True)
                 press(' ')
             m.go()
         if '--timing' in sys.argv:
             r0 = m.cmd('bank ram'); a = m.mem(0xC40, 2); m.cmd('bank ram01'); b = m.mem(0xC40, 2)
-            print(tag, 'Renderphase Jiffies: RAM0', a[0] | a[1] << 8, 'RAM1', b[0] | b[1] << 8, flush=True)
+            print(tag, 'Render phase jiffies: RAM0', a[0] | a[1] << 8, 'RAM1', b[0] | b[1] << 8, flush=True)
         json.dump(res, open(f'{out}/{tag}_steps.json', 'w'))
     finally:
         vice.kill()

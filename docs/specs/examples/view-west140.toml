@@ -1,0 +1,16 @@
+# Default: 140 x 96 (1 text row free), Westwood preset
+[viewport]
+preset   = "westwood"
+width_px = 140
+height   = 96
+origin   = 0
+stride   = 80
+depth    = 3
+# byte_edges = true     # edges on whole bytes (2-pixel steps, no half bytes: faster, coarser); default false
+
+[output]
+name       = "west140"
+dir        = "build/geom"
+load       = 0xE800
+pool_bytes = 26624
+zoom       = 4

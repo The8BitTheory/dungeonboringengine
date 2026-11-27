@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""VIEW im Simulator für alle freien Zellen und Richtungen einer Crawl-Karte ausführen.
+"""Run VIEW in the simulator for all free cells and directions of a crawl map.
 
-Aufruf: run_viewsim.py <crawl128.cd1> <walls.wsm>
-Baut viewsim.prg (cl65, Ziel sim6502) und misst mit sim65 -c:
-  Zyklen VIEW = Zyklen(mode 1) - Zyklen(mode 0); dazu Anzahl Wandeinträge und Länge der VCL-Liste.
+Usage: run_viewsim.py <crawl128.cd1> <walls.wsm>
+Builds viewsim.prg (cl65, target sim6502) and measures with sim65 -c:
+  cycles VIEW = cycles(mode 1) - cycles(mode 0); plus number of wall entries and length of the VCL list.
 """
 import os, re, statistics, subprocess, sys
 
@@ -23,7 +23,7 @@ subprocess.run(['cl65', '-t', 'sim6502', '-C', os.path.join(here, 'sim.cfg'), '-
                 os.path.join(root, 'engine', 'lib.s')], check=True, cwd=out)
 for o in (os.path.join(here, 'viewsim.o'), os.path.join(here, 'glue.o'), os.path.join(root, 'engine', 'lib.o')):
     if os.path.exists(o):
-        os.remove(o)   # cl65 legt die Objekte neben die Quellen
+        os.remove(o)   # cl65 puts the objects next to the sources
 
 
 def run(pos, d, mode):
@@ -43,7 +43,7 @@ for pos in range(W * H):
         err, nvis, ln = map(int, o.split())
         rows.append((pos, d, c1 - c0, nvis, ln, err))
 cyc = [r[2] for r in rows]; nv = [r[3] for r in rows]; ln = [r[4] for r in rows]
-print(f'{len(rows)} Ansichten ({len(rows)//4} Zellen x 4 Richtungen), Fehler: {sum(1 for r in rows if r[5])}')
-print(f'Zyklen VIEW:     min {min(cyc)}  Mittel {statistics.mean(cyc):.0f}  max {max(cyc)}')
-print(f'Wandeinträge:    min {min(nv)}  Mittel {statistics.mean(nv):.1f}  max {max(nv)}')
-print(f'VCL-Länge Byte:  min {min(ln)}  Mittel {statistics.mean(ln):.0f}  max {max(ln)}')
+print(f'{len(rows)} views ({len(rows)//4} cells x 4 directions), errors: {sum(1 for r in rows if r[5])}')
+print(f'VIEW cycles:     min {min(cyc)}  mean {statistics.mean(cyc):.0f}  max {max(cyc)}')
+print(f'wall entries:    min {min(nv)}  mean {statistics.mean(nv):.1f}  max {max(nv)}')
+print(f'VCL length bytes: min {min(ln)}  mean {statistics.mean(ln):.0f}  max {max(ln)}')

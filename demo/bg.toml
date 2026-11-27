@@ -1,0 +1,16 @@
+format  = "dbebg"
+version = 1
+
+# Wallpaper "landscape": panorama from mkbg.py (280 x 36 pixels, P = 140 bytes = 2 * VW), sky = above, abyss = below
+[background]
+name    = "land"
+geom    = "../build/demo/geom/west140.geom.json"
+png     = "../build/demo/art/land.png"
+y0      = 14
+offsets = "auto"
+wrap    = true
+above   = 3
+below   = 0
+out     = "../build/demo/tex"
+load    = 0xFB80
+vrl_load = 0x9000

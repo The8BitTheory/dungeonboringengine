@@ -1,0 +1,14 @@
+format  = "dbebg"
+version = 1
+
+[background]
+name    = "demo_sky"
+geom    = "west140.geom.json"
+png     = "sky.png"
+y0      = "horizon"
+offsets = "auto"
+wrap    = true
+above   = 3
+below   = 1
+out     = "build"
+load    = 0xFB80

@@ -1,0 +1,386 @@
+format  = "dbemap"
+version = 1
+
+[map]
+name    = "CRAWL128"
+start   = [18, 9]
+dir     = "N"
+outside = "k1"
+
+[tiles.k0]
+index   = 0
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k1]
+index   = 1
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k2]
+index   = 2
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k3]
+index   = 3
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k4]
+index   = 4
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k5]
+index   = 5
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k6]
+index   = 6
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k7]
+index   = 7
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k8]
+index   = 8
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k9]
+index   = 9
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k10]
+index   = 10
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k11]
+index   = 11
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k12]
+index   = 12
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k13]
+index   = 13
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k14]
+index   = 14
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k15]
+index   = 15
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k16]
+index   = 16
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k17]
+index   = 17
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k18]
+index   = 18
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k19]
+index   = 19
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k20]
+index   = 20
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k21]
+index   = 21
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k22]
+index   = 22
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k23]
+index   = 23
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k24]
+index   = 24
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k25]
+index   = 25
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k26]
+index   = 26
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k27]
+index   = 27
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k28]
+index   = 28
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k29]
+index   = 29
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k30]
+index   = 30
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k31]
+index   = 31
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k32]
+index   = 32
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k33]
+index   = 33
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k34]
+index   = 34
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k35]
+index   = 35
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k36]
+index   = 36
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k37]
+index   = 37
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k38]
+index   = 38
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k39]
+index   = 39
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k40]
+index   = 40
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[tiles.k41]
+index   = 41
+walls   = [1, 1, 1, 1]
+floor   = 0
+ceiling = 0
+flags   = ["solid", "blocksight", "occluding", "automap"]
+automap_char = 0
+
+[tiles.k42]
+index   = 42
+walls   = [0, 0, 0, 0]
+floor   = 0
+ceiling = 0
+flags   = []
+automap_char = 0
+
+[legend]
+"0" = "k0"
+"1" = "k1"
+"2" = { tile = "k2", item = 2 }
+"4" = { tile = "k4", item = 4 }
+"6" = "k6"
+"B" = "k18"
+"X" = "k40"
+
+[layers]
+tiles = """
+11111111111111111111
+122221222X2222122221
+12112121111112121121
+12122222B00022222141
+12121121111112112121
+12222221111112222221
+12121121111112112121
+14122222222222222121
+12112121111112121121
+12222122222222122261
+11111111111111111111
+"""
+
+[[events]]
+at    = [9, 1]
+type  = "exit"
+param = 0
+
+[[events]]
+at    = [8, 3]
+type  = "enemy"
+param = 1
