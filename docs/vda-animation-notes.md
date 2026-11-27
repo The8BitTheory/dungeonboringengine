@@ -1,11 +1,11 @@
-# Notes: animations and the VDC-BASIC command `VMA`
+# Notes: animations and the VDC-BASIC command `VDA`
 
 As of: 2026-11-27. Idea collection with measurements, **not yet planned or specified**. Next step: a spec, after the deferred VDC-BASIC optimisation. Keep in mind the render-order rule: sprites are drawn whole, nearer walls overdraw them; there is no clipping against cover, only against the viewport edge.
 
 ## 1. Starting point
 
 1. **A separate sprite format for animations (engine).** Animated sprites often have to be cut, for example a gate that opens. A format optimised for that, uncompressed or pre-cut, avoids the expensive `clipvms_e` path of the VMS edge lists.
-2. **New VDC-BASIC command `VMA`** (A = animation), based on sprites with transparency. Two first variants:
+2. **New VDC-BASIC command `VDA`** (A = animation), based on sprites with transparency. Two first variants:
    - **Image that moves or is cut step by step**, for example a gate sinking into the floor. Each step shows a smaller part of the gate at a lower position.
    - **Static image with animated parts** (Bard's Tale / Wasteland style), for example a warrior portrait with animated eyes, hands and a sparkle on the sword. The base image is compressed. Small regions are overwritten and restored, and sequences may be random.
 
@@ -60,7 +60,7 @@ Consequence: an **uncompressed format that can be cut by rows and by columns** i
 
 - **Sinking gate:** engine object with a phase and a VMS row-offset table (truncate to the first n rows; also speeds up edge clipping).
 - **Portrait:** opaque byte-aligned rectangles including the background cut per frame, no transparency. Restore = copy the base rectangle. The converter finds the regions by diffing the Aseprite frames.
-- **`VMA`:** a jiffy-timed sequencer of tracks. Each step is a small VCL list plus a duration; the next step is fixed or weighted random (LFSR). Called from the game's wait loop, never from the IRQ (single VDC register port).
+- **`VDA`:** a jiffy-timed sequencer of tracks. Each step is a small VCL list plus a duration; the next step is fixed or weighted random (LFSR). Called from the game's wait loop, never from the IRQ (single VDC register port).
 - **Redraw only the covered part** (user requirement: a gate animation must not redraw the whole dungeon view):
   1. Once, snapshot the gate rectangle without the gate (opaque VMC into spare VRAM).
   2. Per step, restore the snapshot and draw the gate rows (row table).
@@ -143,4 +143,4 @@ Consequences:
 
 ## 7. Name of the command
 
-`VMA` is already taken in VDC-BASIC (AND on a VRAM byte, together with `VMO`). The animation command needs another name.
+The command is called **`VDA`** (decided 2026-11-27). `VMA`, the first idea, is already taken in VDC-BASIC (AND on a VRAM byte, together with `VMO`).
