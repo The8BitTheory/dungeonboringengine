@@ -769,6 +769,9 @@ async function main() {
   return bad ? 1 : 0;
 }
 
+// Used by test/vice_zp.js (--funcs) and test/vice_vclprof.js.
+export { basicListing, makeDisk };
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().then((rc) => { process.exitCode = rc; }, (e) => { console.error(e); process.exitCode = 1; });
 }
