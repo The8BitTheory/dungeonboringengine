@@ -1,0 +1,13 @@
+format  = "dbetex"
+version = 1
+
+[texset]
+name = "demo_ceil"
+kind = "ceiling"
+geom = "west140.geom.json"
+out  = "build"
+load = 0xF600
+
+[[style]]
+name = "wood"
+png  = "wood_atlas.png"

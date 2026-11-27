@@ -1,0 +1,146 @@
+{
+ "name": "gem",
+ "geometry_id": 47585,
+ "d": 3,
+ "na": 1,
+ "np": 2,
+ "ni": 6,
+ "nk": 6,
+ "nt": 0,
+ "s2_bytes": 426,
+ "vram": 125,
+ "vrl_bytes": 123,
+ "vrl_ratio": 0.984,
+ "max_vms": 62,
+ "max_vcl_vms": 80,
+ "buffer": 2304,
+ "rows": [
+  {
+   "phase": 0,
+   "angle": 0,
+   "depth": 1,
+   "value": 0,
+   "source": "own",
+   "entry": 0,
+   "w": 7,
+   "h": 10,
+   "foot": [
+    3,
+    9
+   ],
+   "cores": 1,
+   "core_bytes": 18,
+   "edge": 16,
+   "vms": 59,
+   "vcl": 18
+  },
+  {
+   "phase": 0,
+   "angle": 0,
+   "depth": 2,
+   "value": 1,
+   "source": "own",
+   "entry": 1,
+   "w": 5,
+   "h": 7,
+   "foot": [
+    2,
+    6
+   ],
+   "cores": 1,
+   "core_bytes": 9,
+   "edge": 10,
+   "vms": 37,
+   "vcl": 18
+  },
+  {
+   "phase": 0,
+   "angle": 0,
+   "depth": 3,
+   "value": 2,
+   "source": "own",
+   "entry": 2,
+   "w": 3,
+   "h": 5,
+   "foot": [
+    1,
+    4
+   ],
+   "cores": 1,
+   "core_bytes": 3,
+   "edge": 6,
+   "vms": 22,
+   "vcl": 18
+  },
+  {
+   "phase": 1,
+   "angle": 0,
+   "depth": 1,
+   "value": 3,
+   "source": "own",
+   "entry": 3,
+   "w": 7,
+   "h": 10,
+   "foot": [
+    3,
+    9
+   ],
+   "cores": 1,
+   "core_bytes": 18,
+   "edge": 17,
+   "vms": 62,
+   "vcl": 18
+  },
+  {
+   "phase": 1,
+   "angle": 0,
+   "depth": 2,
+   "value": 4,
+   "source": "own",
+   "entry": 4,
+   "w": 5,
+   "h": 7,
+   "foot": [
+    2,
+    6
+   ],
+   "cores": 1,
+   "core_bytes": 9,
+   "edge": 10,
+   "vms": 34,
+   "vcl": 18
+  },
+  {
+   "phase": 1,
+   "angle": 0,
+   "depth": 3,
+   "value": 5,
+   "source": "own",
+   "entry": 5,
+   "w": 3,
+   "h": 5,
+   "foot": [
+    1,
+    4
+   ],
+   "cores": 1,
+   "core_bytes": 3,
+   "edge": 6,
+   "vms": 22,
+   "vcl": 18
+  }
+ ],
+ "tags": [],
+ "tag_basic": "",
+ "warnings": [],
+ "infos": [
+  "image 0 (f0, ai0, d1): foot point rounded to byte boundary",
+  "image 1 (f0, ai0, d2): foot point automatic",
+  "image 1 (f0, ai0, d2): foot point rounded to byte boundary",
+  "image 2 (f0, ai0, d3): foot point rounded to byte boundary",
+  "image 3 (f1, ai0, d1): foot point rounded to byte boundary",
+  "image 4 (f1, ai0, d2): foot point automatic",
+  "image 4 (f1, ai0, d2): foot point rounded to byte boundary",
+  "image 5 (f1, ai0, d3): foot point rounded to byte boundary"
+ ]
+}

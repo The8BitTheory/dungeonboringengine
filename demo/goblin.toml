@@ -1,0 +1,49 @@
+format  = "dbespr"
+version = 1
+
+# Goblin from goblin1.bmp (Crawl graphics, 10 images 32 x 32, only 3 distinct): phases 0, 2, 4, 6 -> 4 phases,
+# scaled 2x (art/goblin.png is created in build.py, image per phase 64 x 64), depths 2 and 3 via derive from depth 1.
+[sprite]
+name      = "goblin"
+geom      = "../build/demo/geom/west140.geom.json"
+dvg       = "../build/demo/geom/west140.dvg"
+out       = "../build/demo/spr"
+load      = 0x6000
+vrl_load  = 0x9000
+angles    = 1
+phases    = 4
+max_cores = 4
+core_min  = 16
+key       = "5555FF"
+derive    = "nearest"
+
+[source]
+png = "../build/demo/art/goblin.png"
+
+[[image]]
+box   = [16, 28, 28, 36]
+foot  = [14, 35]
+phase = 0
+angle = 0
+depth = 1
+
+[[image]]
+box   = [80, 28, 28, 36]
+foot  = [14, 35]
+phase = 1
+angle = 0
+depth = 1
+
+[[image]]
+box   = [144, 28, 28, 36]
+foot  = [14, 35]
+phase = 2
+angle = 0
+depth = 1
+
+[[image]]
+box   = [208, 28, 28, 36]
+foot  = [14, 35]
+phase = 3
+angle = 0
+depth = 1

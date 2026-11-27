@@ -1,0 +1,54 @@
+format  = "dbespr"
+version = 1
+
+[sprite]
+name      = "gem"
+geom      = "../tex/west140.geom.json"
+out       = "build"
+angles    = 1
+phases    = 2
+max_cores = 2
+core_min  = 8
+
+[source]
+png = "gem.png"
+
+[[image]]
+box   = [1, 1, 12, 10]
+foot  = [6, 9]
+phase = 0
+angle = 0
+depth = 1
+
+[[image]]
+box   = [15, 1, 8, 7]
+phase = 0
+angle = 0
+depth = 2
+
+[[image]]
+box   = [25, 1, 5, 5]
+foot  = [2, 4]
+phase = 0
+angle = 0
+depth = 3
+
+[[image]]
+box   = [31, 1, 12, 10]
+foot  = [6, 9]
+phase = 1
+angle = 0
+depth = 1
+
+[[image]]
+box   = [45, 1, 8, 7]
+phase = 1
+angle = 0
+depth = 2
+
+[[image]]
+box   = [55, 1, 5, 5]
+foot  = [2, 4]
+phase = 1
+angle = 0
+depth = 3

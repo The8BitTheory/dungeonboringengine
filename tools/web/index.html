@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBE Tools</title>
+<link rel="stylesheet" href="app.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<header class="bar">
+  <strong class="brand">DBE Tools</strong>
+  <button id="open" class="btn">Open project folder</button>
+  <button id="reopen" class="btn" hidden></button>
+  <span id="project" class="muted"></span>
+  <nav id="tabs" class="tabs" role="tablist">
+    <button role="tab" data-tab="map" aria-selected="true">Map</button>
+    <button role="tab" data-tab="geom">Geometry</button>
+    <button role="tab" data-tab="tex">Textures</button>
+    <button role="tab" data-tab="spr">Sprites</button>
+    <button role="tab" data-tab="bake">Bake/Pack</button>
+  </nav>
+  <span id="status" class="status" role="status"></span>
+</header>
+<main class="layout">
+  <aside class="files">
+    <h2>Project files</h2>
+    <p id="nofiles" class="muted">Open the folder that holds the project TOML files and the built assets
+      (e.g. the dungeonboringengine repository).</p>
+    <ul id="filelist"></ul>
+  </aside>
+  <section id="view-map" class="panel"></section>
+  <section id="view-geom" class="panel" hidden></section>
+  <section id="view-tex" class="panel" hidden></section>
+  <section id="view-spr" class="panel" hidden></section>
+  <section id="view-bake" class="panel" hidden></section>
+</main>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Example animation (tools/js/core/bake.js): the grating in front of the chamber "opens" into the archway
+# (wall styles 2 -> 4), baked with background and occluders from every viewpoint that sees it.
+# The demo's VRAM pool is nearly full, so the pack check reports the overflow: a real gate needs its own budget
+# (frame styles painted only in the slots it is seen from, depths limited, see the vda notes).
+format  = "dbebake"
+version = 1
+
+[bake]
+name  = "gate"
+scene = "preview.toml"
+out   = "../build/demo/bake"
+
+[pack]
+pool = [9600, 46335]
+
+[[anim]]
+name   = "gate"
+at     = [17, 6]
+face   = "S"
+frames = [2, 4]
+depths = [1, 2]

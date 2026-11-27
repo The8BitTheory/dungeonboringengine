@@ -1,0 +1,182 @@
+{
+ "name": "goblin",
+ "geometry_id": 47585,
+ "d": 3,
+ "na": 1,
+ "np": 4,
+ "ni": 5,
+ "nk": 13,
+ "nt": 0,
+ "s2_bytes": 1230,
+ "vram": 1069,
+ "vrl_bytes": 787,
+ "vrl_ratio": 0.7362020579981291,
+ "max_vms": 259,
+ "max_vcl_vms": 299,
+ "buffer": 2304,
+ "rows": [
+  {
+   "phase": 0,
+   "angle": 0,
+   "depth": 1,
+   "value": 0,
+   "source": "own",
+   "entry": 0,
+   "w": 14,
+   "h": 36,
+   "foot": [
+    7,
+    35
+   ],
+   "cores": 4,
+   "core_bytes": 224,
+   "edge": 66,
+   "vms": 203,
+   "vcl": 51
+  },
+  {
+   "phase": 0,
+   "angle": 0,
+   "depth": 2,
+   "value": 1,
+   "source": "derived from v0_d1",
+   "entry": 1,
+   "w": 9,
+   "h": 23,
+   "foot": [
+    4,
+    22
+   ],
+   "cores": 1,
+   "core_bytes": 72,
+   "edge": 74,
+   "vms": 222,
+   "vcl": 18
+  },
+  {
+   "phase": 0,
+   "angle": 0,
+   "depth": 3,
+   "value": 2,
+   "source": "derived from v0_d1",
+   "entry": 2,
+   "w": 6,
+   "h": 14,
+   "foot": [
+    2,
+    13
+   ],
+   "cores": 1,
+   "core_bytes": 22,
+   "edge": 33,
+   "vms": 107,
+   "vcl": 18
+  },
+  {
+   "phase": 1,
+   "angle": 0,
+   "depth": 1,
+   "value": 3,
+   "source": "own",
+   "entry": 3,
+   "w": 14,
+   "h": 36,
+   "foot": [
+    7,
+    35
+   ],
+   "cores": 4,
+   "core_bytes": 224,
+   "edge": 66,
+   "vms": 203,
+   "vcl": 51
+  },
+  {
+   "phase": 1,
+   "angle": 0,
+   "depth": 2,
+   "value": 255,
+   "source": "$FF"
+  },
+  {
+   "phase": 1,
+   "angle": 0,
+   "depth": 3,
+   "value": 255,
+   "source": "$FF"
+  },
+  {
+   "phase": 2,
+   "angle": 0,
+   "depth": 1,
+   "value": 0,
+   "source": "shared with image 0",
+   "entry": 0,
+   "w": 14,
+   "h": 36,
+   "foot": [
+    7,
+    35
+   ],
+   "cores": 4,
+   "core_bytes": 224,
+   "edge": 66,
+   "vms": 203,
+   "vcl": 51
+  },
+  {
+   "phase": 2,
+   "angle": 0,
+   "depth": 2,
+   "value": 255,
+   "source": "$FF"
+  },
+  {
+   "phase": 2,
+   "angle": 0,
+   "depth": 3,
+   "value": 255,
+   "source": "$FF"
+  },
+  {
+   "phase": 3,
+   "angle": 0,
+   "depth": 1,
+   "value": 4,
+   "source": "own",
+   "entry": 4,
+   "w": 14,
+   "h": 36,
+   "foot": [
+    7,
+    35
+   ],
+   "cores": 3,
+   "core_bytes": 202,
+   "edge": 86,
+   "vms": 259,
+   "vcl": 40
+  },
+  {
+   "phase": 3,
+   "angle": 0,
+   "depth": 2,
+   "value": 255,
+   "source": "$FF"
+  },
+  {
+   "phase": 3,
+   "angle": 0,
+   "depth": 3,
+   "value": 255,
+   "source": "$FF"
+  }
+ ],
+ "tags": [],
+ "tag_basic": "",
+ "warnings": [
+  "v0_d2#0: depth 2 derived from depth 1",
+  "v0_d3#0: depth 3 derived from depth 1"
+ ],
+ "infos": []
+}
