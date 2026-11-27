@@ -180,3 +180,16 @@ From the scene: DVG, DMP (built from the map), DTS, DBG, S2 (load addresses from
 - Python stays only for scripts that do not use the tools: `test/vice_smoke.py`, `vice_blitzvars.py`, `vice_drive.py`, `patch_crawl.py`, and the VDC-BASIC helpers they call (`bastok.py`, `blitzprep.py`, `vicemon.py` in vdc-basic).
 - `run_viewsim` (VIEW cycles over all free cells of the Crawl map with the 0.1 wall set WSM) was already broken in Python (command-line protocol of viewsim.prg from before the scene files) and is deleted: `run_crawl.js` measures VIEW in sim65 for all Crawl views on 0.2 assets (cycles JSON), `run_sim.js` covers the functions.
 - Known: `demo/build.py --budget` was broken in Python (`dbeview.T_WEG`); `build.js --budget` works.
+
+## 10. Open points (as of 2026-11-27, after the merge into main)
+
+| Point | Where it stands |
+|---|---|
+| Demo finding of the bake check | wall styles window (3) and arch (4) have no side images; seen at an angle they show brick (11 faces). Decide: paint side images, or accept. |
+| `[[style]]` / `[[image]]` tables in the editors | edited in the TOML for now (forms only for `[texset]` / `[sprite]`); map saving drops comments of the source |
+| Wall set fallback | always to style 1 (index 0); proposal: one "base style" byte per style (DTS change), vda notes 8.1 |
+| DAP format, `VDA` runtime | DAP v0 is a draft; the runtime and its spec do not exist yet (vda notes) |
+| Game repo `test/vice_crawl.py` | gets the crawl01 model through `tools/js/cli/crawl01-model.js`; checked with saved runs (`--reuse`: 73 prompts, 0 differ), not yet with a fresh VICE run |
+| Branches | `js-tools` (local and on GitHub) and `dbe-js-tools` (game repo, local) are merged but not deleted |
+| Game repo remote | GitHub reports that dungeoncrawlerjam2025 moved to `https://github.com/The8BitTheory/dungeoncrawlerjam2025.git` (pushes still work) |
+| GitHub Pages | `tools/web/publish.sh` publishes by hand after changes (https://the8bittheory.github.io/dungeonboringengine/) |

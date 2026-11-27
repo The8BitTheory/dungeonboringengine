@@ -182,3 +182,10 @@ The map must know animation instances and triggers; the DMP event table has free
 Order: first only steps 1 and 2 (visibility check): small, immediately useful for altar and exit, and it builds the enumeration that baking needs. Then baking and packing together with the `VDA` spec.
 
 **Status 2026-11-27:** steps 1–4 exist in JS as `dbebake` (`tools/js/core/bake.js`, editor tab Bake/Pack, spec `docs/specs/P8-js-tools.md` section 8): visibility from the engine's own VIEW, baked opaque patches per viewpoint (animation frames = wall styles), DAP v0 as a draft output, zone layout with load time. The `VDA` runtime and the final DAP format are still open.
+
+## 9. Open decisions (as of 2026-11-27)
+
+1. Spec of the `VDA` runtime (sequencer, tracks, jiffy timing from the game's wait loop) and the final format of the baked animations (DAP v0 is a draft, `docs/specs/P8-js-tools.md` 8.3).
+2. Section 5: bake per instance or per style (measure on a sample map first); R2 (layer compose with a monster behind the gate) now or later; an animation triggered while not in view (phase in the map state, every VIEW draws the current phase).
+3. Section 8.1: fallback to a per-style base style instead of always style 1.
+4. Demo: styles window and arch without side images (the bake check reports it); paint or accept.
