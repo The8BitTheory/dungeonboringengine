@@ -144,3 +144,39 @@ Consequences:
 ## 7. Name of the command
 
 The command is called **`VDA`** (decided 2026-11-27). `VMA`, the first idea, is already taken in VDC-BASIC (AND on a VRAM byte, together with `VMO`).
+
+## 8. Toolchain: wall set flexibility and level context
+
+### 8.1 What a wall set can do today
+
+(`docs/specs/P5-textures.md`, `P4-map.md`)
+
+- A wall set (DTS) has up to 32 styles; each style has its own image per slot (Westwood: 11 fronts, 14 sides over distances 0–3).
+- A style does not have to paint all slots. A missing image is `$FF` (fallback to style 0, set automatically by the import) or `$FE` (draw nothing, `empty = [...]`).
+- Every tile has four wall faces with a style each, so a special element is a tile of its own whose face has its own style.
+- Identical images of different styles in the same slot are merged and use VRAM once.
+
+Example: a special wall element (altar, exit) that the level design shows only from the front and at two distances is a style that paints only `front_d1_s+0` and `front_d2_s+0`; everything else falls back to style 0 or is `$FE`. VRAM is needed only for the two images.
+
+Gaps:
+1. **No tool checks that the level design keeps to this.** If the element is visible at an angle or at distance 3 after all, the normal wall appears silently. `dbetex check` only checks that the style numbers exist.
+2. **The fallback is always style 0.** An altar in a stone wall of a wall set with brick as style 0 shows brick from the side. Remedy: one byte "base style" per style instead of the fixed 0 (small DTS format change).
+
+### 8.2 Tools must work together
+
+Today the tools run side by side (`dbegeom` → `dbetex` / `dbespr` / `dbemap`), coupled only by style numbers and the geometry ID. Pre-baking (section 5) needs the level context: which tile stands where, what lies behind a transparent part, what covers it. Proposal: an additional stage between map and packaging.
+
+```
+dbegeom ─┬─ dbetex ─┐
+         ├─ dbespr ─┼─ dbebake ── dbepack (per zone)
+         └─ dbemap ─┘
+```
+
+1. **Enumerate visibility:** for every special or animated element (altar, exit, gate, torch), all combinations (player cell, facing) from which it is visible, with the slot. The logic (view grid, occlusion) already exists in the reference renderer `dbeview.py`.
+2. **Check:** visible in a slot for which its style has no image → warning or error with cell and facing. Covers the altar case and needs no pre-baking.
+3. **Bake:** for animations, render background and occluders per visible or trigger slot with `dbeview` and make opaque patches (wide rectangles; delta rectangles for portrait and torch). Output: an animation file (frames as VRL plus the `VDA` sequence table) and a binding table per map (cell, facing, slot → animation instance).
+4. **Pack per zone (`dbepack`):** collect DTS, S2 and bake output, assign VRAM pool addresses, check the budget, make the `RXV` load list for entering the zone (load time predictable from the measurements, about 27 µs per byte, section 6).
+
+The map must know animation instances and triggers; the DMP event table has free types for this (5–127 engine, 128–255 game).
+
+Order: first only steps 1 and 2 (visibility check): small, immediately useful for altar and exit, and it builds the enumeration that baking needs. Then baking and packing together with the `VDA` spec.
