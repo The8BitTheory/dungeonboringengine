@@ -148,7 +148,11 @@ class FileListProject extends Project {
 /** Read-only project served over HTTP (e.g. python3 -m http.server from the repo root): ?http=/ in the app URL.
  *  Listing parses the server's directory pages; writes become downloads. Used for headless smoke tests too. */
 export class HttpProject extends Project {
-  constructor(base) { super(`${location.host}${base}`, false); this.base = base.endsWith('/') ? base : `${base}/`; }
+  constructor(base) {
+    const u = new URL(base, location.href);
+    super(`${u.host}${u.pathname}`, false);
+    this.base = base.endsWith('/') ? base : `${base}/`;
+  }
 
   async read(path) {
     const r = await fetch(this.base + normPath(path));
