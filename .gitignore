@@ -1,3 +1,5 @@
 build/
 __pycache__/
 *.o
+# test fixtures that mirror build/ paths (P8 goldens) belong in the repository
+!/tools/js/test/golden/tex/build/
