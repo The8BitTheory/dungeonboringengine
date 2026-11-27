@@ -74,7 +74,7 @@ def experiment(label, text, compiled, port, tmo):
         vs.tok(prep, src)
         cdir = os.path.join(d, 'blitz')
         shutil.rmtree(cdir, ignore_errors=True)
-        subprocess.run([vm.find_node(), vm.find_blitzc(), src, cdir, '--name', 'T'], capture_output=True, text=True)
+        subprocess.run([vm.find_node(), vm.find_blitzc(), src, cdir, '--name', 'T', '--runtime', os.environ.get('BLITZ_RUNTIME', 'improved')], capture_output=True, text=True)
         prg = os.path.join(cdir, 'c.prg')
     else:
         prg = os.path.join(d, 'p.prg')

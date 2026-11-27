@@ -108,7 +108,7 @@ def main():
             tok(prep, src)
             cdir = os.path.join(OUT, 'smoke-blitz')
             shutil.rmtree(cdir, ignore_errors=True)
-            c = subprocess.run([node, blitzc, src, cdir, '--name', 'T'], capture_output=True, text=True)
+            c = subprocess.run([node, blitzc, src, cdir, '--name', 'T', '--runtime', os.environ.get('BLITZ_RUNTIME', 'improved')], capture_output=True, text=True)
             cprg = os.path.join(cdir, 'c.prg')
             if c.returncode or not os.path.exists(cprg):
                 print(f'compiled: compiler rc {c.returncode}: {c.stdout.strip()}')
