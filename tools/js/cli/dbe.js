@@ -16,6 +16,7 @@ import { geomCli } from './geom.js';
 import { texCli } from './tex.js';
 import { sprCli } from './spr.js';
 import { bakeCli } from './bake.js';
+import { crawlconvCli, crawlmapCli, crawl01Cli, wallconvCli, crawlspritesCli } from './crawl.js';
 
 class Usage extends Error {}
 
@@ -101,7 +102,8 @@ function cmdVrl(argv, io) {
   }
 }
 
-const TOOLS = { vrl: cmdVrl, map: mapCli, view: viewCli, geom: geomCli, tex: texCli, spr: sprCli, bake: bakeCli };
+const TOOLS = { vrl: cmdVrl, map: mapCli, view: viewCli, geom: geomCli, tex: texCli, spr: sprCli, bake: bakeCli,
+  crawlconv: crawlconvCli, crawlmap: crawlmapCli, crawl01: crawl01Cli, wallconv: wallconvCli, crawlsprites: crawlspritesCli };
 
 /** Run the CLI in-process: returns the exit code; io.out/io.err receive lines (default console). */
 export function main(argv, io = { out: (s) => console.log(s), err: (s) => console.error(s) }) {
