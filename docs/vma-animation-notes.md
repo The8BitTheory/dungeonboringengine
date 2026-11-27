@@ -1,6 +1,6 @@
 # Notes: animations and the VDC-BASIC command `VMA`
 
-As of: 2026-11-27. Idea collection, **not yet planned or specified**. Next step: a spec, after the deferred VDC-BASIC optimisation. Keep in mind the render-order rule: sprites are drawn whole, nearer walls overdraw them; there is no clipping against cover, only against the viewport edge.
+As of: 2026-11-27. Idea collection with measurements, **not yet planned or specified**. Next step: a spec, after the deferred VDC-BASIC optimisation. Keep in mind the render-order rule: sprites are drawn whole, nearer walls overdraw them; there is no clipping against cover, only against the viewport edge.
 
 ## 1. Starting point
 
@@ -68,3 +68,79 @@ Consequence: an **uncompressed format that can be cut by rows and by columns** i
   4. Optional against flicker: off-screen compose plus one opaque copy.
 
   The snapshot becomes invalid when the player moves (full `VIEW` anyway) or when something behind the gate moves.
+
+## 5. Editor and runtime: what can be pre-baked
+
+The solution for this complexity is the combination of editor and runtime. Almost everything that is expensive at runtime depends on knowledge the editor already has: the viewport geometry (fixed during the game), the map with its static walls, the wall styles, the trigger positions. Unknown at runtime are only the **dynamic objects** (monsters, items, other animations) and the **player's position**, i.e. the slot the animation is seen from.
+
+| # | Optimisation | What the editor does | Condition |
+|---|---|---|---|
+| 1 | Resolve transparency | Bake the covered background into every step: opaque patches | Static background: portrait always; in the scene per instance + slot from the map, or per wall style + slot (torch on its own wall texture) |
+| 2 | Bake occluders | Include door frame and nearer walls in the steps, or trim the patches to the visible area, so no VCL entries have to be re-run | Nearer geometry static, i.e. known per instance + slot |
+| 3 | No snapshot | The restore source is baked: no VRAM per instance, no invalidation | follows from 1 |
+| 4 | Cut and offset | Every step as a ready rectangle, or one uncompressed image + offset table; at runtime only a copy with stride, no `clipvms_e` | – |
+| 5 | Delta rectangles | Diff the frames, store only the changed byte-aligned rectangles per transition | Pays off for portrait and torch; with moving gates almost everything changes |
+| 6 | Random sequences | Patches per allowed edge of the transition graph, or per frame relative to the base image; at runtime the LFSR only picks the edge | Small graph (portrait) |
+| 7 | Variants | Mirrored versions, distances, side positions pre-made | already decided |
+| 8 | Addresses | Absolute screen addresses and byte alignment per slot | Viewport fixed during the game |
+| 9 | Placement and format | Per patch: uncompressed in VRAM (block copy) or VRL in RAM, check the VRAM budget | Cost model in the editor (section 6) |
+| 10 | Budget per step | Estimate the cost of each step, split large steps | – |
+| 11 | Trigger slots | Determine from the map from which slots the trigger moment is visible (gate with lever next to it: distance 1, centre) and bake only those; in all other slots the end state appears directly | Trigger position known in the map |
+
+Item 11 is the big lever against the combinatorics frames × slots × instances.
+
+### Runtime cases that remain
+
+| Case | Runtime does | Transparency at runtime | Covers |
+|---|---|---|---|
+| **R1 patch playback** | Copy opaque rectangles, jiffy sequencer (fixed or random); optionally clip at one rectangle (viewport edge, a nearer wall the map has there): with opaque uncompressed data only a narrower copy | none | portrait, torch, all gates in the trigger slot without anything dynamic behind |
+| **R2 layer compose** | In the rectangle: baked background layer, dynamic sprites behind, gate step, baked front layer (if possible opaque rectangles, only non-rectangular edges transparent) | sprites behind, grille gate, front layer edges | gate/grille with a monster behind ("gate opens, someone stands behind it") |
+| **R3 full VIEW** | The animation is a dynamic object with phase/distance frame in the normal scene | normal | projectiles (few steps per flight), animations in slots without bake (gate triggered from afar) |
+
+| Example | Normal case | Special case |
+|---|---|---|
+| Portrait | R1 | – |
+| Torch | R1 | monster overlaps it: animation pauses until the next VIEW (cheaper than R2, visually acceptable) |
+| Gate (opaque), sinking | R1 | dynamic object behind: R2; slot not baked: end state or R3 |
+| Grille gate | R1 | as above, R2 with transparent gate layer |
+| Two-wing gate | R1 | as above |
+| Projectile | R3 | – |
+
+Class A (opaque patches) becomes the normal case for almost everything. Transparency at runtime remains only in R2. Class C needs no path of its own (R3), because the engine draws dynamic objects at the correct depth anyway (plan-0.2). The only new runtime path besides the sequencer is R2.
+
+Open decisions:
+1. Bake per instance (exact, occluders included, more storage) or per style (less storage, needs the rectangle clip of R1). Measure on a sample map first.
+2. R2 now or later. For a start: monster behind the gate → R3 or end state; R2 only once the moment really has to be visible.
+3. Gate triggered from afar while the player turns: the phase runs on in the map state, every VIEW draws the current phase (R3).
+
+## 6. Measurements on real hardware
+
+Benchmark: `vdc-basic/test/bench/anim/` (branch `anim-bench`), result `results/c128-20261127.md` (C128, 64 KB VDC, chunky mode as Crawl, 2 MHz, R36 = 0, VIC blanked; mean over 12 positions in the frame; all 50 cases verified by checksum). Z64K is on average 13 % faster than the hardware (0–34 %), VICE further off; the picture is the same.
+
+One frame (PAL) = 20 ms.
+
+| Case | VRAM → VRAM (`VMC`/`VMS`) | CPU from RAM | `RXV` from RAM (T = 2) |
+|---|---|---|---|
+| Portrait, 3 parts (58 bytes) | 3.4 ms | 5.2 ms | 5.9 ms |
+| Torch (48 bytes) | 2.6 ms | 4.5 ms | 5.3 ms |
+| Gate distance 2 (20 × 42 = 840 bytes) | 9.1 ms | 34 ms | 32 ms |
+| Gate distance 1 (30 × 64 = 1920 bytes) | **12 ms** | 78 ms | 69 ms |
+| Two-wing gate as 3 columns of 10 bytes | 40 ms | 92 ms | – |
+| Viewport 70 × 96 | 36 ms | – | 210 ms |
+| Grille gate, transparency at runtime (688 bytes, ~520 runs) | 92 ms (`VMS`) | 83 ms | 83 ms |
+| Goblin, transparent (534 bytes) | 11.5 ms (`VMS`) | 29 ms | 30 ms |
+| R2: background + goblin + gate rows | 32 ms | – | – |
+| R2 with grille gate | 83 ms | – | – |
+
+Preload RAM → VRAM: `RXV` 27 µs/byte (gate content), 17 µs/byte (dark corridor), 28 µs/byte (brick wall, 9600 bytes in 0.27 s); `RTV` 48 µs/byte; own CPU loop 38 µs/byte. Fixed costs: VCL entry 111 µs, `VMC` with one byte 0.5 ms.
+
+Consequences:
+1. **Animation assets belong in VRAM.** A gate step from VRAM fits in one frame, from RAM it takes 3.5–4 frames. For portrait and torch the difference is small; RAM is acceptable there if VRAM is short.
+2. **`RXV` is the loading tool**, not the step tool: about 1.75 × as fast as `RTV` and it saves RAM (gate frame 1214 instead of 1920 bytes). Eight baked gate steps (15 KB) load in about 0.42 s when entering a zone.
+3. **Rows cost more than bytes** (about 150–200 µs per row of a block copy). Bake the two-wing gate as one full-width rectangle per step (12 ms), not as three columns (40 ms). Baked frames should be wide, not split into narrow strips.
+4. **Transparency with many runs is not affordable at runtime** (grille: 83–92 ms by any method, baked 12 ms). Few runs (goblin) are acceptable with `VMS`. This confirms pre-baking (section 5, item 1).
+5. `RXV` threshold T: with T = 2 `RXV` is equal or up to 10 % faster than with the old default 14; the default in VDC-BASIC v3 is now 2.
+
+## 7. Name of the command
+
+`VMA` is already taken in VDC-BASIC (AND on a VRAM byte, together with `VMO`). The animation command needs another name.
